@@ -28,6 +28,8 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "mumble_pch.hpp"
+
 #include "Overlay.h"
 #include "MainWindow.h"
 #include "ServerHandler.h"
@@ -86,7 +88,6 @@ void QAppMumble::commitData(QSessionManager &) {
 }
 
 bool QAppMumble::event(QEvent *e) {
-#if QT_VERSION >= 0x040600
 	if (e->type() == QEvent::FileOpen) {
 		QFileOpenEvent *foe = static_cast<QFileOpenEvent *>(e);
 		if (! g.mw) {
@@ -96,7 +97,6 @@ bool QAppMumble::event(QEvent *e) {
 		}
 		return true;
 	}
-#endif
 	return QApplication::event(e);
 }
 
@@ -426,8 +426,9 @@ int main(int argc, char **argv) {
 #ifdef QT_NO_DEBUG
 #ifndef SNAPSHOT_BUILD
 	if (g.s.bUpdateCheck)
+#endif
 		new VersionCheck(true, g.mw);
-#else
+#ifdef SNAPSHOT_BUILD
 	new VersionCheck(false, g.mw, true);
 #endif
 #else

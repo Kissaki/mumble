@@ -5,7 +5,7 @@ CONFIG -= qt
 CONFIG *= dll shared debug_and_release warn_on
 CONFIG -= embed_manifest_dll
 TARGET = mumble_ol
-SOURCES = lib.cpp d3d9.cpp d3d10.cpp d3d11.cpp ods.cpp opengl.cpp HardHook.cpp
+SOURCES = lib.cpp d3d9.cpp d3d10.cpp d3d11.cpp ods.cpp opengl.cpp HardHook.cpp D11StateBlock.cpp
 HEADERS = lib.h ods.h HardHook.h overlay_blacklist.h
 EFFECTS = overlay.fx
 DIST = overlay.h overlay.fx HardHook.h
@@ -18,9 +18,15 @@ QMAKE_CXXFLAGS_DEBUG	-= -MDd
 QMAKE_CXXFLAGS_RELEASE	*= -MT
 QMAKE_CXXFLAGS_DEBUG	*= -MTd
 
-INCLUDEPATH *= "$$(DXSDK_DIR)Include"
+INCLUDEPATH *= "$$(DXSDK_DIR)Include" "$$(DXSDK_DIR)Samples/C++"
+INCLUDEPATH *= "$$(DXSDK_DIR)Samples/C++/Effects11"
+INCLUDEPATH *= "$$(DXSDK_DIR)Samples/C++/Effects11/Binary"
+INCLUDEPATH *= "$$(DXSDK_DIR)Samples/C++/Effects11/Inc"
 
 LIBS *= -l"$$(DXSDK_DIR)Lib/x86/dxguid" -luuid -lole32 -luser32 -ladvapi32
+LIBS *= -l"$$(DXSDK_DIR)Lib/x86/d3dcompiler"
+
+SOURCES *= "$$(DXSDK_DIR)Samples/C++/Effects11"/EffectAPI.cpp "$$(DXSDK_DIR)Samples/C++/Effects11"/EffectLoad.cpp "$$(DXSDK_DIR)Samples/C++/Effects11"/EffectNonRuntime.cpp "$$(DXSDK_DIR)Samples/C++/Effects11"/EffectReflection.cpp "$$(DXSDK_DIR)Samples/C++/Effects11"/EffectRuntime.cpp "$$(DXSDK_DIR)Samples/C++/Effects11"/d3dx11dbg.cpp "$$(DXSDK_DIR)Samples/C++/Effects11"/d3dxGlobal.cpp
 
 CONFIG(release, debug|release) {
   DESTDIR       = ../release
@@ -29,18 +35,6 @@ CONFIG(release, debug|release) {
 CONFIG(debug, debug|release) {
   DESTDIR       = ../release
   DEFINES	*= DEBUG
-}
-
-CONFIG(release, debug|release) {
-  #QMAKE_LIBDIR *= $$(DXSDK_DIR)/Samples/C++/Effects11/Release
-  QMAKE_LIBDIR *= Effects11/Release
-  LIBS *= -lEffects11 -l"$$(DXSDK_DIR)Lib/x86/d3dcompiler"
-}
-
-CONFIG(debug, debug|release) {
-  #QMAKE_LIBDIR *= $$(DXSDK_DIR)/Samples/C++/Effects11/Debug
-  QMAKE_LIBDIR *= Effects11/Debug
-  LIBS *= -lEffects11 -l"$$(DXSDK_DIR)Lib/x86/d3dcompiler"
 }
 
 fxc.output = ${QMAKE_FILE_BASE}.hex
