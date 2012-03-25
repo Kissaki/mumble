@@ -400,7 +400,7 @@ void Server::msgAuthenticate(ServerUser *uSource, MumbleProto::Authenticate &msg
 	if (! qvSuggestPushToTalk.isNull())
 		mpsug.set_push_to_talk(qvSuggestPushToTalk.toBool());
 	if (mpsug.ByteSize() > 0) {
-		sendMessage(uSource, mpsug);
+//		sendMessage(uSource, mpsug);
 	}
 
 	log(uSource, "Authenticated");
