@@ -508,6 +508,7 @@ static ULONG __stdcall myRelease(ID3D10Device *pDevice) {
 	LONG res = oRelease(pDevice);
 	hhRelease.inject();
 
+	Mutex m;
 	D10State *ds = devices[pDevice];
 	if (ds)
 		if (res < (ds->lHighMark / 2)) {
