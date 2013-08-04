@@ -79,7 +79,10 @@ class PulseAudioSystem : public QObject {
 
 		void setVolumes();
 		PulseAttenuation* getAttenuation(QString stream_restore_id);
-
+   
+   public slots:
+      void corkStream(const bool corked);
+      
 	public:
 		QHash<QString, QString> qhInput;
 		QHash<QString, QString> qhOutput;

@@ -291,6 +291,9 @@ class MainWindow : public QMainWindow, public MessageHandler, public Ui::MainWin
 		/// filename is discarded).
 		void updateImagePath(QString filepath) const;
 
+	signals:
+		void corkStream(const bool corked); 
+
 	public:
 		MainWindow(QWidget *parent);
 		~MainWindow() Q_DECL_OVERRIDE;

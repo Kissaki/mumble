@@ -2309,6 +2309,10 @@ void MainWindow::on_qaAudioMute_triggered() {
 	if (g.sh) {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
 	}
+	
+	if (ai)
+      // attempt to (un)mute underlying audio stream
+      emit corkStream(g.s.bMute);
 
 	updateTrayIcon();
 }
