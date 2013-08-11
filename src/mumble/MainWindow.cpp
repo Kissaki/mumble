@@ -2310,10 +2310,7 @@ void MainWindow::on_qaAudioMute_triggered() {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
 	}
 	
-	if (ai)
-      // attempt to (un)mute underlying audio stream
-      emit corkStream(g.s.bMute);
-
+    onChangeMute();
 	updateTrayIcon();
 }
 
@@ -2767,6 +2764,19 @@ void MainWindow::whisperReleased(QVariant scdata) {
 
 	removeTarget(&st);
 	updateTarget();
+}
+
+void MainWindow::onChangeMute()
+{
+    // This function will attempt to cork the underlying
+    // audio device if it is not needed and uncork it if it is.
+    if (! g.ai)
+        return;
+
+    if (g.s.bMute && !g.bInAudioWizard)
+        emit corkStream(true);
+    else
+        emit corkStream(false);
 }
 
 void MainWindow::onResetAudio()

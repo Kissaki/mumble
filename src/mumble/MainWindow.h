@@ -281,6 +281,7 @@ class MainWindow : public QMainWindow, public MessageHandler, public Ui::MainWin
 		void pttReleased();
 		void whisperReleased(QVariant scdata);
 		void onResetAudio();
+        void onChangeMute();
 		void on_qaFilterToggle_triggered();
 		/// Opens a save dialog for the image referenced by qtcSaveImageCursor.
 		void saveImageAs();
