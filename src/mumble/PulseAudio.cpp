@@ -301,12 +301,9 @@ void PulseAudioSystem::eventCallback(pa_mainloop_api *api, pa_defer_event *) {
 
 			pa_stream_connect_record(pasInput, qPrintable(idev), &buff, PA_STREAM_ADJUST_LATENCY);
          
-         // Are we initially muted?
-         if (g.s.bMute)
-         {
-            pa_stream_cork(pasInput, 1, NULL, NULL);
-         }
-      
+         // Ensure stream is initially un-muted
+         pa_stream_cork(pasInput, 0, NULL, NULL);
+         
          // connect PulseAudioInput corkStream signal to here
          QObject::connect(g.mw, SIGNAL(corkStream(const bool)), this, SLOT(corkStream(const bool)), Qt::QueuedConnection);
 		}
