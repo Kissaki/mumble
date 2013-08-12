@@ -2272,7 +2272,7 @@ void MainWindow::userStateChanged() {
 }
 
 void MainWindow::on_qaAudioReset_triggered() {
-	AudioInputPtr ai = g.ai;
+    AudioInputPtr ai = g.ai;
 	if (ai)
 		ai->bResetProcessor = true;
 }
@@ -2322,7 +2322,7 @@ void MainWindow::on_qaAudioDeaf_triggered() {
 
 	if (! qaAudioDeaf->isChecked() && bAutoUnmute) {
 		qaAudioDeaf->setChecked(true);
-		qaAudioMute->setChecked(false);
+        qaAudioMute->setChecked(false);
 		on_qaAudioMute_triggered();
 		return;
 	}
@@ -2347,6 +2347,7 @@ void MainWindow::on_qaAudioDeaf_triggered() {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
 	}
 
+    onChangeMute();
 	updateTrayIcon();
 }
 
@@ -2838,6 +2839,7 @@ void MainWindow::serverConnected() {
 
 	if (g.s.bMute || g.s.bDeaf) {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
+        onChangeMute();
 	}
 
 	// Update QActions and menues
