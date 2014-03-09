@@ -29,6 +29,7 @@
 */
 
 #include "lib.h"
+#include <assert.h>
 #include <d3d9.h>
 #include <time.h>
 
@@ -65,13 +66,7 @@ class DevState : public Pipe {
 		IDirect3DDevice9 *dev;
 		IDirect3DStateBlock9 *pSB;
 
-		/// Non-Win8: Initial ref count, directly after device creation.
-		/// Win8: Unused
-		LONG initRefCount;
-		LONG refCount;
-		/// Refcount of self (library). Used to make the overlay transparent
-		/// (invisible) to the outside.
-		LONG myRefCount;
+		ULONG refCount;
 		DWORD dwMyThread;
 
 		D3DTLVERTEX vertices[4];
@@ -80,10 +75,12 @@ class DevState : public Pipe {
 		clock_t timeT;
 		unsigned int frameCount;
 
-		DevState();
+		DevState(IDirect3DDevice9 *device);
+		~DevState();
 
 		void createCleanState();
-		void releaseData();
+		void releaseStateBlock();
+		void releaseTexture();
 		void releaseAll();
 		void draw();
 
@@ -103,14 +100,13 @@ typedef map<IDirect3DDevice9 *, DevState *> DevMapType;
 static DevMapType devMap;
 static bool bHooked = false;
 
-DevState::DevState() {
-	dev = NULL;
+DevState::DevState(IDirect3DDevice9 *device) {
+	dev = device;
 	pSB = NULL;
-	dwMyThread = 0;
-	initRefCount = 0;
-	refCount = 0;
-	myRefCount = 0;
 	texTexture = NULL;
+	dwMyThread = 0;
+	dev->AddRef();
+	refCount = dev->Release();
 
 	timeT = clock();
 	frameCount = 0;
@@ -122,13 +118,9 @@ DevState::DevState() {
 	}
 }
 
-void DevState::releaseData() {
-	ods("D3D9: Release Data");
-
-	if (texTexture) {
-		texTexture->Release();
-		texTexture = NULL;
-	}
+DevState::~DevState() {
+	releaseAll();
+	ods("Deleted DevState with final refCount %d", refCount);
 }
 
 void DevState::blit(unsigned int x, unsigned int y, unsigned int w, unsigned int h) {
@@ -206,10 +198,7 @@ void DevState::setRect() {
 void DevState::newTexture(unsigned int width, unsigned int height) {
 	ods("D3D9: New texture %d x %d", width, height);
 
-	if (texTexture) {
-		texTexture->Release();
-		texTexture = NULL;
-	}
+	releaseTexture();
 
 	dev->CreateTexture(uiWidth, uiHeight, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texTexture, NULL);
 
@@ -218,14 +207,37 @@ void DevState::newTexture(unsigned int width, unsigned int height) {
 		vertices[i].tu = vertices[i].tv = 0.0f;
 		vertices[i].rhw = 1.0f;
 	}
+	ods("D3D9: New texture created; device %p refcount %d", dev, refCount);
+}
+
+void DevState::releaseTexture() {
+	if (texTexture != NULL) {
+		ods("D3D9: Releasing texture");
+		ULONG res = texTexture->Release();
+		texTexture = NULL;
+		assert(res == 0);
+		if (res > 0) {
+			ods("D3D9: Released texture, but apparently it is still referenced.");
+		}
+	}
+}
+
+void DevState::releaseStateBlock() {
+	if (pSB != NULL) {
+		ods("D3D9: Releasing stateblock");
+		ULONG res = pSB->Release();
+		pSB = NULL;
+		assert(res == 0);
+		if (res > 0) {
+			ods("D3D9: Released state block, but apparently it is still referenced.");
+		}
+	}
 }
 
 void DevState::releaseAll() {
 	ods("D3D9: Release All");
-	releaseData();
-	if (pSB)
-		pSB->Release();
-	pSB = NULL;
+	releaseTexture();
+	releaseStateBlock();
 }
 
 void DevState::draw() {
@@ -274,30 +286,21 @@ void DevState::draw() {
 }
 
 void DevState::createCleanState() {
-	if (dwMyThread != 0) {
-		ods("D3D9: CreateCleanState from other thread.");
-	}
-	Stash<DWORD> stashThread(&dwMyThread, GetCurrentThreadId());
-
-	if (pSB)
-		pSB->Release();
-	pSB = NULL;
+	assert(dev != NULL);
 
 	IDirect3DStateBlock9* pStateBlock = NULL;
-	dev->CreateStateBlock(D3DSBT_ALL, &pStateBlock);
-	if (! pStateBlock)
+	if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &pStateBlock)))
 		return;
 
 	pStateBlock->Capture();
 
-	dev->CreateStateBlock(D3DSBT_ALL, &pSB);
-	if (! pSB) {
+	releaseStateBlock();
+	ods("D3D9: Before CreateStateBlock; device %p refcount %d", dev, refCount);
+	if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &pSB)) || pSB == NULL) {
 		pStateBlock->Release();
 		return;
 	}
-
-	D3DVIEWPORT9 vp;
-	dev->GetViewport(&vp);
+	ods("D3D9: After CreateStateBlock; device %p refcount %d", dev, refCount);
 
 	dev->SetVertexShader(NULL);
 	dev->SetPixelShader(NULL);
@@ -342,16 +345,30 @@ static HardHook hhPresent;
 static HardHook hhPresentEx;
 static HardHook hhSwapPresent;
 
+static void resetDeviceHooks() {
+	hhReset.reset();
+	hhResetEx.reset();
+	hhAddRef.reset();
+	hhRelease.reset();
+	hhPresent.reset();
+	hhPresentEx.reset();
+	hhSwapPresent.reset();
+}
+
+static void resetHooks() {
+	hhCreateDevice.reset();
+	hhCreateDeviceEx.reset();
+	resetDeviceHooks();
+}
+
 static void doPresent(IDirect3DDevice9 *idd) {
+	// Shared resource devMap
+	Mutex m;
+
 	DevMapType::iterator it = devMap.find(idd);
 	DevState *ds = it != devMap.end() ? it->second : NULL;
 
 	if (ds && ds->pSB) {
-		if (ds->dwMyThread != 0) {
-			ods("D3D9: doPresent from other thread");
-		}
-		Stash<DWORD> stashThread(&(ds->dwMyThread), GetCurrentThreadId());
-
 		IDirect3DSurface9 *pTarget = NULL;
 		IDirect3DSurface9 *pRenderTarget = NULL;
 		HRESULT hres = idd->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &pTarget);
@@ -470,14 +487,12 @@ typedef HRESULT(__stdcall *ResetType)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS 
 static HRESULT __stdcall myReset(IDirect3DDevice9 *idd, D3DPRESENT_PARAMETERS *param) {
 	ods("D3D9: Chaining Reset");
 
+	// Shared resource devMap
+	Mutex m;
+
 	DevMapType::iterator it = devMap.find(idd);
 	DevState *ds = it != devMap.end() ? it->second : NULL;
 	if (ds) {
-		if (ds->dwMyThread != 0) {
-			ods("D3D9: myReset from other thread");
-		}
-		Stash<DWORD> stashThread(&(ds->dwMyThread), GetCurrentThreadId());
-
 		ds->releaseAll();
 	}
 
@@ -498,14 +513,12 @@ typedef HRESULT(__stdcall *ResetExType)(IDirect3DDevice9Ex *, D3DPRESENT_PARAMET
 static HRESULT __stdcall myResetEx(IDirect3DDevice9Ex *idd, D3DPRESENT_PARAMETERS *param, D3DDISPLAYMODEEX *param2) {
 	ods("D3D9: Chaining ResetEx");
 
+	// Shared resource devMap
+	Mutex m;
+
 	DevMapType::iterator it = devMap.find(idd);
 	DevState *ds = it != devMap.end() ? it->second : NULL;
 	if (ds) {
-		if (ds->dwMyThread) {
-			ods("D3D9: myResetEx from other thread");
-		}
-		Stash<DWORD> stashThread(&(ds->dwMyThread), GetCurrentThreadId());
-
 		ds->releaseAll();
 	}
 
@@ -525,24 +538,6 @@ static HRESULT __stdcall myResetEx(IDirect3DDevice9Ex *idd, D3DPRESENT_PARAMETER
 typedef ULONG(__stdcall *AddRefType)(IDirect3DDevice9 *);
 
 static ULONG __stdcall myAddRef(IDirect3DDevice9 *idd) {
-	Mutex m;
-
-	DevMapType::iterator it = devMap.find(idd);
-	DevState *ds = it != devMap.end() ? it->second : NULL;
-	if (ds) {
-		// AddRef is called very often. Thus, we do not want to always log here.
-		#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
-		ods("D3D9: Using own Refcount implementation for call to AddRef.");
-		#endif
-
-		if (ds->dwMyThread == GetCurrentThreadId()) {
-			ds->myRefCount++;
-		} else {
-			ds->refCount++;
-		}
-		return ds->initRefCount + ds->refCount;
-	}
-
 	//TODO: Move logic to HardHook.
 	// Call base without active hook in case of no trampoline.
 	AddRefType oAddRef = (AddRefType) hhAddRef.call;
@@ -550,29 +545,24 @@ static ULONG __stdcall myAddRef(IDirect3DDevice9 *idd) {
 	ULONG res = oAddRef(idd);
 	hhAddRef.inject();
 
+	// Shared resource devMap
+	Mutex m;
+	DevMapType::iterator it = devMap.find(idd);
+	if (it != devMap.end()) {
+		it->second->refCount = res;
+	}
+
 	// AddRef is called very often. Thus, we do not want to always log here.
-	#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
-	ods("D3D9: Chained AddRef with result %d", res);
-	#endif
+//	#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
+	if (res <= 10) {
+		ods("D3D9: Chained AddRef of %p with result %d", idd, res);
+	}
+//	#endif
 
 	return res;
 }
 
 static ULONG __stdcall myWin8AddRef(IDirect3DDevice9 *idd) {
-	Mutex m;
-
-	DevMapType::iterator it = devMap.find(idd);
-	DevState *ds = it != devMap.end() ? it->second : NULL;
-	if (ds && ds->dwMyThread == GetCurrentThreadId()) {
-		// AddRef is called very often. Thus, we do not want to always log here.
-		#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
-		ods("D3D9: Using own Refcount implementation for call to AddRef (Win8).");
-		#endif
-
-		ds->myRefCount++;
-		return ds->refCount;
-	}
-
 	//TODO: Move logic to HardHook.
 	// Call base without active hook in case of no trampoline.
 	AddRefType oAddRef = (AddRefType) hhAddRef.call;
@@ -580,8 +570,12 @@ static ULONG __stdcall myWin8AddRef(IDirect3DDevice9 *idd) {
 	ULONG res = oAddRef(idd);
 	hhAddRef.inject();
 
-	if (ds)
-		ds->refCount = res;
+	// Shared resource devMap
+	Mutex m;
+	DevMapType::iterator it = devMap.find(idd);
+	if (it != devMap.end()) {
+		it->second->refCount = res;
+	}
 
 	// AddRef is called very often. Thus, we do not want to always log here.
 	#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
@@ -593,51 +587,60 @@ static ULONG __stdcall myWin8AddRef(IDirect3DDevice9 *idd) {
 
 typedef ULONG(__stdcall *ReleaseType)(IDirect3DDevice9 *);
 
-static ULONG __stdcall myRelease(IDirect3DDevice9 *idd) {
-	Mutex m;
-
-	DevMapType::iterator it = devMap.find(idd);
-	DevState *ds = it != devMap.end() ? it->second : NULL;
-	if (ds) {
-		// Release is called very often. Thus, we do not want to always log here.
-		#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
-		ods("D3D9: Using own Refcount implementation for call to Release.");
-		#endif
-
-		if (ds->dwMyThread == GetCurrentThreadId()) {
-			ds->myRefCount--;
-			return ds->initRefCount + ds->refCount;
-		} else {
-			ds->refCount--;
+static ULONG updateRef(IDirect3DDevice9 *idd, ULONG refCount) {
+	static bool recursion = false;
+	if (recursion) {
+		// When recursing we already have a mutex lock. Being in control of the
+		// implementation below we can be sure that this is only called when
+		// the state object is still valid (not completely deleted yet).
+		DevMapType::iterator it = devMap.find(idd);
+		DevState* ds = it != devMap.end() ? it->second : NULL;
+		ods("D3D9: Recursion in release on %p - setting %p refcount from %d to %d", idd, ds, ds->refCount, refCount);
+		if (ds) {
+			ds->refCount = refCount;
 		}
-
-		if (ds->refCount <= 1) {
-			ds->disconnect();
-		}
-
-		if (ds->refCount >= 0) {
-			return ds->initRefCount + ds->refCount;
-		}
-
-		ods("D3D9: Final release is following. MyRefs = %d, Tot = %d", ds->myRefCount, ds->refCount);
-
-		if (ds->dwMyThread != 0) {
-			ods("D3D9: finalRelease from other thread");
-		}
-
-		// Codeblock for stashing threadid
-		{
-			Stash<DWORD> stashThread(&(ds->dwMyThread), GetCurrentThreadId());
-
-			ds->releaseAll();
-		}
-
-		ods("D3D9: Final release of %p. MyRefs = %d Tot = %d", idd, ds->myRefCount, ds->refCount);
-
-		devMap.erase(it);
-		delete ds;
-		ds = NULL;
+		return refCount;
 	}
+	recursion = true;
+
+	// Shared resource devMap and DevState
+	Mutex m;
+	DevMapType::iterator it = devMap.find(idd);
+	DevState* ds = it != devMap.end() ? it->second : NULL;
+
+	if (ds) {
+		ds->refCount = refCount;
+
+		// If refCount is one the chained call to the original device will free
+		// it. Hence, now is the time to free our own stuff.
+		bool finalRelease = refCount == 0;
+		finalRelease = finalRelease || (ds->pSB != NULL && refCount == 1);
+		finalRelease = finalRelease || (ds->pSB != NULL && ds->texTexture != NULL && refCount == 2);
+		if (finalRelease) {
+			ods("D3D9: Final release of %p with refcount %d ...", idd, ds->refCount);
+
+			ds->disconnect();
+
+			// May be 0 without pSB and texture, 1 with pSB, and 2 with both.
+			assert(ds->refCount >= 0 || ds->refCount <= 2);
+			ds->releaseAll();
+			assert(ds->refCount == 0);
+			refCount = ds->refCount;
+			ods("D3D9: In final release of %p with refcount %d ...", idd, ds->refCount);
+
+			devMap.erase(it);
+			delete ds;
+			ds = NULL;
+
+			resetDeviceHooks();
+		}
+	}
+
+	recursion = false;
+	return refCount;
+}
+
+static ULONG __stdcall myRelease(IDirect3DDevice9 *idd) {
 
 	//TODO: Move logic to HardHook.
 	// Call base without active hook in case of no trampoline.
@@ -646,16 +649,22 @@ static ULONG __stdcall myRelease(IDirect3DDevice9 *idd) {
 	ULONG res = oRelease(idd);
 	hhRelease.inject();
 
+	res = updateRef(idd, res);
+
 	// Release is called very often. Thus, we do not want to always log here.
-	#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
-	ods("D3D9: Chained Release with result %d", res);
-	#endif
+//	#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
+	if (res <= 10) {
+		ods("D3D9: Chained Release of %p with result %d", idd, res);
+	}
+//	#endif
 
 	return res;
 }
 
 static ULONG __stdcall myWin8Release(IDirect3DDevice9 *idd) {
+	// Shared resource devMap
 	Mutex m;
+
 
 	DevMapType::iterator it = devMap.find(idd);
 	DevState *ds = it != devMap.end() ? it->second : NULL;
@@ -665,27 +674,16 @@ static ULONG __stdcall myWin8Release(IDirect3DDevice9 *idd) {
 		ods("D3D9: Using own Refcount implementation for call to Release.");
 		#endif
 
-		if (ds->dwMyThread == GetCurrentThreadId()) {
-			ds->myRefCount--;
-			return ds->refCount;
-		}
+		// If refCount is one the chained call to the original device will free
+		// it. Hence, now is the time to free our own stuff.
 		if (ds->refCount == 1) {
+			ods("D3D9: Final release is following. Tot = %d", ds->refCount);
+
 			ds->disconnect();
 
-			ods("D3D9: Final release. MyRefs = %d, Tot = %d", ds->myRefCount, ds->refCount);
+			resetDeviceHooks();
 
-			if (ds->dwMyThread != 0) {
-				ods("D3D9: finalRelease from other thread");
-			}
-
-			// Codeblock for stashing threadid
-			{
-				Stash<DWORD> stashThread(&(ds->dwMyThread), GetCurrentThreadId());
-
-				ds->releaseAll();
-			}
-
-			ods("D3D9: Final release of %p. MyRefs = %d Tot = %d", idd, ds->myRefCount, ds->refCount);
+			ods("D3D9: Final release of %p. Tot = %d", idd, ds->refCount);
 
 			devMap.erase(it);
 			delete ds;
@@ -700,12 +698,13 @@ static ULONG __stdcall myWin8Release(IDirect3DDevice9 *idd) {
 	ULONG res = oRelease(idd);
 	hhRelease.inject();
 
-	if (ds)
+	if (ds != NULL) {
 		ds->refCount = res;
+	}
 
 	// Release is called very often. Thus, we do not want to always log here.
 	#ifdef EXTENDED_OVERLAY_DEBUGOUTPUT
-	ods("D3D9: Chained Release (Win8) with result: %d", res);
+	ods("D3D9: Chained Release (Win8) with result %d", res);
 	#endif
 
 	return res;
@@ -723,9 +722,12 @@ static IDirect3DDevice9* findOriginalDevice(IDirect3DDevice9 *device) {
 			if (originalDevice == device) {
 				// Found the original device. Release responsibility is passed
 				// to the caller.
-			} else {
-				device = findOriginalDevice(originalDevice);
+				// No ref for ourselves. We hook and catch calls to Release of
+				// the device itself.
 				originalDevice->Release();
+			} else {
+				device->Release();
+				device = findOriginalDevice(originalDevice);
 			}
 
 		} else {
@@ -742,9 +744,10 @@ static IDirect3DDevice9* findOriginalDevice(IDirect3DDevice9 *device) {
 
 typedef HRESULT(__stdcall *CreateDeviceType)(IDirect3D9 *, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS *, IDirect3DDevice9 **);
 static HRESULT __stdcall myCreateDevice(IDirect3D9 *id3d, UINT Adapter, D3DDEVTYPE DeviceType, HWND hFocusWindow, DWORD BehaviorFlags, D3DPRESENT_PARAMETERS *pPresentationParameters, IDirect3DDevice9 **ppReturnedDeviceInterface) {
-	Mutex m;
-
 	ods("D3D9: Chaining CreateDevice");
+
+	// Shared resource devMap
+	Mutex m;
 
 //	BehaviorFlags &= ~D3DCREATE_PUREDEVICE;
 
@@ -767,20 +770,11 @@ static HRESULT __stdcall myCreateDevice(IDirect3D9 *id3d, UINT Adapter, D3DDEVTY
 		idd = originalDevice;
 	}
 
-	DevState *ds = new DevState;
-	ds->dev = idd;
-
-	idd->AddRef();
-	ds->initRefCount = idd->Release();
-
 	DevMapType::iterator it = devMap.find(idd);
 	if (it != devMap.end()) {
-		ods("Device exists in devMap already - canceling injection into device. Thread prev: %d ; new: %d", it->second->dwMyThread, GetCurrentThreadId());
-		delete ds;
-
+		ods("Device %p exists in devMap already - canceling injection into device.", idd);
 		return hr;
 	}
-	devMap[idd] = ds;
 
 	// The offsets are dependent on the declaration order of the struct.
 	// See IDirect3DDevice9 (2nd, 3rd, 17th, 18th functions)
@@ -810,6 +804,8 @@ static HRESULT __stdcall myCreateDevice(IDirect3D9 *id3d, UINT Adapter, D3DDEVTY
 		ods("D3D9: Failed to get swapchain");
 	}
 
+	DevState *ds = new DevState(idd);
+	devMap[idd] = ds;
 	ds->createCleanState();
 
 	return hr;
@@ -817,8 +813,10 @@ static HRESULT __stdcall myCreateDevice(IDirect3D9 *id3d, UINT Adapter, D3DDEVTY
 
 typedef HRESULT(__stdcall *CreateDeviceExType)(IDirect3D9Ex *, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS *, D3DDISPLAYMODEEX *, IDirect3DDevice9Ex **);
 static HRESULT __stdcall myCreateDeviceEx(IDirect3D9Ex *id3d, UINT Adapter, D3DDEVTYPE DeviceType, HWND hFocusWindow, DWORD BehaviorFlags, D3DPRESENT_PARAMETERS *pPresentationParameters, D3DDISPLAYMODEEX *pFullscreenDisplayMode, IDirect3DDevice9Ex **ppReturnedDeviceInterface) {
-	Mutex m;
 	ods("D3D9: Chaining CreateDeviceEx");
+
+	// Shared resource devMap
+	Mutex m;
 
 //	BehaviorFlags &= ~D3DCREATE_PUREDEVICE;
 
@@ -834,20 +832,11 @@ static HRESULT __stdcall myCreateDeviceEx(IDirect3D9Ex *id3d, UINT Adapter, D3DD
 
 	IDirect3DDevice9Ex *idd = *ppReturnedDeviceInterface;
 
-	DevState *ds = new DevState;
-	ds->dev = idd;
-
-	idd->AddRef();
-	ds->initRefCount = idd->Release();
-
 	DevMapType::iterator it = devMap.find(idd);
 	if (it != devMap.end()) {
 		ods("Device exists in devMap already - canceling injection into device. Thread prev: %d ; new: %d", it->second->dwMyThread, GetCurrentThreadId());
-		delete ds;
-
 		return hr;
 	}
-	devMap[idd] = ds;
 
 	// The offsets are dependent on the declaration order of the struct.
 	// See IDirect3DDevice9 (2nd, 3rd, 17th, 18th functions)
@@ -865,6 +854,7 @@ static HRESULT __stdcall myCreateDeviceEx(IDirect3D9Ex *id3d, UINT Adapter, D3DD
 		hhAddRef.setupInterface(idd, offsetAddref, reinterpret_cast<voidFunc>(myAddRef));
 		hhRelease.setupInterface(idd, offsetRelease, reinterpret_cast<voidFunc>(myRelease));
 	}
+
 	hhReset.setupInterface(idd, offsetReset, reinterpret_cast<voidFunc>(myReset));
 	hhResetEx.setupInterface(idd, offsetResetEx, reinterpret_cast<voidFunc>(myResetEx));
 	hhPresent.setupInterface(idd, offsetPresent, reinterpret_cast<voidFunc>(myPresent));
@@ -882,7 +872,10 @@ static HRESULT __stdcall myCreateDeviceEx(IDirect3D9Ex *id3d, UINT Adapter, D3DD
 		ods("D3D9: Failed to get swapchain for DevEx");
 	}
 
+	DevState *ds = new DevState(idd);
+	devMap[idd] = ds;
 	ds->createCleanState();
+
 	return hr;
 }
 
@@ -1015,15 +1008,7 @@ void freeD3D9Hook(HMODULE hModule) {
 	if (bHooked && !hD3D) {
 		ods("D3D9: Freeing hooks for module %p", hModule);
 
-		hhCreateDevice.reset();
-		hhCreateDeviceEx.reset();
-		hhReset.reset();
-		hhResetEx.reset();
-		hhAddRef.reset();
-		hhRelease.reset();
-		hhPresent.reset();
-		hhPresentEx.reset();
-		hhSwapPresent.reset();
+		resetHooks();
 
 		bHooked = false;
 	}
