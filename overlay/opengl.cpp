@@ -65,9 +65,7 @@ GLDEF(int, GetDeviceCaps, (HDC, int));
 
 #define INJDEF(ret, name, arg) GLDEF(ret, name, arg); static HardHook hh##name
 
-//INJDEF(BOOL, wglSwapLayerBuffers, (HDC, UINT));
 INJDEF(BOOL, wglSwapBuffers, (HDC));
-//INJDEF(BOOL, SwapBuffers, (HDC));
 
 static bool bHooked = false;
 
@@ -306,26 +304,6 @@ static BOOL __stdcall mywglSwapBuffers(HDC hdc) {
 	return ret;
 }
 
-//static BOOL __stdcall mySwapBuffers(HDC hdc) {
-//	ods("OpenGL: SwapBuffers");
-//
-//	hhSwapBuffers.restore();
-//	BOOL ret=oSwapBuffers(hdc);
-//	hhSwapBuffers.inject();
-//
-//	return ret;
-//}
-
-//static BOOL __stdcall mywglSwapLayerBuffers(HDC hdc, UINT fuPlanes) {
-//	ods("OpenGL: SwapLayerBuffers %x",fuPlanes);
-//
-//	hhwglSwapLayerBuffers.restore();
-//	BOOL ret=owglSwapLayerBuffers(hdc, fuPlanes);
-//	hhwglSwapLayerBuffers.inject();
-//
-//	return ret;
-//}
-
 /// Ensure that all the symbols that the OpenGL overlay requires have been
 /// looked up.
 /// @return true if all symbols have been looked up and are available.
@@ -404,9 +382,15 @@ void checkOpenGLHook() {
 			HMODULE hTempSelf = NULL;
 			GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<char *>(&checkOpenGLHook), &hTempSelf);
 
-			// INJECT(wglSwapLayerBuffers);
-			// INJECT(SwapBuffers);
-
+#define INJECT(handle, name) {\
+	o##name = reinterpret_cast<t##name>(GetProcAddress(handle, #name));\
+	if (o##name) {\
+		hh##name.setup(reinterpret_cast<voidFunc>(o##name), reinterpret_cast<voidFunc>(my##name));\
+		o##name = (t##name) hh##name.call;\
+	} else {\
+		ods("OpenGL: No GetProc for %s", #name);\
+	}\
+}
 			owglSwapBuffers = reinterpret_cast<twglSwapBuffers>(GetProcAddress(hGL, "wglSwapBuffers"));
 			if (owglSwapBuffers) {
 				hhwglSwapBuffers.setup(reinterpret_cast<voidFunc>(owglSwapBuffers), reinterpret_cast<voidFunc>(mywglSwapBuffers));
