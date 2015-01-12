@@ -64,7 +64,6 @@ GLDEF(HDC, wglGetCurrentDC, (void));
 GLDEF(int, GetDeviceCaps, (HDC, int));
 
 #define INJDEF(ret, name, arg) GLDEF(ret, name, arg); static HardHook hh##name
-#define INJECT(name) { o##name = reinterpret_cast<t##name>(GetProcAddress(hGL, #name)); if (o##name) { hh##name.setup(reinterpret_cast<voidFunc>(o##name), reinterpret_cast<voidFunc>(my##name)); o##name = (t##name) hh##name.call; } else { ods("OpenGL: No GetProc for %s", #name);} }
 
 INJDEF(BOOL, wglSwapBuffers, (HDC));
 
@@ -330,7 +329,16 @@ void checkOpenGLHook() {
 			HMODULE hTempSelf = NULL;
 			GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<char *>(&checkOpenGLHook), &hTempSelf);
 
-			INJECT(wglSwapBuffers);
+#define INJECT(handle, name) {\
+	o##name = reinterpret_cast<t##name>(GetProcAddress(handle, #name));\
+	if (o##name) {\
+		hh##name.setup(reinterpret_cast<voidFunc>(o##name), reinterpret_cast<voidFunc>(my##name));\
+		o##name = (t##name) hh##name.call;\
+	} else {\
+		ods("OpenGL: Could not resolve symbol %s in %s", #name, #handle);\
+	}\
+}
+			INJECT(hGL, wglSwapBuffers);
 
 			GLDEF(wglCreateContext);
 			GLDEF(glGenTextures);
