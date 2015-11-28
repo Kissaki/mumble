@@ -38,6 +38,7 @@
 #include "AudioOutputSample.h"
 #include "Global.h"
 #include "NetworkConfig.h"
+#include "MainWindow.h"
 
 static ConfigWidget *AudioInputDialogNew(Settings &st) {
 	return new AudioInputDialog(st);
@@ -81,6 +82,13 @@ AudioInputDialog::AudioInputDialog(Settings &st) : ConfigWidget(st) {
 	abSpeech->qcAbove = Qt::green;
 
 	qcbDevice->view()->setTextElideMode(Qt::ElideRight);
+
+	foreach(const Shortcut &s, g.s.qlShortcuts) {
+		if (s.iIndex == g.mw->gsPushTalk->idx) {
+			qskwPTTTrigger->setShortcut(s.qlButtons);
+			break;
+		}
+	}
 
 	on_qcbPushClick_clicked(g.s.bTxAudioCue);
 	on_Tick_timeout();
@@ -407,6 +415,37 @@ void AudioInputDialog::on_qcbIdleAction_currentIndexChanged(int v) {
 	qlIdle->setEnabled(enabled);
 	qlIdle2->setEnabled(enabled);
 	qsbIdle->setEnabled(enabled);
+}
+
+void AudioInputDialog::on_qskwPTTTrigger_keySet(bool valid, bool last) {
+	Q_UNUSED(valid)
+	qDebug() << "ptt keybind triggered " << last;
+	if (last) {
+		const QList<QVariant> &buttons = qskwPTTTrigger->getShortcut();
+		QList<Shortcut> ql;
+		bool found = false;
+		foreach(Shortcut s, g.s.qlShortcuts) {
+			if (s.iIndex == g.mw->gsPushTalk->idx) {
+				if (buttons.isEmpty())
+					continue;
+				else if (! found) {
+					s.qlButtons = buttons;
+					found = true;
+				}
+			}
+			ql << s;
+		}
+		if (! found && ! buttons.isEmpty()) {
+			Shortcut s;
+			s.iIndex = g.mw->gsPushTalk->idx;
+			s.bSuppress = false;
+			s.qlButtons = buttons;
+			ql << s;
+		}
+		g.s.qlShortcuts = ql;
+		GlobalShortcutEngine::engine->bNeedRemap = true;
+		GlobalShortcutEngine::engine->needRemap();
+	}
 }
 
 AudioOutputDialog::AudioOutputDialog(Settings &st) : ConfigWidget(st) {

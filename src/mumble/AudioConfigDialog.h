@@ -74,6 +74,7 @@ class AudioInputDialog : public ConfigWidget, public Ui::AudioInput {
 		void on_qcbSystem_currentIndexChanged(int);
 		void on_Tick_timeout();
 		void on_qcbIdleAction_currentIndexChanged(int v);
+		void on_qskwPTTTrigger_keySet(bool, bool);
 };
 
 class AudioOutputDialog : public ConfigWidget, public Ui::AudioOutput {
