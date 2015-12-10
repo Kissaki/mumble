@@ -214,6 +214,7 @@ class GlobalShortcutConfig : public ConfigWidget, public Ui::GlobalShortcut {
 		QTreeWidgetItem *itemForShortcut(const Shortcut &) const;
 		bool bExpert;
 		bool showWarning() const;
+		void showEvent(QShowEvent *event) Q_DECL_OVERRIDE;
 		bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
 	public:
 		GlobalShortcutConfig(Settings &st);

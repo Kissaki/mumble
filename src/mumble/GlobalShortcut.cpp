@@ -593,6 +593,11 @@ bool GlobalShortcutConfig::eventFilter(QObject* /*object*/, QEvent *e) {
 	return false;
 }
 
+void GlobalShortcutConfig::showEvent(QShowEvent *e) {
+	ConfigWidget::showEvent(e);
+	reload();
+}
+
 bool GlobalShortcutConfig::showWarning() const {
 #ifdef Q_OS_MAC
 	if (QSysInfo::MacintoshVersion >= QSysInfo::MV_MAVERICKS) {
@@ -844,6 +849,7 @@ void GlobalShortcutEngine::resetMap() {
 }
 
 void GlobalShortcutEngine::needRemap() {
+	remap();
 }
 
 /**

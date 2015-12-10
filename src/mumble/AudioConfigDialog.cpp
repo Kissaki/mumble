@@ -57,6 +57,13 @@ void AudioInputDialog::hideEvent(QHideEvent *) {
 
 void AudioInputDialog::showEvent(QShowEvent *) {
 	qtTick->start(20);
+
+	foreach(const Shortcut &s, g.s.qlShortcuts) {
+		if (s.iIndex == g.mw->gsPushTalk->idx) {
+			qskwPTTTrigger->setShortcut(s.qlButtons);
+			break;
+		}
+	}
 }
 
 AudioInputDialog::AudioInputDialog(Settings &st) : ConfigWidget(st) {
@@ -82,13 +89,6 @@ AudioInputDialog::AudioInputDialog(Settings &st) : ConfigWidget(st) {
 	abSpeech->qcAbove = Qt::green;
 
 	qcbDevice->view()->setTextElideMode(Qt::ElideRight);
-
-	foreach(const Shortcut &s, g.s.qlShortcuts) {
-		if (s.iIndex == g.mw->gsPushTalk->idx) {
-			qskwPTTTrigger->setShortcut(s.qlButtons);
-			break;
-		}
-	}
 
 	on_qcbPushClick_clicked(g.s.bTxAudioCue);
 	on_Tick_timeout();
@@ -419,7 +419,6 @@ void AudioInputDialog::on_qcbIdleAction_currentIndexChanged(int v) {
 
 void AudioInputDialog::on_qskwPTTTrigger_keySet(bool valid, bool last) {
 	Q_UNUSED(valid)
-	qDebug() << "ptt keybind triggered " << last;
 	if (last) {
 		const QList<QVariant> &buttons = qskwPTTTrigger->getShortcut();
 		QList<Shortcut> ql;
