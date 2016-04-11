@@ -1748,6 +1748,7 @@ void Server::clearACLCache(User *p) {
 				delete h;
 			acCache.clear();
 
+			QReadLocker lock(&qrwlUsers);
 			foreach(ServerUser *u, qhUsers)
 				if (u->sState == ServerUser::Authenticated)
 					flushClientPermissionCache(u, mppq);
