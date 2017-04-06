@@ -7,6 +7,8 @@
 
 #include "Log.h"
 
+#include <QShortcut>
+#include <QKeySequence>
 #include "AudioOutput.h"
 #include "AudioOutputSample.h"
 #include "Channel.h"
@@ -25,6 +27,14 @@ static ConfigRegistrar registrar(4000, LogConfigDialogNew);
 
 LogConfig::LogConfig(Settings &st) : ConfigWidget(st) {
 	setupUi(this);
+
+	QShortcut *messagesSpaceKey = new QShortcut(QKeySequence(Qt::Key_Space), qtwMessages);
+	connect(messagesSpaceKey, SIGNAL(activated()), this, SLOT(onMessagesSpaceKeyActivated()));
+
+	QShortcut *messagesActionKey1 = new QShortcut(QKeySequence(QLatin1String("Ctrl+Space")), qtwMessages);
+	QShortcut *messagesActionKey2 = new QShortcut(QKeySequence(QLatin1String("Shift+Space")), qtwMessages);
+	connect(messagesActionKey1, SIGNAL(activated()), this, SLOT(onMessagesEditKeyActivated()));
+	connect(messagesActionKey2, SIGNAL(activated()), this, SLOT(onMessagesEditKeyActivated()));
 
 #ifdef USE_NO_TTS
 	qgbTTS->setDisabled(true);
@@ -147,11 +157,11 @@ void LogConfig::on_qtwMessages_itemChanged(QTreeWidgetItem* i, int column) {
 	if (! i->isSelected()) return;
 	switch (column) {
 		case ColTTS:
-			if (i->checkState(ColTTS))
+			if (i->checkState(ColTTS) == Qt::Checked)
 				i->setCheckState(ColStaticSound, Qt::Unchecked);
 			break;
 		case ColStaticSound:
-			if (i->checkState(ColStaticSound)) {
+			if (i->checkState(ColStaticSound) == Qt::Checked) {
 				i->setCheckState(ColTTS, Qt::Unchecked);
 				if (i->text(ColStaticSoundPath).isEmpty()) browseForAudioFile();
 			}
@@ -165,6 +175,7 @@ void LogConfig::on_qtwMessages_itemClicked(QTreeWidgetItem * item, int column) {
 	if (item && column == ColStaticSoundPath) {
 		AudioOutputPtr ao = g.ao;
 		if (ao) {
+			// If we can't play the file (because none is set or we can't read it), ask for one.
 			if (!ao->playSample(item->text(ColStaticSoundPath), false))
 				browseForAudioFile();
 		}
@@ -176,8 +187,48 @@ void LogConfig::on_qtwMessages_itemDoubleClicked(QTreeWidgetItem * item, int col
 		browseForAudioFile();
 }
 
+void LogConfig::onMessagesSpaceKeyActivated() {
+	QModelIndex i = qtwMessages->currentIndex();
+	if (i.column() == ColStaticSoundPath) {
+		QString soundPath = qtwMessages->model()->data(i).toString();
+		AudioOutputPtr ao = g.ao;
+		if (ao) {
+			ao->playSample(soundPath, false);
+		}
+	}
+}
+
+void LogConfig::onMessagesEditKeyActivated() {
+	QModelIndex i = qtwMessages->currentIndex();
+	switch (i.column()) {
+	case ColConsole:
+	case ColNotification:
+	case ColTTS:
+	case ColStaticSound:
+	{
+		QTreeWidgetItem* item = qtwMessages->currentItem();
+		if (!item) {
+			break;
+		}
+		item->setCheckState(i.column(), item->checkState(i.column()) != Qt::Checked ? Qt::Checked : Qt::Unchecked);
+		//FIXME: Not automatically triggered... Why???
+		//emit qtwMessages->itemChanged(item, i.column());
+		break;
+	}
+	case ColStaticSoundPath:
+		browseForAudioFile();
+		break;
+	case ColMessage:
+		// No action for label
+		break;
+	}
+}
+
 void LogConfig::browseForAudioFile() {
-	QTreeWidgetItem *i = qtwMessages->selectedItems()[0];
+	QTreeWidgetItem *i = qtwMessages->currentItem();
+	if (!i) {
+		return;
+	}
 	QString defaultpath(i->text(ColStaticSoundPath));
 	QString file = AudioOutputSample::browseForSndfile(defaultpath);
 	if (!file.isEmpty()) {
