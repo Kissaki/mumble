@@ -15,7 +15,7 @@
   </property>
   <layout class="QVBoxLayout">
    <item>
-    <widget class="QTreeWidget" name="qtwMessages">
+    <widget class="QTableWidget" name="qtwMessages">
      <property name="alternatingRowColors">
       <bool>true</bool>
      </property>
@@ -24,15 +24,6 @@
      </property>
      <property name="selectionBehavior">
       <enum>QAbstractItemView::SelectItems</enum>
-     </property>
-     <property name="rootIsDecorated">
-      <bool>false</bool>
-     </property>
-     <property name="uniformRowHeights">
-      <bool>true</bool>
-     </property>
-     <property name="itemsExpandable">
-      <bool>false</bool>
      </property>
      <column>
       <property name="text">
