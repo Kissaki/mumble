@@ -15,6 +15,7 @@ static const char *overlayLaunchers[] = {
 	"UbisoftGameLauncher64.exe", // Uplay
 	"itch.exe", // itch.io
 	"LaunchPad.exe", // Daybreak Games LaunchPad
+	"ManiaPlanet.exe", // Nadeo Maniaplanet launcher (Trackmania, Shootmania)
 
 	"evelauncher.exe", // EVE Online launcher
 	"ffxivlauncher.exe", // Final Fantasy XIV Launcher
