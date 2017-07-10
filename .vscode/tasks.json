@@ -1,0 +1,78 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "0.1.0",
+    "windows": {
+        "tasks": [
+            {
+                "taskName": "make all",
+                "isBuildCommand": true,
+                "isShellCommand": true,
+                "command": "build.bat",
+                "options": {
+                    "cwd": "${workspaceRoot}/.vscode"
+                },
+                "args": [
+                ]
+            },
+            {
+                "taskName": "make mumble",
+                "isShellCommand": true,
+                "command": "build.bat",
+                "options": {
+                    "cwd": "${workspaceRoot}/.vscode"
+                },
+                "args": [
+                    "src/mumble"
+                ]
+            },
+            {
+                "taskName": "make murmur",
+                "isShellCommand": true,
+                "command": "build.bat",
+                "options": {
+                    "cwd": "${workspaceRoot}/.vscode"
+                },
+                "args": [
+                    "src/murmur"
+                ]
+            },
+            {
+                "taskName": "make overlay",
+                "isShellCommand": true,
+                "command": "build.bat",
+                "options": {
+                    "cwd": "${workspaceRoot}/.vscode"
+                },
+                "args": [
+                    "overlay"
+                ]
+            },
+            {
+                "taskName": "make overlay64",
+                "isShellCommand": true,
+                "command": "build.bat",
+                "options": {
+                    "cwd": "${workspaceRoot}/.vscode"
+                },
+                "args": [
+                    "overlay_winx64"
+                ]
+            },
+            {
+                "taskName": "run mumble",
+                "command": "mumble.exe",
+                "options": {
+                    "cwd": "${workspaceRoot}/release"
+                }
+            },
+            {
+                "taskName": "run murmur",
+                "command": "murmur.exe",
+                "options": {
+                    "cwd": "${workspaceRoot}/release"
+                }
+            }
+        ]
+    }
+}
