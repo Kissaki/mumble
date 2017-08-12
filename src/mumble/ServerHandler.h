@@ -115,6 +115,7 @@ class ServerHandler : public QThread {
 		void requestBanList();
 		void requestUserList();
 		void requestACL(unsigned int channel);
+		void requestServerConfig();
 		void registerUser(unsigned int uiSession);
 		void kickBanUser(unsigned int uiSession, const QString &reason, bool ban);
 		void sendUserTextMessage(unsigned int uiSession, const QString &message_);

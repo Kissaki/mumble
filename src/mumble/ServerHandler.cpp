@@ -798,6 +798,11 @@ void ServerHandler::requestACL(unsigned int channel) {
 	sendMessage(mpacl);
 }
 
+void ServerHandler::requestServerConfig() {
+	MumbleProto::ServerConfig msg;
+	sendMessage(msg);
+}
+
 void ServerHandler::registerUser(unsigned int uiSession) {
 	MumbleProto::UserState mpus;
 	mpus.set_session(uiSession);

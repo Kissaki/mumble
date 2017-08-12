@@ -35,6 +35,7 @@
 #include "Tokens.h"
 #include "User.h"
 #include "UserEdit.h"
+#include "ServerWelcomeEdit.h"
 #include "UserInformation.h"
 #include "UserModel.h"
 #include "UserLocalVolumeDialog.h"
@@ -119,6 +120,7 @@ MainWindow::MainWindow(QWidget *p) : QMainWindow(p) {
 	aclEdit = NULL;
 	banEdit = NULL;
 	userEdit = NULL;
+	serverWelcomeEdit = NULL;
 	tokenEdit = NULL;
 
 	voiceRecorderDialog = NULL;
@@ -1244,6 +1246,7 @@ void MainWindow::on_qmServer_aboutToShow() {
 	qmServer->addAction(qaServerTokens);
 	qmServer->addAction(qaServerUserList);
 	qmServer->addAction(qaServerBanList);
+	qmServer->addAction(qaServerWelcome);
 	qmServer->addSeparator();
 #if !defined(Q_OS_MAC)
 	// Don't add qaHide on macOS.
@@ -1255,6 +1258,7 @@ void MainWindow::on_qmServer_aboutToShow() {
 
 	qaServerBanList->setEnabled(g.pPermissions & (ChanACL::Ban | ChanACL::Write));
 	qaServerUserList->setEnabled(g.pPermissions & (ChanACL::Register | ChanACL::Write));
+	qaServerWelcome->setEnabled(g.pPermissions & (ChanACL::All));
 	qaServerInformation->setEnabled(g.uiSession != 0);
 	qaServerTokens->setEnabled(g.uiSession != 0);
 
@@ -1292,6 +1296,10 @@ void MainWindow::on_qaServerUserList_triggered() {
 		delete userEdit;
 		userEdit = NULL;
 	}
+}
+
+void MainWindow::on_qaServerWelcome_triggered() {
+	g.sh->requestServerConfig();
 }
 
 static const QString currentCodec() {

@@ -909,6 +909,17 @@ the channel's context menu.</string>
     <bool>false</bool>
    </property>
   </action>
+  <action name="qaServerWelcome">
+   <property name="text">
+    <string>Edit &amp;Welcome Message</string>
+   </property>
+   <property name="toolTip">
+    <string>View and edit the servers welcome message</string>
+   </property>
+   <property name="whatsThis">
+    <string>Opens a dialog that allows you to view and change the servers welcome message</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

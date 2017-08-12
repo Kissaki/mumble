@@ -34,6 +34,7 @@
 class ACLEditor;
 class BanEditor;
 class UserEdit;
+class ServerWelcomeEdit;
 class ServerHandler;
 class GlobalShortcut;
 class TextToSpeech;
@@ -84,6 +85,7 @@ class MainWindow : public QMainWindow, public MessageHandler, public Ui::MainWin
 		ACLEditor *aclEdit;
 		BanEditor *banEdit;
 		UserEdit *userEdit;
+		ServerWelcomeEdit *serverWelcomeEdit;
 		Tokens *tokenEdit;
 
 		VoiceRecorderDialog *voiceRecorderDialog;
@@ -183,6 +185,7 @@ class MainWindow : public QMainWindow, public MessageHandler, public Ui::MainWin
 		void on_qaServerDisconnect_triggered();
 		void on_qaServerBanList_triggered();
 		void on_qaServerUserList_triggered();
+		void on_qaServerWelcome_triggered();
 		void on_qaServerInformation_triggered();
 		void on_qaServerTexture_triggered();
 		void on_qaServerTextureRemove_triggered();

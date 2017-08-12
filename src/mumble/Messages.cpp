@@ -22,6 +22,7 @@
 #include "Overlay.h"
 #include "Plugins.h"
 #include "ServerHandler.h"
+#include "ServerWelcomeEdit.h"
 #include "User.h"
 #include "UserEdit.h"
 #include "UserInformation.h"
@@ -156,6 +157,14 @@ void MainWindow::msgServerConfig(const MumbleProto::ServerConfig &msg) {
 		if (!str.isEmpty()) {
 			g.l->log(Log::Information, tr("Welcome message: %1").arg(str));
 		}
+
+		if (serverWelcomeEdit) {
+			serverWelcomeEdit->reject();
+			delete serverWelcomeEdit;
+			serverWelcomeEdit = NULL;
+		}
+		serverWelcomeEdit = new ServerWelcomeEdit(str, this);
+		serverWelcomeEdit->show();
 	}
 	if (msg.has_max_bandwidth())
 		AudioInput::setMaxBandwidth(msg.max_bandwidth());

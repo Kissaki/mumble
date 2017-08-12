@@ -115,6 +115,7 @@ HEADERS *= BanEditor.h \
     Cert.h \
     ClientUser.h \
     UserEdit.h \
+    ServerWelcomeEdit.h \
     UserListModel.h \
     UserLocalVolumeDialog.h \
     Tokens.h \
@@ -190,6 +191,7 @@ SOURCES *= BanEditor.cpp \
     Cert.cpp \
     ClientUser.cpp \
     UserEdit.cpp \
+    ServerWelcomeEdit.cpp \
     UserListModel.cpp \
     UserLocalVolumeDialog.cpp \
     Tokens.cpp \
@@ -241,6 +243,7 @@ FORMS *= ConfigDialog.ui \
     GlobalShortcutTarget.ui \
     Cert.ui \
     UserEdit.ui \
+    ServerWelcomeEdit.ui \
     UserLocalVolumeDialog.ui \
     AudioWizard.ui \
     Tokens.ui \
