@@ -2272,7 +2272,7 @@ void MainWindow::userStateChanged() {
 }
 
 void MainWindow::on_qaAudioReset_triggered() {
-    AudioInputPtr ai = g.ai;
+	AudioInputPtr ai = g.ai;
 	if (ai)
 		ai->bResetProcessor = true;
 }
@@ -2309,8 +2309,8 @@ void MainWindow::on_qaAudioMute_triggered() {
 	if (g.sh) {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
 	}
-	
-    onChangeMute();
+
+	onChangeMute();
 	updateTrayIcon();
 }
 
@@ -2322,7 +2322,7 @@ void MainWindow::on_qaAudioDeaf_triggered() {
 
 	if (! qaAudioDeaf->isChecked() && bAutoUnmute) {
 		qaAudioDeaf->setChecked(true);
-        qaAudioMute->setChecked(false);
+		qaAudioMute->setChecked(false);
 		on_qaAudioMute_triggered();
 		return;
 	}
@@ -2347,7 +2347,7 @@ void MainWindow::on_qaAudioDeaf_triggered() {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
 	}
 
-    onChangeMute();
+	onChangeMute();
 	updateTrayIcon();
 }
 
@@ -2767,17 +2767,18 @@ void MainWindow::whisperReleased(QVariant scdata) {
 	updateTarget();
 }
 
-void MainWindow::onChangeMute()
-{
-    // This function will attempt to cork the underlying
-    // audio device if it is not needed and uncork it if it is.
-    if (! g.ai)
-        return;
+void MainWindow::onChangeMute() {
+	// This function will attempt to cork the underlying
+	// audio device if it is not needed and uncork it if it is.
+	if (! g.ai) {
+		return;
+	}
 
-    if (g.s.bMute && !g.bInAudioWizard)
-        emit corkStream(true);
-    else
-        emit corkStream(false);
+	if (g.s.bMute && !g.bInAudioWizard) {
+		emit corkStream(true);
+	} else {
+		emit corkStream(false);
+	}
 }
 
 void MainWindow::onResetAudio()
@@ -2839,7 +2840,7 @@ void MainWindow::serverConnected() {
 
 	if (g.s.bMute || g.s.bDeaf) {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
-        onChangeMute();
+		onChangeMute();
 	}
 
 	// Update QActions and menues

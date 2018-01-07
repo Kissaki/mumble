@@ -456,7 +456,7 @@ int main(int argc, char **argv) {
 	g.p->rescanPlugins();
 
 	Audio::start();
-    g.mw->onChangeMute();
+	g.mw->onChangeMute();
 
 	a.setQuitOnLastWindowClosed(false);
 

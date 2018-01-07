@@ -300,12 +300,12 @@ void PulseAudioSystem::eventCallback(pa_mainloop_api *api, pa_defer_event *) {
 			qsInputCache = idev;
 
 			pa_stream_connect_record(pasInput, qPrintable(idev), &buff, PA_STREAM_ADJUST_LATENCY);
-         
-         // Ensure stream is initially un-muted
-         pa_stream_cork(pasInput, 0, NULL, NULL);
-         
-         // connect PulseAudioInput corkStream signal to here
-         QObject::connect(g.mw, SIGNAL(corkStream(const bool)), this, SLOT(corkStream(const bool)), Qt::QueuedConnection);
+
+			// Ensure stream is initially un-muted
+			pa_stream_cork(pasInput, 0, NULL, NULL);
+
+			// connect PulseAudioInput corkStream signal to here
+			QObject::connect(g.mw, SIGNAL(corkStream(const bool)), this, SLOT(corkStream(const bool)), Qt::QueuedConnection);
 		}
 	}
 
@@ -375,16 +375,14 @@ void PulseAudioSystem::eventCallback(pa_mainloop_api *api, pa_defer_event *) {
 	}
 }
 
-void PulseAudioSystem::corkStream(const bool corked)
-{
-   // TODO: Do I need this lock?
-   if (pasInput)
-   {
-      pa_threaded_mainloop_lock(pam);
-      pa_stream_cork(pasInput, corked, NULL, NULL);
-      pa_threaded_mainloop_unlock(pam);
-   }
-   return;
+void PulseAudioSystem::corkStream(const bool corked) {
+	// TODO: Do I need this lock?
+	if (pasInput) {
+		pa_threaded_mainloop_lock(pam);
+		pa_stream_cork(pasInput, corked, NULL, NULL);
+		pa_threaded_mainloop_unlock(pam);
+	}
+	return;
 }
 
 void PulseAudioSystem::context_state_callback(pa_context *c, void *userdata) {
