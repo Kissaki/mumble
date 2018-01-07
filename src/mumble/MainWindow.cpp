@@ -2774,11 +2774,7 @@ void MainWindow::onChangeMute() {
 		return;
 	}
 
-	if (g.s.bMute && !g.bInAudioWizard) {
-		emit corkStream(true);
-	} else {
-		emit corkStream(false);
-	}
+	emit corkStream(g.s.bMute && !g.bInAudioWizard);
 }
 
 void MainWindow::onResetAudio()
