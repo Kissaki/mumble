@@ -2840,7 +2840,6 @@ void MainWindow::serverConnected() {
 
 	if (g.s.bMute || g.s.bDeaf) {
 		g.sh->setSelfMuteDeafState(g.s.bMute, g.s.bDeaf);
-		onChangeMute();
 	}
 
 	// Update QActions and menues
