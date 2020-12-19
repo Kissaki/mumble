@@ -3,201 +3,180 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "NetworkConfig.h"
+#ifndef MUMBLE_MUMBLE_JACKAUDIO_H_
+#define MUMBLE_MUMBLE_JACKAUDIO_H_
 
-#include "MainWindow.h"
-#include "OSInfo.h"
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-#include <QSignalBlocker>
-#include <QtNetwork/QHostAddress>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkProxy>
+#include <QtCore/QLibrary>
+#include <QtCore/QSemaphore>
+#include <QtCore/QVector>
+#include <QtCore/QWaitCondition>
 
-#ifdef NO_UPDATE_CHECK
-#	include <QMessageBox>
+#include <jack/types.h>
+
+#define JACK_MAX_OUTPUT_PORTS 2
+#define JACK_BUFFER_PERIODS 3
+
+// Definitions from <jack/ringbuffer.h>
+typedef void *jack_ringbuffer_t;
+
+struct jack_ringbuffer_data_t {
+	char *buf;
+	size_t len;
+};
+
+typedef QVector< jack_port_t * > JackPorts;
+typedef QVector< jack_default_audio_sample_t * > JackBuffers;
+
+class JackAudioInit;
+
+class JackAudioSystem : public QObject {
+	friend JackAudioInit;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioSystem)
+
+protected:
+	bool bAvailable;
+	uint8_t users;
+	QMutex qmWait;
+	QLibrary qlJack;
+	QWaitCondition qwcWait;
+	jack_client_t *client;
+
+	static int processCallback(jack_nframes_t frames, void *);
+	static int sampleRateCallback(jack_nframes_t, void *);
+	static int bufferSizeCallback(jack_nframes_t frames, void *);
+	static void shutdownCallback(void *);
+
+	const char *(*jack_get_version_string)();
+	const char **(*jack_get_ports)(jack_client_t *client, const char *port_name_pattern, const char *type_name_pattern,
+								   unsigned long flags);
+	char *(*jack_get_client_name)(jack_client_t *client);
+	char *(*jack_port_name)(jack_port_t *port);
+	int (*jack_client_close)(jack_client_t *client);
+	int (*jack_activate)(jack_client_t *client);
+	int (*jack_deactivate)(jack_client_t *client);
+	int (*jack_set_process_callback)(jack_client_t *client, JackProcessCallback process_callback, void *arg);
+	int (*jack_set_sample_rate_callback)(jack_client_t *client, JackSampleRateCallback process_callback, void *arg);
+	int (*jack_set_buffer_size_callback)(jack_client_t *client, JackBufferSizeCallback process_callback, void *arg);
+	int (*jack_on_shutdown)(jack_client_t *client, JackShutdownCallback process_callback, void *arg);
+	int (*jack_connect)(jack_client_t *client, const char *source_port, const char *destination_port);
+	int (*jack_port_disconnect)(jack_client_t *client, jack_port_t *port);
+	int (*jack_port_unregister)(jack_client_t *client, jack_port_t *port);
+	int (*jack_port_flags)(const jack_port_t *port);
+	void *(*jack_port_get_buffer)(jack_port_t *port, jack_nframes_t frames);
+	void (*jack_free)(void *ptr);
+	jack_client_t *(*jack_client_open)(const char *client_name, jack_options_t options, jack_status_t *status, ...);
+	jack_nframes_t (*jack_get_sample_rate)(jack_client_t *client);
+	jack_nframes_t (*jack_get_buffer_size)(jack_client_t *client);
+	jack_port_t *(*jack_port_by_name)(jack_client_t *client, const char *port_name);
+	jack_port_t *(*jack_port_register)(jack_client_t *client, const char *port_name, const char *port_type,
+									   unsigned long flags, unsigned long buffer_size);
+
+	jack_ringbuffer_t *(*jack_ringbuffer_create)(size_t sz);
+	void (*jack_ringbuffer_free)(jack_ringbuffer_t *rb);
+	int (*jack_ringbuffer_mlock)(jack_ringbuffer_t *rb);
+	size_t (*jack_ringbuffer_read)(jack_ringbuffer_t *rb, char *dest, size_t cnt);
+	size_t (*jack_ringbuffer_read_space)(const jack_ringbuffer_t *rb);
+	size_t (*jack_ringbuffer_write)(jack_ringbuffer_t *rb, const char *src, size_t cnt);
+	void (*jack_ringbuffer_get_write_vector)(const jack_ringbuffer_t *rb, jack_ringbuffer_data_t *vec);
+	size_t (*jack_ringbuffer_write_space)(const jack_ringbuffer_t *rb);
+	void (*jack_ringbuffer_write_advance)(jack_ringbuffer_t *rb, size_t cnt);
+
+public:
+	QHash< QString, QString > qhInput;
+	QHash< QString, QString > qhOutput;
+
+	bool isOk();
+	uint8_t outPorts();
+	jack_nframes_t sampleRate();
+	jack_nframes_t bufferSize();
+	JackPorts getPhysicalPorts(const uint8_t flags);
+	void *getPortBuffer(jack_port_t *port, const jack_nframes_t frames);
+	jack_port_t *registerPort(const char *name, const uint8_t flags);
+	bool unregisterPort(jack_port_t *port);
+	bool connectPort(jack_port_t *sourcePort, jack_port_t *destinationPort);
+	bool disconnectPort(jack_port_t *port);
+
+	jack_ringbuffer_t *ringbufferCreate(const size_t size);
+	void ringbufferFree(jack_ringbuffer_t *buffer);
+	int ringbufferMlock(jack_ringbuffer_t *buffer);
+	size_t ringbufferRead(jack_ringbuffer_t *buffer, const size_t size, void *destination);
+	size_t ringbufferReadSpace(const jack_ringbuffer_t *buffer);
+	size_t ringbufferWrite(jack_ringbuffer_t *buffer, const size_t size, const void *source);
+	void ringbufferGetWriteVector(const jack_ringbuffer_t *buffer, jack_ringbuffer_data_t *vector);
+	size_t ringbufferWriteSpace(const jack_ringbuffer_t *buffer);
+	void ringbufferWriteAdvance(jack_ringbuffer_t *buffer, const size_t size);
+
+	bool initialize();
+	void deinitialize();
+	bool activate();
+	void deactivate();
+
+	JackAudioSystem();
+	~JackAudioSystem();
+};
+
+class JackAudioInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioInput)
+
+protected:
+	volatile bool bReady;
+	QMutex qmWait;
+	QSemaphore qsSleep;
+	jack_port_t *port;
+	jack_ringbuffer_t *buffer;
+	size_t bufferSize;
+
+public:
+	bool isReady();
+	bool process(const jack_nframes_t frames);
+	bool allocBuffer(const jack_nframes_t frames);
+	bool activate();
+	void deactivate();
+	bool registerPorts();
+	bool unregisterPorts();
+	void connectPorts();
+	bool disconnectPorts();
+
+	void run() Q_DECL_OVERRIDE;
+	JackAudioInput();
+	~JackAudioInput() Q_DECL_OVERRIDE;
+};
+
+class JackAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioOutput)
+
+protected:
+	volatile bool bReady;
+	QMutex qmWait;
+	QSemaphore qsSleep;
+	JackPorts ports;
+	JackBuffers outputBuffers;
+	jack_ringbuffer_t *buffer;
+
+public:
+	bool isReady();
+	bool process(const jack_nframes_t frames);
+	bool allocBuffer(const jack_nframes_t frames);
+	bool activate();
+	void deactivate();
+	bool registerPorts();
+	bool unregisterPorts();
+	void connectPorts();
+	bool disconnectPorts();
+
+	void run() Q_DECL_OVERRIDE;
+	JackAudioOutput();
+	~JackAudioOutput() Q_DECL_OVERRIDE;
+};
+
 #endif
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-const QString NetworkConfig::name = QLatin1String("NetworkConfig");
-
-static ConfigWidget *NetworkConfigNew(Settings &st) {
-	return new NetworkConfig(st);
-}
-
-static ConfigRegistrar registrar(1300, NetworkConfigNew);
-
-NetworkConfig::NetworkConfig(Settings &st) : ConfigWidget(st) {
-	setupUi(this);
-	qcbType->setAccessibleName(tr("Type"));
-	qleHostname->setAccessibleName(tr("Hostname"));
-	qlePort->setAccessibleName(tr("Port"));
-	qleUsername->setAccessibleName(tr("Username"));
-	qlePassword->setAccessibleName(tr("Password"));
-}
-
-QString NetworkConfig::title() const {
-	return tr("Network");
-}
-
-const QString &NetworkConfig::getName() const {
-	return NetworkConfig::name;
-}
-
-QIcon NetworkConfig::icon() const {
-	return QIcon(QLatin1String("skin:config_network.png"));
-}
-
-void NetworkConfig::load(const Settings &r) {
-	loadCheckBox(qcbTcpMode, s.bTCPCompat);
-	loadCheckBox(qcbQoS, s.bQoS);
-	loadCheckBox(qcbAutoReconnect, s.bReconnect);
-	loadCheckBox(qcbAutoConnect, s.bAutoConnect);
-	loadCheckBox(qcbDisablePublicList, s.bDisablePublicList);
-	loadCheckBox(qcbSuppressIdentity, s.bSuppressIdentity);
-	loadComboBox(qcbType, s.ptProxyType);
-
-	qleHostname->setText(r.qsProxyHost);
-
-	if (r.usProxyPort > 0) {
-		QString port;
-		port.setNum(r.usProxyPort);
-		qlePort->setText(port);
-	} else
-		qlePort->setText(QString());
-
-	qleUsername->setText(r.qsProxyUsername);
-	qlePassword->setText(r.qsProxyPassword);
-
-	loadCheckBox(qcbHideOS, s.bHideOS);
-
-	const QSignalBlocker blocker(qcbAutoUpdate);
-	loadCheckBox(qcbAutoUpdate, r.bUpdateCheck);
-	loadCheckBox(qcbPluginUpdate, r.bPluginCheck);
-	loadCheckBox(qcbUsage, r.bUsage);
-}
-
-void NetworkConfig::save() const {
-	s.bTCPCompat         = qcbTcpMode->isChecked();
-	s.bQoS               = qcbQoS->isChecked();
-	s.bReconnect         = qcbAutoReconnect->isChecked();
-	s.bAutoConnect       = qcbAutoConnect->isChecked();
-	s.bDisablePublicList = qcbDisablePublicList->isChecked();
-	s.bSuppressIdentity  = qcbSuppressIdentity->isChecked();
-	s.bHideOS            = qcbHideOS->isChecked();
-
-	s.ptProxyType     = static_cast< Settings::ProxyType >(qcbType->currentIndex());
-	s.qsProxyHost     = qleHostname->text();
-	s.usProxyPort     = qlePort->text().toUShort();
-	s.qsProxyUsername = qleUsername->text();
-	s.qsProxyPassword = qlePassword->text();
-
-	s.bUpdateCheck = qcbAutoUpdate->isChecked();
-	s.bPluginCheck = qcbPluginUpdate->isChecked();
-	s.bUsage       = qcbUsage->isChecked();
-}
-
-static QNetworkProxy::ProxyType local_to_qt_proxy(Settings::ProxyType pt) {
-	switch (pt) {
-		case Settings::NoProxy:
-			return QNetworkProxy::NoProxy;
-		case Settings::HttpProxy:
-			return QNetworkProxy::HttpProxy;
-		case Settings::Socks5Proxy:
-			return QNetworkProxy::Socks5Proxy;
-	}
-
-	return QNetworkProxy::NoProxy;
-}
-
-void NetworkConfig::SetupProxy() {
-	QNetworkProxy proxy;
-	proxy.setType(local_to_qt_proxy(g.s.ptProxyType));
-	proxy.setHostName(g.s.qsProxyHost);
-	proxy.setPort(g.s.usProxyPort);
-	proxy.setUser(g.s.qsProxyUsername);
-	proxy.setPassword(g.s.qsProxyPassword);
-	QNetworkProxy::setApplicationProxy(proxy);
-}
-
-bool NetworkConfig::TcpModeEnabled() {
-	/*
-	 * We force TCP mode for both HTTP and SOCKS5 proxies, even though SOCKS5 supports UDP.
-	 *
-	 * This is because Qt's automatic application-wide proxying fails when we're in UDP
-	 * mode since the datagram transmission code assumes that its socket is created in its
-	 * own thread. Due to the automatic proxying, this assumption is incorrect, because of
-	 * Qt's behind-the-scenes magic.
-	 *
-	 * However, TCP mode uses Qt events to make sure packets are sent off from the right
-	 * thread, and this is what we utilize here.
-	 *
-	 * This is probably not even something that should even be taken care of, as proxying
-	 * itself already is a potential latency killer.
-	 */
-
-	return g.s.ptProxyType != Settings::NoProxy || g.s.bTCPCompat;
-}
-
-void NetworkConfig::accept() const {
-	NetworkConfig::SetupProxy();
-}
-
-void NetworkConfig::on_qcbType_currentIndexChanged(int v) {
-	Settings::ProxyType pt = static_cast< Settings::ProxyType >(v);
-
-	qleHostname->setEnabled(pt != Settings::NoProxy);
-	qlePort->setEnabled(pt != Settings::NoProxy);
-	qleUsername->setEnabled(pt != Settings::NoProxy);
-	qlePassword->setEnabled(pt != Settings::NoProxy);
-	qcbTcpMode->setEnabled(pt == Settings::NoProxy);
-
-	s.ptProxyType = pt;
-}
-
-#ifdef NO_UPDATE_CHECK
-void NetworkConfig::on_qcbAutoUpdate_stateChanged(int state) {
-	if (state == Qt::Checked) {
-		QMessageBox msgBox;
-		msgBox.setText(
-			QObject::tr("<p>You're using a Mumble version that <b>explicitly disabled</b> update-checks.</p>"
-						"<p>This means that the update notification you might receive by using this option will "
-						"<b>most likely be meaningless</b> for you.</p>"));
-		msgBox.setInformativeText(
-			QObject::tr("<p>If you're using Linux this is most likely because you are using a "
-						"version from your distribution's package repository that have their own update cycles.</p>"
-						"<p>If you want to always have the most recent Mumble version, you should consider using a "
-						"different method of installation.\n"
-						"See <a href=\"https://wiki.mumble.info/wiki/Installing_Mumble\">the Mumble wiki</a> for what "
-						"alternatives there are.</p>"));
-		msgBox.setIcon(QMessageBox::Warning);
-		msgBox.exec();
-	}
-}
-#endif
-
-QNetworkReply *Network::get(const QUrl &url) {
-	QNetworkRequest req(url);
-	prepareRequest(req);
-	return g.nam->get(req);
-}
-
-void Network::prepareRequest(QNetworkRequest &req) {
-	req.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, true);
-
-	// Do not send OS information if the corresponding privacy setting is enabled
-	if (g.s.bHideOS) {
-		req.setRawHeader(QString::fromLatin1("User-Agent").toUtf8(),
-						 QString::fromLatin1("Mozilla/5.0 Mumble/%1 %2")
-							 .arg(QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE))
-							 .toUtf8());
-	} else {
-		req.setRawHeader(QString::fromLatin1("User-Agent").toUtf8(),
-						 QString::fromLatin1("Mozilla/5.0 (%1; %2) Mumble/%3 %4")
-							 .arg(OSInfo::getOS(), OSInfo::getOSVersion(),
-								  QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE))
-							 .toUtf8());
-	}
-}
