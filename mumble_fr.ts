@@ -3,146 +3,99 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TextToSpeech.h"
+#include "MumbleApplication.h"
 
-#ifdef USE_SPEECHD
-#	ifdef USE_SPEECHD_PKGCONFIG
-#		include <speech-dispatcher/libspeechd.h>
-#	else
-#		include <libspeechd.h>
-#	endif
+#include "EnvUtils.h"
+#include "MainWindow.h"
+#include "GlobalShortcut.h"
+
+#if defined(Q_OS_WIN)
+#	include "GlobalShortcut_win.h"
 #endif
 
-#include <QtCore/QLocale>
+#include <QtGui/QFileOpenEvent>
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-class TextToSpeechPrivate {
-#ifdef USE_SPEECHD
-protected:
-	SPDConnection *spd;
-	/// Used to store the requested volume of the TextToSpeech object
-	/// before speech-dispatcher has been initialized.
-	int volume;
-	bool initialized;
-	void ensureInitialized();
-#endif
-public:
-	TextToSpeechPrivate();
-	~TextToSpeechPrivate();
-	void say(const QString &text);
-	void setVolume(int v);
-};
-
-#ifdef USE_SPEECHD
-TextToSpeechPrivate::TextToSpeechPrivate() {
-	initialized = false;
-	volume      = -1;
-	spd         = nullptr;
+MumbleApplication *MumbleApplication::instance() {
+	return static_cast< MumbleApplication * >(QCoreApplication::instance());
 }
 
-TextToSpeechPrivate::~TextToSpeechPrivate() {
-	if (spd) {
-		spd_close(spd);
-		spd = nullptr;
+MumbleApplication::MumbleApplication(int &pargc, char **pargv) : QApplication(pargc, pargv) {
+	connect(this, SIGNAL(commitDataRequest(QSessionManager &)), SLOT(onCommitDataRequest(QSessionManager &)),
+			Qt::DirectConnection);
+}
+
+QString MumbleApplication::applicationVersionRootPath() {
+	QString versionRoot = EnvUtils::getenv(QLatin1String("MUMBLE_VERSION_ROOT"));
+	if (versionRoot.count() > 0) {
+		return versionRoot;
+	}
+	return this->applicationDirPath();
+}
+
+void MumbleApplication::onCommitDataRequest(QSessionManager &) {
+	// Make sure the config is saved and supress the ask on quit message
+	if (g.mw) {
+		g.s.save();
+		g.mw->bSuppressAskOnQuit = true;
+		qWarning() << "Session likely ending. Suppressing ask on quit";
 	}
 }
 
-void TextToSpeechPrivate::ensureInitialized() {
-	if (initialized) {
-		return;
-	}
-
-	spd = spd_open("Mumble", nullptr, nullptr, SPD_MODE_THREADED);
-	if (!spd) {
-		qWarning("TextToSpeech: Failed to contact speech dispatcher.");
-	} else {
-		QString lang;
-		if (!g.s.qsTTSLanguage.isEmpty()) {
-			lang = g.s.qsTTSLanguage;
-		} else if (!g.s.qsLanguage.isEmpty()) {
-			QLocale locale(g.s.qsLanguage);
-			lang = locale.bcp47Name();
+bool MumbleApplication::event(QEvent *e) {
+	if (e->type() == QEvent::FileOpen) {
+		QFileOpenEvent *foe = static_cast< QFileOpenEvent * >(e);
+		if (!g.mw) {
+			this->quLaunchURL = foe->url();
 		} else {
-			QLocale systemLocale;
-			lang = systemLocale.bcp47Name();
+			g.mw->openUrl(foe->url());
 		}
-		if (!lang.isEmpty()) {
-			if (spd_set_language(spd, lang.toLocal8Bit().constData()) != 0) {
-				qWarning("TextToSpeech: Failed to set language.");
-			}
+		return true;
+	}
+	return QApplication::event(e);
+}
+
+#ifdef Q_OS_WIN
+/// gswForward forwards a native Windows keyboard/mouse message
+/// into GlobalShortcutWin's event stream.
+///
+/// @return  Returns true if the forwarded event was suppressed
+///          by GlobalShortcutWin. Otherwise, returns false.
+static bool gswForward(MSG *msg) {
+	GlobalShortcutWin *gsw = static_cast< GlobalShortcutWin * >(GlobalShortcutEngine::engine);
+	if (!gsw) {
+		return false;
+	}
+	switch (msg->message) {
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP:
+		case WM_RBUTTONDOWN:
+		case WM_RBUTTONUP:
+		case WM_MBUTTONDOWN:
+		case WM_MBUTTONUP:
+		case WM_XBUTTONDOWN:
+		case WM_XBUTTONUP:
+			return gsw->injectMouseMessage(msg);
+		case WM_KEYDOWN:
+		case WM_KEYUP:
+		case WM_SYSKEYDOWN:
+		case WM_SYSKEYUP:
+			return gsw->injectKeyboardMessage(msg);
+	}
+	return false;
+}
+
+bool MumbleApplication::nativeEventFilter(const QByteArray &, void *message, long *) {
+	MSG *msg = reinterpret_cast< MSG * >(message);
+	if (QThread::currentThread() == thread()) {
+		bool suppress = gswForward(msg);
+		if (suppress) {
+			return true;
 		}
-
-		if (spd_set_punctuation(spd, SPD_PUNCT_NONE) != 0)
-			qWarning("TextToSpech: Failed to set punctuation mode.");
-		if (spd_set_spelling(spd, SPD_SPELL_ON) != 0)
-			qWarning("TextToSpeech: Failed to set spelling mode.");
 	}
-
-	initialized = true;
-
-	if (volume != -1) {
-		setVolume(volume);
-	}
-}
-
-void TextToSpeechPrivate::say(const QString &txt) {
-	ensureInitialized();
-
-	if (spd)
-		spd_say(spd, SPD_MESSAGE, txt.toUtf8());
-}
-
-void TextToSpeechPrivate::setVolume(int vol) {
-	if (!initialized) {
-		volume = vol;
-		return;
-	}
-
-	if (spd)
-		spd_set_volume(spd, vol * 2 - 100);
-}
-#else
-TextToSpeechPrivate::TextToSpeechPrivate() {
-	qWarning("TextToSpeech: Compiled without support for speech-dispatcher");
-}
-
-TextToSpeechPrivate::~TextToSpeechPrivate() {
-}
-
-void TextToSpeechPrivate::say(const QString &) {
-}
-
-void TextToSpeechPrivate::setVolume(int) {
+	return false;
 }
 #endif
-
-
-TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
-	enabled = true;
-	d       = new TextToSpeechPrivate();
-}
-
-TextToSpeech::~TextToSpeech() {
-	delete d;
-}
-
-void TextToSpeech::say(const QString &text) {
-	if (enabled)
-		d->say(text);
-}
-
-void TextToSpeech::setEnabled(bool e) {
-	enabled = e;
-}
-
-void TextToSpeech::setVolume(int volume) {
-	d->setVolume(volume);
-}
-
-
-bool TextToSpeech::isEnabled() const {
-	return enabled;
-}
