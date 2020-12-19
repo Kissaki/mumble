@@ -1,421 +1,992 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#define _USE_MATH_DEFINES
-
-#include <QtCore/QtCore>
-#include <QtGui/QtGui>
-#include <QtWidgets/QMessageBox>
-
-#include "ManualPlugin.h"
-#include "ui_ManualPlugin.h"
-#include <QPointer>
-
-#include <float.h>
-
-#include "../../plugins/mumble_plugin.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-static QPointer< Manual > mDlg = nullptr;
-static bool bLinkable          = false;
-static bool bActive            = true;
-
-static int iAzimuth   = 180;
-static int iElevation = 0;
-
-static const QString defaultContext  = QString::fromLatin1("Mumble");
-static const QString defaultIdentity = QString::fromLatin1("Agent47");
-
-static struct {
-	float avatar_pos[3];
-	float avatar_front[3];
-	float avatar_top[3];
-	float camera_pos[3];
-	float camera_front[3];
-	float camera_top[3];
-	std::string context;
-	std::wstring identity;
-} my = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, std::string(), std::wstring() };
-
-Manual::Manual(QWidget *p) : QDialog(p) {
-	setupUi(this);
-
-	qgvPosition->viewport()->installEventFilter(this);
-	qgvPosition->scale(1.0f, 1.0f);
-	qgsScene = new QGraphicsScene(QRectF(-5.0f, -5.0f, 10.0f, 10.0f), this);
-
-	const float indicatorDiameter = 4.0f;
-	QPainterPath indicator;
-	// The center of the indicator's circle will represent the current position
-	indicator.addEllipse(QRectF(-indicatorDiameter / 2, -indicatorDiameter / 2, indicatorDiameter, indicatorDiameter));
-	// A line will indicate the indicator's orientation (azimuth)
-	indicator.moveTo(0, indicatorDiameter / 2);
-	indicator.lineTo(0, indicatorDiameter);
-
-	qgiPosition = qgsScene->addPath(indicator);
-
-	qgvPosition->setScene(qgsScene);
-	qgvPosition->fitInView(-5.0f, -5.0f, 10.0f, 10.0f, Qt::KeepAspectRatio);
-
-	qdsbX->setRange(-FLT_MAX, FLT_MAX);
-	qdsbY->setRange(-FLT_MAX, FLT_MAX);
-	qdsbZ->setRange(-FLT_MAX, FLT_MAX);
-
-	qdsbX->setValue(my.avatar_pos[0]);
-	qdsbY->setValue(my.avatar_pos[1]);
-	qdsbZ->setValue(my.avatar_pos[2]);
-
-	qpbActivated->setChecked(bActive);
-	qpbLinked->setChecked(bLinkable);
-
-	qsbAzimuth->setValue(iAzimuth);
-	qsbElevation->setValue(iElevation);
-	updateTopAndFront(iAzimuth, iElevation);
-
-	// Set context and identity to default values in order to
-	// a) make positional audio work out of the box (needs a context)
-	// b) make the user aware of what each field might contain
-	qleContext->setText(defaultContext);
-	qleIdentity->setText(defaultIdentity);
-	my.context  = defaultContext.toStdString();
-	my.identity = defaultIdentity.toStdWString();
-
-	qsbSilentUserDisplaytime->setValue(g.s.manualPlugin_silentUserDisplaytime);
-
-	updateLoopRunning.store(false);
-}
-
-void Manual::setSpeakerPositions(const QHash< unsigned int, Position2D > &positions) {
-	if (mDlg) {
-		QMetaObject::invokeMethod(mDlg, "on_speakerPositionUpdate", Qt::QueuedConnection,
-								  Q_ARG(PositionMap, positions));
-	}
-}
-
-bool Manual::eventFilter(QObject *obj, QEvent *evt) {
-	if ((evt->type() == QEvent::MouseButtonPress) || (evt->type() == QEvent::MouseMove)) {
-		QMouseEvent *qme = dynamic_cast< QMouseEvent * >(evt);
-		if (qme) {
-			if (qme->buttons() & Qt::LeftButton) {
-				QPointF qpf = qgvPosition->mapToScene(qme->pos());
-				qdsbX->setValue(qpf.x());
-				qdsbZ->setValue(-qpf.y());
-				qgiPosition->setPos(qpf);
-			}
-		}
-	}
-	return QDialog::eventFilter(obj, evt);
-}
-
-void Manual::changeEvent(QEvent *e) {
-	QDialog::changeEvent(e);
-	switch (e->type()) {
-		case QEvent::LanguageChange:
-			retranslateUi(this);
-			break;
-		default:
-			break;
-	}
-}
-
-void Manual::on_qpbUnhinge_pressed() {
-	qpbUnhinge->setEnabled(false);
-	mDlg->setParent(nullptr);
-	mDlg->show();
-}
-
-void Manual::on_qpbLinked_clicked(bool b) {
-	bLinkable = b;
-}
-
-void Manual::on_qpbActivated_clicked(bool b) {
-	bActive = b;
-}
-
-void Manual::on_qdsbX_valueChanged(double d) {
-	my.avatar_pos[0] = my.camera_pos[0] = static_cast< float >(d);
-	qgiPosition->setPos(my.avatar_pos[0], -my.avatar_pos[2]);
-}
-
-void Manual::on_qdsbY_valueChanged(double d) {
-	my.avatar_pos[1] = my.camera_pos[1] = static_cast< float >(d);
-}
-
-void Manual::on_qdsbZ_valueChanged(double d) {
-	my.avatar_pos[2] = my.camera_pos[2] = static_cast< float >(d);
-	qgiPosition->setPos(my.avatar_pos[0], -my.avatar_pos[2]);
-}
-
-void Manual::on_qsbAzimuth_valueChanged(int i) {
-	if (i > 360)
-		qdAzimuth->setValue(i % 360);
-	else
-		qdAzimuth->setValue(i);
-
-	updateTopAndFront(i, qsbElevation->value());
-}
-
-void Manual::on_qsbElevation_valueChanged(int i) {
-	qdElevation->setValue(90 - i);
-	updateTopAndFront(qsbAzimuth->value(), i);
-}
-
-void Manual::on_qdAzimuth_valueChanged(int i) {
-	if (i < 0)
-		qsbAzimuth->setValue(360 + i);
-	else
-		qsbAzimuth->setValue(i);
-}
-
-void Manual::on_qdElevation_valueChanged(int i) {
-	if (i < -90)
-		qdElevation->setValue(180);
-	else if (i < 0)
-		qdElevation->setValue(0);
-	else
-		qsbElevation->setValue(90 - i);
-}
-
-void Manual::on_qleContext_editingFinished() {
-	my.context = qleContext->text().toStdString();
-}
-
-void Manual::on_qleIdentity_editingFinished() {
-	my.identity = qleIdentity->text().toStdWString();
-}
-
-void Manual::on_buttonBox_clicked(QAbstractButton *button) {
-	if (buttonBox->buttonRole(button) == buttonBox->ResetRole) {
-		qpbLinked->setChecked(false);
-		qpbActivated->setChecked(true);
-
-		bLinkable = false;
-		bActive   = true;
-
-		qdsbX->setValue(0);
-		qdsbY->setValue(0);
-		qdsbZ->setValue(0);
-
-		qleContext->clear();
-		qleIdentity->clear();
-
-		qsbElevation->setValue(0);
-		qsbAzimuth->setValue(0);
-	}
-}
-
-void Manual::on_qsbSilentUserDisplaytime_valueChanged(int value) {
-	g.s.manualPlugin_silentUserDisplaytime = value;
-}
-
-void Manual::on_speakerPositionUpdate(QHash< unsigned int, Position2D > positions) {
-	// First iterate over the stale items to check whether one of them is actually no longer stale
-	QMutableHashIterator< unsigned int, StaleEntry > staleIt(staleSpeakerPositions);
-	while (staleIt.hasNext()) {
-		staleIt.next();
-
-		const unsigned int sessionID = staleIt.key();
-		QGraphicsItem *staleItem     = staleIt.value().staleItem;
-
-		if (positions.contains(sessionID)) {
-			// The item is no longer stale -> restore opacity and re-insert into speakerPositions
-			staleItem->setOpacity(1.0);
-
-			staleIt.remove();
-			speakerPositions.insert(sessionID, staleItem);
-		} else if (!updateLoopRunning.load()) {
-			QMetaObject::invokeMethod(this, "on_updateStaleSpeakers", Qt::QueuedConnection);
-			updateLoopRunning.store(true);
-		}
-	}
-
-	// Now iterate over all active items and check whether they have become stale or whether their
-	// position can be updated
-	QMutableHashIterator< unsigned int, QGraphicsItem * > speakerIt(speakerPositions);
-	while (speakerIt.hasNext()) {
-		speakerIt.next();
-
-		const unsigned int sessionID = speakerIt.key();
-		QGraphicsItem *speakerItem   = speakerIt.value();
-
-		if (positions.contains(sessionID)) {
-			Position2D newPos = positions.take(sessionID);
-
-			// Update speaker's position (remember that y-axis is inverted in screen-coordinates
-			speakerItem->setPos(newPos.x, -newPos.y);
-		} else {
-			// Remove the stale item
-			speakerIt.remove();
-			if (g.s.manualPlugin_silentUserDisplaytime == 0) {
-				// Delete it immediately
-				delete speakerItem;
-			} else {
-				staleSpeakerPositions.insert(sessionID, { std::chrono::steady_clock::now(), speakerItem });
-			}
-		}
-	}
-
-	// Finally iterate over the remaining new speakers and create new items for them
-	QHashIterator< unsigned int, Position2D > remainingIt(positions);
-	while (remainingIt.hasNext()) {
-		remainingIt.next();
-
-		const float speakerRadius  = 1.2;
-		QGraphicsItem *speakerItem = qgsScene->addEllipse(-speakerRadius, -speakerRadius, 2 * speakerRadius,
-														  2 * speakerRadius, QPen(), QBrush(Qt::red));
-
-		Position2D pos = remainingIt.value();
-
-		// y-axis is inverted in screen-space
-		speakerItem->setPos(pos.x, -pos.y);
-
-		speakerPositions.insert(remainingIt.key(), speakerItem);
-	}
-}
-
-void Manual::on_updateStaleSpeakers() {
-	if (staleSpeakerPositions.isEmpty()) {
-		// If there are no stale speakers, this loop doesn't have to run
-		updateLoopRunning.store(false);
-		return;
-	}
-
-	// Iterate over all stale items and check whether they have to be removed entirely. If not, update
-	// their opacity.
-	QMutableHashIterator< unsigned int, StaleEntry > staleIt(staleSpeakerPositions);
-	while (staleIt.hasNext()) {
-		staleIt.next();
-
-		StaleEntry entry = staleIt.value();
-
-		double elapsedTime =
-			static_cast< std::chrono::duration< double > >(std::chrono::steady_clock::now() - entry.staleSince).count();
-
-		if (elapsedTime >= g.s.manualPlugin_silentUserDisplaytime) {
-			// The item has been around long enough - remove it now
-			staleIt.remove();
-			delete entry.staleItem;
-		} else {
-			// Let the item fade out
-			double opacity = (g.s.manualPlugin_silentUserDisplaytime - elapsedTime)
-							 / static_cast< double >(g.s.manualPlugin_silentUserDisplaytime);
-			entry.staleItem->setOpacity(opacity);
-		}
-	}
-
-	if (!staleSpeakerPositions.isEmpty()) {
-		updateLoopRunning.store(true);
-		// Call this function again in the next iteration of the event loop
-		QMetaObject::invokeMethod(this, "on_updateStaleSpeakers", Qt::QueuedConnection);
-	} else {
-		updateLoopRunning.store(false);
-	}
-}
-
-void Manual::updateTopAndFront(int azimuth, int elevation) {
-	iAzimuth   = azimuth;
-	iElevation = elevation;
-
-	qgiPosition->setRotation(azimuth);
-
-	double azim = azimuth * M_PI / 180.;
-	double elev = elevation * M_PI / 180.;
-
-	my.avatar_front[0] = static_cast< float >(cos(elev) * sin(azim));
-	my.avatar_front[1] = static_cast< float >(sin(elev));
-	my.avatar_front[2] = static_cast< float >(cos(elev) * cos(azim));
-
-	my.avatar_top[0] = static_cast< float >(-sin(elev) * sin(azim));
-	my.avatar_top[1] = static_cast< float >(cos(elev));
-	my.avatar_top[2] = static_cast< float >(-sin(elev) * cos(azim));
-
-	memcpy(my.camera_top, my.avatar_top, sizeof(float) * 3);
-	memcpy(my.camera_front, my.avatar_front, sizeof(float) * 3);
-}
-
-static int trylock() {
-	return bLinkable;
-}
-
-static void unlock() {
-	if (mDlg) {
-		mDlg->qpbLinked->setChecked(false);
-	}
-	bLinkable = false;
-}
-
-static void config(void *ptr) {
-	QWidget *w = reinterpret_cast< QWidget * >(ptr);
-
-	if (mDlg) {
-		mDlg->setParent(w, Qt::Dialog);
-		mDlg->qpbUnhinge->setEnabled(true);
-	} else {
-		mDlg = new Manual(w);
-	}
-
-	mDlg->show();
-}
-
-static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front,
-				 float *camera_top, std::string &context, std::wstring &identity) {
-	if (!bLinkable)
-		return false;
-
-	if (!bActive) {
-		memset(avatar_pos, 0, sizeof(float) * 3);
-		memset(camera_pos, 0, sizeof(float) * 3);
-		return true;
-	}
-
-	memcpy(avatar_pos, my.avatar_pos, sizeof(float) * 3);
-	memcpy(avatar_front, my.avatar_front, sizeof(float) * 3);
-	memcpy(avatar_top, my.avatar_top, sizeof(float) * 3);
-
-	memcpy(camera_pos, my.camera_pos, sizeof(float) * 3);
-	memcpy(camera_front, my.camera_front, sizeof(float) * 3);
-	memcpy(camera_top, my.camera_top, sizeof(float) * 3);
-
-	context.assign(my.context);
-	identity.assign(my.identity);
-
-	return true;
-}
-
-static const std::wstring longdesc() {
-	return std::wstring(L"This is the manual placement plugin. It allows you to place yourself manually.");
-}
-
-static std::wstring description(L"Manual placement plugin");
-static std::wstring shortname(L"Manual placement");
-
-static void about(void *ptr) {
-	QWidget *w = reinterpret_cast< QWidget * >(ptr);
-
-	QMessageBox::about(w, QString::fromStdWString(description), QString::fromStdWString(longdesc()));
-}
-
-static MumblePlugin manual = { MUMBLE_PLUGIN_MAGIC,
-							   description,
-							   shortname,
-							   nullptr, // About is handled by MumblePluginQt
-							   nullptr, // Config is handled by MumblePluginQt
-							   trylock,
-							   unlock,
-							   longdesc,
-							   fetch };
-
-static MumblePluginQt manualqt = { MUMBLE_PLUGIN_MAGIC_QT, about, config };
-
-MumblePlugin *ManualPlugin_getMumblePlugin() {
-	return &manual;
-}
-
-MumblePluginQt *ManualPlugin_getMumblePluginQt() {
-	return &manualqt;
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>671</width>
+    <height>435</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Mumble</string>
+  </property>
+  <property name="dockOptions">
+   <set>QMainWindow::AllowNestedDocks|QMainWindow::AnimatedDocks</set>
+  </property>
+  <property name="unifiedTitleAndToolBarOnMac">
+   <bool>true</bool>
+  </property>
+  <widget class="UserView" name="qtvUsers">
+   <property name="contextMenuPolicy">
+    <enum>Qt::CustomContextMenu</enum>
+   </property>
+   <property name="acceptDrops">
+    <bool>true</bool>
+   </property>
+   <property name="dragEnabled">
+    <bool>true</bool>
+   </property>
+   <property name="rootIsDecorated">
+    <bool>false</bool>
+   </property>
+   <property name="uniformRowHeights">
+    <bool>true</bool>
+   </property>
+   <property name="headerHidden">
+    <bool>true</bool>
+   </property>
+   <attribute name="headerVisible">
+    <bool>false</bool>
+   </attribute>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>671</width>
+     <height>30</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="qmConfig">
+    <property name="title">
+     <string>C&amp;onfigure</string>
+    </property>
+    <addaction name="qaConfigDialog"/>
+   </widget>
+   <widget class="QMenu" name="qmHelp">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <addaction name="qaHelpWhatsThis"/>
+    <addaction name="separator"/>
+    <addaction name="qaHelpAbout"/>
+    <addaction name="qaHelpAboutQt"/>
+    <addaction name="separator"/>
+    <addaction name="qaHelpVersionCheck"/>
+   </widget>
+   <widget class="QMenu" name="qmServer">
+    <property name="title">
+     <string>S&amp;erver</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="qmSelf">
+    <property name="title">
+     <string>&amp;Self</string>
+    </property>
+    <addaction name="qaAudioMute"/>
+    <addaction name="qaAudioDeaf"/>
+    <addaction name="qaSelfPrioritySpeaker"/>
+    <addaction name="separator"/>
+    <addaction name="qaRecording"/>
+    <addaction name="separator"/>
+    <addaction name="qaSelfComment"/>
+    <addaction name="qaServerTexture"/>
+    <addaction name="qaServerTextureRemove"/>
+    <addaction name="separator"/>
+    <addaction name="qaSelfRegister"/>
+    <addaction name="qaAudioStats"/>
+   </widget>
+   <addaction name="qmServer"/>
+   <addaction name="qmSelf"/>
+   <addaction name="qmConfig"/>
+   <addaction name="qmHelp"/>
+  </widget>
+  <widget class="QDockWidget" name="qdwLog">
+   <property name="minimumSize">
+    <size>
+     <width>250</width>
+     <height>121</height>
+    </size>
+   </property>
+   <property name="features">
+    <set>QDockWidget::DockWidgetClosable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Log</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="LogTextBrowser" name="qteLog">
+    <property name="contextMenuPolicy">
+     <enum>Qt::CustomContextMenu</enum>
+    </property>
+    <property name="whatsThis">
+     <string>This shows all recent activity. Connecting to servers, errors and information messages all show up here.&lt;br /&gt;To configure exactly which messages show up here, use the &lt;b&gt;Settings&lt;/b&gt; command from the menu.</string>
+    </property>
+    <property name="openLinks">
+     <bool>false</bool>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="qdwChat">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="toolTip">
+    <string/>
+   </property>
+   <property name="whatsThis">
+    <string>This is the chatbar&lt;br /&gt;If you enter text here and then press enter the text is sent to the user or channel that was selected. If nothing is selected the message is sent to your current channel.</string>
+   </property>
+   <property name="features">
+    <set>QDockWidget::DockWidgetClosable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Chatbar</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="ChatbarTextEdit" name="qteChat">
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>16777215</width>
+      <height>16777215</height>
+     </size>
+    </property>
+    <property name="acceptRichText">
+     <bool>false</bool>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QToolBar" name="qtIconToolbar">
+   <property name="windowTitle">
+    <string>Icon Toolbar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="qaServerConnect"/>
+   <addaction name="qaServerInformation"/>
+   <addaction name="separator"/>
+   <addaction name="qaAudioMute"/>
+   <addaction name="qaAudioDeaf"/>
+   <addaction name="qaRecording"/>
+   <addaction name="separator"/>
+   <addaction name="qaSelfComment"/>
+   <addaction name="separator"/>
+   <addaction name="qaConfigDialog"/>
+   <addaction name="separator"/>
+   <addaction name="qaFilterToggle"/>
+  </widget>
+  <action name="qaQuit">
+   <property name="text">
+    <string>&amp;Quit Mumble</string>
+   </property>
+   <property name="toolTip">
+    <string>Closes the program</string>
+   </property>
+   <property name="whatsThis">
+    <string>Exits the application.</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
+   </property>
+  </action>
+  <action name="qaHide">
+   <property name="text">
+    <string>&amp;Hide Mumble</string>
+   </property>
+   <property name="toolTip">
+    <string>Hides the main Mumble window.</string>
+   </property>
+   <property name="whatsThis">
+    <string>Hides the main Mumble window. Restore by clicking on the tray icon or starting Mumble again.</string>
+   </property>
+  </action>
+  <action name="qaServerConnect">
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:categories/applications-internet.svg</normaloff>skin:categories/applications-internet.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Connect...</string>
+   </property>
+   <property name="toolTip">
+    <string>Open the server connection dialog</string>
+   </property>
+   <property name="whatsThis">
+    <string>Shows a dialog of registered servers, and also allows quick-connect.</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaServerDisconnect">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Disconnect</string>
+   </property>
+   <property name="toolTip">
+    <string>Disconnect from server</string>
+   </property>
+   <property name="whatsThis">
+    <string>Disconnects you from the server.</string>
+   </property>
+  </action>
+  <action name="qaServerBanList">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Ban list...</string>
+   </property>
+   <property name="toolTip">
+    <string>Edit ban list on server</string>
+   </property>
+   <property name="whatsThis">
+    <string>This lets you edit the server-side IP ban list.</string>
+   </property>
+  </action>
+  <action name="qaServerInformation">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:Information_icon.svg</normaloff>skin:Information_icon.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Information...</string>
+   </property>
+   <property name="toolTip">
+    <string>Show information about the server connection</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will show extended information about the connection to the server.</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaUserKick">
+   <property name="text">
+    <string>&amp;Kick...</string>
+   </property>
+   <property name="toolTip">
+    <string>Kick user (with reason)</string>
+   </property>
+   <property name="whatsThis">
+    <string>Kick selected user off server. You'll be asked to specify a reason.</string>
+   </property>
+  </action>
+  <action name="qaUserMute">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Mute</string>
+   </property>
+   <property name="toolTip">
+    <string>Mute user</string>
+   </property>
+   <property name="whatsThis">
+    <string>Mute or unmute user on server. Unmuting a deafened user will also undeafen them.</string>
+   </property>
+  </action>
+  <action name="qaUserBan">
+   <property name="text">
+    <string>&amp;Ban...</string>
+   </property>
+   <property name="toolTip">
+    <string>Kick and ban user (with reason)</string>
+   </property>
+   <property name="whatsThis">
+    <string>Kick and ban selected user from server. You'll be asked to specify a reason.</string>
+   </property>
+  </action>
+  <action name="qaUserDeaf">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Deafen</string>
+   </property>
+   <property name="toolTip">
+    <string>Deafen user</string>
+   </property>
+   <property name="whatsThis">
+    <string>Deafen or undeafen user on server. Deafening a user will also mute them.</string>
+   </property>
+  </action>
+  <action name="qaUserLocalIgnore">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Ignore Messages</string>
+   </property>
+   <property name="toolTip">
+    <string>Locally ignore user's text chat messages.</string>
+   </property>
+   <property name="whatsThis">
+    <string>Silently drops all text messages from the user.</string>
+   </property>
+  </action>
+  <action name="qaUserLocalVolume">
+   <property name="text">
+    <string>Local Volume Adjustment...</string>
+   </property>
+   <property name="toolTip">
+    <string>Locally adjust the user's speech volume.</string>
+   </property>
+   <property name="whatsThis">
+    <string>Opens a dialog with a volume slider. Use this on other users in the same room.</string>
+   </property>
+  </action>
+  <action name="qaUserLocalMute">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Local Mute</string>
+   </property>
+   <property name="toolTip">
+    <string>Mute user locally</string>
+   </property>
+   <property name="whatsThis">
+    <string>Mute or unmute user locally. Use this on other users in the same room.</string>
+   </property>
+  </action>
+  <action name="qaUserTextMessage">
+   <property name="text">
+    <string>Send &amp;Message...</string>
+   </property>
+   <property name="toolTip">
+    <string>Send a Text Message</string>
+   </property>
+   <property name="whatsThis">
+    <string>Sends a text message to another user.</string>
+   </property>
+  </action>
+  <action name="qaChannelAdd">
+   <property name="text">
+    <string>&amp;Add...</string>
+   </property>
+   <property name="toolTip">
+    <string>Add new channel</string>
+   </property>
+   <property name="whatsThis">
+    <string>This adds a new sub-channel to the currently selected channel.</string>
+   </property>
+  </action>
+  <action name="qaChannelRemove">
+   <property name="text">
+    <string>&amp;Remove...</string>
+   </property>
+   <property name="toolTip">
+    <string>Remove channel</string>
+   </property>
+   <property name="whatsThis">
+    <string>This removes a channel and all sub-channels.</string>
+   </property>
+  </action>
+  <action name="qaChannelACL">
+   <property name="text">
+    <string>&amp;Edit...</string>
+   </property>
+   <property name="toolTip">
+    <string>Edit Groups and ACL for channel</string>
+   </property>
+   <property name="whatsThis">
+    <string>This opens the Group and ACL dialog for the channel, to control permissions.</string>
+   </property>
+  </action>
+  <action name="qaChannelLink">
+   <property name="text">
+    <string>&amp;Link</string>
+   </property>
+   <property name="toolTip">
+    <string>Link your channel to another channel</string>
+   </property>
+   <property name="whatsThis">
+    <string>This links your current channel to the selected channel. If users in a channel have permission to speak in the other channel, users can now hear each other. This is a permanent link, and will last until manually unlinked or the server is restarted. Please see the shortcuts for push-to-link.</string>
+   </property>
+  </action>
+  <action name="qaChannelUnlink">
+   <property name="text">
+    <string comment="Channel">&amp;Unlink</string>
+   </property>
+   <property name="toolTip">
+    <string>Unlink your channel from another channel</string>
+   </property>
+   <property name="whatsThis">
+    <string>This unlinks your current channel from the selected channel.</string>
+   </property>
+  </action>
+  <action name="qaChannelUnlinkAll">
+   <property name="text">
+    <string>&amp;Unlink All</string>
+   </property>
+   <property name="toolTip">
+    <string>Unlinks your channel from all linked channels.</string>
+   </property>
+   <property name="whatsThis">
+    <string>This unlinks your current channel (not the selected one) from all linked channels.</string>
+   </property>
+  </action>
+  <action name="qaAudioReset">
+   <property name="text">
+    <string>&amp;Reset</string>
+   </property>
+   <property name="toolTip">
+    <string>Reset audio preprocessor</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will reset the audio preprocessor, including noise cancellation, automatic gain and voice activity detection. If something suddenly worsens the audio environment (like dropping the microphone) and it was temporary, use this to avoid having to wait for the preprocessor to readjust.</string>
+   </property>
+  </action>
+  <action name="qaAudioMute">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:actions/audio-input-microphone.svg</normaloff>
+     <normalon>skin:actions/audio-input-microphone-muted.svg</normalon>
+     <activeon>skin:actions/audio-input-microphone-muted.svg</activeon>skin:actions/audio-input-microphone.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Mute Self</string>
+   </property>
+   <property name="toolTip">
+    <string>Mute yourself</string>
+   </property>
+   <property name="whatsThis">
+    <string>Mute or unmute yourself. When muted, you will not send any data to the server. Unmuting while deafened will also undeafen.</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaAudioDeaf">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:self_undeafened.svg</normaloff>
+     <normalon>skin:deafened_self.svg</normalon>
+     <activeon>skin:deafened_self.svg</activeon>skin:self_undeafened.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Deafen Self</string>
+   </property>
+   <property name="toolTip">
+    <string>Deafen yourself</string>
+   </property>
+   <property name="whatsThis">
+    <string>Deafen or undeafen yourself. When deafened, you will not hear anything. Deafening yourself will also mute.</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaAudioTTS">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Text-To-Speech</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle Text-To-Speech</string>
+   </property>
+   <property name="whatsThis">
+    <string>Enable or disable the text-to-speech engine. Only messages enabled for TTS in the Configuration dialog will actually be spoken.</string>
+   </property>
+  </action>
+  <action name="qaAudioStats">
+   <property name="text">
+    <string>Audio S&amp;tatistics...</string>
+   </property>
+   <property name="toolTip">
+    <string>Display audio statistics</string>
+   </property>
+   <property name="whatsThis">
+    <string>Pops up a small dialog with information about your current audio input.</string>
+   </property>
+  </action>
+  <action name="qaAudioUnlink">
+   <property name="text">
+    <string>&amp;Unlink Plugins</string>
+   </property>
+   <property name="toolTip">
+    <string>Forcibly unlink plugin</string>
+   </property>
+   <property name="whatsThis">
+    <string>This forces the current plugin to unlink, which is handy if it is reading completely wrong data.</string>
+   </property>
+  </action>
+  <action name="qaConfigDialog">
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:config_basic.png</normaloff>skin:config_basic.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Settings...</string>
+   </property>
+   <property name="toolTip">
+    <string>Configure Mumble</string>
+   </property>
+   <property name="whatsThis">
+    <string>Allows you to change most settings for Mumble.</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::PreferencesRole</enum>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaFilterToggle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:filter_off.svg</normaloff>
+     <normalon>skin:filter_on.svg</normalon>
+     <activeon>skin:filter_on.svg</activeon>skin:filter_off.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Filter on/off</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle the channel filter (Ctrl+F)</string>
+   </property>
+   <property name="whatsThis">
+    <string>Enable or disable the filtering of select channels.
+By default all empty channels will be filtered.
+You can mark additional channels for filtering from
+the channel's context menu.</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+F</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaAudioWizard">
+   <property name="text">
+    <string>&amp;Audio Wizard...</string>
+   </property>
+   <property name="toolTip">
+    <string>Start the audio configuration wizard</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will guide you through the process of configuring your audio hardware.</string>
+   </property>
+  </action>
+  <action name="qaDeveloperConsole">
+   <property name="text">
+    <string>Developer &amp;Console...</string>
+   </property>
+   <property name="toolTip">
+    <string>Show the Developer Console</string>
+   </property>
+   <property name="whatsThis">
+    <string>Shows the Mumble Developer Console, where Mumble's log output can be inspected.</string>
+   </property>
+  </action>
+  <action name="qaHelpWhatsThis">
+   <property name="text">
+    <string>&amp;What's This?</string>
+   </property>
+   <property name="toolTip">
+    <string>Enter What's This? mode</string>
+   </property>
+   <property name="whatsThis">
+    <string>Click this to enter &quot;What's This?&quot; mode. Your cursor will turn into a question mark. Click on any button, menu choice or area to show a description of what it is.</string>
+   </property>
+  </action>
+  <action name="qaHelpAbout">
+   <property name="text">
+    <string>&amp;About...</string>
+   </property>
+   <property name="toolTip">
+    <string>Information about Mumble</string>
+   </property>
+   <property name="whatsThis">
+    <string>Shows a small dialog with information and license for Mumble.</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::AboutRole</enum>
+   </property>
+  </action>
+  <action name="qaHelpAboutSpeex">
+   <property name="text">
+    <string>About &amp;Speex...</string>
+   </property>
+   <property name="toolTip">
+    <string>Information about Speex</string>
+   </property>
+   <property name="whatsThis">
+    <string>Shows a small dialog with information about Speex.</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::ApplicationSpecificRole</enum>
+   </property>
+  </action>
+  <action name="qaHelpAboutQt">
+   <property name="text">
+    <string>About &amp;Qt...</string>
+   </property>
+   <property name="toolTip">
+    <string>Information about Qt</string>
+   </property>
+   <property name="whatsThis">
+    <string>Shows a small dialog with information about Qt.</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::AboutQtRole</enum>
+   </property>
+  </action>
+  <action name="qaHelpVersionCheck">
+   <property name="text">
+    <string>Check for &amp;Updates</string>
+   </property>
+   <property name="toolTip">
+    <string>Check for new version of Mumble</string>
+   </property>
+   <property name="whatsThis">
+    <string>Connects to the Mumble webpage to check if a new version is available, and notifies you with an appropriate download URL if this is the case.</string>
+   </property>
+  </action>
+  <action name="qaChannelSendMessage">
+   <property name="text">
+    <string>Send &amp;Message...</string>
+   </property>
+   <property name="toolTip">
+    <string>Send a Text Message</string>
+   </property>
+   <property name="whatsThis">
+    <string>Sends a text message to all users in a channel.</string>
+   </property>
+  </action>
+  <action name="qaChannelCopyURL">
+   <property name="text">
+    <string>&amp;Copy URL</string>
+   </property>
+   <property name="toolTip">
+    <string>Copies a link to this channel to the clipboard.</string>
+   </property>
+   <property name="whatsThis">
+    <string>Copies a link to this channel to the clipboard.</string>
+   </property>
+  </action>
+  <action name="qaConfigMinimal">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Minimal View</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle minimal window modes</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will toggle minimal mode, where the log window and menu is hidden.</string>
+   </property>
+  </action>
+  <action name="qaConfigHideFrame">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Hide Frame</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle showing frame on minimal window</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will toggle whether the minimal window should have a frame for moving and resizing.</string>
+   </property>
+  </action>
+  <action name="qaConfigCert">
+   <property name="text">
+    <string>&amp;Certificate Wizard...</string>
+   </property>
+   <property name="toolTip">
+    <string>Configure certificates for strong authentication</string>
+   </property>
+   <property name="whatsThis">
+    <string>This starts the wizard for creating, importing and exporting certificates for authentication against servers.</string>
+   </property>
+  </action>
+  <action name="qaUserRegister">
+   <property name="text">
+    <string>&amp;Register...</string>
+   </property>
+   <property name="toolTip">
+    <string>Register user on server</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will permanently register the user on the server.</string>
+   </property>
+  </action>
+  <action name="qaUserFriendAdd">
+   <property name="text">
+    <string>Add &amp;Friend</string>
+   </property>
+   <property name="toolTip">
+    <string>Adds a user as your friend.</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will add the user as a friend, so you can recognize him on this and other servers.</string>
+   </property>
+  </action>
+  <action name="qaUserFriendRemove">
+   <property name="text">
+    <string>&amp;Remove Friend</string>
+   </property>
+   <property name="toolTip">
+    <string>Removes a user from your friends.</string>
+   </property>
+   <property name="whatsThis">
+    <string>This will remove a user from your friends list.</string>
+   </property>
+  </action>
+  <action name="qaUserFriendUpdate">
+   <property name="text">
+    <string>&amp;Update Friend</string>
+   </property>
+   <property name="toolTip">
+    <string>Update name of your friend.</string>
+   </property>
+   <property name="whatsThis">
+    <string>Your friend uses a different name than what is in your database. This will update the name.</string>
+   </property>
+  </action>
+  <action name="qaServerUserList">
+   <property name="text">
+    <string>Registered &amp;Users...</string>
+   </property>
+   <property name="toolTip">
+    <string>Edit registered users list</string>
+   </property>
+   <property name="whatsThis">
+    <string>This opens the editor for registered users, which allow you to change their name or unregister them.</string>
+   </property>
+  </action>
+  <action name="qaServerTexture">
+   <property name="text">
+    <string>Change &amp;Avatar...</string>
+   </property>
+   <property name="toolTip">
+    <string>Change your avatar image on this server</string>
+   </property>
+  </action>
+  <action name="qaServerTokens">
+   <property name="text">
+    <string>&amp;Access Tokens...</string>
+   </property>
+   <property name="toolTip">
+    <string>Add or remove text-based access tokens</string>
+   </property>
+  </action>
+  <action name="qaServerTextureRemove">
+   <property name="text">
+    <string>&amp;Remove Avatar</string>
+   </property>
+   <property name="toolTip">
+    <string>Remove currently defined avatar image.</string>
+   </property>
+  </action>
+  <action name="qaUserCommentReset">
+   <property name="text">
+    <string>Reset &amp;Comment...</string>
+   </property>
+   <property name="toolTip">
+    <string>Reset the comment of the selected user.</string>
+   </property>
+  </action>
+  <action name="qaUserTextureReset">
+   <property name="text">
+    <string>Reset &amp;Avatar...</string>
+   </property>
+   <property name="toolTip">
+    <string>Reset the avatar of the selected user.</string>
+   </property>
+  </action>
+  <action name="qaChannelJoin">
+   <property name="text">
+    <string>&amp;Join Channel</string>
+   </property>
+  </action>
+  <action name="qaChannelFilter">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Hide Channel when Filtering</string>
+   </property>
+  </action>
+  <action name="qaUserCommentView">
+   <property name="text">
+    <string>View Comment...</string>
+   </property>
+   <property name="toolTip">
+    <string>View comment in editor</string>
+   </property>
+  </action>
+  <action name="qaUserInformation">
+   <property name="text">
+    <string>&amp;Information...</string>
+   </property>
+   <property name="toolTip">
+    <string>Query server for connection information for user</string>
+   </property>
+  </action>
+  <action name="qaSelfComment">
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:self_comment.svg</normaloff>skin:self_comment.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Change Comment...</string>
+   </property>
+   <property name="toolTip">
+    <string>Change your own comment</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaSelfRegister">
+   <property name="text">
+    <string>R&amp;egister...</string>
+   </property>
+   <property name="toolTip">
+    <string>Register yourself on the server</string>
+   </property>
+  </action>
+  <action name="qaUserPrioritySpeaker">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Priority Speaker</string>
+   </property>
+  </action>
+  <action name="qaSelfPrioritySpeaker">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Priority Speaker</string>
+   </property>
+  </action>
+  <action name="qaRecording">
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:actions/media-record.svg</normaloff>skin:actions/media-record.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Recording</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="qaShow">
+   <property name="text">
+    <string>Show</string>
+   </property>
+   <property name="toolTip">
+    <string>Shows the main Mumble window.</string>
+   </property>
+  </action>
+  <action name="qaChannelListen">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Listen to channel</string>
+   </property>
+   <property name="toolTip">
+    <string>Listen to this channel without joining it</string>
+   </property>
+  </action>
+  <action name="qaListenerLocalVolume">
+   <property name="text">
+    <string>Local Volume Adjustment...</string>
+   </property>
+   <property name="toolTip">
+    <string>Locally adjust the volume for this virtual ear.</string>
+   </property>
+  </action>
+  <action name="qaTalkingUIToggle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Talking UI</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggles the visibility of the TalkingUI.</string>
+   </property>
+  </action>
+  <action name="qaUserJoin">
+   <property name="text">
+    <string>Join user's channel</string>
+   </property>
+   <property name="toolTip">
+    <string>Joins the channel of this user.</string>
+   </property>
+  </action>
+  <action name="qaUserLocalIgnoreTTS">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Disable Text-To-Speech</string>
+   </property>
+   <property name="toolTip">
+    <string>Locally disable Text-To-Speech for this user's text chat messages.</string>
+   </property>
+   <property name="whatsThis">
+    <string>Silently disables Text-To-Speech for all text messages from the user.</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>UserView</class>
+   <extends>QTreeView</extends>
+   <header>UserView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ChatbarTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header>CustomElements.h</header>
+  </customwidget>
+  <customwidget>
+   <class>LogTextBrowser</class>
+   <extends>QTextBrowser</extends>
+   <header>CustomElements.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
