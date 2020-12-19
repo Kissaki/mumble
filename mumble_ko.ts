@@ -3,92 +3,252 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIOWIZARD_H_
-#define MUMBLE_MUMBLE_AUDIOWIZARD_H_
+#include "BanEditor.h"
 
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QWizard>
-#include <QtWidgets/QWizardPage>
+#include "Ban.h"
+#include "Channel.h"
+#include "ServerHandler.h"
 
-#include "AudioOutput.h"
-#include "AudioStats.h"
-#include "Settings.h"
-#include "GlobalShortcut.h"
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-class CompletablePage : public QWizardPage {
-	Q_OBJECT
-protected:
-	bool bComplete;
+BanEditor::BanEditor(const MumbleProto::BanList &msg, QWidget *p) : QDialog(p), maskDefaultValue(32) {
+	setupUi(this);
 
-public:
-	CompletablePage(QWizard *p = nullptr);
-	void setComplete(bool);
-	bool isComplete() const Q_DECL_OVERRIDE;
-};
+	qleSearch->setAccessibleName(tr("Search"));
+	qleUser->setAccessibleName(tr("User"));
+	qleIP->setAccessibleName(tr("IP Address"));
+	qsbMask->setAccessibleName(tr("Mask"));
+	qleReason->setAccessibleName(tr("Reason"));
+	qdteStart->setAccessibleName(tr("Start date/time"));
+	qdteEnd->setAccessibleName(tr("End date/time"));
+	qleHash->setAccessibleName(tr("Certificate hash"));
+	qlwBans->setAccessibleName(tr("Banned users"));
 
-#include "ui_AudioWizard.h"
+	qlwBans->setFocus();
 
-class AudioWizard : public QWizard, public Ui::AudioWizard {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(AudioWizard)
-protected:
-	bool bTransmitChanged;
+	qlBans.clear();
+	for (int i = 0; i < msg.bans_size(); ++i) {
+		const MumbleProto::BanList_BanEntry &be = msg.bans(i);
+		Ban b;
+		b.haAddress  = be.address();
+		b.iMask      = be.mask();
+		b.qsUsername = u8(be.name());
+		b.qsHash     = u8(be.hash());
+		b.qsReason   = u8(be.reason());
+		b.qdtStart   = QDateTime::fromString(u8(be.start()), Qt::ISODate);
+		b.qdtStart.setTimeSpec(Qt::UTC);
+		if (!b.qdtStart.isValid())
+			b.qdtStart = QDateTime::currentDateTime();
+		b.iDuration = be.duration();
+		if (b.isValid())
+			qlBans << b;
+	}
 
-	QGraphicsScene *qgsScene;
-	QGraphicsItem *qgiSource;
-	AudioOutputSample *aosSource;
-	float fAngle;
-	float fX, fY;
+	refreshBanList();
+}
 
-	Settings sOldSettings;
+void BanEditor::accept() {
+	MumbleProto::BanList msg;
 
-	QTimer *ticker;
+	foreach (const Ban &b, qlBans) {
+		MumbleProto::BanList_BanEntry *be = msg.add_bans();
+		be->set_address(b.haAddress.toStdString());
+		be->set_mask(b.iMask);
+		be->set_name(u8(b.qsUsername));
+		be->set_hash(u8(b.qsHash));
+		be->set_reason(u8(b.qsReason));
+		be->set_start(u8(b.qdtStart.toString(Qt::ISODate)));
+		be->set_duration(b.iDuration);
+	}
 
-	bool bInit;
-	bool bDelay;
-	bool bLastActive;
+	g.sh->sendMessage(msg);
+	QDialog::accept();
+}
 
-	QPixmap qpTalkingOn, qpTalkingOff;
+void BanEditor::on_qlwBans_currentRowChanged() {
+	int idx = qlwBans->currentRow();
+	if (idx < 0)
+		return;
 
-	int iMaxPeak;
-	int iTicks;
+	qpbAdd->setDisabled(true);
+	qpbUpdate->setEnabled(false);
+	qpbRemove->setEnabled(true);
 
-	void restartAudio();
-	void playChord();
+	const Ban &ban = qlBans.at(idx);
 
-	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
-public slots:
-	void on_qcbInput_activated(int);
-	void on_qcbInputDevice_activated(int);
-	void on_qcbOutput_activated(int);
-	void on_qcbOutputDevice_activated(int);
-	void on_qsOutputDelay_valueChanged(int);
-	void on_qsMaxAmp_valueChanged(int);
-	void on_Ticker_timeout();
-	void on_qsVAD_valueChanged(int);
-	void on_qrAmplitude_clicked(bool);
-	void on_qrSNR_clicked(bool);
-	void on_qrPTT_clicked(bool);
-	void on_qcbEcho_clicked(bool);
-	void on_qcbHeadphone_clicked(bool);
-	void on_qcbPositional_clicked(bool);
-	void on_qcbAttenuateOthers_clicked(bool);
-	void on_qcbHighContrast_clicked(bool);
-	void on_skwPTT_keySet(bool, bool);
-	void on_qrbQualityUltra_clicked();
-	void on_qrbQualityBalanced_clicked();
-	void on_qrbQualityLow_clicked();
-	void on_qrbQualityCustom_clicked();
-	void showPage(int);
-	void updateTriggerWidgets(bool);
+	int maskbits = ban.iMask;
 
-public:
-	AudioWizard(QWidget *parent);
-	void reject() Q_DECL_OVERRIDE;
-	void accept() Q_DECL_OVERRIDE;
-	bool validateCurrentPage() Q_DECL_OVERRIDE;
-	virtual int nextId() const Q_DECL_OVERRIDE;
-};
+	const QHostAddress &addr = ban.haAddress.toAddress();
+	qleIP->setText(addr.toString());
+	if (!ban.haAddress.isV6())
+		maskbits -= 96;
+	qsbMask->setValue(maskbits);
+	qleUser->setText(ban.qsUsername);
+	qleHash->setText(ban.qsHash);
+	qleReason->setText(ban.qsReason);
+	qdteStart->setDateTime(ban.qdtStart.toLocalTime());
+	qdteEnd->setDateTime(ban.qdtStart.toLocalTime().addSecs(ban.iDuration));
+}
 
-#endif
+Ban BanEditor::toBan(bool &ok) {
+	Ban b;
+
+	QHostAddress addr;
+
+	ok = addr.setAddress(qleIP->text());
+
+	if (ok) {
+		b.haAddress = addr;
+		b.iMask     = qsbMask->value();
+		if (!b.haAddress.isV6())
+			b.iMask += 96;
+		b.qsUsername          = qleUser->text();
+		b.qsHash              = qleHash->text();
+		b.qsReason            = qleReason->text();
+		b.qdtStart            = qdteStart->dateTime().toUTC();
+		const QDateTime &qdte = qdteEnd->dateTime();
+
+		if (qdte <= b.qdtStart)
+			b.iDuration = 0;
+		else
+			b.iDuration = static_cast< unsigned int >(b.qdtStart.secsTo(qdte));
+
+		ok = b.isValid();
+	}
+	return b;
+}
+
+void BanEditor::on_qpbAdd_clicked() {
+	bool ok;
+
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+
+	Ban b = toBan(ok);
+
+	if (ok) {
+		qlBans << b;
+		refreshBanList();
+		qlwBans->setCurrentRow(qlBans.indexOf(b));
+	}
+
+	qlwBans->setCurrentRow(-1);
+	qleSearch->clear();
+}
+
+void BanEditor::on_qpbUpdate_clicked() {
+	int idx = qlwBans->currentRow();
+	if (idx >= 0) {
+		bool ok;
+		Ban b = toBan(ok);
+		if (ok) {
+			qlBans.replace(idx, b);
+			refreshBanList();
+			qlwBans->setCurrentRow(qlBans.indexOf(b));
+		}
+	}
+}
+
+void BanEditor::on_qpbRemove_clicked() {
+	int idx = qlwBans->currentRow();
+	if (idx >= 0)
+		qlBans.removeAt(idx);
+	refreshBanList();
+
+	qlwBans->setCurrentRow(-1);
+	qleUser->clear();
+	qleIP->clear();
+	qleReason->clear();
+	qsbMask->setValue(maskDefaultValue);
+	qleHash->clear();
+
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+	qdteEnd->setDateTime(QDateTime::currentDateTime());
+
+	qpbRemove->setDisabled(true);
+	qpbAdd->setDisabled(true);
+}
+
+void BanEditor::refreshBanList() {
+	qlwBans->clear();
+
+	std::sort(qlBans.begin(), qlBans.end());
+
+	foreach (const Ban &ban, qlBans) {
+		const QHostAddress &addr = ban.haAddress.toAddress();
+		if (ban.qsUsername.isEmpty())
+			qlwBans->addItem(addr.toString());
+		else
+			qlwBans->addItem(ban.qsUsername);
+	}
+
+	int n = qlBans.count();
+	setWindowTitle(tr("Ban List - %n Ban(s)", "", n));
+}
+
+void BanEditor::on_qleSearch_textChanged(const QString &match) {
+	qlwBans->clearSelection();
+
+	qpbAdd->setDisabled(true);
+	qpbUpdate->setDisabled(true);
+	qpbRemove->setDisabled(true);
+
+	qleUser->clear();
+	qleIP->clear();
+	qleReason->clear();
+	qsbMask->setValue(maskDefaultValue);
+	qleHash->clear();
+
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+	qdteEnd->setDateTime(QDateTime::currentDateTime());
+
+	foreach (QListWidgetItem *item, qlwBans->findItems(QString(), Qt::MatchContains)) {
+		if (!item->text().contains(match, Qt::CaseInsensitive))
+			item->setHidden(true);
+		else
+			item->setHidden(false);
+	}
+}
+
+void BanEditor::on_qleIP_textChanged(QString) {
+	qpbAdd->setEnabled(qleIP->isModified());
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleIP->isModified());
+}
+
+void BanEditor::on_qleReason_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleReason->isModified());
+}
+
+void BanEditor::on_qdteEnd_editingFinished() {
+	qpbUpdate->setEnabled(!qleIP->text().isEmpty());
+	qpbRemove->setDisabled(true);
+}
+
+void BanEditor::on_qleUser_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleUser->isModified());
+}
+
+void BanEditor::on_qleHash_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleHash->isModified());
+}
+
+void BanEditor::on_qpbClear_clicked() {
+	qlwBans->setCurrentRow(-1);
+	qleUser->clear();
+	qleIP->clear();
+	qleReason->clear();
+	qsbMask->setValue(maskDefaultValue);
+	qleHash->clear();
+
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+	qdteEnd->setDateTime(QDateTime::currentDateTime());
+
+	qpbAdd->setDisabled(true);
+	qpbUpdate->setDisabled(true);
+	qpbRemove->setDisabled(true);
+}
