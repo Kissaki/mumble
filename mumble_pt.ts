@@ -1,283 +1,42 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>LogConfig</class>
- <widget class="QWidget" name="LogConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>554</width>
-    <height>414</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Messages</string>
-  </property>
-  <layout class="QVBoxLayout">
-   <item>
-    <widget class="QTreeWidget" name="qtwMessages">
-     <property name="alternatingRowColors">
-      <bool>true</bool>
-     </property>
-     <property name="selectionMode">
-      <enum>QAbstractItemView::SingleSelection</enum>
-     </property>
-     <property name="rootIsDecorated">
-      <bool>false</bool>
-     </property>
-     <property name="uniformRowHeights">
-      <bool>true</bool>
-     </property>
-     <property name="itemsExpandable">
-      <bool>false</bool>
-     </property>
-     <column>
-      <property name="text">
-       <string>Message</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Console</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Notification</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Highlight</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Text-To-Speech</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Soundfile</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Path</string>
-      </property>
-     </column>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbTTS">
-     <property name="title">
-      <string>Text To Speech</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlVolume">
-        <property name="text">
-         <string>Volume</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsVolume</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="3">
-       <widget class="QSlider" name="qsVolume">
-        <property name="toolTip">
-         <string>Volume of Text-To-Speech Engine</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</string>
-        </property>
-        <property name="maximum">
-         <number>100</number>
-        </property>
-        <property name="singleStep">
-         <number>5</number>
-        </property>
-        <property name="pageStep">
-         <number>20</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="tickPosition">
-         <enum>QSlider::TicksBelow</enum>
-        </property>
-        <property name="tickInterval">
-         <number>5</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlThreshold">
-        <property name="text">
-         <string>Length threshold</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsbThreshold</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QSpinBox" name="qsbThreshold">
-        <property name="toolTip">
-         <string>Message length threshold for Text-To-Speech Engine</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</string>
-        </property>
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::PlusMinus</enum>
-        </property>
-        <property name="suffix">
-         <string> Characters</string>
-        </property>
-        <property name="maximum">
-         <number>5000</number>
-        </property>
-        <property name="singleStep">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QCheckBox" name="qcbReadBackOwn">
-        <property name="toolTip">
-         <string>If enabled text messages you send will be read back to you with TTS</string>
-        </property>
-        <property name="text">
-         <string>Read back own messages</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QCheckBox" name="qcbNoScope">
-        <property name="toolTip">
-         <string>If enabled, TTS will not dictate the message scope.</string>
-        </property>
-        <property name="text">
-         <string>Omit Message Scope</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QCheckBox" name="qcbNoAuthor">
-        <property name="toolTip">
-         <string>If enabled, TTS will not dictate the message author.</string>
-        </property>
-        <property name="text">
-         <string>Omit Message Author</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbWhisper">
-     <property name="title">
-      <string>Whisper</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbWhisperFriends">
-        <property name="toolTip">
-         <string>If checked you will only hear whispers from users you added to your friend list.</string>
-        </property>
-        <property name="text">
-         <string>Only accept whispers from friends</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbMaxBlocks">
-     <property name="title">
-      <string>Chat Log</string>
-     </property>
-     <layout class="QGridLayout" name="_2">
-      <item row="1" column="0">
-       <widget class="QCheckBox" name="qcb24HourClock">
-        <property name="toolTip">
-         <string>If checked the time at the beginning of a message will be displayed in the 24-hour format.
+// Copyright 2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-The setting only applies for new messages, the already shown ones will retain the previous time format.</string>
-        </property>
-        <property name="text">
-         <string>Use 24-hour clock</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSpinBox" name="qsbMaxBlocks">
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::PlusMinus</enum>
-        </property>
-        <property name="specialValueText">
-         <string>Unlimited</string>
-        </property>
-        <property name="suffix">
-         <string> Lines</string>
-        </property>
-        <property name="maximum">
-         <number>1000000</number>
-        </property>
-        <property name="singleStep">
-         <number>100</number>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlMaxBlocks">
-        <property name="text">
-         <string>Maximum chat length</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <spacer name="horizontalSpacer">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>8</width>
-          <height>16</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlChatMessageMargins">
-        <property name="toolTip">
-         <string>How far individual messages are spaced out from one another.</string>
-        </property>
-        <property name="text">
-         <string>Message margins</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QSpinBox" name="qsbChatMessageMargins">
-        <property name="toolTip">
-         <string>How far individual messages are spaced out from one another.</string>
-        </property>
-        <property name="frame">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+#ifndef MUMBLE_MUMBLE_LISTENERVOLUME_H_
+#define MUMBLE_MUMBLE_LISTENERVOLUME_H_
+
+#include "ui_UserLocalVolumeDialog.h"
+
+class ClientUser;
+class Channel;
+
+/// The dialog to configure the local volume adjustment for a "listener proxy". Therefore
+/// this dialog can be used to tune the volume of audio streams one receivs via the listening
+/// feature.
+/// It actually uses the same UI frontend as UserLocalVolumeDialog as it only needs backend
+/// changes.
+class ListenerLocalVolumeDialog : public QDialog, private Ui::UserLocalVolumeDialog {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ListenerLocalVolumeDialog);
+
+protected:
+	/// The user belonging to the listener proxy this dialog has been invoked on
+	ClientUser *m_user;
+	/// The channel of the listener proxy this dialog has been invoked on
+	Channel *m_channel;
+	/// The volume adjustment that was set before this dialog opened
+	float m_initialAdjustemt;
+
+public slots:
+	void on_qsUserLocalVolume_valueChanged(int value);
+	void on_qsbUserLocalVolume_valueChanged(int value);
+	void on_qbbUserLocalVolume_clicked(QAbstractButton *b);
+	void reject();
+
+public:
+	ListenerLocalVolumeDialog(ClientUser *user, Channel *channel, QWidget *parent = nullptr);
+};
+
+#endif
