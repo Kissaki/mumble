@@ -3,63 +3,47 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OVERLAYTEXT_H_
-#define MUMBLE_MUMBLE_OVERLAYTEXT_H_
+#ifndef MUMBLE_MUMBLE_OVERLAYUSER_H_
+#define MUMBLE_MUMBLE_OVERLAYUSER_H_
 
-#include <QtGui/QFont>
-#include <QtGui/QPainterPath>
-#include <QtGui/QPixmap>
+#include <QtCore/QtGlobal>
 
-//! Annotated QPixmap supplying a basepoint.
-class BasepointPixmap : public QPixmap {
-public:
-	//! Local coordinates of the base point.
-	QPoint qpBasePoint;
-	//@{
-	/**
-	 * Font ascent and descent.
-	 * The pixmap may exceed those font metrics, so if you need to
-	 * transform rendered text properly, use these attributes.
-	 */
-	int iAscent;
-	int iDescent;
-	//@}
+#include "Overlay.h"
 
-	BasepointPixmap();
-	//! Create from QPixmap, basepoint is bottom left.
-	BasepointPixmap(const QPixmap &);
-	//! Empty pixmap, basepoint is bottom left.
-	BasepointPixmap(int, int);
-	//! Empty pixmap with specified basepoint.
-	BasepointPixmap(int, int, const QPoint &);
-};
-
-class OverlayTextLine {
+class OverlayUser : public OverlayGroup {
 private:
-	const float fEdgeFactor;
+	Q_DISABLE_COPY(OverlayUser)
+public:
+	enum { Type = UserType + 1 };
 
-	QString qsText;
-	QFont qfFont;
-	QPainterPath qpp;
-	float fAscent, fDescent;
-	float fXCorrection, fYCorrection;
-	int iCurWidth, iCurHeight;
-	float fEdge;
-	float fBaseliningThreshold;
-	bool bElided;
+protected:
+	QGraphicsPixmapItem *qgpiMuted, *qgpiDeafened;
+	QGraphicsPixmapItem *qgpiAvatar;
+	QGraphicsPixmapItem *qgpiName[4];
+	QGraphicsPixmapItem *qgpiChannel;
+	QGraphicsPathItem *qgpiBox;
 
-	BasepointPixmap render(int, int, const QColor &, const QPoint &) const;
+	OverlaySettings *os;
+
+	unsigned int uiSize;
+	ClientUser *cuUser;
+	Settings::TalkState tsColor;
+
+	QString qsName;
+	QString qsChannelName;
+	QByteArray qbaAvatar;
+
+	void setup();
 
 public:
-	OverlayTextLine(const QString &, const QFont &);
+	OverlayUser(ClientUser *cu, unsigned int uiSize, OverlaySettings *osptr);
+	OverlayUser(Settings::TalkState ts, unsigned int uiSize, OverlaySettings *osptr);
+	void updateUser();
+	void updateLayout();
 
-	void setFont(const QFont &);
-	void setEdge(float);
-
-	//! Render text with current font.
-	BasepointPixmap createPixmap(QColor col);
-	//! Render text to fit a bounding box.
-	BasepointPixmap createPixmap(unsigned int maxwidth, unsigned int height, QColor col);
+	int type() const Q_DECL_OVERRIDE;
+	static QRectF scaledRect(const QRectF &qr, qreal scale);
+	static QPointF alignedPosition(const QRectF &box, const QRectF &item, Qt::Alignment a);
 };
 
-#endif //_OVERLAYTEXT_H
+#endif
