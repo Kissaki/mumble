@@ -1,182 +1,386 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_JACKAUDIO_H_
-#define MUMBLE_MUMBLE_JACKAUDIO_H_
-
-#include "AudioInput.h"
-#include "AudioOutput.h"
-
-#include <QtCore/QLibrary>
-#include <QtCore/QSemaphore>
-#include <QtCore/QVector>
-#include <QtCore/QWaitCondition>
-
-#include <jack/types.h>
-
-#define JACK_MAX_OUTPUT_PORTS 2
-#define JACK_BUFFER_PERIODS 3
-
-// Definitions from <jack/ringbuffer.h>
-typedef void *jack_ringbuffer_t;
-
-struct jack_ringbuffer_data_t {
-	char *buf;
-	size_t len;
-};
-
-typedef QVector< jack_port_t * > JackPorts;
-typedef QVector< jack_default_audio_sample_t * > JackBuffers;
-
-class JackAudioInit;
-
-class JackAudioSystem : public QObject {
-	friend JackAudioInit;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(JackAudioSystem)
-
-protected:
-	bool bAvailable;
-	uint8_t users;
-	QMutex qmWait;
-	QLibrary qlJack;
-	QWaitCondition qwcWait;
-	jack_client_t *client;
-
-	static int processCallback(jack_nframes_t frames, void *);
-	static int sampleRateCallback(jack_nframes_t, void *);
-	static int bufferSizeCallback(jack_nframes_t frames, void *);
-	static void shutdownCallback(void *);
-
-	const char *(*jack_get_version_string)();
-	const char **(*jack_get_ports)(jack_client_t *client, const char *port_name_pattern, const char *type_name_pattern,
-								   unsigned long flags);
-	char *(*jack_get_client_name)(jack_client_t *client);
-	char *(*jack_port_name)(jack_port_t *port);
-	int (*jack_client_close)(jack_client_t *client);
-	int (*jack_activate)(jack_client_t *client);
-	int (*jack_deactivate)(jack_client_t *client);
-	int (*jack_set_process_callback)(jack_client_t *client, JackProcessCallback process_callback, void *arg);
-	int (*jack_set_sample_rate_callback)(jack_client_t *client, JackSampleRateCallback process_callback, void *arg);
-	int (*jack_set_buffer_size_callback)(jack_client_t *client, JackBufferSizeCallback process_callback, void *arg);
-	int (*jack_on_shutdown)(jack_client_t *client, JackShutdownCallback process_callback, void *arg);
-	int (*jack_connect)(jack_client_t *client, const char *source_port, const char *destination_port);
-	int (*jack_port_disconnect)(jack_client_t *client, jack_port_t *port);
-	int (*jack_port_unregister)(jack_client_t *client, jack_port_t *port);
-	int (*jack_port_flags)(const jack_port_t *port);
-	void *(*jack_port_get_buffer)(jack_port_t *port, jack_nframes_t frames);
-	void (*jack_free)(void *ptr);
-	jack_client_t *(*jack_client_open)(const char *client_name, jack_options_t options, jack_status_t *status, ...);
-	jack_nframes_t (*jack_get_sample_rate)(jack_client_t *client);
-	jack_nframes_t (*jack_get_buffer_size)(jack_client_t *client);
-	jack_port_t *(*jack_port_by_name)(jack_client_t *client, const char *port_name);
-	jack_port_t *(*jack_port_register)(jack_client_t *client, const char *port_name, const char *port_type,
-									   unsigned long flags, unsigned long buffer_size);
-
-	jack_ringbuffer_t *(*jack_ringbuffer_create)(size_t sz);
-	void (*jack_ringbuffer_free)(jack_ringbuffer_t *rb);
-	int (*jack_ringbuffer_mlock)(jack_ringbuffer_t *rb);
-	size_t (*jack_ringbuffer_read)(jack_ringbuffer_t *rb, char *dest, size_t cnt);
-	size_t (*jack_ringbuffer_read_space)(const jack_ringbuffer_t *rb);
-	size_t (*jack_ringbuffer_write)(jack_ringbuffer_t *rb, const char *src, size_t cnt);
-	void (*jack_ringbuffer_get_write_vector)(const jack_ringbuffer_t *rb, jack_ringbuffer_data_t *vec);
-	size_t (*jack_ringbuffer_write_space)(const jack_ringbuffer_t *rb);
-	void (*jack_ringbuffer_write_advance)(jack_ringbuffer_t *rb, size_t cnt);
-
-public:
-	QHash< QString, QString > qhInput;
-	QHash< QString, QString > qhOutput;
-
-	bool isOk();
-	uint8_t outPorts();
-	jack_nframes_t sampleRate();
-	jack_nframes_t bufferSize();
-	JackPorts getPhysicalPorts(const uint8_t flags);
-	void *getPortBuffer(jack_port_t *port, const jack_nframes_t frames);
-	jack_port_t *registerPort(const char *name, const uint8_t flags);
-	bool unregisterPort(jack_port_t *port);
-	bool connectPort(jack_port_t *sourcePort, jack_port_t *destinationPort);
-	bool disconnectPort(jack_port_t *port);
-
-	jack_ringbuffer_t *ringbufferCreate(const size_t size);
-	void ringbufferFree(jack_ringbuffer_t *buffer);
-	int ringbufferMlock(jack_ringbuffer_t *buffer);
-	size_t ringbufferRead(jack_ringbuffer_t *buffer, const size_t size, void *destination);
-	size_t ringbufferReadSpace(const jack_ringbuffer_t *buffer);
-	size_t ringbufferWrite(jack_ringbuffer_t *buffer, const size_t size, const void *source);
-	void ringbufferGetWriteVector(const jack_ringbuffer_t *buffer, jack_ringbuffer_data_t *vector);
-	size_t ringbufferWriteSpace(const jack_ringbuffer_t *buffer);
-	void ringbufferWriteAdvance(jack_ringbuffer_t *buffer, const size_t size);
-
-	bool initialize();
-	void deinitialize();
-	bool activate();
-	void deactivate();
-
-	JackAudioSystem();
-	~JackAudioSystem();
-};
-
-class JackAudioInput : public AudioInput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(JackAudioInput)
-
-protected:
-	volatile bool bReady;
-	QMutex qmWait;
-	QSemaphore qsSleep;
-	jack_port_t *port;
-	jack_ringbuffer_t *buffer;
-	size_t bufferSize;
-
-public:
-	bool isReady();
-	bool process(const jack_nframes_t frames);
-	bool allocBuffer(const jack_nframes_t frames);
-	bool activate();
-	void deactivate();
-	bool registerPorts();
-	bool unregisterPorts();
-	void connectPorts();
-	bool disconnectPorts();
-
-	void run() Q_DECL_OVERRIDE;
-	JackAudioInput();
-	~JackAudioInput() Q_DECL_OVERRIDE;
-};
-
-class JackAudioOutput : public AudioOutput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(JackAudioOutput)
-
-protected:
-	volatile bool bReady;
-	QMutex qmWait;
-	QSemaphore qsSleep;
-	JackPorts ports;
-	JackBuffers outputBuffers;
-	jack_ringbuffer_t *buffer;
-
-public:
-	bool isReady();
-	bool process(const jack_nframes_t frames);
-	bool allocBuffer(const jack_nframes_t frames);
-	bool activate();
-	void deactivate();
-	bool registerPorts();
-	bool unregisterPorts();
-	void connectPorts();
-	bool disconnectPorts();
-
-	void run() Q_DECL_OVERRIDE;
-	JackAudioOutput();
-	~JackAudioOutput() Q_DECL_OVERRIDE;
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>NetworkConfig</class>
+ <widget class="QWidget" name="NetworkConfig">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>576</width>
+    <height>572</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string notr="true">Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <item>
+    <widget class="QGroupBox" name="qgbConnection">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Connection</string>
+     </property>
+     <layout class="QVBoxLayout">
+      <item>
+       <widget class="QCheckBox" name="qcbTcpMode">
+        <property name="toolTip">
+         <string>Use TCP compatibility mode</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Enable TCP compatibility mode&lt;/b&gt;.&lt;br /&gt;This will make Mumble use only TCP when communicating with the server. This will increase overhead and cause lost packets to produce noticeable pauses in communication, so this should only be used if you are unable to use the default (which uses UDP for voice and TCP for control).</string>
+        </property>
+        <property name="text">
+         <string>Force TCP mode</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbQoS">
+        <property name="toolTip">
+         <string>Enable QoS to prioritize packets</string>
+        </property>
+        <property name="whatsThis">
+         <string>This will enable QoS, which will attempt to prioritize voice packets over other traffic.</string>
+        </property>
+        <property name="text">
+         <string>Use Quality of Service</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbAutoReconnect">
+        <property name="toolTip">
+         <string>Reconnect when disconnected</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Reconnect when disconnected&lt;/b&gt;.&lt;br /&gt;This will make Mumble try to automatically reconnect after 10 seconds if your server connection fails.</string>
+        </property>
+        <property name="text">
+         <string>Reconnect automatically</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbAutoConnect">
+        <property name="toolTip">
+         <string>Reconnect to last used server when starting Mumble</string>
+        </property>
+        <property name="text">
+         <string>Reconnect to last server on startup</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbSuppressIdentity">
+        <property name="toolTip">
+         <string>Don't send certificate to server and don't save passwords. (Not saved).</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This will suppress identity information from the client.&lt;/b&gt;&lt;p&gt;The client will not identify itself with a certificate, even if defined, and will not cache passwords for connections. This is primarily a test-option and is not saved.&lt;/p&gt;</string>
+        </property>
+        <property name="text">
+         <string>Suppress certificate and password storage</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbProxy">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Proxy</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qlType">
+        <property name="text">
+         <string>Type</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="3">
+       <widget class="MUComboBox" name="qcbType">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Type of proxy to connect through</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Type of proxy to connect through.&lt;/b&gt;&lt;br /&gt;This makes Mumble connect through a proxy for all outgoing connections. Note: Proxy tunneling forces Mumble into TCP compatibility mode, causing all voice data to be sent via the control channel.</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Direct connection</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>HTTP(S) proxy</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>SOCKS5 proxy</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="qlHostname">
+        <property name="text">
+         <string>Hostname</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="qleHostname">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Hostname of the proxy</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Hostname of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the hostname of the proxy you wish to tunnel network traffic through.</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="qlPort">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Port</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QLineEdit" name="qlePort">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>20</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>60</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Port number of the proxy</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Port number of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the port number that the proxy expects connections on.</string>
+        </property>
+        <property name="inputMask">
+         <string/>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="maxLength">
+         <number>5</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="qlUsername">
+        <property name="text">
+         <string>Username</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1" colspan="3">
+       <widget class="QLineEdit" name="qleUsername">
+        <property name="toolTip">
+         <string>Username for proxy authentication</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Username for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the username you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="qlPassword">
+        <property name="text">
+         <string>Password</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="3">
+       <widget class="QLineEdit" name="qlePassword">
+        <property name="toolTip">
+         <string>Password for proxy authentication</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Password for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the password you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
+        </property>
+        <property name="inputMask">
+         <string/>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="echoMode">
+         <enum>QLineEdit::Password</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbPrivacy">
+     <property name="title">
+      <string>Privacy</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_4">
+      <item>
+       <widget class="QCheckBox" name="qcbHideOS">
+        <property name="toolTip">
+         <string>Prevent OS information being sent to Mumble servers and web servers</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Don't send OS information to servers&lt;/b&gt;&lt;br/&gt;
+Prevents the client from sending potentially identifying information about the operating system to the Mumble server and web servers.</string>
+        </property>
+        <property name="text">
+         <string>Do not send OS information to Mumble servers and web servers</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbServices">
+     <property name="title">
+      <string>Mumble services</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QCheckBox" name="qcbAutoUpdate">
+        <property name="toolTip">
+         <string>Check for new releases of Mumble automatically.</string>
+        </property>
+        <property name="whatsThis">
+         <string>This will check for new releases of Mumble every time you start the program, and notify you if one is available.</string>
+        </property>
+        <property name="text">
+         <string>Check for application updates on startup</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbPluginUpdate">
+        <property name="toolTip">
+         <string>Check for new releases of plugins automatically.</string>
+        </property>
+        <property name="whatsThis">
+         <string>This will check for new releases of plugins every time you start the program, and download them automatically.</string>
+        </property>
+        <property name="text">
+         <string>Download plugin and overlay updates on startup</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbUsage">
+        <property name="toolTip">
+         <string>Submit anonymous statistics to the Mumble project</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Submit anonymous statistics.&lt;/b&gt;&lt;br /&gt;Mumble has a small development team, and as such needs to focus its development where it is needed most. By submitting a bit of statistics you help the project determine where to focus development.</string>
+        </property>
+        <property name="text">
+         <string>Submit anonymous statistics</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbDisablePublicList">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string>When toggled this hides the public server list from the connect dialog</string>
+        </property>
+        <property name="text">
+         <string>Hide public server list</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Expanding</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MUComboBox</class>
+   <extends>QComboBox</extends>
+   <header>widgets/MUComboBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
