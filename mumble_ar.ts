@@ -3,163 +3,87 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ThemeInfo.h"
+#ifndef MUMBLE_MUMBLE_THEMEINFO_H_
+#define MUMBLE_MUMBLE_THEMEINFO_H_
 
-#include <QtCore/QDebug>
-#include <QtCore/QDir>
-#include <QtCore/QSettings>
-
-QFileInfo ThemeInfo::StyleInfo::getPlatformQss() const {
-#if defined(Q_OS_WIN)
-	return qssFiles.value(QLatin1String("WIN"), defaultQss);
-#elif defined(Q_OS_LINUX)
-	return qssFiles.value(QLatin1String("LINUX"), defaultQss);
-#elif defined(Q_OS_MAC)
-	return qssFiles.value(QLatin1String("MAC"), defaultQss);
-#else
-	return defaultQss;
+#include <QMetaType>
+#include <QtCore/QFileInfo>
+#include <QtCore/QMap>
+#include <QtCore/QString>
+#ifndef Q_MOC_RUN
+#	include <boost/optional.hpp>
 #endif
-}
 
-boost::optional< ThemeInfo::StyleInfo > readStyleFromConfig(QSettings &themeConfig, const QString &styleId,
-															const ThemeInfo &theme, const QDir &themeDir) {
-	QRegExp qssPlatformRegex(QString::fromLatin1("^%1/qss_(.*)").arg(styleId));
+class QSettings;
+class QDir;
 
-	ThemeInfo::StyleInfo style;
+class ThemeInfo;
+typedef QMap< QString, ThemeInfo > ThemeMap;
 
-	style.name      = themeConfig.value(QString::fromLatin1("%1/name").arg(styleId)).toString();
-	style.themeName = theme.name;
-	style.defaultQss =
-		QFileInfo(themeDir.filePath(themeConfig.value(QString::fromLatin1("%1/qss").arg(styleId)).toString()));
+/// Description of a Mumble theme with multiple styles
+class ThemeInfo {
+public:
+	/// A specific style of a Mumble theme
+	///
+	/// Multiple styles can for example be used to differentiate light/dark
+	/// variants of a theme.
+	///
+	/// A single style can refer to multiple run-time platform specific qss
+	/// theme files.
+	class StyleInfo {
+	public:
+		/// Name of the theme containing this style
+		QString themeName;
+		/// Name for the style
+		QString name;
 
-	if (style.name.isNull()) {
-		qWarning() << "Style " << styleId << " of theme" << theme.name << " has no name, skipping theme";
-		return boost::none;
-	}
+		/// @return Returns platform specific qss or defaultQss if none available
+		QFileInfo getPlatformQss() const;
 
-	if (!style.defaultQss.exists() || !style.defaultQss.isFile()) {
-		qWarning() << "Style " << style.name << " of theme " << theme.name << " references invalid qss "
-				   << style.defaultQss.filePath() << ", skipping theme";
-		return boost::none;
-	}
-
-	foreach (const QString &platformQssConfig, themeConfig.allKeys().filter(qssPlatformRegex)) {
-		qssPlatformRegex.indexIn(platformQssConfig);
-		const QString platform = qssPlatformRegex.cap(1);
-
-		QFileInfo platformQss = (themeDir.filePath(themeConfig.value(platformQssConfig).toString()));
-		if (!platformQss.exists() || !platformQss.isFile()) {
-			qWarning() << "Style" << style.name << " of theme " << theme.name << " references invalid qss "
-					   << platformQss.filePath() << " for platform " << platform << ", skipping theme";
-			return boost::none;
-		}
-
-		style.qssFiles.insert(platform, platformQss);
-	}
-
-	return style;
-}
-
-boost::optional< ThemeInfo > loadLegacyThemeInfo(const QDir &themeDirectory) {
-	ThemeInfo theme;
-	theme.name = themeDirectory.dirName();
-
-	QStringList filters;
-	filters << QLatin1String("*.qss");
-
-	foreach (const QFileInfo &qssFile, themeDirectory.entryInfoList(filters, QDir::Files)) {
-		ThemeInfo::StyleInfo style;
-		style.name       = qssFile.baseName();
-		style.themeName  = theme.name;
-		style.defaultQss = qssFile;
-
-		theme.styles.insert(style.name, style);
-	}
-
-	if (theme.styles.isEmpty()) {
-		qWarning() << themeDirectory.absolutePath() << " does not seem to contain a old-style theme, skipping";
-		return boost::none;
-	}
-
-	theme.defaultStyle = theme.styles.begin()->name;
-
-	return theme;
-}
-
-boost::optional< ThemeInfo > ThemeInfo::load(const QDir &themeDirectory) {
-	QFile themeFile(themeDirectory.absoluteFilePath(QLatin1String("theme.ini")));
-	if (!themeFile.exists()) {
-		qWarning() << "Directory " << themeDirectory.absolutePath() << " has no theme.ini, trying fallback";
-
-		return loadLegacyThemeInfo(themeDirectory);
-	}
-
-	QSettings themeConfig(themeFile.fileName(), QSettings::IniFormat);
-	if (themeConfig.status() != QSettings::NoError) {
-		qWarning() << "Failed to load theme config from " << themeFile.fileName() << ", skipping";
-		return boost::none;
-	}
-
-	ThemeInfo theme;
-	QStringList styleIds;
-
-	theme.name = themeConfig.value(QLatin1String("theme/name")).toString();
-	styleIds   = themeConfig.value(QLatin1String("theme/styles")).toStringList();
-
-	if (theme.name.isNull()) {
-		qWarning() << "Theme in " << themeFile.fileName() << " does not have a name, skipping";
-		return boost::none;
-	}
-
-	if (styleIds.isEmpty()) {
-		qWarning() << "Theme " << theme.name << " doesn't have any styles, skipping";
-		return boost::none;
-	}
-
-	foreach (const QString &styleId, styleIds) {
-		boost::optional< ThemeInfo::StyleInfo > style =
-			readStyleFromConfig(themeConfig, styleId, theme, themeDirectory);
-		if (!style) {
-			return boost::none;
-		}
-		theme.styles.insert(style->name, *style);
-	}
-
-	theme.defaultStyle = theme.styles.begin()->name;
-
-	return theme;
-}
-
-ThemeInfo::StyleInfo ThemeInfo::getStyle(QString name_) const {
-	Q_ASSERT(styles.contains(defaultStyle));
-
-	return styles.value(name_, styles.value(defaultStyle));
-}
-
-
-ThemeMap ThemeInfo::scanDirectory(const QDir &themesDirectory) {
-	ThemeMap themes;
-
-	foreach (const QFileInfo &subdirInfo, themesDirectory.entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot)) {
-		QDir subdir(subdirInfo.absoluteFilePath());
-
-		boost::optional< ThemeInfo > theme = ThemeInfo::load(subdir);
-		if (!theme) {
-			continue;
-		}
-
-		themes.insert(theme->name, *theme);
+		/// Default QSS file for the style
+		QFileInfo defaultQss;
+		/// Platform specific QSS files available
+		QMap< QString, QFileInfo > qssFiles;
 	};
 
-	return themes;
-}
+	typedef QMap< QString, StyleInfo > StylesMap;
 
-ThemeMap ThemeInfo::scanDirectories(const QVector< QDir > &themesDirectories) {
-	ThemeMap themes;
+	/// Takes stock of all mumble themes in the given folders.
+	///
+	/// If a theme with the same name is available in multiple directories
+	/// only the last occurance will be returned.
+	///
+	/// @param themesDirectories List of directories to search for theme directories.
+	/// @return Map of theme name to Theme
+	static ThemeMap scanDirectories(const QVector< QDir > &themesDirectories);
 
-	foreach (const QDir &themesDirectory, themesDirectories) {
-		foreach (const ThemeInfo &theme, scanDirectory(themesDirectory)) { themes.insert(theme.name, theme); }
-	}
+	/// Takes stock of all mumble themes in the given folder
+	///
+	/// Uses loadThemeInfoFromDirectory on each directory in the folder
+	/// to find themes. Themes with the same names will override each other.
+	///
+	/// @param themesDirectory Directory to scan for theme directories
+	/// @return Map of theme name to Theme
+	static ThemeMap scanDirectory(const QDir &themesDirectory);
 
-	return themes;
-}
+	/// Loads the theme description from a given directory
+	///
+	/// @param themeDirectory
+	/// @return Theme if description was correctly loaded. boost::none if not.
+	static boost::optional< ThemeInfo > load(const QDir &themeDirectory);
+
+	/// @return Style with given name or default
+	StyleInfo getStyle(QString name_) const;
+
+	/// Ideally unique theme name. A theme with identical name can override.
+	QString name;
+	/// Style name to style mapping.
+	StylesMap styles;
+	/// Default style
+	QString defaultStyle;
+};
+
+Q_DECLARE_METATYPE(ThemeInfo);
+Q_DECLARE_METATYPE(ThemeInfo::StyleInfo);
+
+#endif // MUMBLE_MUMBLE_THEMEINFO_H_
