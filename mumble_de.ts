@@ -3,234 +3,252 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "CrashReporter.h"
+#include "BanEditor.h"
 
-#include "EnvUtils.h"
-#include "NetworkConfig.h"
-#include "OSInfo.h"
+#include "Ban.h"
+#include "Channel.h"
+#include "ServerHandler.h"
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-#include <QtCore/QProcess>
-#include <QtCore/QTemporaryFile>
-#include <QtNetwork/QHostAddress>
-#include <QtWidgets/QMessageBox>
-#include <QtWidgets/QPushButton>
+BanEditor::BanEditor(const MumbleProto::BanList &msg, QWidget *p) : QDialog(p), maskDefaultValue(32) {
+	setupUi(this);
 
-CrashReporter::CrashReporter(QWidget *p) : QDialog(p) {
-	setWindowTitle(tr("Mumble Crash Report"));
+	qleSearch->setAccessibleName(tr("Search"));
+	qleUser->setAccessibleName(tr("User"));
+	qleIP->setAccessibleName(tr("IP Address"));
+	qsbMask->setAccessibleName(tr("Mask"));
+	qleReason->setAccessibleName(tr("Reason"));
+	qdteStart->setAccessibleName(tr("Start date/time"));
+	qdteEnd->setAccessibleName(tr("End date/time"));
+	qleHash->setAccessibleName(tr("Certificate hash"));
+	qlwBans->setAccessibleName(tr("Banned users"));
 
-	QVBoxLayout *vbl = new QVBoxLayout(this);
+	qlwBans->setFocus();
 
-	QLabel *l;
+	qlBans.clear();
+	for (int i = 0; i < msg.bans_size(); ++i) {
+		const MumbleProto::BanList_BanEntry &be = msg.bans(i);
+		Ban b;
+		b.haAddress  = be.address();
+		b.iMask      = be.mask();
+		b.qsUsername = u8(be.name());
+		b.qsHash     = u8(be.hash());
+		b.qsReason   = u8(be.reason());
+		b.qdtStart   = QDateTime::fromString(u8(be.start()), Qt::ISODate);
+		b.qdtStart.setTimeSpec(Qt::UTC);
+		if (!b.qdtStart.isValid())
+			b.qdtStart = QDateTime::currentDateTime();
+		b.iDuration = be.duration();
+		if (b.isValid())
+			qlBans << b;
+	}
 
-	l = new QLabel(tr("<p><b>We're terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report "
-					  "to the Mumble developers?</b></p>"
-					  "<p>The crash report contains a partial copy of Mumble's memory at the time it crashed, and will "
-					  "help the developers fix the problem.</p>"));
-
-	vbl->addWidget(l);
-
-	QHBoxLayout *hbl = new QHBoxLayout();
-
-	qleEmail = new QLineEdit(g.qs->value(QLatin1String("crashemail")).toString());
-	l        = new QLabel(tr("Email address (optional)"));
-	l->setBuddy(qleEmail);
-
-	hbl->addWidget(l);
-	hbl->addWidget(qleEmail, 1);
-	vbl->addLayout(hbl);
-
-	qteDescription = new QTextEdit();
-	l->setBuddy(qteDescription);
-	l = new QLabel(tr("Please describe briefly, in English, what you were doing at the time of the crash"));
-
-	vbl->addWidget(l);
-	vbl->addWidget(qteDescription, 1);
-
-	QPushButton *pbOk = new QPushButton(tr("Send Report"));
-	pbOk->setDefault(true);
-
-	QPushButton *pbCancel = new QPushButton(tr("Don't send report"));
-	pbCancel->setAutoDefault(false);
-
-	QDialogButtonBox *dbb = new QDialogButtonBox(Qt::Horizontal);
-	dbb->addButton(pbOk, QDialogButtonBox::AcceptRole);
-	dbb->addButton(pbCancel, QDialogButtonBox::RejectRole);
-	connect(dbb, SIGNAL(accepted()), this, SLOT(accept()));
-	connect(dbb, SIGNAL(rejected()), this, SLOT(reject()));
-	vbl->addWidget(dbb);
-
-	qelLoop     = new QEventLoop(this);
-	qpdProgress = nullptr;
-	qnrReply    = nullptr;
+	refreshBanList();
 }
 
-CrashReporter::~CrashReporter() {
-	g.qs->setValue(QLatin1String("crashemail"), qleEmail->text());
-	delete qnrReply;
+void BanEditor::accept() {
+	MumbleProto::BanList msg;
+
+	foreach (const Ban &b, qlBans) {
+		MumbleProto::BanList_BanEntry *be = msg.add_bans();
+		be->set_address(b.haAddress.toStdString());
+		be->set_mask(b.iMask);
+		be->set_name(u8(b.qsUsername));
+		be->set_hash(u8(b.qsHash));
+		be->set_reason(u8(b.qsReason));
+		be->set_start(u8(b.qdtStart.toString(Qt::ISODate)));
+		be->set_duration(b.iDuration);
+	}
+
+	g.sh->sendMessage(msg);
+	QDialog::accept();
 }
 
-void CrashReporter::uploadFinished() {
-	qpdProgress->reset();
-	if (qnrReply->error() == QNetworkReply::NoError) {
-		if (qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200)
-			QMessageBox::information(nullptr, tr("Crash upload successful"),
-									 tr("Thank you for helping make Mumble better!"));
+void BanEditor::on_qlwBans_currentRowChanged() {
+	int idx = qlwBans->currentRow();
+	if (idx < 0)
+		return;
+
+	qpbAdd->setDisabled(true);
+	qpbUpdate->setEnabled(false);
+	qpbRemove->setEnabled(true);
+
+	const Ban &ban = qlBans.at(idx);
+
+	int maskbits = ban.iMask;
+
+	const QHostAddress &addr = ban.haAddress.toAddress();
+	qleIP->setText(addr.toString());
+	if (!ban.haAddress.isV6())
+		maskbits -= 96;
+	qsbMask->setValue(maskbits);
+	qleUser->setText(ban.qsUsername);
+	qleHash->setText(ban.qsHash);
+	qleReason->setText(ban.qsReason);
+	qdteStart->setDateTime(ban.qdtStart.toLocalTime());
+	qdteEnd->setDateTime(ban.qdtStart.toLocalTime().addSecs(ban.iDuration));
+}
+
+Ban BanEditor::toBan(bool &ok) {
+	Ban b;
+
+	QHostAddress addr;
+
+	ok = addr.setAddress(qleIP->text());
+
+	if (ok) {
+		b.haAddress = addr;
+		b.iMask     = qsbMask->value();
+		if (!b.haAddress.isV6())
+			b.iMask += 96;
+		b.qsUsername          = qleUser->text();
+		b.qsHash              = qleHash->text();
+		b.qsReason            = qleReason->text();
+		b.qdtStart            = qdteStart->dateTime().toUTC();
+		const QDateTime &qdte = qdteEnd->dateTime();
+
+		if (qdte <= b.qdtStart)
+			b.iDuration = 0;
 		else
-			QMessageBox::critical(nullptr, tr("Crash upload failed"),
-								  tr("We're really sorry, but it appears the crash upload has failed with error %1 %2. "
-									 "Please inform a developer.")
-									  .arg(qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
-									  .arg(qnrReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString()));
-	} else {
-		QMessageBox::critical(nullptr, tr("Crash upload failed"),
-							  tr("This really isn't funny, but apparently there's a bug in the crash reporting code, "
-								 "and we've failed to upload the report. You may inform a developer about error %1")
-								  .arg(qnrReply->error()));
+			b.iDuration = static_cast< unsigned int >(b.qdtStart.secsTo(qdte));
+
+		ok = b.isValid();
 	}
-	qelLoop->exit(0);
+	return b;
 }
 
-void CrashReporter::uploadProgress(qint64 sent, qint64 total) {
-	qpdProgress->setMaximum(static_cast< int >(total));
-	qpdProgress->setValue(static_cast< int >(sent));
+void BanEditor::on_qpbAdd_clicked() {
+	bool ok;
+
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+
+	Ban b = toBan(ok);
+
+	if (ok) {
+		qlBans << b;
+		refreshBanList();
+		qlwBans->setCurrentRow(qlBans.indexOf(b));
+	}
+
+	qlwBans->setCurrentRow(-1);
+	qleSearch->clear();
 }
 
-void CrashReporter::run() {
-	QByteArray qbaDumpContents;
-	QFile qfCrashDump(g.qdBasePath.filePath(QLatin1String("mumble.dmp")));
-	if (!qfCrashDump.exists())
-		return;
-
-	qfCrashDump.open(QIODevice::ReadOnly);
-
-#if defined(Q_OS_WIN)
-	/* On Windows, the .dmp file is a real minidump. */
-
-	if (qfCrashDump.peek(4) != "MDMP")
-		return;
-	qbaDumpContents = qfCrashDump.readAll();
-
-#elif defined(Q_OS_MAC)
-	/*
-	 * On OSX, the .dmp file is simply a dummy file that we
-	 * use to find the *real* crash dump, made by the OSX
-	 * built in crash reporter.
-	 */
-	QFileInfo qfiDump(qfCrashDump);
-	QDateTime qdtModification = qfiDump.lastModified();
-
-	/* Find the real crash report. */
-	QDir qdCrashReports(QDir::home().absolutePath() + QLatin1String("/Library/Logs/DiagnosticReports/"));
-	if (!qdCrashReports.exists()) {
-		qdCrashReports.setPath(QDir::home().absolutePath() + QLatin1String("/Library/Logs/CrashReporter/"));
-	}
-
-	QStringList qslFilters;
-	qslFilters << QString::fromLatin1("Mumble_*.crash");
-	qdCrashReports.setNameFilters(qslFilters);
-	qdCrashReports.setSorting(QDir::Time);
-	QFileInfoList qfilEntries = qdCrashReports.entryInfoList();
-
-	/*
-	 * Figure out if our delta is sufficiently close to the Apple crash dump, or
-	 * if something weird happened.
-	 */
-	foreach (QFileInfo fi, qfilEntries) {
-		qint64 delta = qAbs< qint64 >(qdtModification.secsTo(fi.lastModified()));
-		if (delta < 8) {
-			QFile f(fi.absoluteFilePath());
-			f.open(QIODevice::ReadOnly);
-			qbaDumpContents = f.readAll();
-			break;
+void BanEditor::on_qpbUpdate_clicked() {
+	int idx = qlwBans->currentRow();
+	if (idx >= 0) {
+		bool ok;
+		Ban b = toBan(ok);
+		if (ok) {
+			qlBans.replace(idx, b);
+			refreshBanList();
+			qlwBans->setCurrentRow(qlBans.indexOf(b));
 		}
 	}
-#endif
+}
 
-	QString details;
-#ifdef Q_OS_WIN
-	{
-		QTemporaryFile qtf;
-		if (qtf.open()) {
-			qtf.close();
+void BanEditor::on_qpbRemove_clicked() {
+	int idx = qlwBans->currentRow();
+	if (idx >= 0)
+		qlBans.removeAt(idx);
+	refreshBanList();
 
-			QProcess qp;
-			QStringList qsl;
+	qlwBans->setCurrentRow(-1);
+	qleUser->clear();
+	qleIP->clear();
+	qleReason->clear();
+	qsbMask->setValue(maskDefaultValue);
+	qleHash->clear();
 
-			qsl << QLatin1String("/t");
-			qsl << qtf.fileName();
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+	qdteEnd->setDateTime(QDateTime::currentDateTime());
 
-			QString app        = QLatin1String("dxdiag.exe");
-			QString systemRoot = EnvUtils::getenv(QLatin1String("SystemRoot"));
+	qpbRemove->setDisabled(true);
+	qpbAdd->setDisabled(true);
+}
 
-			if (systemRoot.count() > 0) {
-				app = QDir::fromNativeSeparators(systemRoot + QLatin1String("/System32/dxdiag.exe"));
-			}
+void BanEditor::refreshBanList() {
+	qlwBans->clear();
 
-			qp.start(app, qsl);
-			if (qp.waitForFinished(30000)) {
-				if (qtf.open()) {
-					QByteArray qba = qtf.readAll();
-					details        = QString::fromLocal8Bit(qba);
-				}
-			} else {
-				details = QLatin1String("Failed to run dxdiag");
-			}
-			qp.kill();
-		}
-	}
-#endif
+	std::sort(qlBans.begin(), qlBans.end());
 
-	if (qbaDumpContents.isEmpty()) {
-		qWarning("CrashReporter: Empty crash dump file, not reporting.");
-		return;
+	foreach (const Ban &ban, qlBans) {
+		const QHostAddress &addr = ban.haAddress.toAddress();
+		if (ban.qsUsername.isEmpty())
+			qlwBans->addItem(addr.toString());
+		else
+			qlwBans->addItem(ban.qsUsername);
 	}
 
-	if (exec() == QDialog::Accepted) {
-		qpdProgress = new QProgressDialog(tr("Uploading crash report"), tr("Abort upload"), 0, 100, this);
-		qpdProgress->setMinimumDuration(500);
-		qpdProgress->setValue(0);
-		connect(qpdProgress, SIGNAL(canceled()), qelLoop, SLOT(quit()));
+	int n = qlBans.count();
+	setWindowTitle(tr("Ban List - %n Ban(s)", "", n));
+}
 
-		QString boundary =
-			QString::fromLatin1("---------------------------%1").arg(QDateTime::currentDateTime().toTime_t());
+void BanEditor::on_qleSearch_textChanged(const QString &match) {
+	qlwBans->clearSelection();
 
-		QString os = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										 "name=\"os\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
-						 .arg(boundary, OSInfo::getOS(), OSInfo::getOSVersion());
-		QString ver = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										  "name=\"ver\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
-						  .arg(boundary, QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE));
-		QString email = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-											"name=\"email\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-							.arg(boundary, qleEmail->text());
-		QString descr = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-											"name=\"desc\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-							.arg(boundary, qteDescription->toPlainText());
-		QString det = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										  "name=\"details\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-						  .arg(boundary, details);
-		QString head = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; name=\"dump\"; "
-										   "filename=\"mumble.dmp\"\r\nContent-Type: binary/octet-stream\r\n\r\n")
-						   .arg(boundary);
-		QString end = QString::fromLatin1("\r\n--%1--\r\n").arg(boundary);
+	qpbAdd->setDisabled(true);
+	qpbUpdate->setDisabled(true);
+	qpbRemove->setDisabled(true);
 
-		QByteArray post = os.toUtf8() + ver.toUtf8() + email.toUtf8() + descr.toUtf8() + det.toUtf8() + head.toUtf8()
-						  + qbaDumpContents + end.toUtf8();
+	qleUser->clear();
+	qleIP->clear();
+	qleReason->clear();
+	qsbMask->setValue(maskDefaultValue);
+	qleHash->clear();
 
-		QUrl url(QLatin1String("https://crash-report.mumble.info/v1/report"));
-		QNetworkRequest req(url);
-		req.setHeader(QNetworkRequest::ContentTypeHeader,
-					  QString::fromLatin1("multipart/form-data; boundary=%1").arg(boundary));
-		req.setHeader(QNetworkRequest::ContentLengthHeader, QString::number(post.size()));
-		Network::prepareRequest(req);
-		qnrReply = g.nam->post(req, post);
-		connect(qnrReply, SIGNAL(finished()), this, SLOT(uploadFinished()));
-		connect(qnrReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(uploadProgress(qint64, qint64)));
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+	qdteEnd->setDateTime(QDateTime::currentDateTime());
 
-		qelLoop->exec(QEventLoop::DialogExec);
+	foreach (QListWidgetItem *item, qlwBans->findItems(QString(), Qt::MatchContains)) {
+		if (!item->text().contains(match, Qt::CaseInsensitive))
+			item->setHidden(true);
+		else
+			item->setHidden(false);
 	}
+}
 
-	if (!qfCrashDump.remove())
-		qWarning("CrashReporeter: Unable to remove crash file.");
+void BanEditor::on_qleIP_textChanged(QString) {
+	qpbAdd->setEnabled(qleIP->isModified());
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleIP->isModified());
+}
+
+void BanEditor::on_qleReason_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleReason->isModified());
+}
+
+void BanEditor::on_qdteEnd_editingFinished() {
+	qpbUpdate->setEnabled(!qleIP->text().isEmpty());
+	qpbRemove->setDisabled(true);
+}
+
+void BanEditor::on_qleUser_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleUser->isModified());
+}
+
+void BanEditor::on_qleHash_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0)
+		qpbUpdate->setEnabled(qleHash->isModified());
+}
+
+void BanEditor::on_qpbClear_clicked() {
+	qlwBans->setCurrentRow(-1);
+	qleUser->clear();
+	qleIP->clear();
+	qleReason->clear();
+	qsbMask->setValue(maskDefaultValue);
+	qleHash->clear();
+
+	qdteStart->setDateTime(QDateTime::currentDateTime());
+	qdteEnd->setDateTime(QDateTime::currentDateTime());
+
+	qpbAdd->setDisabled(true);
+	qpbUpdate->setDisabled(true);
+	qpbRemove->setDisabled(true);
 }
