@@ -1,31 +1,55 @@
-Mumble uses Qt translations created by the VirtualBox community
-under the MIT license. Files and copyright were obtained from:
-https://www.virtualbox.org/ticket/2018
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+#include "LogEmitter.h"
+#include "Global.h"
 
-Turkish Qt translation (serdar, BouRock):
-  Copyright (c) 2007-2009 Serdar Soytetir
-  Copyright (c) 2012 Burak Yavuz
-Italian Qt translation (smart2128):
-  Copyright (c) 2009-2012 Vincenzo Reale
-Dutch Qt translation (geertseb, lxndr, nippur):
-  Copyright (c) 2009-2011 Ebel Geertsema
-  Copyright (c) 2007 Alexander L. de Goeij
-  Copyright (c) 2012 Richard E van der Luit
+static QSharedPointer< LogEmitter > le;
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is furnished
-to do so, subject to the following conditions:
+static void mumbleMessageOutputQString(QtMsgType type, const QString &msg) {
+	char c;
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+	switch (type) {
+		case QtDebugMsg:
+			c = 'D';
+			break;
+		case QtWarningMsg:
+			c = 'W';
+			break;
+		case QtFatalMsg:
+			c = 'F';
+			break;
+		default:
+			c = 'X';
+	}
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+#define LOG(f, msg)                                                                                      \
+	fprintf(f, "<%c>%s %s\n", c,                                                                         \
+			qPrintable(QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"))), \
+			qPrintable(msg))
+
+	QString date = QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"));
+	QString fmsg = QString::fromLatin1("<%1>%2 %3").arg(c).arg(date).arg(msg);
+	fprintf(stderr, "%s\n", qPrintable(fmsg));
+
+	le->addLogEntry(fmsg);
+
+	if (type == QtFatalMsg) {
+		exit(1);
+	}
+}
+
+static void mumbleMessageOutputWithContext(QtMsgType type, const QMessageLogContext &ctx, const QString &msg) {
+	Q_UNUSED(ctx);
+	mumbleMessageOutputQString(type, msg);
+}
+
+void os_init() {
+	// Make a copy of the global LogEmitter, such that
+	// os_unix.cpp doesn't have to consider the deletion
+	// of the Global object and its LogEmitter object.
+	le = g.le;
+
+	qInstallMessageHandler(mumbleMessageOutputWithContext);
+}
