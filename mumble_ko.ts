@@ -3,79 +3,134 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
-#define MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
+#include "DBus.h"
 
-#include <celt.h>
-#include <speex/speex.h>
-#include <speex/speex_jitter.h>
-#include <speex/speex_resampler.h>
+#include "Channel.h"
+#include "ClientUser.h"
+#include "MainWindow.h"
+#include "ServerHandler.h"
 
-#include <QtCore/QMutex>
+#include <QtCore/QUrlQuery>
+#include <QtDBus/QDBusConnection>
+#include <QtDBus/QDBusMessage>
 
-#include "AudioOutputUser.h"
-#include "Message.h"
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-class CELTCodec;
-class OpusCodec;
-class ClientUser;
-struct OpusDecoder;
+MumbleDBus::MumbleDBus(QObject *mw) : QDBusAbstractAdaptor(mw) {
+}
 
-class AudioOutputSpeech : public AudioOutputUser {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(AudioOutputSpeech)
-protected:
-	unsigned int iAudioBufferSize;
-	unsigned int iBufferOffset;
-	unsigned int iBufferFilled;
-	unsigned int iOutputSize;
-	unsigned int iLastConsume;
-	unsigned int iFrameSize;
-	unsigned int iFrameSizePerChannel;
-	unsigned int iSampleRate;
-	unsigned int iMixerFreq;
-	bool bLastAlive;
-	bool bHasTerminator;
+void MumbleDBus::openUrl(const QString &url, const QDBusMessage &msg) {
+	QUrl u     = QUrl::fromEncoded(url.toLatin1());
+	bool valid = u.isValid();
+	valid      = valid && (u.scheme() == QLatin1String("mumble"));
+	if (!valid) {
+		QDBusConnection::sessionBus().send(
+			msg.createErrorReply(QLatin1String("net.sourceforge.mumble.Error.url"), QLatin1String("Invalid URL")));
+	} else {
+		g.mw->openUrl(u);
+	}
+}
 
-	float *fFadeIn;
-	float *fFadeOut;
-	float *fResamplerBuffer;
+void MumbleDBus::getCurrentUrl(const QDBusMessage &msg) {
+	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
+		QDBusConnection::sessionBus().send(msg.createErrorReply(
+			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
+		return;
+	}
+	QString host, user, pw;
+	unsigned short port;
+	QUrl u;
 
-	SpeexResamplerState *srs;
+	g.sh->getConnectionInfo(host, port, user, pw);
+	u.setScheme(QLatin1String("mumble"));
+	u.setHost(host);
+	u.setPort(port);
+	u.setUserName(user);
 
-	QMutex qmJitter;
-	JitterBuffer *jbJitter;
-	int iMissCount;
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
+	u.setQuery(query);
 
-	CELTCodec *cCodec;
-	CELTDecoder *cdDecoder;
+	QStringList path;
+	Channel *c = ClientUser::get(g.uiSession)->cChannel;
+	while (c->cParent) {
+		path.prepend(c->qsName);
+		c = c->cParent;
+	}
+	QString fullpath = path.join(QLatin1String("/"));
+	// Make sure fullpath starts with a slash for non-empty paths. Setting
+	// a path without a leading slash clears the whole QUrl.
+	if (!fullpath.isEmpty()) {
+		fullpath.prepend(QLatin1String("/"));
+	}
+	u.setPath(fullpath);
+	QDBusConnection::sessionBus().send(msg.createReply(QString::fromLatin1(u.toEncoded())));
+}
 
-	OpusCodec *oCodec;
-	OpusDecoder *opusState;
+void MumbleDBus::getTalkingUsers(const QDBusMessage &msg) {
+	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
+		QDBusConnection::sessionBus().send(msg.createErrorReply(
+			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
+		return;
+	}
+	QStringList names;
+	foreach (ClientUser *cu, ClientUser::getTalking()) { names.append(cu->qsName); }
+	QDBusConnection::sessionBus().send(msg.createReply(names));
+}
 
-	SpeexBits sbBits;
-	void *dsSpeex;
+void MumbleDBus::focus() {
+	g.mw->show();
+	g.mw->raise();
+	g.mw->activateWindow();
+}
 
-	QList< QByteArray > qlFrames;
+void MumbleDBus::setTransmitMode(unsigned int mode, const QDBusMessage &msg) {
+	switch (mode) {
+		case 0:
+			g.s.atTransmit = Settings::Continuous;
+			break;
+		case 1:
+			g.s.atTransmit = Settings::VAD;
+			break;
+		case 2:
+			g.s.atTransmit = Settings::PushToTalk;
+			break;
+		default:
+			QDBusConnection::sessionBus().send(msg.createErrorReply(
+				QLatin1String("net.sourceforge.mumble.Error.transmitMode"), QLatin1String("Invalid transmit mode")));
+			return;
+	}
+	QMetaObject::invokeMethod(g.mw, "updateTransmitModeComboBox", Qt::QueuedConnection);
+}
 
-public:
-	unsigned char ucFlags;
-	MessageHandler::UDPMessageType umtType;
-	int iMissedFrames;
-	ClientUser *p;
+unsigned int MumbleDBus::getTransmitMode() {
+	return g.s.atTransmit;
+}
 
-	/// Fetch and decode frames from the jitter buffer. Called in mix().
-	///
-	/// @param frameCount Number of frames to decode. frame means a bundle of one sample from each channel.
-	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
+void MumbleDBus::setSelfMuted(bool mute) {
+	g.mw->qaAudioMute->setChecked(!mute);
+	g.mw->qaAudioMute->trigger();
+}
 
-	void addFrameToBuffer(const QByteArray &, unsigned int iBaseSeq);
+void MumbleDBus::setSelfDeaf(bool deafen) {
+	g.mw->qaAudioDeaf->setChecked(!deafen);
+	g.mw->qaAudioDeaf->trigger();
+}
 
-	/// @param systemMaxBufferSize maximum number of samples the system audio play back may request each time
-	AudioOutputSpeech(ClientUser *, unsigned int freq, MessageHandler::UDPMessageType type,
-					  unsigned int systemMaxBufferSize);
-	~AudioOutputSpeech() Q_DECL_OVERRIDE;
-};
+bool MumbleDBus::isSelfMuted() {
+	return g.s.bMute;
+}
 
-#endif // AUDIOOUTPUTSPEECH_H_
+bool MumbleDBus::isSelfDeaf() {
+	return g.s.bDeaf;
+}
+
+void MumbleDBus::startTalking() {
+	g.mw->on_PushToTalk_triggered(true, QVariant());
+}
+
+void MumbleDBus::stopTalking() {
+	g.mw->on_PushToTalk_triggered(false, QVariant());
+}
