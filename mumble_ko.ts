@@ -3,88 +3,68 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_ASIOINPUT_H_
-#define MUMBLE_MUMBLE_ASIOINPUT_H_
+#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSAMPLE_H_
+#define MUMBLE_MUMBLE_AUDIOOUTPUTSAMPLE_H_
 
-#include "ui_ASIOInput.h"
-
-#include "AudioInput.h"
-#include "ConfigDialog.h"
-
-#include "win.h"
-
-#include <QtCore/QList>
+#include <QtCore/QFile>
 #include <QtCore/QObject>
-#include <QtCore/QString>
-#include <QtCore/QWaitCondition>
+#include <sndfile.h>
+#include <speex/speex_resampler.h>
 
-#include <combaseapi.h>
+#include "AudioOutputUser.h"
 
-#include <asiodrvr.h>
-
-typedef QPair< QString, QString > ASIODev;
-
-class ASIOConfig : public ConfigWidget, public Ui::ASIOConfig {
+class SoundFile : public QObject {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(ASIOConfig)
+	Q_DISABLE_COPY(SoundFile)
 protected:
-	QList< ASIODev > qlDevs;
-	bool bOk;
+	SNDFILE *sfFile;
+	SF_INFO siInfo;
+	QFile qfFile;
+	static sf_count_t vio_get_filelen(void *user_data);
+	static sf_count_t vio_seek(sf_count_t offset, int whence, void *user_data);
+	static sf_count_t vio_read(void *ptr, sf_count_t count, void *user_data);
+	static sf_count_t vio_write(const void *ptr, sf_count_t count, void *user_data);
+	static sf_count_t vio_tell(void *user_data);
 
 public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	ASIOConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	virtual const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void clearQuery();
-	void on_qcbDevice_activated(int index);
-	void on_qpbQuery_clicked();
-	void on_qpbConfig_clicked();
-	void on_qpbAddMic_clicked();
-	void on_qpbRemMic_clicked();
-	void on_qpbAddSpeaker_clicked();
-	void on_qpbRemSpeaker_clicked();
+	SoundFile(const QString &fname);
+	~SoundFile();
+
+	int channels() const;
+	int samplerate() const;
+	int error() const;
+	QString strError() const;
+	bool isOpen() const;
+
+	sf_count_t seek(sf_count_t frames, int whence);
+	sf_count_t read(float *ptr, sf_count_t items);
 };
 
-#define IEEE754_64FLOAT 1
-#include "asio.h"
-
-class ASIOInput : public AudioInput {
+class AudioOutputSample : public AudioOutputUser {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(ASIOInput)
+	Q_DISABLE_COPY(AudioOutputSample)
 protected:
-	IASIO *iasio;
+	unsigned int iLastConsume;
+	unsigned int iBufferFilled;
+	unsigned int iOutSampleRate;
+	SpeexResamplerState *srs;
 
-	int iNumMic, iNumSpeaker;
-	long lBufSize;
-	ASIOBufferInfo *abiInfo;
-	ASIOChannelInfo *aciInfo;
+	SoundFile *sfHandle;
 
-	// ASIO Callbacks
-	static ASIOInput *aiSelf;
-
-	static void sampleRateChanged(ASIOSampleRate sRate);
-	static long asioMessages(long selector, long value, void *message, double *opt);
-	static void bufferSwitch(long index, ASIOBool processNow);
-	static ASIOTime *bufferSwitchTimeInfo(ASIOTime *timeInfo, long index, ASIOBool processNow);
-
-	void addBuffer(long sampType, int interleave, void *src, float *RESTRICT dst);
-	void bufferReady(long index);
-	bool initializeDriver();
-
-	QWaitCondition qwDone;
+	bool bLoop;
+	bool bEof;
+signals:
+	void playbackFinished();
 
 public:
-	ASIOInput();
-	~ASIOInput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
+	static SoundFile *loadSndfile(const QString &filename);
+	static QString browseForSndfile(QString defaultpath = QString());
+	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
+	AudioOutputSample(const QString &name, SoundFile *psndfile, bool repeat, unsigned int freq,
+					  unsigned int bufferSize);
+	~AudioOutputSample() Q_DECL_OVERRIDE;
 };
 
-#endif
+#endif // AUDIOOUTPUTSAMPLE_H_
