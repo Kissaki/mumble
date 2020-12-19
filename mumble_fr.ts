@@ -3,87 +3,124 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_THEMEINFO_H_
-#define MUMBLE_MUMBLE_THEMEINFO_H_
+/* Copyright (C) 2015, Fredrik Nordin <freedick@ludd.ltu.se>
 
-#include <QMetaType>
-#include <QtCore/QFileInfo>
-#include <QtCore/QMap>
-#include <QtCore/QString>
-#ifndef Q_MOC_RUN
-#	include <boost/optional.hpp>
-#endif
+   All rights reserved.
 
-class QSettings;
-class QDir;
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions
+   are met:
 
-class ThemeInfo;
-typedef QMap< QString, ThemeInfo > ThemeMap;
+   - Redistributions of source code must retain the above copyright notice,
+	 this list of conditions and the following disclaimer.
+   - Redistributions in binary form must reproduce the above copyright notice,
+	 this list of conditions and the following disclaimer in the documentation
+	 and/or other materials provided with the distribution.
+   - Neither the name of the Mumble Developers nor the names of its
+	 contributors may be used to endorse or promote products derived from this
+	 software without specific prior written permission.
 
-/// Description of a Mumble theme with multiple styles
-class ThemeInfo {
-public:
-	/// A specific style of a Mumble theme
-	///
-	/// Multiple styles can for example be used to differentiate light/dark
-	/// variants of a theme.
-	///
-	/// A single style can refer to multiple run-time platform specific qss
-	/// theme files.
-	class StyleInfo {
-	public:
-		/// Name of the theme containing this style
-		QString themeName;
-		/// Name for the style
-		QString name;
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
+   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
-		/// @return Returns platform specific qss or defaultQss if none available
-		QFileInfo getPlatformQss() const;
 
-		/// Default QSS file for the style
-		QFileInfo defaultQss;
-		/// Platform specific QSS files available
-		QMap< QString, QFileInfo > qssFiles;
-	};
+#include "UserLocalVolumeDialog.h"
+#include "ClientUser.h"
+#include "Database.h"
+#include "MainWindow.h"
 
-	typedef QMap< QString, StyleInfo > StylesMap;
+#include <QtGui/QCloseEvent>
+#include <QtWidgets/QPushButton>
 
-	/// Takes stock of all mumble themes in the given folders.
-	///
-	/// If a theme with the same name is available in multiple directories
-	/// only the last occurance will be returned.
-	///
-	/// @param themesDirectories List of directories to search for theme directories.
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectories(const QVector< QDir > &themesDirectories);
+#include <cmath>
 
-	/// Takes stock of all mumble themes in the given folder
-	///
-	/// Uses loadThemeInfoFromDirectory on each directory in the folder
-	/// to find themes. Themes with the same names will override each other.
-	///
-	/// @param themesDirectory Directory to scan for theme directories
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectory(const QDir &themesDirectory);
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-	/// Loads the theme description from a given directory
-	///
-	/// @param themeDirectory
-	/// @return Theme if description was correctly loaded. boost::none if not.
-	static boost::optional< ThemeInfo > load(const QDir &themeDirectory);
+UserLocalVolumeDialog::UserLocalVolumeDialog(unsigned int sessionId,
+											 QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker)
+	: QDialog(nullptr), m_clientSession(sessionId), m_qmUserVolTracker(qmUserVolTracker) {
+	setupUi(this);
+	qsUserLocalVolume->setAccessibleName(tr("User volume"));
+	qsbUserLocalVolume->setAccessibleName(tr("User volume"));
 
-	/// @return Style with given name or default
-	StyleInfo getStyle(QString name_) const;
+	ClientUser *user = ClientUser::get(sessionId);
+	if (user) {
+		QString title = tr("Adjusting local volume for %1").arg(user->qsName);
+		setWindowTitle(title);
+		qsUserLocalVolume->setValue(qRound(log2(user->getLocalVolumeAdjustments()) * 6.0));
+		m_originalVolumeAdjustmentDecibel = qsUserLocalVolume->value();
+	}
 
-	/// Ideally unique theme name. A theme with identical name can override.
-	QString name;
-	/// Style name to style mapping.
-	StylesMap styles;
-	/// Default style
-	QString defaultStyle;
-};
+	if (g.mw && g.mw->windowFlags() & Qt::WindowStaysOnTopHint) {
+		// If the main window is set to always be on top of other windows, we should make the
+		// volume dialog behave the same in order for it to not get hidden behind the main window.
+		setWindowFlags(Qt::WindowStaysOnTopHint);
+	}
+}
 
-Q_DECLARE_METATYPE(ThemeInfo);
-Q_DECLARE_METATYPE(ThemeInfo::StyleInfo);
+void UserLocalVolumeDialog::closeEvent(QCloseEvent *event) {
+	m_qmUserVolTracker->remove(m_clientSession);
+	event->accept();
+}
 
-#endif // MUMBLE_MUMBLE_THEMEINFO_H_
+void UserLocalVolumeDialog::present(unsigned int sessionId,
+									QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker) {
+	if (qmUserVolTracker->contains(sessionId)) {
+		qmUserVolTracker->value(sessionId)->raise();
+	} else {
+		UserLocalVolumeDialog *uservol = new UserLocalVolumeDialog(sessionId, qmUserVolTracker);
+		uservol->show();
+		qmUserVolTracker->insert(sessionId, uservol);
+	}
+}
+
+void UserLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
+	qsbUserLocalVolume->setValue(value);
+	ClientUser *user = ClientUser::get(m_clientSession);
+	if (user) {
+		// Decibel formula: +6db = *2
+		user->setLocalVolumeAdjustment(static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
+	}
+}
+
+void UserLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
+	qsUserLocalVolume->setValue(value);
+}
+
+void UserLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
+	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
+		qsUserLocalVolume->setValue(0);
+	}
+	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
+		ClientUser *user = ClientUser::get(m_clientSession);
+		if (user) {
+			if (!user->qsHash.isEmpty()) {
+				g.db->setUserLocalVolume(user->qsHash, user->getLocalVolumeAdjustments());
+			} else {
+				g.mw->logChangeNotPermanent(QObject::tr("Local Volume Adjustment..."), user);
+			}
+		}
+		UserLocalVolumeDialog::close();
+	}
+	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
+		qsUserLocalVolume->setValue(m_originalVolumeAdjustmentDecibel);
+		UserLocalVolumeDialog::close();
+	}
+}
+
+void UserLocalVolumeDialog::reject() {
+	m_qmUserVolTracker->remove(m_clientSession);
+	UserLocalVolumeDialog::close();
+}
