@@ -3,101 +3,90 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_LCD_H_
-#define MUMBLE_MUMBLE_LCD_H_
+#include "PathListWidget.h"
 
-#include "ConfigDialog.h"
-#include "Timer.h"
+#include "Overlay.h"
 
-#include "ui_LCD.h"
+#include <QtCore/QDir>
+#include <QtCore/QFile>
+#include <QtCore/QMimeData>
+#include <QtGui/QDragEnterEvent>
+#include <QtGui/QDragMoveEvent>
+#include <QtGui/QDropEvent>
 
-class User;
-class LCDDevice;
+PathListWidget::PathListWidget(QWidget *parent) : QListWidget(parent), pathType(FILE_EXE) {
+	setAcceptDrops(true);
+}
 
-class LCDConfig : public ConfigWidget, public Ui::LCDConfig {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDConfig)
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	LCDConfig(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void on_qsMinColWidth_valueChanged(int v);
-	void on_qsSplitterWidth_valueChanged(int v);
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-};
+void PathListWidget::setPathType(PathType type) {
+	pathType = type;
+}
 
-class LCDEngine : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDEngine)
-protected:
-	QList< LCDDevice * > qlDevices;
+void PathListWidget::addFilePath(const QString &path) {
+	QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(path);
+	QStringList qslIdentifiers;
+	for (int i = 0; i < count(); i++) {
+		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
+	}
+	if (!qslIdentifiers.contains(qsAppIdentifier)) {
+		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, this);
+		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
+		setCurrentItem(qlwiApplication);
+	}
+}
 
-public:
-	LCDEngine();
-	virtual ~LCDEngine() Q_DECL_OVERRIDE;
-	virtual QList< LCDDevice * > devices() const = 0;
-};
+void PathListWidget::addFolderPath(const QString &path) {
+	QString dir = QDir::toNativeSeparators(path);
+	QStringList qslIdentifiers;
+	for (int i = 0; i < count(); i++) {
+		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
+	}
+	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
+		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), QDir(dir).path(), this);
+		qlwiPath->setData(Qt::UserRole, QVariant(dir));
+		setCurrentItem(qlwiPath);
+	}
+}
 
-class LCDDevice {
-public:
-	LCDDevice();
-	virtual ~LCDDevice();
-	virtual bool enabled()                                  = 0;
-	virtual void setEnabled(bool e)                         = 0;
-	virtual void blitImage(QImage *img, bool alert = false) = 0;
-	virtual QString name() const                            = 0;
-	virtual QSize size() const                              = 0;
-};
+void PathListWidget::checkAcceptDragEvent(QDropEvent *event, bool store) {
+	if (event->mimeData()->hasUrls()) {
+		foreach (QUrl url, event->mimeData()->urls()) {
+			if (url.isLocalFile()) {
+				QFileInfo info(url.toLocalFile());
+				switch (pathType) {
+					case FILE_EXE:
+						if (info.isFile() && info.isExecutable()) {
+							if (store) {
+								addFilePath(info.filePath());
+							}
+							event->setDropAction(Qt::LinkAction);
+							event->accept();
+						}
+						break;
+					case FOLDER:
+						if (info.isDir()) {
+							if (store) {
+								addFolderPath(url.toLocalFile());
+							}
+							event->setDropAction(Qt::LinkAction);
+							event->accept();
+						}
+						break;
+				}
+			}
+		}
+	}
+}
 
-typedef LCDEngine *(*LCDEngineNew)(void);
+void PathListWidget::dragEnterEvent(QDragEnterEvent *event) {
+	checkAcceptDragEvent(event, false);
+}
 
-class LCDEngineRegistrar Q_DECL_FINAL {
-protected:
-	LCDEngineNew n;
+void PathListWidget::dragMoveEvent(QDragMoveEvent *event) {
+	checkAcceptDragEvent(event, false);
+}
 
-public:
-	static QList< LCDEngineNew > *qlInitializers;
-	LCDEngineRegistrar(LCDEngineNew n);
-	~LCDEngineRegistrar();
-};
-
-class LCD : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCD)
-protected:
-	QFont qfNormal, qfBold, qfItalic, qfItalicBold;
-	QMap< unsigned int, Timer > qmSpeaking;
-	QMap< unsigned int, Timer > qmNew;
-	QMap< unsigned int, Timer > qmOld;
-	QMap< unsigned int, QString > qmNameCache;
-
-	int iFontHeight;
-	int iFrameIndex;
-	QHash< QSize, unsigned char * > qhImageBuffers;
-	QHash< QSize, QImage * > qhImages;
-	void initBuffers();
-	void destroyBuffers();
-	QImage qiLogo;
-	QTimer *qtTimer;
-public slots:
-	void tick();
-
-public:
-	LCD();
-	~LCD() Q_DECL_OVERRIDE;
-	void updateUserView();
-	bool hasDevices();
-};
-
-uint qHash(const QSize &size);
-
-#endif
+void PathListWidget::dropEvent(QDropEvent *event) {
+	checkAcceptDragEvent(event, true);
+}
