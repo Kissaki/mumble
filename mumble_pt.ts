@@ -1,106 +1,151 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>UserLocalVolumeDialog</class>
- <widget class="QDialog" name="UserLocalVolumeDialog">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>500</width>
-    <height>224</height>
-   </rect>
-  </property>
-  <property name="minimumSize">
-   <size>
-    <width>500</width>
-    <height>224</height>
-   </size>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>16777215</width>
-    <height>224</height>
-   </size>
-  </property>
-  <layout class="QGridLayout">
-   <item row="0" column="0">
-    <widget class="QSlider" name="qsUserLocalVolume">
-     <property name="toolTip">
-      <string>Local volume for other users</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</string>
-     </property>
-     <property name="styleSheet">
-      <string notr="true"/>
-     </property>
-     <property name="minimum">
-      <number>-60</number>
-     </property>
-     <property name="maximum">
-      <number>30</number>
-     </property>
-     <property name="value">
-      <number>0</number>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="tickPosition">
-      <enum>QSlider::TicksBelow</enum>
-     </property>
-     <property name="tickInterval">
-      <number>10</number>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="0" colspan="2" alignment="Qt::AlignBottom">
-    <widget class="QDialogButtonBox" name="qbbUserLocalVolume">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::Reset</set>
-     </property>
-     <property name="centerButtons">
-      <bool>false</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QSpinBox" name="qsbUserLocalVolume">
-     <property name="toolTip">
-      <string>Local volume for other users</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</string>
-     </property>
-     <property name="suffix">
-      <string> dB</string>
-     </property>
-     <property name="minimum">
-      <number>-60</number>
-     </property>
-     <property name="maximum">
-      <number>30</number>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="2">
-    <widget class="QLabel" name="qlUserLocalVolume">
-     <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use the slider or the text box to change the volume of the user.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-weight:600;&quot;&gt;Attention!&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Increasing the volume of a user too much can permanently damage your hearing. It may also increase the background noise of the user.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "Themes.h"
+#include "MainWindow.h"
+#include "MumbleApplication.h"
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+boost::optional< ThemeInfo::StyleInfo > Themes::getConfiguredStyle(const Settings &settings) {
+	if (settings.themeName.isEmpty() && settings.themeStyleName.isEmpty()) {
+		return boost::none;
+	}
+
+	const ThemeMap themes            = getThemes();
+	ThemeMap::const_iterator themeIt = themes.find(settings.themeName);
+	if (themeIt == themes.end()) {
+		qWarning() << "Could not find configured theme" << settings.themeName;
+		return boost::none;
+	}
+
+	ThemeInfo::StylesMap::const_iterator styleIt = themeIt->styles.find(settings.themeStyleName);
+	if (styleIt == themeIt->styles.end()) {
+		qWarning() << "Configured theme" << settings.themeName << "does not have configured style"
+				   << settings.themeStyleName;
+		return boost::none;
+	}
+
+	return *styleIt;
+}
+
+void Themes::setConfiguredStyle(Settings &settings, boost::optional< ThemeInfo::StyleInfo > style, bool &outChanged) {
+	if (style) {
+		if (settings.themeName != style->themeName || settings.themeStyleName != style->name) {
+			settings.themeName      = style->themeName;
+			settings.themeStyleName = style->name;
+			outChanged              = true;
+		}
+	} else {
+		if (!settings.themeName.isEmpty() || !settings.themeStyleName.isEmpty()) {
+			settings.themeName = settings.themeStyleName = QString();
+			outChanged                                   = true;
+		}
+	}
+}
+
+void Themes::applyFallback() {
+	qWarning() << "Applying fallback style sheet";
+
+	QStringList skinPaths;
+	skinPaths << QLatin1String(":/themes/Mumble");
+	QString defaultTheme = getDefaultStylesheet();
+	setTheme(defaultTheme, skinPaths);
+}
+
+bool Themes::applyConfigured() {
+	boost::optional< ThemeInfo::StyleInfo > style = Themes::getConfiguredStyle(g.s);
+	if (!style) {
+		return false;
+	}
+
+	const QFileInfo qssFile(style->getPlatformQss());
+
+	qWarning() << "Theme:" << style->themeName;
+	qWarning() << "Style:" << style->name;
+	qWarning() << "--> qss:" << qssFile.absoluteFilePath();
+
+	QFile file(qssFile.absoluteFilePath());
+	if (!file.open(QFile::ReadOnly)) {
+		qWarning() << "Failed to open theme stylesheet:" << file.errorString();
+		return false;
+	}
+
+	QStringList skinPaths;
+	skinPaths << qssFile.path();
+	skinPaths << QLatin1String(":/themes/Mumble"); // Some skins might want to fall-back on our built-in resources
+
+	QString themeQss = QString::fromUtf8(file.readAll());
+	setTheme(themeQss, skinPaths);
+	return true;
+}
+
+void Themes::setTheme(QString &themeQss, QStringList &skinPaths) {
+	QDir::setSearchPaths(QLatin1String("skin"), skinPaths);
+
+	QString userStylesheetFn = userStylesheetPath();
+	QString userStylesheetContent;
+	if (readStylesheet(userStylesheetFn, userStylesheetContent)) {
+		qWarning("Themes: allowing user stylesheet at '%s' to override the stylesheet", qPrintable(userStylesheetFn));
+	}
+
+	qApp->setStyleSheet(themeQss + QLatin1String("\n") + userStylesheetContent);
+}
+
+bool Themes::apply() {
+	const bool result = applyConfigured();
+	if (!result) {
+		applyFallback();
+	}
+
+	if (g.mw) {
+		g.mw->qteLog->document()->setDefaultStyleSheet(qApp->styleSheet());
+	}
+	return result;
+}
+
+ThemeMap Themes::getThemes() {
+	return ThemeInfo::scanDirectories(getSearchDirectories());
+}
+
+QDir Themes::getUserThemesDirectory() {
+	return QDir(g.qdBasePath.absolutePath() + QLatin1String("/Themes"));
+}
+
+QVector< QDir > Themes::getSearchDirectories() {
+	QVector< QDir > themeSearchDirectories;
+
+	// Built-in themes contained in the binary have the lowest priority
+	themeSearchDirectories << QDir(QLatin1String(":themes"));
+	// Next come themes found in the applications Themes directory
+	themeSearchDirectories << QDir(MumbleApplication::instance()->applicationVersionRootPath()
+								   + QLatin1String("/Themes"));
+	// Highest priorty have themes located in the user directory
+	themeSearchDirectories << getUserThemesDirectory();
+
+	return themeSearchDirectories;
+}
+
+QString Themes::userStylesheetPath() {
+	return g.qdBasePath.absolutePath() + QLatin1String("/user.qss");
+}
+
+bool Themes::readStylesheet(const QString &stylesheetFn, QString &stylesheetContent) {
+	QFile file(stylesheetFn);
+	if (!file.open(QFile::ReadOnly)) {
+		stylesheetContent = QString();
+		return false;
+	}
+
+	stylesheetContent = QString::fromUtf8(file.readAll());
+	return true;
+}
+
+QString Themes::getDefaultStylesheet() {
+	return QLatin1String(".log-channel{text-decoration:none;}.log-user{text-decoration:none;}p{margin:0;}#qwMacWarning,"
+						 "#qwInlineNotice{background-color:#FFFEDC;border-radius:5px;border:1px solid #B5B59E;}");
+}
