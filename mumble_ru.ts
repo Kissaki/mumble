@@ -3,90 +3,180 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "PathListWidget.h"
+#ifndef MUMBLE_MUMBLE_JACKAUDIO_H_
+#define MUMBLE_MUMBLE_JACKAUDIO_H_
 
-#include "Overlay.h"
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-#include <QtCore/QDir>
-#include <QtCore/QFile>
-#include <QtCore/QMimeData>
-#include <QtGui/QDragEnterEvent>
-#include <QtGui/QDragMoveEvent>
-#include <QtGui/QDropEvent>
+#include <QtCore/QLibrary>
+#include <QtCore/QSemaphore>
+#include <QtCore/QVector>
+#include <QtCore/QWaitCondition>
 
-PathListWidget::PathListWidget(QWidget *parent) : QListWidget(parent), pathType(FILE_EXE) {
-	setAcceptDrops(true);
-}
+#include <jack/types.h>
 
-void PathListWidget::setPathType(PathType type) {
-	pathType = type;
-}
+#define JACK_MAX_OUTPUT_PORTS 2
+#define JACK_BUFFER_PERIODS 3
 
-void PathListWidget::addFilePath(const QString &path) {
-	QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(path);
-	QStringList qslIdentifiers;
-	for (int i = 0; i < count(); i++) {
-		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
-	}
-	if (!qslIdentifiers.contains(qsAppIdentifier)) {
-		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
-		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, this);
-		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
-		setCurrentItem(qlwiApplication);
-	}
-}
+// Definitions from <jack/ringbuffer.h>
+typedef void *jack_ringbuffer_t;
 
-void PathListWidget::addFolderPath(const QString &path) {
-	QString dir = QDir::toNativeSeparators(path);
-	QStringList qslIdentifiers;
-	for (int i = 0; i < count(); i++) {
-		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
-	}
-	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
-		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), QDir(dir).path(), this);
-		qlwiPath->setData(Qt::UserRole, QVariant(dir));
-		setCurrentItem(qlwiPath);
-	}
-}
+struct jack_ringbuffer_data_t {
+	char *buf;
+	size_t len;
+};
 
-void PathListWidget::checkAcceptDragEvent(QDropEvent *event, bool store) {
-	if (event->mimeData()->hasUrls()) {
-		foreach (QUrl url, event->mimeData()->urls()) {
-			if (url.isLocalFile()) {
-				QFileInfo info(url.toLocalFile());
-				switch (pathType) {
-					case FILE_EXE:
-						if (info.isFile() && info.isExecutable()) {
-							if (store) {
-								addFilePath(info.filePath());
-							}
-							event->setDropAction(Qt::LinkAction);
-							event->accept();
-						}
-						break;
-					case FOLDER:
-						if (info.isDir()) {
-							if (store) {
-								addFolderPath(url.toLocalFile());
-							}
-							event->setDropAction(Qt::LinkAction);
-							event->accept();
-						}
-						break;
-				}
-			}
-		}
-	}
-}
+typedef QVector< jack_port_t * > JackPorts;
+typedef QVector< jack_default_audio_sample_t * > JackBuffers;
 
-void PathListWidget::dragEnterEvent(QDragEnterEvent *event) {
-	checkAcceptDragEvent(event, false);
-}
+class JackAudioInit;
 
-void PathListWidget::dragMoveEvent(QDragMoveEvent *event) {
-	checkAcceptDragEvent(event, false);
-}
+class JackAudioSystem : public QObject {
+	friend JackAudioInit;
 
-void PathListWidget::dropEvent(QDropEvent *event) {
-	checkAcceptDragEvent(event, true);
-}
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioSystem)
+
+protected:
+	bool bAvailable;
+	uint8_t users;
+	QMutex qmWait;
+	QLibrary qlJack;
+	QWaitCondition qwcWait;
+	jack_client_t *client;
+
+	static int processCallback(jack_nframes_t frames, void *);
+	static int sampleRateCallback(jack_nframes_t, void *);
+	static int bufferSizeCallback(jack_nframes_t frames, void *);
+	static void shutdownCallback(void *);
+
+	const char *(*jack_get_version_string)();
+	const char **(*jack_get_ports)(jack_client_t *client, const char *port_name_pattern, const char *type_name_pattern,
+								   unsigned long flags);
+	char *(*jack_get_client_name)(jack_client_t *client);
+	char *(*jack_port_name)(jack_port_t *port);
+	int (*jack_client_close)(jack_client_t *client);
+	int (*jack_activate)(jack_client_t *client);
+	int (*jack_deactivate)(jack_client_t *client);
+	int (*jack_set_process_callback)(jack_client_t *client, JackProcessCallback process_callback, void *arg);
+	int (*jack_set_sample_rate_callback)(jack_client_t *client, JackSampleRateCallback process_callback, void *arg);
+	int (*jack_set_buffer_size_callback)(jack_client_t *client, JackBufferSizeCallback process_callback, void *arg);
+	int (*jack_on_shutdown)(jack_client_t *client, JackShutdownCallback process_callback, void *arg);
+	int (*jack_connect)(jack_client_t *client, const char *source_port, const char *destination_port);
+	int (*jack_port_disconnect)(jack_client_t *client, jack_port_t *port);
+	int (*jack_port_unregister)(jack_client_t *client, jack_port_t *port);
+	int (*jack_port_flags)(const jack_port_t *port);
+	void *(*jack_port_get_buffer)(jack_port_t *port, jack_nframes_t frames);
+	void (*jack_free)(void *ptr);
+	jack_client_t *(*jack_client_open)(const char *client_name, jack_options_t options, jack_status_t *status, ...);
+	jack_nframes_t (*jack_get_sample_rate)(jack_client_t *client);
+	jack_nframes_t (*jack_get_buffer_size)(jack_client_t *client);
+	jack_port_t *(*jack_port_by_name)(jack_client_t *client, const char *port_name);
+	jack_port_t *(*jack_port_register)(jack_client_t *client, const char *port_name, const char *port_type,
+									   unsigned long flags, unsigned long buffer_size);
+
+	jack_ringbuffer_t *(*jack_ringbuffer_create)(size_t sz);
+	void (*jack_ringbuffer_free)(jack_ringbuffer_t *rb);
+	int (*jack_ringbuffer_mlock)(jack_ringbuffer_t *rb);
+	size_t (*jack_ringbuffer_read)(jack_ringbuffer_t *rb, char *dest, size_t cnt);
+	size_t (*jack_ringbuffer_read_space)(const jack_ringbuffer_t *rb);
+	size_t (*jack_ringbuffer_write)(jack_ringbuffer_t *rb, const char *src, size_t cnt);
+	void (*jack_ringbuffer_get_write_vector)(const jack_ringbuffer_t *rb, jack_ringbuffer_data_t *vec);
+	size_t (*jack_ringbuffer_write_space)(const jack_ringbuffer_t *rb);
+	void (*jack_ringbuffer_write_advance)(jack_ringbuffer_t *rb, size_t cnt);
+
+public:
+	QHash< QString, QString > qhInput;
+	QHash< QString, QString > qhOutput;
+
+	bool isOk();
+	uint8_t outPorts();
+	jack_nframes_t sampleRate();
+	jack_nframes_t bufferSize();
+	JackPorts getPhysicalPorts(const uint8_t flags);
+	void *getPortBuffer(jack_port_t *port, const jack_nframes_t frames);
+	jack_port_t *registerPort(const char *name, const uint8_t flags);
+	bool unregisterPort(jack_port_t *port);
+	bool connectPort(jack_port_t *sourcePort, jack_port_t *destinationPort);
+	bool disconnectPort(jack_port_t *port);
+
+	jack_ringbuffer_t *ringbufferCreate(const size_t size);
+	void ringbufferFree(jack_ringbuffer_t *buffer);
+	int ringbufferMlock(jack_ringbuffer_t *buffer);
+	size_t ringbufferRead(jack_ringbuffer_t *buffer, const size_t size, void *destination);
+	size_t ringbufferReadSpace(const jack_ringbuffer_t *buffer);
+	size_t ringbufferWrite(jack_ringbuffer_t *buffer, const size_t size, const void *source);
+	void ringbufferGetWriteVector(const jack_ringbuffer_t *buffer, jack_ringbuffer_data_t *vector);
+	size_t ringbufferWriteSpace(const jack_ringbuffer_t *buffer);
+	void ringbufferWriteAdvance(jack_ringbuffer_t *buffer, const size_t size);
+
+	bool initialize();
+	void deinitialize();
+	bool activate();
+	void deactivate();
+
+	JackAudioSystem();
+	~JackAudioSystem();
+};
+
+class JackAudioInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioInput)
+
+protected:
+	volatile bool bReady;
+	QMutex qmWait;
+	QSemaphore qsSleep;
+	jack_port_t *port;
+	jack_ringbuffer_t *buffer;
+	size_t bufferSize;
+
+public:
+	bool isReady();
+	bool process(const jack_nframes_t frames);
+	bool allocBuffer(const jack_nframes_t frames);
+	bool activate();
+	void deactivate();
+	bool registerPorts();
+	bool unregisterPorts();
+	void connectPorts();
+	bool disconnectPorts();
+
+	void run() Q_DECL_OVERRIDE;
+	JackAudioInput();
+	~JackAudioInput() Q_DECL_OVERRIDE;
+};
+
+class JackAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioOutput)
+
+protected:
+	volatile bool bReady;
+	QMutex qmWait;
+	QSemaphore qsSleep;
+	JackPorts ports;
+	JackBuffers outputBuffers;
+	jack_ringbuffer_t *buffer;
+
+public:
+	bool isReady();
+	bool process(const jack_nframes_t frames);
+	bool allocBuffer(const jack_nframes_t frames);
+	bool activate();
+	void deactivate();
+	bool registerPorts();
+	bool unregisterPorts();
+	void connectPorts();
+	bool disconnectPorts();
+
+	void run() Q_DECL_OVERRIDE;
+	JackAudioOutput();
+	~JackAudioOutput() Q_DECL_OVERRIDE;
+};
+
+#endif
