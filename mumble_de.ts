@@ -3,66 +3,52 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_THEMES_H_
-#define MUMBLE_MUMBLE_THEMES_H_
+#include "Tokens.h"
 
-#include <Settings.h>
-#include <ThemeInfo.h>
-#ifndef Q_MOC_RUN
-#	include <boost/optional.hpp>
-#endif
+#include "Database.h"
+#include "ServerHandler.h"
 
-class Themes {
-public:
-	/// Returns the style configured in the given settings structure
-	static boost::optional< ThemeInfo::StyleInfo > getConfiguredStyle(const Settings &settings);
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-	/// Updates the given settings object to be configured to the given style
-	///
-	/// @note Does not apply the theme @see apply
-	///
-	/// @param settings Settings object to update
-	/// @param style Style to set
-	/// @param outChanged Will be set to true if the style in settings actually changed. Will not be changed otherwise.
-	static void setConfiguredStyle(Settings &settings, boost::optional< ThemeInfo::StyleInfo > style, bool &outChanged);
+Tokens::Tokens(QWidget *p) : QDialog(p) {
+	setupUi(this);
+	qlwTokens->setAccessibleName(tr("Tokens"));
 
-	/// Applies the theme
-	///
-	/// @note Can only apply a theme before MainWindow etc. is opened
-	static bool apply();
+	qbaDigest          = g.sh->qbaDigest;
+	QStringList tokens = g.db->getTokens(qbaDigest);
+	tokens.sort();
+	foreach (const QString &qs, tokens) {
+		QListWidgetItem *qlwi = new QListWidgetItem(qs);
+		qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
+		qlwTokens->addItem(qlwi);
+	}
+}
 
-	/// Return a theme name to theme map
-	static ThemeMap getThemes();
+void Tokens::accept() {
+	QStringList qsl;
 
-	/// Returns the per user themes directory
-	static QDir getUserThemesDirectory();
+	QList< QListWidgetItem * > items = qlwTokens->findItems(QString(), Qt::MatchStartsWith);
+	foreach (QListWidgetItem *qlwi, items) {
+		const QString &text = qlwi->text().trimmed();
+		if (!text.isEmpty())
+			qsl << text;
+	}
+	g.db->setTokens(qbaDigest, qsl);
+	g.sh->setTokens(qsl);
+	QDialog::accept();
+}
 
-private:
-	/// Applies the fallback stylesheet
-	static void applyFallback();
+void Tokens::on_qpbAdd_clicked() {
+	QListWidgetItem *qlwi = new QListWidgetItem(tr("Empty Token"));
+	qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
 
-	/// Tries to apply the configured theme.
-	/// @return True on success. False on failure.
-	static bool applyConfigured();
+	qlwTokens->addItem(qlwi);
+	qlwTokens->editItem(qlwi);
+}
 
-	// Sets the theme to a QSS theme
-	static void setTheme(QString &themeQss, QStringList &skinPaths);
-
-	/// Returns list of theme search directories ordered ascending by priorty (lowest first)
-	static QVector< QDir > getSearchDirectories();
-
-	/// Returns default style-sheet used for fall-backs
-	static QString getDefaultStylesheet();
-
-	/// userStylesheetPath returns the absolute path to the
-	/// user.qss file.
-	static QString userStylesheetPath();
-
-	/// readStylesheet fills stylesheetContent with the content
-	/// of the file at stylesheetFn, if available.
-	/// If a the file is is available, the function returns true.
-	/// If no file is available, it returns false.
-	static bool readStylesheet(const QString &stylesheetFn, QString &stylesheetContent);
-};
-
-#endif // MUMBLE_MUMBLE_THEMES_H_
+void Tokens::on_qpbRemove_clicked() {
+	foreach (QListWidgetItem *qlwi, qlwTokens->selectedItems())
+		delete qlwi;
+}
