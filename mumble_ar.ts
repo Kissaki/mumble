@@ -3,91 +3,199 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_WEBFETCH_H_
-#define MUMBLE_MUMBLE_WEBFETCH_H_
+#include "XMLTools.h"
 
-#include <QtCore/QByteArray>
-#include <QtCore/QMap>
-#include <QtCore/QObject>
-#include <QtCore/QUrl>
+#include <QStringList>
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 
-class QNetworkReply;
+void XMLTools::recurseParse(QXmlStreamReader &reader, QXmlStreamWriter &writer, int &paragraphs,
+							const QMap< QString, QString > &opstyle, const int close, bool ignore) {
+	while (!reader.atEnd()) {
+		QXmlStreamReader::TokenType tt = reader.readNext();
 
-/// WebFetch is a utility class to download data from Mumble services.
-class WebFetch : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(WebFetch)
-protected:
-	QObject *qoObject;
-	const char *cpSlot;
-	QNetworkReply *qnr;
-	QString m_service;
+		QXmlStreamAttributes a = reader.attributes();
+		QMap< QString, QString > style;
+		QMap< QString, QString > pstyle = opstyle;
 
-	QString prefixedServiceHost() const;
-	QString serviceHost() const;
-
-	WebFetch(QString service, QUrl url, QObject *obj, const char *slot);
-signals:
-	void fetched(QByteArray data, QUrl url, QMap< QString, QString > headers);
-protected slots:
-	void finished();
-
-public:
-	/// The fetch function downloads the resource specified by the url parameter from the
-	/// Mumble service given in the service parameter. Once the download completes, the
-	/// function invokes the slot specified via the slot parameter.
-	///
-	/// Only the path part of the url parameter
-	/// is used to construct the final, fully-qualified URL from which the resource is
-	/// downloaded.
-	///
-	/// By default, the service parameter and the url parameter are combined to create
-	/// a service as follows:
-	///
-	///     fullyQualifiedURL = https://${service}.mumble.info/${url.path}
-	///
-	/// When a resource is downloaded from a Mumble service, the service may optionally
-	/// specify a service prefix to use for future requests to all Mumble services. This
-	/// is communicated via the Use-Service-Prefix HTTP header in HTTP responses from
-	/// Mumble services. When this function encounters such a response header, it stores
-	/// the service prefix in the "net/serviceprefix" Mumble setting. If this setting
-	/// is non-empty, the fully-qualified URL is instead constructed as such:
-	///
-	///     fullyQualifiedURL = https://${serivcePrefixSetting}-${service}.mumble.info/${url.path}
-	///
-	/// The service prefix must only contain ASCII characters 'A' through 'Z' (upper case)
-	/// or 'a' through 'z (lower case).
-	///
-	/// @param  service  The Mumble service name to use for this request.
-	///
-	///                  The service name specified is used to create base URL
-	///                  used by the final, fully-qualified URL as follows:
-	///
-	///                      baseURL = https://${service}.mumble.info
-	///
-	///                  If the Mumble setting "net/serviceprefix" is non-empty,
-	///                  it will be used as a prefix to the base URL. In this case,
-	///                  the base URL will be constructed as follows:
-	///
-	///                      baseURL = https://${servicePrefixSetting}-${service}.mumble.info
-	///
-	/// @param  url      The path to the endpoint that the request is targetted at.
-	///                  Only the path of the URL will be used. The specified path is
-	///                  used in combination with the base URL constructed by the service
-	///                  parameter to construct the fully-qualified URL for the HTTP request
-	///                  that will be sent by this function.
-	///                  The path is used in combination with the base URL from the service
-	///                  parameter as follows:
-	///
-	///                      fullyQualifiedURL = ${baseURL}/${url.path}
-	///
-	/// @param  slot     A Qt slot of the form fetched(QByteArray data, QUrl url,
-	///                                                QMap<QString,QString> httpHeaders)
-	///                  If the download initiated by the function was succesful, the data
-	///                  parameter will be a non-null QByteArray.
-	///                  If the download failed, the data parameter will be a null QByteArray.
-	static void fetch(const QString &service, const QUrl &url, QObject *obj, const char *slot);
-};
-
+		QStringRef styleref = a.value(QLatin1String("style"));
+		if (!styleref.isNull()) {
+			QString stylestring = styleref.toString();
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+			QStringList styles = stylestring.split(QLatin1String(";"), Qt::SkipEmptyParts);
+#else
+			// Qt 5.14 introduced the Qt::SplitBehavior flags deprecating the QString fields
+			QStringList styles = stylestring.split(QLatin1String(";"), QString::SkipEmptyParts);
 #endif
+			foreach (QString s, styles) {
+				s           = s.simplified();
+				int idx     = s.indexOf(QLatin1Char(':'));
+				QString key = (idx > 0) ? s.left(idx).simplified() : s;
+				QString val = (idx > 0) ? s.mid(idx + 1).simplified() : QString();
+
+				if (!pstyle.contains(key) || (pstyle.value(key) != val)) {
+					style.insert(key, val);
+					pstyle.insert(key, val);
+				}
+			}
+		}
+
+		switch (tt) {
+			case QXmlStreamReader::StartElement: {
+				QString name = reader.name().toString();
+				int rclose   = 1;
+				if (name == QLatin1String("body")) {
+					rclose = 0;
+					ignore = false;
+				} else if (name == QLatin1String("span")) {
+					// Substitute style with <b>, <i> and <u>
+
+					rclose = 0;
+					if (style.value(QLatin1String("font-weight")) == QLatin1String("600")) {
+						writer.writeStartElement(QLatin1String("b"));
+						rclose++;
+						style.remove(QLatin1String("font-weight"));
+					}
+					if (style.value(QLatin1String("font-style")) == QLatin1String("italic")) {
+						writer.writeStartElement(QLatin1String("i"));
+						rclose++;
+						style.remove(QLatin1String("font-style"));
+					}
+					if (style.value(QLatin1String("text-decoration")) == QLatin1String("underline")) {
+						writer.writeStartElement(QLatin1String("u"));
+						rclose++;
+						style.remove(QLatin1String("text-decoration"));
+					}
+					if (!style.isEmpty()) {
+						rclose++;
+						writer.writeStartElement(name);
+
+						QStringList qsl;
+						QMap< QString, QString >::const_iterator i;
+						for (i = style.constBegin(); i != style.constEnd(); ++i) {
+							if (!i.value().isEmpty())
+								qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
+							else
+								qsl << i.key();
+						}
+
+						writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
+					}
+				} else if (name == QLatin1String("p")) {
+					paragraphs++;
+					if (paragraphs == 1) {
+						// Ignore first paragraph. If it is styled empty drop its contents (e.g. <br />) too.
+						if (style.value(QLatin1String("-qt-paragraph-type")) == QLatin1String("empty")) {
+							reader.skipCurrentElement();
+							continue;
+						}
+						rclose = 0;
+					} else {
+						rclose = 1;
+						writer.writeStartElement(name);
+
+						if (!style.isEmpty()) {
+							QStringList qsl;
+							QMap< QString, QString >::const_iterator i;
+							for (i = style.constBegin(); i != style.constEnd(); ++i) {
+								if (!i.value().isEmpty())
+									qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
+								else
+									qsl << i.key();
+							}
+
+							writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
+						}
+					}
+				} else if (name == QLatin1String("a")) {
+					// Set pstyle to include implicit blue underline.
+					rclose = 1;
+					writer.writeCurrentToken(reader);
+					pstyle.insert(QLatin1String("text-decoration"), QLatin1String("underline"));
+					pstyle.insert(QLatin1String("color"), QLatin1String("#0000ff"));
+				} else if (!ignore) {
+					rclose = 1;
+					writer.writeCurrentToken(reader);
+				}
+
+				recurseParse(reader, writer, paragraphs, pstyle, rclose, ignore);
+				break;
+			}
+			case QXmlStreamReader::EndElement:
+				if (!ignore)
+					for (int i = 0; i < close; ++i)
+						writer.writeEndElement();
+				return;
+			case QXmlStreamReader::Characters:
+				if (!ignore)
+					writer.writeCharacters(reader.text().toString());
+				break;
+			default:
+				break;
+		}
+	}
+}
+
+bool XMLTools::unduplicateTags(QXmlStreamReader &reader, QXmlStreamWriter &writer) {
+	bool changed   = false;
+	bool needclose = false;
+
+	QStringList qslConcat;
+	qslConcat << QLatin1String("b");
+	qslConcat << QLatin1String("i");
+	qslConcat << QLatin1String("u");
+	qslConcat << QLatin1String("a");
+
+	QList< QString > qlNames;
+	QList< QXmlStreamAttributes > qlAttributes;
+
+	while (!reader.atEnd()) {
+		QXmlStreamReader::TokenType tt = reader.readNext();
+		QString name                   = reader.name().toString();
+		switch (tt) {
+			case QXmlStreamReader::StartDocument:
+			case QXmlStreamReader::EndDocument:
+				break;
+			case QXmlStreamReader::StartElement: {
+				QXmlStreamAttributes a = reader.attributes();
+
+				if (name == QLatin1String("unduplicate"))
+					break;
+
+				if (needclose) {
+					needclose = false;
+
+					if ((a == qlAttributes.last()) && (name == qlNames.last()) && (qslConcat.contains(name))) {
+						changed = true;
+						break;
+					}
+					qlNames.takeLast();
+					qlAttributes.takeLast();
+					writer.writeEndElement();
+				}
+				writer.writeCurrentToken(reader);
+				qlNames.append(name);
+				qlAttributes.append(a);
+			} break;
+			case QXmlStreamReader::EndElement: {
+				if (name == QLatin1String("unduplicate"))
+					break;
+				if (needclose) {
+					qlNames.takeLast();
+					qlAttributes.takeLast();
+					writer.writeCurrentToken(reader);
+				}
+				needclose = true;
+			} break;
+			default:
+				if (needclose) {
+					writer.writeEndElement();
+					needclose = false;
+				}
+				writer.writeCurrentToken(reader);
+		}
+	}
+	if (needclose)
+		writer.writeEndElement();
+	return changed;
+}
