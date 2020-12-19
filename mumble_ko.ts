@@ -1,103 +1,168 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TALKINGUISELECTION_H_
-#define MUMBLE_MUMBLE_TALKINGUISELECTION_H_
+/* Copyright (C) 2005-2011, Thorvald Natvig <thorvald@natvig.com>
+   Copyright (C) 2007, Sebastian Schlingmann <mit_service@users.sourceforge.net>
+   Copyright (C) 2008-2011, Mikkel Krautz <mikkel@krautz.dk>
+   Copyright (C) 2014, Mayur Pawashe <zorgiepoo@gmail.com>
 
-#include <memory>
+   All rights reserved.
 
-class QWidget;
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions
+   are met:
 
-/// Base class of all selections within the TalkingUI
-class TalkingUISelection {
-protected:
-	/// The widget that is used to represent this selection (it'll be marked
-	/// as selected).
-	QWidget *m_widget;
+   - Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+   - Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+   - Neither the name of the Mumble Developers nor the names of its
+     contributors may be used to endorse or promote products derived from this
+     software without specific prior written permission.
 
-	explicit TalkingUISelection() = default;
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
+   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
-public:
-	explicit TalkingUISelection(QWidget *widget);
-	virtual ~TalkingUISelection() = default;
+#import <AppKit/AppKit.h>
 
-	/// Turns this selection on or off. Turning it on usually involves marking the
-	/// associated Widget in a certain way while deactivating the selection reverts this effect.
-	///
-	/// @param active Whether to activate this selection
-	virtual void setActive(bool active);
+#include "Global.h"
+#include "TextToSpeech.h"
 
-	/// Applies this selection. This is a shortcut for setActive(true).
-	virtual void apply() final;
+@interface MUSpeechSynthesizerPrivateHelper : NSObject {
+	NSMutableArray *m_messages;
+	NSSpeechSynthesizer *m_synthesizer;
+}
+- (NSSpeechSynthesizer *)synthesizer;
+- (void)appendMessage:(NSString *)message;
+- (void)processSpeech;
+@end
 
-	/// Discards this selection. This is a shortcut for setActive(false).
-	virtual void discard() final;
+#if !defined(USE_MAC_UNIVERSAL) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+@interface MUSpeechSynthesizerPrivateHelper () <NSSpeechSynthesizerDelegate>
+@end
+#endif
 
-	/// Synchronizes this selection to the MainWindow
-	virtual void syncToMainWindow() const = 0;
+@implementation MUSpeechSynthesizerPrivateHelper
 
-	bool operator==(const TalkingUISelection &other) const;
-	bool operator!=(const TalkingUISelection &other) const;
+- (id)init {
+	if ((self = [super init])) {
+		m_synthesizer = [[NSSpeechSynthesizer alloc] initWithVoice:nil];
+		m_messages = [[NSMutableArray alloc] init];
+		[m_synthesizer setDelegate:self];
+	}
+	return self;
+}
 
-	bool operator==(const QWidget *widget) const;
-	bool operator!=(const QWidget *widget) const;
+- (void)dealloc {
+	[m_synthesizer release];
+	[m_messages release];
+	[super dealloc];
+}
 
-	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const = 0;
+- (NSSpeechSynthesizer *)synthesizer {
+	return m_synthesizer;
+}
+
+- (void)appendMessage:(NSString *)message {
+	[m_messages insertObject:message atIndex:0];
+}
+
+- (void)processSpeech {
+	Q_ASSERT([m_messages count] == 0);
+	
+	NSString *poppedMessage = [m_messages lastObject];
+	[m_synthesizer startSpeakingString:poppedMessage];
+	[m_messages removeLastObject];
+}
+
+- (void)speechSynthesizer:(NSSpeechSynthesizer *)synthesizer didFinishSpeaking:(BOOL)success {
+	Q_UNUSED(synthesizer);
+	Q_UNUSED(success);
+
+	if ([m_messages count] != 0) {
+		[self processSpeech];
+	}
+}
+
+@end
+
+class TextToSpeechPrivate {
+	public:
+		MUSpeechSynthesizerPrivateHelper *m_synthesizerHelper;
+
+		TextToSpeechPrivate();
+		~TextToSpeechPrivate();
+		void say(const QString &text);
+		void setVolume(int v);
 };
 
-/// A class representing the selection of a user in the TalkingUI
-class UserSelection : public TalkingUISelection {
-protected:
-	const unsigned int m_userSession;
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	m_synthesizerHelper = [[MUSpeechSynthesizerPrivateHelper alloc] init];
+}
 
-public:
-	explicit UserSelection(QWidget *widget, unsigned int userSession);
-	explicit UserSelection(const UserSelection &) = default;
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	[m_synthesizerHelper release];
+}
 
-	virtual void syncToMainWindow() const override;
+void TextToSpeechPrivate::say(const QString &text) {
+	QByteArray byteArray = text.toUtf8();
+	NSString *message = [[NSString alloc] initWithBytes:byteArray.constData() length:byteArray.size() encoding:NSUTF8StringEncoding];
 
-	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
-};
+	if (message == nil) {
+		return;
+	}
 
-/// A class representing the selection of a channel in the TalkingUI
-class ChannelSelection : public TalkingUISelection {
-protected:
-	const int m_channelID;
+	[m_synthesizerHelper appendMessage:message];
+	[message release];
 
-public:
-	explicit ChannelSelection(QWidget *widget, int channelID);
-	explicit ChannelSelection(const ChannelSelection &) = default;
+	if (![[m_synthesizerHelper synthesizer] isSpeaking]) {
+		[m_synthesizerHelper processSpeech];
+	}
+}
 
-	virtual void syncToMainWindow() const override;
+void TextToSpeechPrivate::setVolume(int volume) {
+	// Check for setVolume: availability. It's only available on 10.5+.
+	if ([[m_synthesizerHelper synthesizer] respondsToSelector:@selector(setVolume:)]) {
+		[[m_synthesizerHelper synthesizer] setVolume:volume / 100.0];
+	}
+}
 
-	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
-};
+TextToSpeech::TextToSpeech(QObject *) {
+	enabled = true;
+	d = new TextToSpeechPrivate();
+}
 
-class ListenerSelection : public TalkingUISelection {
-protected:
-	unsigned int m_userSession;
-	const int m_channelID;
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
 
-public:
-	explicit ListenerSelection(QWidget *widget, unsigned int userSession, int channelID);
-	explicit ListenerSelection(const ListenerSelection &) = default;
+void TextToSpeech::say(const QString &text) {
+	if (d && enabled)
+		d->say(text);
+}
 
-	virtual void syncToMainWindow() const override;
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
 
-	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
-};
+void TextToSpeech::setVolume(int volume) {
+	if (d && enabled)
+		d->setVolume(volume);
+}
 
-/// A class representing an empty selection in the TalkingUI
-class EmptySelection : public TalkingUISelection {
-public:
-	explicit EmptySelection()                       = default;
-	explicit EmptySelection(const EmptySelection &) = default;
-
-	virtual void syncToMainWindow() const override;
-
-	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
-};
-
-#endif // MUMBLE_MUMBLE_TALKINGUISELECTION_H_
+bool TextToSpeech::isEnabled() const {
+	return enabled;
+}
