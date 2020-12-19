@@ -1,182 +1,270 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_JACKAUDIO_H_
-#define MUMBLE_MUMBLE_JACKAUDIO_H_
-
-#include "AudioInput.h"
-#include "AudioOutput.h"
-
-#include <QtCore/QLibrary>
-#include <QtCore/QSemaphore>
-#include <QtCore/QVector>
-#include <QtCore/QWaitCondition>
-
-#include <jack/types.h>
-
-#define JACK_MAX_OUTPUT_PORTS 2
-#define JACK_BUFFER_PERIODS 3
-
-// Definitions from <jack/ringbuffer.h>
-typedef void *jack_ringbuffer_t;
-
-struct jack_ringbuffer_data_t {
-	char *buf;
-	size_t len;
-};
-
-typedef QVector< jack_port_t * > JackPorts;
-typedef QVector< jack_default_audio_sample_t * > JackBuffers;
-
-class JackAudioInit;
-
-class JackAudioSystem : public QObject {
-	friend JackAudioInit;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(JackAudioSystem)
-
-protected:
-	bool bAvailable;
-	uint8_t users;
-	QMutex qmWait;
-	QLibrary qlJack;
-	QWaitCondition qwcWait;
-	jack_client_t *client;
-
-	static int processCallback(jack_nframes_t frames, void *);
-	static int sampleRateCallback(jack_nframes_t, void *);
-	static int bufferSizeCallback(jack_nframes_t frames, void *);
-	static void shutdownCallback(void *);
-
-	const char *(*jack_get_version_string)();
-	const char **(*jack_get_ports)(jack_client_t *client, const char *port_name_pattern, const char *type_name_pattern,
-								   unsigned long flags);
-	char *(*jack_get_client_name)(jack_client_t *client);
-	char *(*jack_port_name)(jack_port_t *port);
-	int (*jack_client_close)(jack_client_t *client);
-	int (*jack_activate)(jack_client_t *client);
-	int (*jack_deactivate)(jack_client_t *client);
-	int (*jack_set_process_callback)(jack_client_t *client, JackProcessCallback process_callback, void *arg);
-	int (*jack_set_sample_rate_callback)(jack_client_t *client, JackSampleRateCallback process_callback, void *arg);
-	int (*jack_set_buffer_size_callback)(jack_client_t *client, JackBufferSizeCallback process_callback, void *arg);
-	int (*jack_on_shutdown)(jack_client_t *client, JackShutdownCallback process_callback, void *arg);
-	int (*jack_connect)(jack_client_t *client, const char *source_port, const char *destination_port);
-	int (*jack_port_disconnect)(jack_client_t *client, jack_port_t *port);
-	int (*jack_port_unregister)(jack_client_t *client, jack_port_t *port);
-	int (*jack_port_flags)(const jack_port_t *port);
-	void *(*jack_port_get_buffer)(jack_port_t *port, jack_nframes_t frames);
-	void (*jack_free)(void *ptr);
-	jack_client_t *(*jack_client_open)(const char *client_name, jack_options_t options, jack_status_t *status, ...);
-	jack_nframes_t (*jack_get_sample_rate)(jack_client_t *client);
-	jack_nframes_t (*jack_get_buffer_size)(jack_client_t *client);
-	jack_port_t *(*jack_port_by_name)(jack_client_t *client, const char *port_name);
-	jack_port_t *(*jack_port_register)(jack_client_t *client, const char *port_name, const char *port_type,
-									   unsigned long flags, unsigned long buffer_size);
-
-	jack_ringbuffer_t *(*jack_ringbuffer_create)(size_t sz);
-	void (*jack_ringbuffer_free)(jack_ringbuffer_t *rb);
-	int (*jack_ringbuffer_mlock)(jack_ringbuffer_t *rb);
-	size_t (*jack_ringbuffer_read)(jack_ringbuffer_t *rb, char *dest, size_t cnt);
-	size_t (*jack_ringbuffer_read_space)(const jack_ringbuffer_t *rb);
-	size_t (*jack_ringbuffer_write)(jack_ringbuffer_t *rb, const char *src, size_t cnt);
-	void (*jack_ringbuffer_get_write_vector)(const jack_ringbuffer_t *rb, jack_ringbuffer_data_t *vec);
-	size_t (*jack_ringbuffer_write_space)(const jack_ringbuffer_t *rb);
-	void (*jack_ringbuffer_write_advance)(jack_ringbuffer_t *rb, size_t cnt);
-
-public:
-	QHash< QString, QString > qhInput;
-	QHash< QString, QString > qhOutput;
-
-	bool isOk();
-	uint8_t outPorts();
-	jack_nframes_t sampleRate();
-	jack_nframes_t bufferSize();
-	JackPorts getPhysicalPorts(const uint8_t flags);
-	void *getPortBuffer(jack_port_t *port, const jack_nframes_t frames);
-	jack_port_t *registerPort(const char *name, const uint8_t flags);
-	bool unregisterPort(jack_port_t *port);
-	bool connectPort(jack_port_t *sourcePort, jack_port_t *destinationPort);
-	bool disconnectPort(jack_port_t *port);
-
-	jack_ringbuffer_t *ringbufferCreate(const size_t size);
-	void ringbufferFree(jack_ringbuffer_t *buffer);
-	int ringbufferMlock(jack_ringbuffer_t *buffer);
-	size_t ringbufferRead(jack_ringbuffer_t *buffer, const size_t size, void *destination);
-	size_t ringbufferReadSpace(const jack_ringbuffer_t *buffer);
-	size_t ringbufferWrite(jack_ringbuffer_t *buffer, const size_t size, const void *source);
-	void ringbufferGetWriteVector(const jack_ringbuffer_t *buffer, jack_ringbuffer_data_t *vector);
-	size_t ringbufferWriteSpace(const jack_ringbuffer_t *buffer);
-	void ringbufferWriteAdvance(jack_ringbuffer_t *buffer, const size_t size);
-
-	bool initialize();
-	void deinitialize();
-	bool activate();
-	void deactivate();
-
-	JackAudioSystem();
-	~JackAudioSystem();
-};
-
-class JackAudioInput : public AudioInput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(JackAudioInput)
-
-protected:
-	volatile bool bReady;
-	QMutex qmWait;
-	QSemaphore qsSleep;
-	jack_port_t *port;
-	jack_ringbuffer_t *buffer;
-	size_t bufferSize;
-
-public:
-	bool isReady();
-	bool process(const jack_nframes_t frames);
-	bool allocBuffer(const jack_nframes_t frames);
-	bool activate();
-	void deactivate();
-	bool registerPorts();
-	bool unregisterPorts();
-	void connectPorts();
-	bool disconnectPorts();
-
-	void run() Q_DECL_OVERRIDE;
-	JackAudioInput();
-	~JackAudioInput() Q_DECL_OVERRIDE;
-};
-
-class JackAudioOutput : public AudioOutput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(JackAudioOutput)
-
-protected:
-	volatile bool bReady;
-	QMutex qmWait;
-	QSemaphore qsSleep;
-	JackPorts ports;
-	JackBuffers outputBuffers;
-	jack_ringbuffer_t *buffer;
-
-public:
-	bool isReady();
-	bool process(const jack_nframes_t frames);
-	bool allocBuffer(const jack_nframes_t frames);
-	bool activate();
-	void deactivate();
-	bool registerPorts();
-	bool unregisterPorts();
-	void connectPorts();
-	bool disconnectPorts();
-
-	void run() Q_DECL_OVERRIDE;
-	JackAudioOutput();
-	~JackAudioOutput() Q_DECL_OVERRIDE;
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GlobalShortcut</class>
+ <widget class="QWidget" name="GlobalShortcut">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>621</width>
+    <height>542</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QWidget" name="qwWarningContainer" native="true">
+     <layout class="QVBoxLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QWidget" name="qwMacWarning" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system's Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="textFormat">
+            <enum>Qt::RichText</enum>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <spacer name="horizontalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbOpenAccessibilityPrefs">
+             <property name="text">
+              <string>Open Accessibility Preferences</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbSkipWarning">
+             <property name="text">
+              <string>Skip</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>10</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbShortcuts">
+     <property name="title">
+      <string>Shortcuts</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QCheckBox" name="qcbEnableGlobalShortcuts">
+          <property name="text">
+           <string>Enable Global Shortcuts</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTreeWidget" name="qtwShortcuts">
+          <property name="toolTip">
+           <string>List of configured shortcuts</string>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::AllEditTriggers</set>
+          </property>
+          <property name="alternatingRowColors">
+           <bool>true</bool>
+          </property>
+          <property name="rootIsDecorated">
+           <bool>false</bool>
+          </property>
+          <property name="uniformRowHeights">
+           <bool>true</bool>
+          </property>
+          <attribute name="headerDefaultSectionSize">
+           <number>100</number>
+          </attribute>
+          <attribute name="headerMinimumSectionSize">
+           <number>50</number>
+          </attribute>
+          <attribute name="headerStretchLastSection">
+           <bool>false</bool>
+          </attribute>
+          <column>
+           <property name="text">
+            <string>Function</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Data</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Shortcut</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Suppress</string>
+           </property>
+          </column>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="qpbAdd">
+          <property name="toolTip">
+           <string>Add new shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will add a new global shortcut</string>
+          </property>
+          <property name="text">
+           <string>&amp;Add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="qpbRemove">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Remove selected shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will permanently remove a selected shortcut.</string>
+          </property>
+          <property name="text">
+           <string>&amp;Remove</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>59</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="qgbWindowsShortcutEngines">
+        <property name="whatsThis">
+         <string>&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</string>
+        </property>
+        <property name="title">
+         <string>Additional Shortcut Engines</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_5">
+         <item>
+          <widget class="QCheckBox" name="qcbEnableUIAccess">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
+&lt;br /&gt;&lt;br /&gt;
+Without this option enabled, using Mumble's global shortcuts in privileged applications will not work. This can seem inconsistent: for example, if the Push-to-Talk button is pressed in a non-privileged program, but released in a privileged application, Mumble will not observe that it has been released and you will continue to talk until you press the Push-to-Talk button again.</string>
+           </property>
+           <property name="text">
+            <string>Enable shortcuts in privileged applications</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableWinHooks">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</string>
+           </property>
+           <property name="text">
+            <string>Enable Windows hooks</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableGKey">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</string>
+           </property>
+           <property name="text">
+            <string>Enable GKey</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableXboxInput">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</string>
+           </property>
+           <property name="text">
+            <string>Enable XInput</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
