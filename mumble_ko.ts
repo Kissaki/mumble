@@ -3,89 +3,100 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_PLUGINS_H_
-#define MUMBLE_MUMBLE_PLUGINS_H_
+#ifndef MUMBLE_MUMBLE_PAAUDIO_H_
+#define MUMBLE_MUMBLE_PAAUDIO_H_
 
-#include "ConfigDialog.h"
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-#include "ui_Plugins.h"
+#include <QtCore/QLibrary>
+#include <QtCore/QWaitCondition>
 
-#ifdef Q_OS_WIN
-#	include "win.h"
-#endif
+#include <portaudio.h>
 
-#include <QtCore/QMutex>
-#include <QtCore/QObject>
-#include <QtCore/QReadWriteLock>
-#include <QtCore/QUrl>
+class PortAudioInit;
 
-struct PluginInfo;
+class PortAudioSystem : public QObject {
+	friend PortAudioInit;
 
-class PluginConfig : public ConfigWidget, public Ui::PluginConfig {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(PluginConfig)
+	Q_DISABLE_COPY(PortAudioSystem)
 protected:
-	void refillPluginList();
-	PluginInfo *pluginForItem(QTreeWidgetItem *) const;
+	bool bOk;
+	QMutex qmWait;
+	QLibrary qlPortAudio;
+	QWaitCondition qwcWait;
+
+	static int streamCallback(const void *input, void *output, unsigned long frames, const PaStreamCallbackTimeInfo *,
+							  PaStreamCallbackFlags statusFlags, void *isInput);
+
+	const char *(*Pa_GetVersionText)();
+	const char *(*Pa_GetErrorText)(PaError errorCode);
+	PaError (*Pa_Initialize)();
+	PaError (*Pa_Terminate)();
+	PaError (*Pa_OpenStream)(PaStream **stream, const PaStreamParameters *inputParameters,
+							 const PaStreamParameters *outputParameters, double sampleRate,
+							 unsigned long framesPerBuffer, PaStreamFlags streamFlags, PaStreamCallback *streamCallback,
+							 void *userData);
+	PaError (*Pa_CloseStream)(PaStream *stream);
+	PaError (*Pa_StartStream)(PaStream *stream);
+	PaError (*Pa_StopStream)(PaStream *stream);
+	PaError (*Pa_IsStreamActive)(PaStream *stream);
+	PaDeviceIndex (*Pa_GetDefaultInputDevice)();
+	PaDeviceIndex (*Pa_GetDefaultOutputDevice)();
+	PaDeviceIndex (*Pa_HostApiDeviceIndexToDeviceIndex)(PaHostApiIndex hostApi, int hostApiDeviceIndex);
+	PaHostApiIndex (*Pa_GetHostApiCount)();
+	const PaHostApiInfo *(*Pa_GetHostApiInfo)(PaHostApiIndex hostApi);
+	const PaDeviceInfo *(*Pa_GetDeviceInfo)(PaDeviceIndex device);
 
 public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	PluginConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void on_qpbConfig_clicked();
-	void on_qpbAbout_clicked();
-	void on_qpbReload_clicked();
-	void on_qtwPlugins_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
+	const QList< audioDevice > enumerateDevices(const bool input, const PaDeviceIndex current);
+
+	bool isStreamRunning(PaStream *stream);
+
+	int openStream(PaStream **stream, PaDeviceIndex device, const uint32_t frameSize, const bool isInput);
+	bool closeStream(PaStream *stream);
+
+	bool startStream(PaStream *stream);
+	bool stopStream(PaStream *stream);
+
+	PortAudioSystem();
+	~PortAudioSystem();
 };
 
-struct PluginFetchMeta;
 
-class Plugins : public QObject {
-	friend class PluginConfig;
-
+class PortAudioInput : public AudioInput {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(Plugins)
+	Q_DISABLE_COPY(PortAudioInput)
 protected:
-	QReadWriteLock qrwlPlugins;
-	QMutex qmPluginStrings;
-	QList< PluginInfo * > qlPlugins;
-	PluginInfo *locked;
-	PluginInfo *prevlocked;
-	void clearPlugins();
-	int iPluginTry;
-	QMap< QString, PluginFetchMeta > qmPluginFetchMeta;
-	QString qsSystemPlugins;
-	QString qsUserPlugins;
-#ifdef Q_OS_WIN
-	HANDLE hToken;
-	TOKEN_PRIVILEGES tpPrevious;
-	DWORD cbPrevious;
-#endif
-public:
-	std::string ssContext, ssContextSent;
-	std::wstring swsIdentity, swsIdentitySent;
-	bool bValid;
-	bool bUnlink;
-	float fPosition[3], fFront[3], fTop[3];
-	float fCameraPosition[3], fCameraFront[3], fCameraTop[3];
+	QMutex qmWait;
+	QWaitCondition qwcSleep;
+	PaStream *stream;
 
-	Plugins(QObject *p = nullptr);
-	~Plugins() Q_DECL_OVERRIDE;
-public slots:
-	void on_Timer_timeout();
-	void rescanPlugins();
-	bool fetch();
-	void checkUpdates();
-	void fetchedUpdatePAPlugins(QByteArray, QUrl);
-	void fetchedPAPluginDL(QByteArray, QUrl);
+public:
+	void process(const uint32_t frames, const void *buffer);
+	void run() Q_DECL_OVERRIDE;
+	PortAudioInput();
+	~PortAudioInput() Q_DECL_OVERRIDE;
+};
+
+
+class PortAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PortAudioOutput)
+protected:
+	QMutex qmWait;
+	QWaitCondition qwcSleep;
+	PaStream *stream;
+
+public:
+	void process(const uint32_t frames, void *buffer);
+	void run() Q_DECL_OVERRIDE;
+	PortAudioOutput();
+	~PortAudioOutput() Q_DECL_OVERRIDE;
 };
 
 #endif
