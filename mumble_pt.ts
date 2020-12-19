@@ -3,234 +3,642 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "CrashReporter.h"
+#include "CoreAudio.h"
 
-#include "EnvUtils.h"
-#include "NetworkConfig.h"
-#include "OSInfo.h"
+#include "User.h"
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-#include <QtCore/QProcess>
-#include <QtCore/QTemporaryFile>
-#include <QtNetwork/QHostAddress>
-#include <QtWidgets/QMessageBox>
-#include <QtWidgets/QPushButton>
+// Ignore deprecation warnings for the whole file, for now.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
-CrashReporter::CrashReporter(QWidget *p) : QDialog(p) {
-	setWindowTitle(tr("Mumble Crash Report"));
+static CoreAudioInit cainit;
 
-	QVBoxLayout *vbl = new QVBoxLayout(this);
-
-	QLabel *l;
-
-	l = new QLabel(tr("<p><b>We're terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report "
-					  "to the Mumble developers?</b></p>"
-					  "<p>The crash report contains a partial copy of Mumble's memory at the time it crashed, and will "
-					  "help the developers fix the problem.</p>"));
-
-	vbl->addWidget(l);
-
-	QHBoxLayout *hbl = new QHBoxLayout();
-
-	qleEmail = new QLineEdit(g.qs->value(QLatin1String("crashemail")).toString());
-	l        = new QLabel(tr("Email address (optional)"));
-	l->setBuddy(qleEmail);
-
-	hbl->addWidget(l);
-	hbl->addWidget(qleEmail, 1);
-	vbl->addLayout(hbl);
-
-	qteDescription = new QTextEdit();
-	l->setBuddy(qteDescription);
-	l = new QLabel(tr("Please describe briefly, in English, what you were doing at the time of the crash"));
-
-	vbl->addWidget(l);
-	vbl->addWidget(qteDescription, 1);
-
-	QPushButton *pbOk = new QPushButton(tr("Send Report"));
-	pbOk->setDefault(true);
-
-	QPushButton *pbCancel = new QPushButton(tr("Don't send report"));
-	pbCancel->setAutoDefault(false);
-
-	QDialogButtonBox *dbb = new QDialogButtonBox(Qt::Horizontal);
-	dbb->addButton(pbOk, QDialogButtonBox::AcceptRole);
-	dbb->addButton(pbCancel, QDialogButtonBox::RejectRole);
-	connect(dbb, SIGNAL(accepted()), this, SLOT(accept()));
-	connect(dbb, SIGNAL(rejected()), this, SLOT(reject()));
-	vbl->addWidget(dbb);
-
-	qelLoop     = new QEventLoop(this);
-	qpdProgress = nullptr;
-	qnrReply    = nullptr;
+void CoreAudioInit::initialize() {
+	cairReg = new CoreAudioInputRegistrar();
+	caorReg = new CoreAudioOutputRegistrar();
 }
 
-CrashReporter::~CrashReporter() {
-	g.qs->setValue(QLatin1String("crashemail"), qleEmail->text());
-	delete qnrReply;
+void CoreAudioInit::destroy() {
+	delete cairReg;
+	delete caorReg;
 }
 
-void CrashReporter::uploadFinished() {
-	qpdProgress->reset();
-	if (qnrReply->error() == QNetworkReply::NoError) {
-		if (qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200)
-			QMessageBox::information(nullptr, tr("Crash upload successful"),
-									 tr("Thank you for helping make Mumble better!"));
-		else
-			QMessageBox::critical(nullptr, tr("Crash upload failed"),
-								  tr("We're really sorry, but it appears the crash upload has failed with error %1 %2. "
-									 "Please inform a developer.")
-									  .arg(qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
-									  .arg(qnrReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString()));
+CFStringRef CoreAudioSystem::QStringToCFString(const QString &str) {
+	return CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast< const UniChar * >(str.unicode()),
+										str.length());
+}
+
+const QList< audioDevice > CoreAudioSystem::getDeviceChoices(bool input) {
+	QHash< QString, QString > qhDevices = CoreAudioSystem::getDevices(input);
+	QList< audioDevice > qlReturn;
+	QStringList qlDevices;
+
+	qhDevices.insert(QString(), tr("Default Device"));
+	qlDevices = qhDevices.keys();
+
+	const QString &qsDev = input ? g.s.qsCoreAudioInput : g.s.qsCoreAudioOutput;
+	if (qlDevices.contains(qsDev)) {
+		qlDevices.removeAll(qsDev);
+		qlDevices.prepend(qsDev);
+	}
+
+	foreach (const QString &qsIdentifier, qlDevices) {
+		qlReturn << audioDevice(qhDevices.value(qsIdentifier), qsIdentifier);
+	}
+
+	return qlReturn;
+}
+
+const QHash< QString, QString > CoreAudioSystem::getDevices(bool input) {
+	QHash< QString, QString > qhReturn;
+	UInt32 len, ndevs;
+	OSStatus err;
+
+	AudioObjectPropertyAddress propertyAddress = { kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal,
+												   kAudioObjectPropertyElementMaster };
+
+	err = AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &propertyAddress, 0, nullptr, &len);
+	if (err != noErr)
+		return qhReturn;
+
+	ndevs = len / sizeof(AudioDeviceID);
+	AudioDeviceID devs[ndevs];
+
+	err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, nullptr, &len, devs);
+	if (err != noErr)
+		return qhReturn;
+
+	propertyAddress.mScope = input ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput;
+
+	for (UInt32 i = 0; i < ndevs; i++) {
+		QString qsDeviceName;
+		QString qsDeviceIdentifier;
+		char buf[4096];
+
+		/* Get number of channels, to determine whether we're an input or an output... */
+		AudioBufferList *bufs     = nullptr;
+		propertyAddress.mSelector = kAudioDevicePropertyStreamConfiguration;
+		err                       = AudioObjectGetPropertyDataSize(devs[i], &propertyAddress, 0, nullptr, &len);
+		if (err != noErr) {
+			qWarning("CoreAudioSystem: Failed to get length of AudioStreamConfiguration. Unable to allocate.");
+			continue;
+		}
+
+		bufs                      = reinterpret_cast< AudioBufferList * >(malloc(len));
+		propertyAddress.mSelector = kAudioDevicePropertyStreamConfiguration;
+		err                       = AudioObjectGetPropertyData(devs[i], &propertyAddress, 0, nullptr, &len, bufs);
+		if (!bufs || err != noErr) {
+			qWarning("CoreAudioSystem: Failed to get AudioStreamConfiguration from device.");
+			free(bufs);
+			continue;
+		}
+
+		UInt32 channels = 0;
+		for (UInt32 j = 0; j < bufs->mNumberBuffers; j++) {
+			channels += bufs->mBuffers[j].mNumberChannels;
+		}
+
+		free(bufs);
+
+		if (!channels)
+			continue;
+
+		/* Get device name. */
+		len                       = sizeof(CFStringRef);
+		CFStringRef devName       = nullptr;
+		propertyAddress.mSelector = kAudioDevicePropertyDeviceNameCFString;
+		err                       = AudioObjectGetPropertyData(devs[i], &propertyAddress, 0, nullptr, &len, &devName);
+		if (!devName || err != noErr) {
+			qWarning("CoreAudioSystem: Failed to get device name. Skipping device.");
+		}
+		CFStringGetCString(devName, buf, 4096, kCFStringEncodingUTF8);
+		qsDeviceName = QString::fromUtf8(buf);
+		CFRelease(devName);
+
+		/* Device UID. */
+		CFStringRef devUid        = nullptr;
+		propertyAddress.mSelector = kAudioDevicePropertyDeviceUID;
+		err                       = AudioObjectGetPropertyData(devs[i], &propertyAddress, 0, nullptr, &len, &devUid);
+		if (!devUid || err != noErr) {
+			qWarning("CoreAudioSystem: Failed to get device UID. Skipping device.");
+		}
+		CFStringGetCString(devUid, buf, 4096, kCFStringEncodingUTF8);
+		qsDeviceIdentifier = QString::fromUtf8(buf);
+		CFRelease(devUid);
+
+		qhReturn.insert(qsDeviceIdentifier, qsDeviceName);
+	}
+
+	return qhReturn;
+}
+
+
+AudioInput *CoreAudioInputRegistrar::create() {
+	return new CoreAudioInput();
+}
+
+const QList< audioDevice > CoreAudioInputRegistrar::getDeviceChoices() {
+	return CoreAudioSystem::getDeviceChoices(true);
+}
+
+void CoreAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsCoreAudioInput = choice.toString();
+}
+
+bool CoreAudioInputRegistrar::canEcho(const QString &outputsys) const {
+	Q_UNUSED(outputsys);
+
+	return false;
+}
+
+AudioOutput *CoreAudioOutputRegistrar::create() {
+	return new CoreAudioOutput();
+}
+
+const QList< audioDevice > CoreAudioOutputRegistrar::getDeviceChoices() {
+	return CoreAudioSystem::getDeviceChoices(false);
+}
+
+void CoreAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsCoreAudioOutput = choice.toString();
+}
+
+bool CoreAudioOutputRegistrar::canMuteOthers() const {
+	return false;
+}
+
+CoreAudioInput::CoreAudioInput() {
+	OSStatus err;
+	AudioStreamBasicDescription fmt;
+	AudioDeviceID devId = 0;
+	CFStringRef devUid  = nullptr;
+	UInt32 val, len;
+	AudioObjectPropertyAddress propertyAddress = { 0, kAudioDevicePropertyScopeInput,
+												   kAudioObjectPropertyElementMaster };
+
+	memset(&buflist, 0, sizeof(AudioBufferList));
+
+	if (!g.s.qsCoreAudioInput.isEmpty()) {
+		qWarning("CoreAudioInput: Set device to '%s'.", qPrintable(g.s.qsCoreAudioInput));
+		devUid = CoreAudioSystem::QStringToCFString(g.s.qsCoreAudioInput);
+
+		AudioValueTranslation avt;
+		avt.mInputData      = const_cast< struct __CFString ** >(&devUid);
+		avt.mInputDataSize  = sizeof(CFStringRef *);
+		avt.mOutputData     = &devId;
+		avt.mOutputDataSize = sizeof(AudioDeviceID);
+
+		len                       = sizeof(AudioValueTranslation);
+		propertyAddress.mSelector = kAudioHardwarePropertyDeviceForUID;
+		err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, nullptr, &len, &avt);
+		if (err != noErr) {
+			qWarning("CoreAudioInput: Unable to query for AudioDeviceID.");
+			return;
+		}
 	} else {
-		QMessageBox::critical(nullptr, tr("Crash upload failed"),
-							  tr("This really isn't funny, but apparently there's a bug in the crash reporting code, "
-								 "and we've failed to upload the report. You may inform a developer about error %1")
-								  .arg(qnrReply->error()));
-	}
-	qelLoop->exit(0);
-}
+		qWarning("CoreAudioInput: Set device to 'Default Device'.");
 
-void CrashReporter::uploadProgress(qint64 sent, qint64 total) {
-	qpdProgress->setMaximum(static_cast< int >(total));
-	qpdProgress->setValue(static_cast< int >(sent));
-}
+		len                       = sizeof(AudioDeviceID);
+		propertyAddress.mSelector = kAudioHardwarePropertyDefaultInputDevice;
+		err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, nullptr, &len, &devId);
+		if (err != noErr) {
+			qWarning("CoreAudioInput: Unable to query for default input AudioDeviceID.");
+			return;
+		}
 
-void CrashReporter::run() {
-	QByteArray qbaDumpContents;
-	QFile qfCrashDump(g.qdBasePath.filePath(QLatin1String("mumble.dmp")));
-	if (!qfCrashDump.exists())
-		return;
-
-	qfCrashDump.open(QIODevice::ReadOnly);
-
-#if defined(Q_OS_WIN)
-	/* On Windows, the .dmp file is a real minidump. */
-
-	if (qfCrashDump.peek(4) != "MDMP")
-		return;
-	qbaDumpContents = qfCrashDump.readAll();
-
-#elif defined(Q_OS_MAC)
-	/*
-	 * On OSX, the .dmp file is simply a dummy file that we
-	 * use to find the *real* crash dump, made by the OSX
-	 * built in crash reporter.
-	 */
-	QFileInfo qfiDump(qfCrashDump);
-	QDateTime qdtModification = qfiDump.lastModified();
-
-	/* Find the real crash report. */
-	QDir qdCrashReports(QDir::home().absolutePath() + QLatin1String("/Library/Logs/DiagnosticReports/"));
-	if (!qdCrashReports.exists()) {
-		qdCrashReports.setPath(QDir::home().absolutePath() + QLatin1String("/Library/Logs/CrashReporter/"));
-	}
-
-	QStringList qslFilters;
-	qslFilters << QString::fromLatin1("Mumble_*.crash");
-	qdCrashReports.setNameFilters(qslFilters);
-	qdCrashReports.setSorting(QDir::Time);
-	QFileInfoList qfilEntries = qdCrashReports.entryInfoList();
-
-	/*
-	 * Figure out if our delta is sufficiently close to the Apple crash dump, or
-	 * if something weird happened.
-	 */
-	foreach (QFileInfo fi, qfilEntries) {
-		qint64 delta = qAbs< qint64 >(qdtModification.secsTo(fi.lastModified()));
-		if (delta < 8) {
-			QFile f(fi.absoluteFilePath());
-			f.open(QIODevice::ReadOnly);
-			qbaDumpContents = f.readAll();
-			break;
+		len                       = sizeof(CFStringRef);
+		propertyAddress.mSelector = kAudioDevicePropertyDeviceUID;
+		err                       = AudioObjectGetPropertyData(devId, &propertyAddress, 0, nullptr, &len, &devUid);
+		if (err != noErr) {
+			qWarning("CoreAudioInput: Unable to get default device UID.");
+			return;
 		}
 	}
-#endif
 
-	QString details;
-#ifdef Q_OS_WIN
-	{
-		QTemporaryFile qtf;
-		if (qtf.open()) {
-			qtf.close();
+	Component comp;
+	ComponentDescription desc;
 
-			QProcess qp;
-			QStringList qsl;
+	desc.componentType         = kAudioUnitType_Output;
+	desc.componentSubType      = kAudioUnitSubType_HALOutput;
+	desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+	desc.componentFlags        = 0;
+	desc.componentFlagsMask    = 0;
 
-			qsl << QLatin1String("/t");
-			qsl << qtf.fileName();
-
-			QString app        = QLatin1String("dxdiag.exe");
-			QString systemRoot = EnvUtils::getenv(QLatin1String("SystemRoot"));
-
-			if (systemRoot.count() > 0) {
-				app = QDir::fromNativeSeparators(systemRoot + QLatin1String("/System32/dxdiag.exe"));
-			}
-
-			qp.start(app, qsl);
-			if (qp.waitForFinished(30000)) {
-				if (qtf.open()) {
-					QByteArray qba = qtf.readAll();
-					details        = QString::fromLocal8Bit(qba);
-				}
-			} else {
-				details = QLatin1String("Failed to run dxdiag");
-			}
-			qp.kill();
-		}
-	}
-#endif
-
-	if (qbaDumpContents.isEmpty()) {
-		qWarning("CrashReporter: Empty crash dump file, not reporting.");
+	comp = FindNextComponent(nullptr, &desc);
+	if (!comp) {
+		qWarning("CoreAudioInput: Unable to find AudioUnit.");
 		return;
 	}
 
-	if (exec() == QDialog::Accepted) {
-		qpdProgress = new QProgressDialog(tr("Uploading crash report"), tr("Abort upload"), 0, 100, this);
-		qpdProgress->setMinimumDuration(500);
-		qpdProgress->setValue(0);
-		connect(qpdProgress, SIGNAL(canceled()), qelLoop, SLOT(quit()));
-
-		QString boundary =
-			QString::fromLatin1("---------------------------%1").arg(QDateTime::currentDateTime().toTime_t());
-
-		QString os = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										 "name=\"os\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
-						 .arg(boundary, OSInfo::getOS(), OSInfo::getOSVersion());
-		QString ver = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										  "name=\"ver\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
-						  .arg(boundary, QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE));
-		QString email = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-											"name=\"email\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-							.arg(boundary, qleEmail->text());
-		QString descr = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-											"name=\"desc\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-							.arg(boundary, qteDescription->toPlainText());
-		QString det = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										  "name=\"details\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-						  .arg(boundary, details);
-		QString head = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; name=\"dump\"; "
-										   "filename=\"mumble.dmp\"\r\nContent-Type: binary/octet-stream\r\n\r\n")
-						   .arg(boundary);
-		QString end = QString::fromLatin1("\r\n--%1--\r\n").arg(boundary);
-
-		QByteArray post = os.toUtf8() + ver.toUtf8() + email.toUtf8() + descr.toUtf8() + det.toUtf8() + head.toUtf8()
-						  + qbaDumpContents + end.toUtf8();
-
-		QUrl url(QLatin1String("https://crash-report.mumble.info/v1/report"));
-		QNetworkRequest req(url);
-		req.setHeader(QNetworkRequest::ContentTypeHeader,
-					  QString::fromLatin1("multipart/form-data; boundary=%1").arg(boundary));
-		req.setHeader(QNetworkRequest::ContentLengthHeader, QString::number(post.size()));
-		Network::prepareRequest(req);
-		qnrReply = g.nam->post(req, post);
-		connect(qnrReply, SIGNAL(finished()), this, SLOT(uploadFinished()));
-		connect(qnrReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(uploadProgress(qint64, qint64)));
-
-		qelLoop->exec(QEventLoop::DialogExec);
+	err = OpenAComponent(comp, &au);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to open AudioUnit component.");
+		return;
 	}
 
-	if (!qfCrashDump.remove())
-		qWarning("CrashReporeter: Unable to remove crash file.");
+	err = AudioUnitInitialize(au);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to initialize AudioUnit.");
+		return;
+	}
+
+	val = 1;
+	err = AudioUnitSetProperty(au, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &val, sizeof(UInt32));
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to configure input scope on AudioUnit.");
+		return;
+	}
+
+	val = 0;
+	err = AudioUnitSetProperty(au, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Output, 0, &val, sizeof(UInt32));
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to configure output scope on AudioUnit.");
+		return;
+	}
+
+	len = sizeof(AudioDeviceID);
+	err = AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &devId, len);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to set device of AudioUnit.");
+		return;
+	}
+
+	len = sizeof(AudioStreamBasicDescription);
+	err = AudioUnitGetProperty(au, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 1, &fmt, &len);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to query device for stream info.");
+		return;
+	}
+
+	if (fmt.mFormatFlags & kAudioFormatFlagIsFloat) {
+		eMicFormat = SampleFloat;
+	} else if (fmt.mFormatFlags & kAudioFormatFlagIsSignedInteger) {
+		eMicFormat = SampleShort;
+	}
+
+	if (fmt.mChannelsPerFrame > 1) {
+		qWarning("CoreAudioInput: Input device with more than one channel detected. Defaulting to 1.");
+	}
+
+	iMicFreq     = static_cast< int >(fmt.mSampleRate);
+	iMicChannels = 1;
+	initializeMixer();
+
+	if (eMicFormat == SampleFloat) {
+		fmt.mFormatFlags    = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+		fmt.mBitsPerChannel = sizeof(float) * 8;
+	} else if (eMicFormat == SampleShort) {
+		fmt.mFormatFlags    = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
+		fmt.mBitsPerChannel = sizeof(short) * 8;
+	}
+
+	fmt.mFormatID         = kAudioFormatLinearPCM;
+	fmt.mSampleRate       = iMicFreq;
+	fmt.mChannelsPerFrame = iMicChannels;
+	fmt.mBytesPerFrame    = iMicSampleSize;
+	fmt.mBytesPerPacket   = iMicSampleSize;
+	fmt.mFramesPerPacket  = 1;
+
+	len = sizeof(AudioStreamBasicDescription);
+	err = AudioUnitSetProperty(au, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &fmt, len);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to set stream format for output device.");
+		return;
+	}
+
+	err = AudioUnitAddPropertyListener(au, kAudioUnitProperty_StreamFormat, CoreAudioInput::propertyChange, this);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to create input property change listener. Unable to listen to property change "
+				 "events.");
+	}
+
+	AURenderCallbackStruct cb;
+	cb.inputProc       = CoreAudioInput::inputCallback;
+	cb.inputProcRefCon = this;
+	len                = sizeof(AURenderCallbackStruct);
+	err = AudioUnitSetProperty(au, kAudioOutputUnitProperty_SetInputCallback, kAudioUnitScope_Global, 0, &cb, len);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to setup callback.");
+		return;
+	}
+
+	AudioValueRange range;
+	len                       = sizeof(AudioValueRange);
+	propertyAddress.mSelector = kAudioDevicePropertyBufferFrameSizeRange;
+	err                       = AudioObjectGetPropertyData(devId, &propertyAddress, 0, nullptr, &len, &range);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to query for allowed buffer size ranges.");
+	} else {
+		qWarning("CoreAudioInput: BufferFrameSizeRange = (%.2f, %.2f)", range.mMinimum, range.mMaximum);
+	}
+
+	int iActualBufferLength   = iMicLength;
+	val                       = iMicLength;
+	propertyAddress.mSelector = kAudioDevicePropertyBufferFrameSize;
+	err                       = AudioObjectSetPropertyData(devId, &propertyAddress, 0, nullptr, sizeof(UInt32), &val);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to set preferred buffer size on device. Querying for device default.");
+		len = sizeof(UInt32);
+		err = AudioDeviceGetProperty(devId, 0, true, kAudioDevicePropertyBufferFrameSize, &len, &val);
+		if (err != noErr) {
+			qWarning("CoreAudioInput: Unable to query device for buffer size.");
+			return;
+		}
+
+		iActualBufferLength = (int) val;
+	}
+
+	buflist.mNumberBuffers = 1;
+	AudioBuffer *b         = buflist.mBuffers;
+	b->mNumberChannels     = iMicChannels;
+	b->mDataByteSize       = iMicSampleSize * iActualBufferLength;
+	b->mData               = calloc(1, b->mDataByteSize);
+
+	err = AudioOutputUnitStart(au);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: Unable to start AudioUnit.");
+		return;
+	}
+
+	bRunning = true;
+}
+
+CoreAudioInput::~CoreAudioInput() {
+	OSStatus err;
+
+	bRunning = false;
+	wait();
+
+	if (au) {
+		err = AudioOutputUnitStop(au);
+		if (err != noErr) {
+			qWarning("CoreAudioInput: Unable to stop AudioUnit.");
+		}
+	}
+
+	AudioBuffer *b = buflist.mBuffers;
+	if (b && b->mData)
+		free(b->mData);
+
+	qWarning("CoreAudioInput: Shutting down.");
+}
+
+OSStatus CoreAudioInput::inputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+									   UInt32 busnum, UInt32 nframes, AudioBufferList *buflist) {
+	Q_UNUSED(udata);
+	Q_UNUSED(buflist);
+
+	CoreAudioInput *i = reinterpret_cast< CoreAudioInput * >(udata);
+	OSStatus err;
+
+	err = AudioUnitRender(i->au, flags, ts, busnum, nframes, &i->buflist);
+	if (err != noErr) {
+		qWarning("CoreAudioInput: AudioUnitRender failed.");
+		return err;
+	}
+
+	i->addMic(i->buflist.mBuffers->mData, nframes);
+
+	return noErr;
+}
+
+void CoreAudioInput::propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+									AudioUnitElement element) {
+	Q_UNUSED(udata);
+	Q_UNUSED(au);
+	Q_UNUSED(scope);
+	Q_UNUSED(element);
+
+	if (prop == kAudioUnitProperty_StreamFormat) {
+		qWarning("CoreAudioInput: Stream format change detected. Restarting AudioInput.");
+		Audio::stopInput();
+		Audio::startInput();
+	} else {
+		qWarning("CoreAudioInput: Unexpected property changed event received.");
+	}
+}
+
+void CoreAudioInput::run() {
+}
+
+CoreAudioOutput::CoreAudioOutput() {
+	OSStatus err;
+	AudioStreamBasicDescription fmt;
+	unsigned int chanmasks[32];
+	AudioDeviceID devId = 0;
+	CFStringRef devUid  = nullptr;
+	UInt32 len;
+	AudioObjectPropertyAddress propertyAddress = { 0, kAudioDevicePropertyScopeOutput,
+												   kAudioObjectPropertyElementMaster };
+
+	if (!g.s.qsCoreAudioOutput.isEmpty()) {
+		devUid = CoreAudioSystem::QStringToCFString(g.s.qsCoreAudioOutput);
+		qWarning("CoreAudioOutput: Set device to '%s'.", qPrintable(g.s.qsCoreAudioOutput));
+
+		AudioValueTranslation avt;
+		avt.mInputData      = const_cast< struct __CFString ** >(&devUid);
+		avt.mInputDataSize  = sizeof(CFStringRef *);
+		avt.mOutputData     = &devId;
+		avt.mOutputDataSize = sizeof(AudioDeviceID);
+
+		len                       = sizeof(AudioValueTranslation);
+		propertyAddress.mSelector = kAudioHardwarePropertyDeviceForUID;
+		err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, nullptr, &len, &avt);
+		if (err != noErr) {
+			qWarning("CoreAudioOutput: Unable to query for AudioDeviceID.");
+			return;
+		}
+	} else {
+		qWarning("CoreAudioOutput: Set device to 'Default Device'.");
+
+		len                       = sizeof(AudioDeviceID);
+		propertyAddress.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
+		err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propertyAddress, 0, nullptr, &len, &devId);
+		if (err != noErr) {
+			qWarning("CoreAudioOutput: Unable to query for default output AudioDeviceID");
+			return;
+		}
+
+		len                       = sizeof(CFStringRef);
+		propertyAddress.mSelector = kAudioDevicePropertyDeviceUID;
+		err                       = AudioObjectGetPropertyData(devId, &propertyAddress, 0, nullptr, &len, &devUid);
+		if (err != noErr) {
+			qWarning("CoreAudioOutput: Unable to get default device UID.");
+			return;
+		}
+	}
+
+	Component comp;
+	ComponentDescription desc;
+
+	desc.componentType         = kAudioUnitType_Output;
+	desc.componentSubType      = kAudioUnitSubType_HALOutput;
+	desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+	desc.componentFlags        = 0;
+	desc.componentFlagsMask    = 0;
+
+	comp = FindNextComponent(nullptr, &desc);
+	if (!comp) {
+		qWarning("CoreAudioOuput: Unable to find AudioUnit.");
+		return;
+	}
+
+	err = OpenAComponent(comp, &au);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to open AudioUnit component.");
+		return;
+	}
+
+	err = AudioUnitInitialize(au);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to initialize output AudioUnit");
+		return;
+	}
+
+	len = sizeof(AudioDeviceID);
+	err = AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &devId, len);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to set CurrentDevice property on AudioUnit.");
+		return;
+	}
+
+	len = sizeof(AudioStreamBasicDescription);
+	err = AudioUnitGetProperty(au, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &fmt, &len);
+	if (err != noErr) {
+		qWarning("CoreAudioOuptut: Unable to query device for stream info.");
+		return;
+	}
+
+	iMixerFreq = static_cast< int >(fmt.mSampleRate);
+	iChannels  = static_cast< int >(fmt.mChannelsPerFrame);
+
+	if (fmt.mFormatFlags & kAudioFormatFlagIsFloat) {
+		eSampleFormat = SampleFloat;
+	} else if (fmt.mFormatFlags & kAudioFormatFlagIsSignedInteger) {
+		eSampleFormat = SampleShort;
+	}
+
+	chanmasks[0] = SPEAKER_FRONT_LEFT;
+	chanmasks[1] = SPEAKER_FRONT_RIGHT;
+	initializeMixer(chanmasks);
+
+	if (eSampleFormat == SampleFloat) {
+		fmt.mFormatFlags    = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+		fmt.mBitsPerChannel = sizeof(float) * 8;
+	} else if (eSampleFormat == SampleShort) {
+		fmt.mFormatFlags    = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
+		fmt.mBitsPerChannel = sizeof(short) * 8;
+	}
+
+	fmt.mFormatID         = kAudioFormatLinearPCM;
+	fmt.mSampleRate       = iMixerFreq;
+	fmt.mChannelsPerFrame = iChannels;
+	fmt.mBytesPerFrame    = iSampleSize;
+	fmt.mBytesPerPacket   = iSampleSize;
+	fmt.mFramesPerPacket  = 1;
+
+	len = sizeof(AudioStreamBasicDescription);
+	err = AudioUnitSetProperty(au, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &fmt, len);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to set stream format for output device.");
+		return;
+	}
+
+	err = AudioUnitAddPropertyListener(au, kAudioUnitProperty_StreamFormat, CoreAudioOutput::propertyChange, this);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to create output property change listener. Unable to listen to property "
+				 "change events.");
+	}
+
+	AURenderCallbackStruct cb;
+	cb.inputProc       = CoreAudioOutput::outputCallback;
+	cb.inputProcRefCon = this;
+	len                = sizeof(AURenderCallbackStruct);
+	err = AudioUnitSetProperty(au, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Global, 0, &cb, len);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to setup callback.");
+		return;
+	}
+
+	AudioValueRange range;
+	len                       = sizeof(AudioValueRange);
+	propertyAddress.mSelector = kAudioDevicePropertyBufferFrameSizeRange;
+	err                       = AudioObjectGetPropertyData(devId, &propertyAddress, 0, nullptr, &len, &range);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to query for allowed buffer size ranges.");
+	} else {
+		setBufferSize(range.mMaximum);
+		qWarning("CoreAudioOutput: BufferFrameSizeRange = (%.2f, %.2f)", range.mMinimum, range.mMaximum);
+	}
+
+	UInt32 val                = (iFrameSize * iMixerFreq) / SAMPLE_RATE;
+	propertyAddress.mSelector = kAudioDevicePropertyBufferFrameSize;
+	err                       = AudioObjectSetPropertyData(devId, &propertyAddress, 0, nullptr, sizeof(UInt32), &val);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Could not set requested buffer size for device. Continuing with default.");
+	}
+
+	err = AudioOutputUnitStart(au);
+	if (err != noErr) {
+		qWarning("CoreAudioOutput: Unable to start AudioUnit");
+		return;
+	}
+
+	bRunning = true;
+}
+
+CoreAudioOutput::~CoreAudioOutput() {
+	OSStatus err;
+
+	bRunning = false;
+	wait();
+
+	if (au) {
+		err = AudioOutputUnitStop(au);
+		if (err != noErr) {
+			qWarning("CoreAudioOutput: Unable to stop AudioUnit.");
+		}
+	}
+
+	qWarning("CoreAudioOutput: Shutting down.");
+}
+
+OSStatus CoreAudioOutput::outputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+										 UInt32 busnum, UInt32 nframes, AudioBufferList *buflist) {
+	Q_UNUSED(flags);
+	Q_UNUSED(ts);
+	Q_UNUSED(busnum);
+
+	CoreAudioOutput *o = reinterpret_cast< CoreAudioOutput * >(udata);
+	AudioBuffer *buf   = buflist->mBuffers;
+
+	bool done = o->mix(buf->mData, nframes);
+	if (!done) {
+		buf->mDataByteSize = 0;
+		return -1;
+	}
+
+	return noErr;
+}
+
+void CoreAudioOutput::propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+									 AudioUnitElement element) {
+	Q_UNUSED(udata);
+	Q_UNUSED(au);
+	Q_UNUSED(scope);
+	Q_UNUSED(element);
+
+	if (prop == kAudioUnitProperty_StreamFormat) {
+		qWarning("CoreAudioOuptut: Stream format change detected. Restarting AudioOutput.");
+		Audio::stopOutput();
+		Audio::startOutput();
+	} else {
+		qWarning("CoreAudioOutput: Unexpected property changed event received.");
+	}
+}
+
+void CoreAudioOutput::run() {
 }
