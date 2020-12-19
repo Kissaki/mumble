@@ -3,83 +3,87 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_USERLISTMODEL_H_
-#define MUMBLE_MUMBLE_USERLISTMODEL_H_
+#ifndef MUMBLE_MUMBLE_THEMEINFO_H_
+#define MUMBLE_MUMBLE_THEMEINFO_H_
 
-#include <QAbstractTableModel>
-#include <QDateTime>
-#include <QHash>
-#include <QItemSelection>
-#include <QList>
-#include <QModelIndex>
-#include <QObject>
-#include <QString>
-#include <QVariant>
-#include <Qt>
+#include <QMetaType>
+#include <QtCore/QFileInfo>
+#include <QtCore/QMap>
+#include <QtCore/QString>
+#ifndef Q_MOC_RUN
+#	include <boost/optional.hpp>
+#endif
 
-#include "Mumble.pb.h"
+class QSettings;
+class QDir;
 
-///
-/// The UserListModel class provides a table model backed by a UserList protobuf structure.
-/// It supports removing rows and editing user nicks.
-///
-class UserListModel : public QAbstractTableModel {
-	Q_OBJECT
+class ThemeInfo;
+typedef QMap< QString, ThemeInfo > ThemeMap;
+
+/// Description of a Mumble theme with multiple styles
+class ThemeInfo {
 public:
-	/// Enumerates the columns in the table model
-	enum Columns { COL_NICK, COL_INACTIVEDAYS, COL_LASTCHANNEL, COUNT_COL };
+	/// A specific style of a Mumble theme
+	///
+	/// Multiple styles can for example be used to differentiate light/dark
+	/// variants of a theme.
+	///
+	/// A single style can refer to multiple run-time platform specific qss
+	/// theme files.
+	class StyleInfo {
+	public:
+		/// Name of the theme containing this style
+		QString themeName;
+		/// Name for the style
+		QString name;
 
-	/// UserListModel constructs a table model representing the userList.
-	/// @param userList User list protobuf structure (will be copied)
-	/// @param parent Parent in QObject hierarchy
-	UserListModel(const MumbleProto::UserList &userList, QObject *parent = nullptr);
+		/// @return Returns platform specific qss or defaultQss if none available
+		QFileInfo getPlatformQss() const;
 
-	int rowCount(const QModelIndex &parentIndex = QModelIndex()) const Q_DECL_OVERRIDE;
-	int columnCount(const QModelIndex &parentIndex = QModelIndex()) const Q_DECL_OVERRIDE;
+		/// Default QSS file for the style
+		QFileInfo defaultQss;
+		/// Platform specific QSS files available
+		QMap< QString, QFileInfo > qssFiles;
+	};
 
-	QVariant headerData(int section, Qt::Orientation orientation, int role) const Q_DECL_OVERRIDE;
-	QVariant data(const QModelIndex &dataIndex, int role = Qt::DisplayRole) const Q_DECL_OVERRIDE;
-	bool setData(const QModelIndex &dataIndex, const QVariant &value, int role) Q_DECL_OVERRIDE;
-	Qt::ItemFlags flags(const QModelIndex &flagIndex) const Q_DECL_OVERRIDE;
+	typedef QMap< QString, StyleInfo > StylesMap;
 
-	bool removeRows(int row, int count, const QModelIndex &parentIndex = QModelIndex()) Q_DECL_OVERRIDE;
+	/// Takes stock of all mumble themes in the given folders.
+	///
+	/// If a theme with the same name is available in multiple directories
+	/// only the last occurance will be returned.
+	///
+	/// @param themesDirectories List of directories to search for theme directories.
+	/// @return Map of theme name to Theme
+	static ThemeMap scanDirectories(const QVector< QDir > &themesDirectories);
 
-	/// Function for removing all rows in a selection
-	void removeRowsInSelection(const QItemSelection &selection);
+	/// Takes stock of all mumble themes in the given folder
+	///
+	/// Uses loadThemeInfoFromDirectory on each directory in the folder
+	/// to find themes. Themes with the same names will override each other.
+	///
+	/// @param themesDirectory Directory to scan for theme directories
+	/// @return Map of theme name to Theme
+	static ThemeMap scanDirectory(const QDir &themesDirectory);
 
-	/// Returns a message for updating the original server state to the current model state.
-	MumbleProto::UserList getUserListUpdate() const;
+	/// Loads the theme description from a given directory
+	///
+	/// @param themeDirectory
+	/// @return Theme if description was correctly loaded. boost::none if not.
+	static boost::optional< ThemeInfo > load(const QDir &themeDirectory);
 
-	/// Returns true if the UserList given during construction was changed.
-	bool isUserListDirty() const;
+	/// @return Style with given name or default
+	StyleInfo getStyle(QString name_) const;
 
-	/// Returns true if the model only contains COL_NICK (true for Mumble <= 1.2.4)
-	bool isLegacy() const;
-
-private:
-	/// Given an ISO formatted UTC time string returns the number of days since then.
-	/// @return QVariant() is returned for invalid strings.
-	QVariant lastSeenToTodayDayCount(const std::string &lastSeenDate) const;
-	/// Returns a textual representation of the channel hierarchy of the given channel
-	QString pathForChannelId(const int channelId) const;
-	/// Converts a ISO formatted UTC time string to a QDateTime object.
-	QDateTime isoUTCToDateTime(const std::string &isoTime) const;
-
-	typedef QList< MumbleProto::UserList_User > ModelUserList;
-	/// Model backend for user data
-	ModelUserList m_userList;
-
-	typedef QHash<::google::protobuf::uint32, MumbleProto::UserList_User > ModelUserListChangeMap;
-	/// Change map indexed by user id
-	ModelUserListChangeMap m_changes;
-
-	/// True if the message given on construction lacked column data (true for murmur <= 1.2.4)
-	bool m_legacyMode;
-
-	/// Cache for lastSeenToTodayDayCount
-	mutable QHash< QString, QVariant > m_stringToLastSeenToTodayCount;
-	/// Cache for pathForChannelId conversions
-	mutable QHash< int, QString > m_channelIdToPathMap;
+	/// Ideally unique theme name. A theme with identical name can override.
+	QString name;
+	/// Style name to style mapping.
+	StylesMap styles;
+	/// Default style
+	QString defaultStyle;
 };
 
-#endif // MUMBLE_MUMBLE_USERLISTMODEL_H_
+Q_DECLARE_METATYPE(ThemeInfo);
+Q_DECLARE_METATYPE(ThemeInfo::StyleInfo);
+
+#endif // MUMBLE_MUMBLE_THEMEINFO_H_
