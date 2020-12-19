@@ -3,57 +3,60 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIO_H_
-#define MUMBLE_MUMBLE_AUDIO_H_
+#ifndef MUMBLE_MUMBLE_CERT_H_
+#define MUMBLE_MUMBLE_CERT_H_
 
-#include <QtCore/QByteArray>
-#include <QtCore/QElapsedTimer>
-#include <QtCore/QMultiMap>
-#include <QtCore/QMutex>
 #include <QtCore/QString>
-#include <QtCore/QVariant>
+#include <QtCore/QtGlobal>
+#include <QtWidgets/QGroupBox>
 
-#include "ClientUser.h"
+#include <QtNetwork/QHostInfo>
+#include <QtNetwork/QSslCertificate>
 
-#define SAMPLE_RATE 48000
+#include "Settings.h"
 
-typedef QPair< QString, QVariant > audioDevice;
+class QLabel;
+class QWidget;
 
-class LoopUser : public ClientUser {
-private:
-	Q_DISABLE_COPY(LoopUser)
-protected:
-	QMutex qmLock;
-	QElapsedTimer qetTicker;
-	QElapsedTimer qetLastFetch;
-	QMultiMap< float, QByteArray > qmPackets;
-	LoopUser();
-
-public:
-	static LoopUser lpLoopy;
-	virtual void addFrame(const QByteArray &packet);
-	void fetchFrames();
-};
-
-class RecordUser : public LoopUser {
+class CertView : public QGroupBox {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(RecordUser)
+	Q_DISABLE_COPY(CertView)
+protected:
+	QList< QSslCertificate > qlCert;
+	QLabel *qlSubjectName, *qlSubjectEmail, *qlIssuerName, *qlExpiry;
+
 public:
-	RecordUser();
-	~RecordUser() Q_DECL_OVERRIDE;
-	void addFrame(const QByteArray &packet) Q_DECL_OVERRIDE;
+	CertView(QWidget *p);
+	void setCert(const QList< QSslCertificate > &cert);
 };
 
-namespace Audio {
-void startInput(const QString &input = QString());
-void stopInput();
+#include "ui_Cert.h"
 
-void startOutput(const QString &output = QString());
-void stopOutput();
+class CertWizard : public QWizard, public Ui::Certificates {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CertWizard)
+protected:
+	Settings::KeyPair kpCurrent, kpNew;
 
-void start(const QString &input = QString(), const QString &output = QString());
-void stop();
-} // namespace Audio
+public:
+	CertWizard(QWidget *p = nullptr);
+	int nextId() const Q_DECL_OVERRIDE;
+	void initializePage(int) Q_DECL_OVERRIDE;
+	bool validateCurrentPage() Q_DECL_OVERRIDE;
+	static bool validateCert(const Settings::KeyPair &);
+	static Settings::KeyPair generateNewCert(QString name = QString(), const QString &email = QString());
+	static QByteArray exportCert(const Settings::KeyPair &cert);
+	static Settings::KeyPair importCert(QByteArray, const QString & = QString());
+public slots:
+	void on_qleEmail_textChanged(const QString &);
+	void on_qpbExportFile_clicked();
+	void on_qleExportFile_textChanged(const QString &);
+	void on_qpbImportFile_clicked();
+	void on_qleImportFile_textChanged(const QString &);
+	void on_qlePassword_textChanged(const QString &);
+	void on_qlIntroText_linkActivated(const QString &);
+};
 
 #endif
