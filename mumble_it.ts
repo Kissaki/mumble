@@ -3,111 +3,24 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "WebFetch.h"
+#include <windows.h>
+#include <audioclient.h>
+#include <avrt.h>
+#include <functiondiscoverykeys.h>
+#include <initguid.h>
+#include <ksmedia.h>
+#include <mmdeviceapi.h>
+#include <mmreg.h>
+#include <propkey.h>
+#include <strsafe.h>
+#include <wtypes.h>
+#ifdef _INC_FUNCTIONDISCOVERYKEYS
+#	undef _INC_FUNCTIONDISCOVERYKEYS
+#endif
+#include <audiopolicy.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propidl.h>
 
-#include "NetworkConfig.h"
-
-#include <QtNetwork/QNetworkReply>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-WebFetch::WebFetch(QString service, QUrl url, QObject *obj, const char *slot)
-	: QObject(), qoObject(obj), cpSlot(slot), m_service(service) {
-	url.setScheme(QLatin1String("https"));
-
-	if (!g.s.qsServicePrefix.isEmpty()) {
-		url.setHost(prefixedServiceHost());
-	} else {
-		url.setHost(serviceHost());
-	}
-
-	qnr = Network::get(url);
-	connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
-	connect(this, SIGNAL(fetched(QByteArray, QUrl, QMap< QString, QString >)), obj, slot);
-}
-
-QString WebFetch::prefixedServiceHost() const {
-	if (g.s.qsServicePrefix.isEmpty()) {
-		return serviceHost();
-	}
-	return QString::fromLatin1("%1-%2.mumble.info").arg(g.s.qsServicePrefix, m_service);
-}
-
-QString WebFetch::serviceHost() const {
-	return QString::fromLatin1("%1.mumble.info").arg(m_service);
-}
-
-static QString fromUtf8(const QByteArray &qba) {
-	if (qba.isEmpty())
-		return QString();
-	return QString::fromUtf8(qba.constData(), qba.length());
-}
-
-void WebFetch::finished() {
-	// Note that if this functions succeeds, it should deleteLater() itself, as this is a temporary object.
-	Q_ASSERT(qobject_cast< QNetworkReply * >(sender()) == qnr);
-	qnr->disconnect();
-	qnr->deleteLater();
-
-	QUrl url = qnr->request().url();
-
-	if (qnr->error() == QNetworkReply::NoError) {
-		QByteArray a = qnr->readAll();
-
-		// empty response is not an error
-		if (a.isNull())
-			a.append("");
-
-		QMap< QString, QString > headers;
-
-		foreach (const QByteArray &headerName, qnr->rawHeaderList()) {
-			QString name  = fromUtf8(headerName);
-			QString value = fromUtf8(qnr->rawHeader(headerName));
-			if (!name.isEmpty() && !value.isEmpty()) {
-				headers.insert(name, value);
-				if (name == QLatin1String("Use-Service-Prefix")) {
-					QRegExp servicePrefixRegExp(QLatin1String("^[a-zA-Z]+$"));
-					if (servicePrefixRegExp.exactMatch(value)) {
-						g.s.qsServicePrefix = value.toLower();
-					}
-				}
-			}
-		}
-
-		emit fetched(a, url, headers);
-		deleteLater();
-	} else if (url.host() == prefixedServiceHost() && url.host() != serviceHost()) {
-		// We have tried to fetch from a local service domain (e.g. de-update.mumble.info)
-		// which has failed, so naturally we want to try the non-local one (update.mumble.info)
-		// as well as maybe that one will work.
-		// This of course only makes sense, if prefixedServiceHost() and serviceHost() are in fact
-		// different hosts.
-		url.setHost(serviceHost());
-
-		qnr = Network::get(url);
-		connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
-	} else {
-		emit fetched(QByteArray(), url, QMap< QString, QString >());
-		deleteLater();
-	}
-}
-
-/**
- * @brief Fetch URL from mumble servers.
- *
- * If fetching fails, the slot is invoked with a null QByteArray.
- * @param url URL to fetch. Hostname and scheme must be blank.
- * @param obj Object to invoke slot on.
- * @param slot Slot to be triggered, invoked with the signature of \link fetched.
- */
-void WebFetch::fetch(const QString &service, const QUrl &url, QObject *obj, const char *slot) {
-	Q_ASSERT(!service.isEmpty());
-	Q_ASSERT(url.scheme().isEmpty());
-	Q_ASSERT(url.host().isEmpty());
-	Q_ASSERT(obj);
-	Q_ASSERT(slot);
-
-	new WebFetch(service, url, obj, slot);
-}
+DEFINE_GUID(IID_IVistaAudioSessionControl2, 0x33969B1DL, 0xD06F, 0x4281, 0xB8, 0x37, 0x7E, 0xAA, 0xFD, 0x21, 0xA9,
+			0xC0);
+DEFINE_GUID(IID_IAudioSessionQuery, 0x94BE9D30L, 0x53AC, 0x4802, 0x82, 0x9C, 0xF1, 0x3E, 0x5A, 0xD3, 0x47, 0x75);
