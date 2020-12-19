@@ -3,88 +3,44 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_DATABASE_H_
-#define MUMBLE_MUMBLE_DATABASE_H_
+#ifndef MUMBLE_MUMBLE_DBUS_H_
+#define MUMBLE_MUMBLE_DBUS_H_
 
-#include "Settings.h"
-#include "UnresolvedServerAddress.h"
-#include <QSqlDatabase>
+#include <QtDBus/QDBusAbstractAdaptor>
 
-struct FavoriteServer {
-	QString qsName;
-	QString qsUsername;
-	QString qsPassword;
-	QString qsHostname;
-	QString qsUrl;
-	unsigned short usPort;
-};
+class QDBusMessage;
 
-class Database : public QObject {
+class MumbleDBus : public QDBusAbstractAdaptor {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(Database)
-
-	QSqlDatabase db;
-	/// This function is called when no database location is configured
-	/// in the config file. It tries to find an existing database file and
-	/// creates a new one if none was found.
-	bool findOrCreateDatabase();
-
+	Q_CLASSINFO("D-Bus Interface", "net.sourceforge.mumble.Mumble")
+	Q_DISABLE_COPY(MumbleDBus)
+	Q_PROPERTY(bool mute READ isSelfMuted WRITE setSelfMuted)
+	Q_PROPERTY(bool deaf READ isSelfDeaf WRITE setSelfDeaf)
 public:
-	Database(const QString &dbname);
-	~Database() Q_DECL_OVERRIDE;
+	MumbleDBus(QObject *parent);
+public slots:
+	void openUrl(const QString &url, const QDBusMessage &);
+	void getCurrentUrl(const QDBusMessage &);
+	void getTalkingUsers(const QDBusMessage &);
+	void focus();
 
-	QList< FavoriteServer > getFavorites();
-	void setFavorites(const QList< FavoriteServer > &servers);
-	void setPassword(const QString &host, unsigned short port, const QString &user, const QString &pw);
-	bool fuzzyMatch(QString &name, QString &user, QString &pw, QString &host, unsigned short port);
+	/// Change when Mumble transmits voice.
+	///
+	/// @param mode The new transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
+	void setTransmitMode(unsigned int mode, const QDBusMessage &);
 
-	bool isLocalIgnored(const QString &hash);
-	void setLocalIgnored(const QString &hash, bool ignored);
+	/// Get the current transmit mode.
+	///
+	/// @return The current transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
+	unsigned int getTransmitMode();
 
-	bool isLocalIgnoredTTS(const QString &hash);
-	void setLocalIgnoredTTS(const QString &hash, bool ignoredTTS);
-
-	bool isLocalMuted(const QString &hash);
-	void setLocalMuted(const QString &hash, bool muted);
-
-	float getUserLocalVolume(const QString &hash);
-	void setUserLocalVolume(const QString &hash, float volume);
-
-	bool isChannelFiltered(const QByteArray &server_cert_digest, const int channel_id);
-	void setChannelFiltered(const QByteArray &server_cert_digest, const int channel_id, bool hidden);
-
-	QMap< UnresolvedServerAddress, unsigned int > getPingCache();
-	void setPingCache(const QMap< UnresolvedServerAddress, unsigned int > &cache);
-
-	bool seenComment(const QString &hash, const QByteArray &commenthash);
-	void setSeenComment(const QString &hash, const QByteArray &commenthash);
-
-	QByteArray blob(const QByteArray &hash);
-	void setBlob(const QByteArray &hash, const QByteArray &blob);
-
-	QStringList getTokens(const QByteArray &digest);
-	void setTokens(const QByteArray &digest, QStringList &tokens);
-
-	QList< Shortcut > getShortcuts(const QByteArray &digest);
-	bool setShortcuts(const QByteArray &digest, QList< Shortcut > &shortcuts);
-
-	void addFriend(const QString &name, const QString &hash);
-	void removeFriend(const QString &hash);
-	const QString getFriend(const QString &hash);
-	const QMap< QString, QString > getFriends();
-
-	const QString getDigest(const QString &hostname, unsigned short port);
-	void setDigest(const QString &hostname, unsigned short port, const QString &digest);
-
-	bool getUdp(const QByteArray &digest);
-	void setUdp(const QByteArray &digest, bool udp);
-
-	QList< int > getChannelListeners(const QByteArray &digest);
-	void setChannelListeners(const QByteArray &digest, const QSet< int > &channelIDs);
-
-	QHash< int, float > getChannelListenerLocalVolumeAdjustments(const QByteArray &digest);
-	void setChannelListenerLocalVolumeAdjustments(const QByteArray &digest, const QHash< int, float > &volumeMap);
+	void setSelfMuted(bool mute);
+	void setSelfDeaf(bool deafen);
+	bool isSelfMuted();
+	bool isSelfDeaf();
+	void startTalking();
+	void stopTalking();
 };
 
 #endif
