@@ -3,380 +3,404 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayUserGroup.h"
-
-#include "Channel.h"
-#include "ClientUser.h"
-#include "Database.h"
-#include "MainWindow.h"
-#include "Message.h"
-#include "NetworkConfig.h"
+#include "OverlayConfig.h"
 #include "OverlayClient.h"
-#include "OverlayEditor.h"
-#include "OverlayText.h"
-#include "OverlayUser.h"
-#include "ServerHandler.h"
-#include "User.h"
-#include "Utils.h"
-#include "GlobalShortcut.h"
+#include "MainWindow.h"
 
-#include <QtGui/QImageReader>
-#include <QtWidgets/QGraphicsSceneContextMenuEvent>
-#include <QtWidgets/QGraphicsSceneWheelEvent>
-#include <QtWidgets/QInputDialog>
+#include <QtCore/QProcess>
+#include <QtCore/QXmlStreamReader>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#import <ScriptingBridge/ScriptingBridge.h>
+#import <Cocoa/Cocoa.h>
+#include <Carbon/Carbon.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-template< typename T > QRectF OverlayGroup::boundingRect() const {
-	QRectF qr;
-	foreach (const QGraphicsItem *item, childItems())
-		if (item->isVisible() && (item->type() == T::Type))
-			qr |= item->boundingRect().translated(item->pos());
-
-	return qr;
+extern "C" {
+#include <xar/xar.h>
 }
 
-OverlayUserGroup::OverlayUserGroup(OverlaySettings *osptr)
-	: OverlayGroup(), os(osptr), qgeiHandle(nullptr), bShowExamples(false) {
-}
+// Ignore deprecation warnings for the whole file, for now.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
-OverlayUserGroup::~OverlayUserGroup() {
-	reset();
-}
+static NSString *MumbleOverlayLoaderBundle = @"/Library/ScriptingAdditions/MumbleOverlay.osax";
+static NSString *MumbleOverlayLoaderBundleIdentifier = @"net.sourceforge.mumble.OverlayScriptingAddition";
 
-void OverlayUserGroup::reset() {
-	foreach (OverlayUser *ou, qlExampleUsers)
-		delete ou;
-	qlExampleUsers.clear();
-
-	foreach (OverlayUser *ou, qmUsers)
-		delete ou;
-	qmUsers.clear();
-
-	delete qgeiHandle;
-	qgeiHandle = nullptr;
-}
-
-int OverlayUserGroup::type() const {
-	return Type;
-}
-
-void OverlayUserGroup::contextMenuEvent(QGraphicsSceneContextMenuEvent *e) {
-	e->accept();
-
-#ifdef Q_OS_MAC
-	bool embed = g.ocIntercept;
-	QMenu qm(embed ? nullptr : e->widget());
-	if (embed) {
-		QGraphicsScene *scene = g.ocIntercept->qgv.scene();
-		scene->addWidget(&qm);
+pid_t getForegroundProcessId() {
+	NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+	if (app) {
+		return [app processIdentifier];
 	}
-#else
-	QMenu qm(g.ocIntercept ? g.mw : e->widget());
+
+	return 0;
+}
+
+@interface OverlayInjectorMac : NSObject {
+	BOOL active;
+}
+- (id) init;
+- (void) dealloc;
+- (void) appLaunched:(NSNotification *)notification;
+- (void) setActive:(BOOL)flag;
+- (void) eventDidFail:(const AppleEvent *)event withError:(NSError *)error;
+@end
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+@interface OverlayInjectorMac () <SBApplicationDelegate>
+@end
 #endif
 
-	QMenu *qmShow = qm.addMenu(OverlayClient::tr("Filter"));
+@implementation OverlayInjectorMac
 
-	QAction *qaShowTalking = qmShow->addAction(OverlayClient::tr("Only talking"));
-	qaShowTalking->setCheckable(true);
-	if (os->osShow == OverlaySettings::Talking)
-		qaShowTalking->setChecked(true);
+- (id) init {
+	self = [super init];
 
-	QAction *qaShowActive = qmShow->addAction(OverlayClient::tr("Talking and recently active"));
-	qaShowActive->setCheckable(true);
-	if (os->osShow == OverlaySettings::Active)
-		qaShowActive->setChecked(true);
-
-	QAction *qaShowHome = qmShow->addAction(OverlayClient::tr("All in current channel"));
-	qaShowHome->setCheckable(true);
-	if (os->osShow == OverlaySettings::HomeChannel)
-		qaShowHome->setChecked(true);
-
-	QAction *qaShowLinked = qmShow->addAction(OverlayClient::tr("All in linked channels"));
-	qaShowLinked->setCheckable(true);
-	if (os->osShow == OverlaySettings::LinkedChannels)
-		qaShowLinked->setChecked(true);
-
-	qmShow->addSeparator();
-
-	QAction *qaShowSelf = qmShow->addAction(OverlayClient::tr("Always show yourself"));
-	qaShowSelf->setCheckable(true);
-	qaShowSelf->setEnabled(os->osShow == OverlaySettings::Talking || os->osShow == OverlaySettings::Active);
-	if (os->bAlwaysSelf)
-		qaShowSelf->setChecked(true);
-
-	qmShow->addSeparator();
-
-	QAction *qaConfigureRecentlyActiveTime =
-		qmShow->addAction(OverlayClient::tr("Configure recently active time (%1 seconds)...").arg(os->uiActiveTime));
-	qaConfigureRecentlyActiveTime->setEnabled(os->osShow == OverlaySettings::Active);
-
-	QMenu *qmColumns = qm.addMenu(OverlayClient::tr("Columns"));
-	QAction *qaColumns[6];
-	for (unsigned int i = 1; i <= 5; ++i) {
-		qaColumns[i] = qmColumns->addAction(QString::number(i));
-		qaColumns[i]->setCheckable(true);
-		qaColumns[i]->setChecked(i == os->uiColumns);
-	}
-
-	QMenu *qmSort = qm.addMenu(OverlayClient::tr("Sort"));
-
-	QAction *qaSortAlphabetically = qmSort->addAction(OverlayClient::tr("Alphabetically"));
-	qaSortAlphabetically->setCheckable(true);
-	if (os->osSort == OverlaySettings::Alphabetical)
-		qaSortAlphabetically->setChecked(true);
-
-	QAction *qaSortLastStateChange = qmSort->addAction(OverlayClient::tr("Last state change"));
-	qaSortLastStateChange->setCheckable(true);
-	if (os->osSort == OverlaySettings::LastStateChange)
-		qaSortLastStateChange->setChecked(true);
-
-	QAction *qaEdit = qm.addAction(OverlayClient::tr("Edit..."));
-	QAction *qaZoom = qm.addAction(OverlayClient::tr("Reset Zoom"));
-
-	QAction *act = qm.exec(e->screenPos());
-
-	if (!act)
-		return;
-
-	if (act == qaEdit) {
-		if (g.ocIntercept) {
-			QMetaObject::invokeMethod(g.ocIntercept, "openEditor", Qt::QueuedConnection);
-		} else {
-			OverlayEditor oe(qApp->activeModalWidget(), nullptr, os);
-			connect(&oe, SIGNAL(applySettings()), this, SLOT(updateLayout()));
-			oe.exec();
-		}
-	} else if (act == qaZoom) {
-		os->fZoom = 1.0f;
-		updateLayout();
-	} else if (act == qaShowTalking) {
-		os->osShow = OverlaySettings::Talking;
-		updateUsers();
-	} else if (act == qaShowActive) {
-		os->osShow = OverlaySettings::Active;
-		updateUsers();
-	} else if (act == qaShowHome) {
-		os->osShow = OverlaySettings::HomeChannel;
-		updateUsers();
-	} else if (act == qaShowLinked) {
-		os->osShow = OverlaySettings::LinkedChannels;
-		updateUsers();
-	} else if (act == qaShowSelf) {
-		os->bAlwaysSelf = !os->bAlwaysSelf;
-		updateUsers();
-	} else if (act == qaConfigureRecentlyActiveTime) {
-		// FIXME: This might not be the best place to configure this setting, but currently
-		// there's not really a suitable place to put this. In the future an additional tab
-		// might be added for some advanced overlay options, which could then include this
-		// setting.
-		bool ok;
-		int newValue = QInputDialog::getInt(qm.parentWidget(), OverlayClient::tr("Configure recently active time"),
-											OverlayClient::tr("Amount of seconds users remain active after talking:"),
-											os->uiActiveTime, 1, 2147483647, 1, &ok);
-		if (ok) {
-			os->uiActiveTime = newValue;
-		}
-		updateUsers();
-	} else if (act == qaSortAlphabetically) {
-		os->osSort = OverlaySettings::Alphabetical;
-		updateUsers();
-	} else if (act == qaSortLastStateChange) {
-		os->osSort = OverlaySettings::LastStateChange;
-		updateUsers();
-	} else {
-		for (int i = 1; i <= 5; ++i) {
-			if (act == qaColumns[i]) {
-				os->uiColumns = i;
-				updateLayout();
-			}
-		}
-	}
-}
-
-void OverlayUserGroup::wheelEvent(QGraphicsSceneWheelEvent *e) {
-	e->accept();
-
-	qreal scaleFactor = 0.875f;
-
-	if (e->delta() > 0)
-		scaleFactor = 1.0f / 0.875f;
-
-	if ((scaleFactor < 1.0f) && (os->fZoom <= (1.0f / 4.0f)))
-		return;
-	else if ((scaleFactor > 1.0f) && (os->fZoom >= 4.0f))
-		return;
-
-	os->fZoom *= scaleFactor;
-
-	updateLayout();
-}
-
-bool OverlayUserGroup::sceneEventFilter(QGraphicsItem *watched, QEvent *e) {
-	switch (e->type()) {
-		case QEvent::GraphicsSceneMouseMove:
-		case QEvent::GraphicsSceneMouseRelease:
-			QMetaObject::invokeMethod(this, "moveUsers", Qt::QueuedConnection);
-			break;
-		default:
-			break;
-	}
-	return OverlayGroup::sceneEventFilter(watched, e);
-}
-
-void OverlayUserGroup::moveUsers() {
-	if (!qgeiHandle)
-		return;
-
-	const QRectF &sr = scene()->sceneRect();
-	const QPointF &p = qgeiHandle->pos();
-
-	os->fX = static_cast< float >(qBound(0.0, p.x() / sr.width(), 1.0));
-	os->fY = static_cast< float >(qBound(0.0, p.y() / sr.height(), 1.0));
-
-	qgeiHandle->setPos(os->fX * sr.width(), os->fY * sr.height());
-	updateUsers();
-}
-
-void OverlayUserGroup::updateLayout() {
-	prepareGeometryChange();
-	reset();
-	updateUsers();
-}
-
-void OverlayUserGroup::updateUsers() {
-	const QRectF &sr = scene()->sceneRect();
-
-	unsigned int uiHeight = iroundf(sr.height() + 0.5f);
-
-	QList< QGraphicsItem * > items;
-	foreach (QGraphicsItem *qgi, childItems())
-		items << qgi;
-
-	QList< OverlayUser * > users;
-	if (bShowExamples) {
-		if (qlExampleUsers.isEmpty()) {
-			qlExampleUsers << new OverlayUser(Settings::Passive, uiHeight, os);
-			qlExampleUsers << new OverlayUser(Settings::Talking, uiHeight, os);
-			qlExampleUsers << new OverlayUser(Settings::MutedTalking, uiHeight, os);
-			qlExampleUsers << new OverlayUser(Settings::Whispering, uiHeight, os);
-			qlExampleUsers << new OverlayUser(Settings::Shouting, uiHeight, os);
-		}
-
-		users = qlExampleUsers;
-		foreach (OverlayUser *ou, users)
-			items.removeAll(ou);
-
-		if (!qgeiHandle) {
-			qgeiHandle = new QGraphicsEllipseItem(QRectF(-4.0f, -4.0f, 8.0f, 8.0f));
-			qgeiHandle->setPen(QPen(Qt::darkRed, 0.0f));
-			qgeiHandle->setBrush(Qt::red);
-			qgeiHandle->setZValue(0.5f);
-			qgeiHandle->setFlag(QGraphicsItem::ItemIsMovable);
-			qgeiHandle->setFlag(QGraphicsItem::ItemIsSelectable);
-			qgeiHandle->setPos(sr.width() * os->fX, sr.height() * os->fY);
-			scene()->addItem(qgeiHandle);
-			qgeiHandle->show();
-			qgeiHandle->installSceneEventFilter(this);
-		}
-	} else {
-		delete qgeiHandle;
-		qgeiHandle = nullptr;
-	}
-
-	ClientUser *self = ClientUser::get(g.uiSession);
 	if (self) {
-		QList< ClientUser * > showusers;
-		Channel *home = ClientUser::get(g.uiSession)->cChannel;
-
-		switch (os->osShow) {
-			case OverlaySettings::LinkedChannels:
-				foreach (Channel *c, home->allLinks())
-					foreach (User *p, c->qlUsers)
-						showusers << static_cast< ClientUser * >(p);
-				foreach (ClientUser *cu, ClientUser::getTalking())
-					if (!showusers.contains(cu))
-						showusers << cu;
-				break;
-			case OverlaySettings::HomeChannel:
-				foreach (User *p, home->qlUsers)
-					showusers << static_cast< ClientUser * >(p);
-				foreach (ClientUser *cu, ClientUser::getTalking())
-					if (!showusers.contains(cu))
-						showusers << cu;
-				break;
-			case OverlaySettings::Active:
-				showusers = ClientUser::getActive();
-				if (os->bAlwaysSelf && !showusers.contains(self))
-					showusers << self;
-				break;
-			default:
-				showusers = ClientUser::getTalking();
-				if (os->bAlwaysSelf && (self->tsState == Settings::Passive))
-					showusers << self;
-				break;
-		}
-
-		ClientUser::sortUsersOverlay(showusers);
-
-		foreach (ClientUser *cu, showusers) {
-			OverlayUser *ou = qmUsers.value(cu);
-			if (!ou) {
-				ou = new OverlayUser(cu, uiHeight, os);
-				connect(cu, SIGNAL(destroyed(QObject *)), this, SLOT(userDestroyed(QObject *)));
-				qmUsers.insert(cu, ou);
-				ou->hide();
-			} else {
-				items.removeAll(ou);
-			}
-			users << ou;
-		}
+		active = NO;
+		NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+		[[workspace notificationCenter] addObserver:self
+		                                selector:@selector(appLaunched:)
+		                                name:NSWorkspaceDidLaunchApplicationNotification
+		                                object:workspace];
+		return self;
 	}
 
-	foreach (QGraphicsItem *qgi, items) {
-		scene()->removeItem(qgi);
-		qgi->hide();
-	}
-
-	QRectF childrenBounds = os->qrfAvatar | os->qrfChannel | os->qrfMutedDeafened | os->qrfUserName;
-
-	int pad    = os->bBox ? iroundf(uiHeight * os->fZoom * (os->fBoxPad + os->fBoxPenWidth) + 0.5f) : 0;
-	int width  = iroundf(childrenBounds.width() * uiHeight * os->fZoom + 0.5f) + 2 * pad;
-	int height = iroundf(childrenBounds.height() * uiHeight * os->fZoom + 0.5f) + 2 * pad;
-
-	int xOffset = -iroundf(childrenBounds.left() * uiHeight * os->fZoom + 0.5f) + pad;
-	int yOffset = -iroundf(childrenBounds.top() * uiHeight * os->fZoom + 0.5f) + pad;
-
-	unsigned int yPos = 0;
-	unsigned int xPos = 0;
-
-	foreach (OverlayUser *ou, users) {
-		if (!ou->parentItem())
-			ou->setParentItem(this);
-
-		ou->setPos(xPos * (width + 4) + xOffset, yPos * (height + 4) + yOffset);
-		ou->updateUser();
-		ou->show();
-
-		if (xPos >= (os->uiColumns - 1)) {
-			xPos = 0;
-			++yPos;
-		} else {
-			++xPos;
-		}
-	}
-
-	QRectF br = boundingRect< OverlayUser >();
-
-	int basex = qBound< int >(0, iroundf(sr.width() * os->fX + 0.5f), iroundf(sr.width() - br.width() + 0.5f));
-	int basey = qBound< int >(0, iroundf(sr.height() * os->fY + 0.5f), iroundf(sr.height() - br.height() + 0.5f));
-
-	setPos(basex, basey);
+	return nil;
 }
 
-void OverlayUserGroup::userDestroyed(QObject *obj) {
-	OverlayUser *ou = qmUsers.take(obj);
-	delete ou;
+- (void) dealloc {
+	NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+	[[workspace notificationCenter] removeObserver:self
+		                                name:NSWorkspaceDidLaunchApplicationNotification
+		                                object:workspace];
+
+	[super dealloc];
+}
+
+- (void) appLaunched:(NSNotification *)notification {
+	if (active) {
+		BOOL overlayEnabled = NO;
+		NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
+		NSDictionary *userInfo = [notification userInfo];
+
+		NSString *bundleId = [userInfo objectForKey:@"NSApplicationBundleIdentifier"];
+		if ([bundleId isEqualToString:[[NSBundle mainBundle] bundleIdentifier]])
+			return;
+
+		QString qsBundleIdentifier = QString::fromUtf8([bundleId UTF8String]);
+
+		switch (g.s.os.oemOverlayExcludeMode) {
+			case OverlaySettings::LauncherFilterExclusionMode: {
+				qWarning("Overlay_macx: launcher filter mode not implemented on macOS, allowing everything");
+				overlayEnabled = YES;
+				break;
+			}
+			case OverlaySettings::WhitelistExclusionMode: {
+				if (g.s.os.qslWhitelist.contains(qsBundleIdentifier)) {
+					overlayEnabled = YES;
+				}
+				break;
+			}
+			case OverlaySettings::BlacklistExclusionMode: {
+				if (! g.s.os.qslBlacklist.contains(qsBundleIdentifier)) {
+					overlayEnabled = YES;
+				}
+				break;
+			}
+		}
+
+		if (overlayEnabled) {
+			pid_t pid = [[userInfo objectForKey:@"NSApplicationProcessIdentifier"] intValue];
+			SBApplication *app = [SBApplication applicationWithProcessIdentifier:pid];
+			[app setDelegate:self];
+
+			// This timeout is specified in 'ticks'.
+			// A tick defined as: "[...] (a tick is approximately 1/60 of a second) [...]" in the
+			// Apple Event Manager Refernce documentation:
+			// http://developer.apple.com/legacy/mac/library/documentation/Carbon/reference/Event_Manager/Event_Manager.pdf
+			[app setTimeout:10*60];
+
+			[app setSendMode:kAEWaitReply];
+			[app sendEvent:kASAppleScriptSuite id:kGetAEUT parameters:0];
+
+			[app setSendMode:kAENoReply];
+			if (QSysInfo::MacintoshVersion == QSysInfo::MV_LEOPARD) {
+				[app sendEvent:'MUOL' id:'daol' parameters:0];
+			} else if (QSysInfo::MacintoshVersion >= QSysInfo::MV_SNOWLEOPARD) {
+				[app sendEvent:'MUOL' id:'load' parameters:0];
+			}
+		}
+
+		[pool release];
+	}
+}
+
+- (void) setActive:(BOOL)flag {
+	active = flag;
+}
+
+// SBApplication delegate method
+- (void)eventDidFail:(const AppleEvent *)event withError:(NSError *)error {
+	Q_UNUSED(event);
+	Q_UNUSED(error);
+
+	// Do nothing. This method is only here to avoid an exception.
+}
+
+@end
+
+class OverlayPrivateMac : public OverlayPrivate {
+	protected:
+		OverlayInjectorMac *olm;
+	public:
+		void setActive(bool);
+		OverlayPrivateMac(QObject *);
+		~OverlayPrivateMac();
+};
+
+OverlayPrivateMac::OverlayPrivateMac(QObject *p) : OverlayPrivate(p) {
+	olm = [[OverlayInjectorMac alloc] init];
+}
+
+OverlayPrivateMac::~OverlayPrivateMac() {
+	[olm release];
+}
+
+void OverlayPrivateMac::setActive(bool act) {
+	[olm setActive:act];
+}
+
+void Overlay::platformInit() {
+	d = new OverlayPrivateMac(this);
+}
+
+void Overlay::setActiveInternal(bool act) {
+	if (d) {
+		/// Only act if the private instance has been created already
+		static_cast<OverlayPrivateMac *>(d)->setActive(act);
+	}
+}
+
+bool OverlayConfig::supportsInstallableOverlay() {
+	return true;
+}
+
+void OverlayClient::updateMouse() {
+	QCursor c = qgv.viewport()->cursor();
+	NSCursor *cursor = nil;
+	Qt::CursorShape csShape = c.shape();
+
+	switch (csShape) {
+		case Qt::IBeamCursor:        cursor = [NSCursor IBeamCursor]; break;
+		case Qt::CrossCursor:        cursor = [NSCursor crosshairCursor]; break;
+		case Qt::ClosedHandCursor:   cursor = [NSCursor closedHandCursor]; break;
+		case Qt::OpenHandCursor:     cursor = [NSCursor openHandCursor]; break;
+		case Qt::PointingHandCursor: cursor = [NSCursor pointingHandCursor]; break;
+		case Qt::SizeVerCursor:      cursor = [NSCursor resizeUpDownCursor]; break;
+		case Qt::SplitVCursor:       cursor = [NSCursor resizeUpDownCursor]; break;
+		case Qt::SizeHorCursor:      cursor = [NSCursor resizeLeftRightCursor]; break;
+		case Qt::SplitHCursor:       cursor = [NSCursor resizeLeftRightCursor]; break;
+		default:                     cursor = [NSCursor arrowCursor]; break;
+	}
+
+	QPixmap pm = qmCursors.value(csShape);
+	if (pm.isNull()) {
+		NSImage *img = [cursor image];
+		CGImageRef cgimg = nullptr;
+		NSArray *reps = [img representations];
+		for (NSUInteger i = 0; i < [reps count]; i++) {
+			NSImageRep *rep = [reps objectAtIndex:i];
+			if ([rep class] == [NSBitmapImageRep class]) {
+				cgimg = [(NSBitmapImageRep *)rep CGImage];
+			}
+		}
+	}
+
+	NSPoint p = [cursor hotSpot];
+	iOffsetX = (int) p.x;
+	iOffsetY = (int) p.y;
+
+	qgpiCursor->setPixmap(pm);
+	qgpiCursor->setPos(iMouseX - iOffsetX, iMouseY - iOffsetY);
+}
+
+QString installerPath() {
+	NSString *installerPath = [[NSBundle mainBundle] pathForResource:@"MumbleOverlay" ofType:@"pkg"];
+	if (installerPath) {
+		return QString::fromUtf8([installerPath UTF8String]);
+	}
+	return QString();
+}
+
+bool OverlayConfig::isInstalled() {
+	bool ret = false;
+
+	// Determine if the installed bundle is correctly installed (i.e. it's loadable)
+	NSBundle *bundle = [NSBundle bundleWithPath:MumbleOverlayLoaderBundle];
+	ret = [bundle preflightAndReturnError:nullptr];
+
+	// Do the bundle identifiers match?
+	if (ret) {
+		ret = [[bundle bundleIdentifier] isEqualToString:MumbleOverlayLoaderBundleIdentifier];
+	}
+
+	return ret;
+}
+
+// Check whether this installer installs something 'newer' than what we already have.
+// Also checks whether the new installer is compatiable with the current version of
+// Mumble.
+static bool isInstallerNewer(QString path, NSUInteger curVer) {
+	xar_t pkg = nullptr;
+	xar_iter_t iter = nullptr;
+	xar_file_t file = nullptr;
+	char *data = nullptr;
+	size_t size = 0;
+	bool ret = false;
+	QString qsMinVer, qsOverlayVer;
+
+	pkg = xar_open(path.toUtf8().constData(), READ);
+	if (!pkg) {
+		qWarning("isInstallerNewer: Unable to open pkg.");
+		goto out;
+	}
+
+	iter = xar_iter_new();
+	if (!iter) {
+		qWarning("isInstallerNewer: Unable to allocate iter");
+		goto out;
+	}
+
+	file = xar_file_first(pkg, iter);
+	while (file) {
+		if (!strcmp(xar_get_path(file), "upgrade.xml"))
+			break;
+		file = xar_file_next(iter);
+	}
+
+	if (file) {
+		if (xar_extract_tobuffersz(pkg, file, &data, &size) == -1) {
+			goto out;
+		}
+
+		QXmlStreamReader reader(QByteArray::fromRawData(data, size));
+		while (! reader.atEnd()) {
+			QXmlStreamReader::TokenType tok = reader.readNext();
+			if (tok == QXmlStreamReader::StartElement) {
+				if (reader.name() == QLatin1String("upgrade")) {
+					qsOverlayVer = reader.attributes().value(QLatin1String("version")).toString();
+					qsMinVer = reader.attributes().value(QLatin1String("minclient")).toString();
+				}
+			}
+		}
+
+		if (reader.hasError() || qsMinVer.isNull() || qsOverlayVer.isNull()) {
+			qWarning("isInstallerNewer: Error while parsing XML version info.");
+			goto out;
+		}
+
+		NSUInteger newVer = qsOverlayVer.toUInt();
+
+		QRegExp rx(QLatin1String("(\\d+)\\.(\\d+)\\.(\\d+)"));
+		int major, minor, patch;
+		int minmajor, minminor, minpatch;
+		if (! rx.exactMatch(QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING))))
+			goto out;
+		major = rx.cap(1).toInt();
+		minor = rx.cap(2).toInt();
+		patch = rx.cap(3).toInt();
+		if (! rx.exactMatch(qsMinVer))
+			goto out;
+		minmajor = rx.cap(1).toInt();
+		minminor = rx.cap(2).toInt();
+		minpatch = rx.cap(3).toInt();
+
+		ret = (major >= minmajor) && (minor >= minminor) && (patch >= minpatch) && (newVer > curVer);
+	}
+
+out:
+	xar_close(pkg);
+	xar_iter_free(iter);
+	free(data);
+	return ret;
+}
+
+bool OverlayConfig::needsUpgrade() {
+	NSDictionary *infoPlist = [NSDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"%@/Contents/Info.plist", MumbleOverlayLoaderBundle]];
+	if (infoPlist) {
+		NSUInteger curVersion = [[infoPlist objectForKey:@"MumbleOverlayVersion"] unsignedIntegerValue];
+
+		QString path = installerPath();
+		if (path.isEmpty())
+			return false;
+
+		return isInstallerNewer(path, curVersion);
+	}
+
+	return false;
+}
+
+static bool authExec(AuthorizationRef ref, const char **argv) {
+	OSStatus err = noErr;
+	int pid = 0, status = 0;
+
+	err = AuthorizationExecuteWithPrivileges(ref, argv[0], kAuthorizationFlagDefaults, const_cast<char * const *>(&argv[1]), nullptr);
+	if (err == errAuthorizationSuccess) {
+		do {
+			pid = wait(&status);
+		} while (pid == -1 && errno == EINTR);
+		return (pid != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+	}
+
+	qWarning("Overlay_macx: Failed to AuthorizeExecuteWithPrivileges. (err=%i)", err);
+	qWarning("Overlay_macx: Status: (pid=%i, exited=%u, exitStatus=%u)", pid, WIFEXITED(status), WEXITSTATUS(status));
+
+	return false;
+}
+
+bool OverlayConfig::installFiles() {
+	bool ret = false;
+
+	QString path = installerPath();
+	if (path.isEmpty()) {
+		qWarning("OverlayConfig: No installers found in search paths.");
+		return false;
+	}
+
+	QProcess installer(this);
+	QStringList args;
+	args << QString::fromLatin1("-W");
+	args << path;
+	installer.start(QLatin1String("/usr/bin/open"), args, QIODevice::ReadOnly);
+
+	while (!installer.waitForFinished(1000)) {
+		qApp->processEvents();
+	}
+
+	return ret;
+}
+
+bool OverlayConfig::uninstallFiles() {
+	AuthorizationRef auth;
+	NSBundle *loaderBundle;
+	bool ret = false, bundleOk = false;
+	OSStatus err;
+
+	// Load the installed loader bundle and check if it's something we're willing to uninstall.
+	loaderBundle = [NSBundle bundleWithPath:MumbleOverlayLoaderBundle];
+	bundleOk = [[loaderBundle bundleIdentifier] isEqualToString:MumbleOverlayLoaderBundleIdentifier];
+
+	// Perform uninstallation using Authorization Services. (Pops up a dialog asking for admin privileges)
+	if (bundleOk) {
+		err = AuthorizationCreate(nullptr, kAuthorizationEmptyEnvironment, kAuthorizationFlagDefaults, &auth);
+		if (err == errAuthorizationSuccess) {
+			QByteArray tmp = QString::fromLatin1("/tmp/%1_Uninstalled_MumbleOverlay.osax").arg(QDateTime::currentMSecsSinceEpoch()).toLocal8Bit();
+			const char *remove[] = { "/bin/mv", [MumbleOverlayLoaderBundle UTF8String], tmp.constData(), nullptr };
+			ret = authExec(auth, remove);
+		}
+		AuthorizationFree(auth, kAuthorizationFlagDefaults);
+	}
+
+	return ret;
 }
