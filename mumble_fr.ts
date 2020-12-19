@@ -1,223 +1,95 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>ConnectDialog</class>
- <widget class="QDialog" name="ConnectDialog">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>574</width>
-    <height>366</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Mumble Server Connect</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="2" column="0" colspan="3">
-    <widget class="QDialogButtonBox" name="qdbbButtonBox">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="0" colspan="3">
-    <widget class="ServerView" name="qtwServers">
-     <property name="contextMenuPolicy">
-      <enum>Qt::CustomContextMenu</enum>
-     </property>
-     <property name="dragEnabled">
-      <bool>true</bool>
-     </property>
-     <property name="dragDropMode">
-      <enum>QAbstractItemView::DragDrop</enum>
-     </property>
-     <property name="alternatingRowColors">
-      <bool>true</bool>
-     </property>
-     <property name="autoExpandDelay">
-      <number>250</number>
-     </property>
-     <property name="rootIsDecorated">
-      <bool>true</bool>
-     </property>
-     <property name="uniformRowHeights">
-      <bool>true</bool>
-     </property>
-     <property name="sortingEnabled">
-      <bool>true</bool>
-     </property>
-     <attribute name="headerStretchLastSection">
-      <bool>false</bool>
-     </attribute>
-     <column>
-      <property name="text">
-       <string>Servername</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Ping</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Users</string>
-      </property>
-     </column>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="3">
-    <widget class="QGroupBox" name="qgbSearch">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
-     <property name="title">
-      <string>Search</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlSearchServername">
-        <property name="text">
-         <string>Servername</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLineEdit" name="qleSearchServername">
-        <property name="placeholderText">
-         <string>Servername</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlSearchLocation">
-        <property name="text">
-         <string>Location</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QComboBox" name="qcbSearchLocation"/>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="qlFilter">
-        <property name="text">
-         <string>Filter</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QComboBox" name="qcbFilter">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <item>
-         <property name="text">
-          <string>Show All</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Show Populated</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Show Reachable</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
-  <action name="qaFavoriteRemove">
-   <property name="text">
-    <string>Remove from Favorites</string>
-   </property>
-  </action>
-  <action name="qaFavoriteEdit">
-   <property name="text">
-    <string>&amp;Edit...</string>
-   </property>
-  </action>
-  <action name="qaFavoriteAddNew">
-   <property name="text">
-    <string>&amp;Add New...</string>
-   </property>
-   <property name="toolTip">
-    <string>Add custom server</string>
-   </property>
-  </action>
-  <action name="qaFavoriteAdd">
-   <property name="text">
-    <string>Add to &amp;Favorites</string>
-   </property>
-  </action>
-  <action name="qaUrl">
-   <property name="text">
-    <string>Open &amp;Webpage</string>
-   </property>
-  </action>
-  <action name="qaFavoriteCopy">
-   <property name="text">
-    <string>&amp;Copy</string>
-   </property>
-   <property name="toolTip">
-    <string>Copy favorite link to clipboard</string>
-   </property>
-  </action>
-  <action name="qaFavoritePaste">
-   <property name="text">
-    <string>&amp;Paste</string>
-   </property>
-   <property name="toolTip">
-    <string>Paste favorite from clipboard</string>
-   </property>
-  </action>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>ServerView</class>
-   <extends>QTreeWidget</extends>
-   <header>ConnectDialog.h</header>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>ConnectDialog</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>365</x>
-     <y>270</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>365</x>
-     <y>513</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>rejected()</signal>
-   <receiver>ConnectDialog</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>459</x>
-     <y>275</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>456</x>
-     <y>494</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+// See scripts/generate-ApplicationPalette-class.py
+
+% (warning) s
+#ifndef APPLICATIONPALETTE_H
+#define APPLICATIONPALETTE_H
+
+#include <QTimer>
+#include <QWidget>
+#ifndef Q_MOC_RUN
+#	include <boost/optional.hpp>
+#endif
+#include <QApplication>
+#include <QDebug>
+
+	///
+	/// Class enabling theming of QApplication::palette from stylesheets.
+	///
+	/// QPalette cannot be styled which creates issues as not all
+	/// GUI elements in Qt can be styled. This class works around
+	/// that by offering a QPROPERTY for each color role and group
+	/// combination in QPalette. As you can set custom QPROPERTYs
+	/// from stylesheet this allows the user to set all relevant
+	/// palette brushes from the stylesheet.
+	///
+	/// Due to restrictions on allowed property names as well as a
+	/// mandatory prefix the attributes are exposed as lower cased:
+	/// "qproperty-<role>_<group>".
+	///
+	/// So a group of QPalette::Active and QPalette::Text role
+	/// would be styled by:
+	///
+	/// ApplicationPalette {
+	///     qproperty-text_active: #ff0000; /* Set color for active group */
+	/// }
+	///
+	/// See http://qt-project.org/doc/qt-4.8/qpalette.html#ColorGroup-enum
+	/// for the available groups and roles.
+	///
+	/// You can also use the shorthand "qproperty-<role>" to set all groups
+	/// to the same brush.
+	///
+	/// The class will automatically pick up style changes on itself
+	/// and update the application palette accordingly. To use the class
+	/// simply instantiate it before setting the theme and keep it around
+	/// till the application terminates.
+	///
+	class ApplicationPalette : public QWidget {
+	Q_OBJECT
+		% (properties) s public : explicit ApplicationPalette(QWidget *p = 0)
+		: QWidget(p),
+	m_originalPalette(QApplication::palette()){
+		// Empty
+	}
+
+		% (getterssetters) s
+
+		private slots : void updateApplicationPalette() {
+		qWarning() << "Updating application palette";
+
+		QPalette newPalette = m_originalPalette; // Do not re-use potentially already styled palette. Might not pick up
+												 // system style changes though.
+
+		% (paletteupdates) s
+
+				QApplication::setPalette(newPalette);
+		resetAllProperties();
+	}
+
+	void resetAllProperties() { % (propertyresets) s }
+
+protected:
+	bool event(QEvent *e) Q_DECL_OVERRIDE {
+		bool result = QWidget::event(e);
+
+		if (e->type() == QEvent::StyleChange) {
+			// Update global palette. Have to defer it
+			// as property updates are also signals.
+			QTimer::singleShot(0, this, SLOT(updateApplicationPalette()));
+		}
+
+		return result;
+	}
+
+private:
+	const QPalette m_originalPalette;
+
+	% (variables) s
+};
+
+#endif // APPLICATIONPALETTE_H
