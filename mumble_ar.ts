@@ -3,79 +3,57 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
-#define MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
+#ifndef MUMBLE_MUMBLE_CONFIGWIDGET_H_
+#define MUMBLE_MUMBLE_CONFIGWIDGET_H_
 
-#include <celt.h>
-#include <speex/speex.h>
-#include <speex/speex_jitter.h>
-#include <speex/speex_resampler.h>
+#include <QtCore/QObject>
+#include <QtCore/QtGlobal>
+#include <QtWidgets/QWidget>
 
-#include <QtCore/QMutex>
+struct Settings;
+class ConfigDialog;
+class QSlider;
+class QAbstractButton;
+class QComboBox;
 
-#include "AudioOutputUser.h"
-#include "Message.h"
-
-class CELTCodec;
-class OpusCodec;
-class ClientUser;
-struct OpusDecoder;
-
-class AudioOutputSpeech : public AudioOutputUser {
+class ConfigWidget : public QWidget {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(AudioOutputSpeech)
+	Q_DISABLE_COPY(ConfigWidget)
 protected:
-	unsigned int iAudioBufferSize;
-	unsigned int iBufferOffset;
-	unsigned int iBufferFilled;
-	unsigned int iOutputSize;
-	unsigned int iLastConsume;
-	unsigned int iFrameSize;
-	unsigned int iFrameSizePerChannel;
-	unsigned int iSampleRate;
-	unsigned int iMixerFreq;
-	bool bLastAlive;
-	bool bHasTerminator;
-
-	float *fFadeIn;
-	float *fFadeOut;
-	float *fResamplerBuffer;
-
-	SpeexResamplerState *srs;
-
-	QMutex qmJitter;
-	JitterBuffer *jbJitter;
-	int iMissCount;
-
-	CELTCodec *cCodec;
-	CELTDecoder *cdDecoder;
-
-	OpusCodec *oCodec;
-	OpusDecoder *opusState;
-
-	SpeexBits sbBits;
-	void *dsSpeex;
-
-	QList< QByteArray > qlFrames;
+	void loadSlider(QSlider *, int);
+	void loadCheckBox(QAbstractButton *, bool);
+	void loadComboBox(QComboBox *, int);
+signals:
+	void intSignal(int);
 
 public:
-	unsigned char ucFlags;
-	MessageHandler::UDPMessageType umtType;
-	int iMissedFrames;
-	ClientUser *p;
-
-	/// Fetch and decode frames from the jitter buffer. Called in mix().
-	///
-	/// @param frameCount Number of frames to decode. frame means a bundle of one sample from each channel.
-	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
-
-	void addFrameToBuffer(const QByteArray &, unsigned int iBaseSeq);
-
-	/// @param systemMaxBufferSize maximum number of samples the system audio play back may request each time
-	AudioOutputSpeech(ClientUser *, unsigned int freq, MessageHandler::UDPMessageType type,
-					  unsigned int systemMaxBufferSize);
-	~AudioOutputSpeech() Q_DECL_OVERRIDE;
+	Settings &s;
+	ConfigWidget(Settings &st);
+	virtual QString title() const          = 0;
+	virtual const QString &getName() const = 0;
+	virtual QIcon icon() const;
+public slots:
+	virtual void accept() const;
+	virtual void save() const            = 0;
+	virtual void load(const Settings &r) = 0;
 };
 
-#endif // AUDIOOUTPUTSPEECH_H_
+typedef ConfigWidget *(*ConfigWidgetNew)(Settings &st);
+
+class ConfigRegistrar Q_DECL_FINAL {
+	friend class ConfigDialog;
+	friend class ConfigDialogMac;
+
+private:
+	Q_DISABLE_COPY(ConfigRegistrar)
+protected:
+	int iPriority;
+	static QMap< int, ConfigWidgetNew > *c_qmNew;
+
+public:
+	ConfigRegistrar(int priority, ConfigWidgetNew n);
+	~ConfigRegistrar();
+};
+
+#endif
