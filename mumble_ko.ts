@@ -3,159 +3,69 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ViewCert.h"
+#ifndef MUMBLE_MUMBLE_WASAPI_H_
+#define MUMBLE_MUMBLE_WASAPI_H_
 
-#include <QtCore/QUrl>
-#include <QtNetwork/QSslKey>
-#include <QtWidgets/QDialogButtonBox>
-#include <QtWidgets/QGroupBox>
-#include <QtWidgets/QHBoxLayout>
-#include <QtWidgets/QListWidget>
-#include <QtWidgets/QVBoxLayout>
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-static QString decode_utf8_qssl_string(const QString &input) {
-	QString i = input;
-	return QUrl::fromPercentEncoding(i.replace(QLatin1String("\\x"), QLatin1String("%")).toLatin1());
-}
+#include "win.h"
 
-static QStringList processQSslCertificateInfo(QStringList in) {
-	QStringList list;
-	foreach (QString str, in) { list << decode_utf8_qssl_string(str); }
-	return list;
-}
+#include <QtCore/QObject>
+#include <QtCore/QUuid>
 
-static void addQSslCertificateInfo(QStringList &l, const QString &label, const QStringList &items) {
-	foreach (const QString &item, items) { l << QString(QLatin1String("%1: %2")).arg(label, item); }
-}
-
-static QString certificateFriendlyName(const QSslCertificate &cert) {
-	QStringList cnList  = processQSslCertificateInfo(cert.subjectInfo(QSslCertificate::CommonName));
-	QStringList orgList = processQSslCertificateInfo(cert.subjectInfo(QSslCertificate::Organization));
-
-	QString cn;
-	if (cnList.count() > 0) {
-		cn = cnList.at(0);
-	}
-
-	QString org;
-	if (orgList.count() > 0) {
-		org = orgList.at(0);
-	}
-
-	return QString(QLatin1String("%1 %2")).arg(cn, org);
-}
-
-ViewCert::ViewCert(QList< QSslCertificate > cl, QWidget *p) : QDialog(p) {
-	qlCerts = cl;
-
-	setWindowTitle(tr("Certificate Chain Details"));
-
-	QHBoxLayout *h;
-	QVBoxLayout *v;
-	QGroupBox *qcbChain, *qcbDetails;
-
-	qcbChain = new QGroupBox(tr("Certificate chain"), this);
-	h        = new QHBoxLayout(qcbChain);
-	qlwChain = new QListWidget(qcbChain);
-	qlwChain->setObjectName(QLatin1String("Chain"));
-
-	// load certs into a set as a hacky fix to #2141
-#if QT_VERSION >= 0x050400
-	QSet< QSslCertificate > qlCertSet;
-#else
-	QList< QSslCertificate > qlCertSet;
+#include <audioclient.h>
+#include <avrt.h>
+#include <functiondiscoverykeys.h>
+#include <ksmedia.h>
+#include <mmdeviceapi.h>
+#include <mmreg.h>
+#include <strsafe.h>
+#ifdef _INC_FUNCTIONDISCOVERYKEYS
+#	undef _INC_FUNCTIONDISCOVERYKEYS
 #endif
-	foreach (QSslCertificate c, qlCerts) {
-		if (!qlCertSet.contains(c)) {
-			qlwChain->addItem(certificateFriendlyName(c));
-			qlCertSet << c;
-		}
-	}
-	h->addWidget(qlwChain);
+#include <audiopolicy.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propidl.h>
 
-	qcbDetails = new QGroupBox(tr("Certificate details"), this);
-	h          = new QHBoxLayout(qcbDetails);
-	qlwCert    = new QListWidget(qcbDetails);
-	h->addWidget(qlwCert);
+class WASAPISystem : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(WASAPISystem)
+public:
+	static const QHash< QString, QString > getDevices(EDataFlow dataflow);
+	static const QHash< QString, QString > getInputDevices();
+	static const QHash< QString, QString > getOutputDevices();
+	static const QList< audioDevice > mapToDevice(const QHash< QString, QString > &, const QString &);
+};
 
-	QDialogButtonBox *qdbb = new QDialogButtonBox(QDialogButtonBox::Ok, Qt::Horizontal, this);
+class WASAPIInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(WASAPIInput)
+public:
+	WASAPIInput();
+	~WASAPIInput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
 
-	v = new QVBoxLayout(this);
-	v->addWidget(qcbChain);
-	v->addWidget(qcbDetails);
-	v->addWidget(qdbb);
+class WASAPIOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(WASAPIOutput)
 
-	QMetaObject::connectSlotsByName(this);
-	connect(qdbb, SIGNAL(accepted()), this, SLOT(accept()));
+	bool setVolumeForSessionControl(IAudioSessionControl *control, const DWORD mumblePID, QSet< QUuid > &seen);
+	bool setVolumeForSessionControl2(IAudioSessionControl2 *control2, const DWORD mumblePID, QSet< QUuid > &seen);
 
-	resize(510, 300);
-}
+protected:
+	typedef QPair< float, float > VolumePair;
+	QMap< ISimpleAudioVolume *, VolumePair > qmVolumes;
+	void setVolumes(IMMDevice *, bool talking);
 
-QString ViewCert::prettifyDigest(QString digest) {
-	QString pretty_digest = digest.toUpper();
-	int step              = 2;
-	QChar separator       = QChar::fromLatin1(':');
-	for (int i = step; i < pretty_digest.size(); i += step + 1) {
-		pretty_digest.insert(i, separator);
-	}
-	return pretty_digest;
-}
+public:
+	WASAPIOutput();
+	~WASAPIOutput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
 
-void ViewCert::on_Chain_currentRowChanged(int idx) {
-	qlwCert->clear();
-	if ((idx < 0) || (idx >= qlCerts.size()))
-		return;
-
-	QStringList l;
-	const QSslCertificate &c = qlCerts.at(idx);
-
-	addQSslCertificateInfo(l, tr("Common Name"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::CommonName)));
-	addQSslCertificateInfo(l, tr("Organization"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::Organization)));
-	addQSslCertificateInfo(l, tr("Subunit"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::OrganizationalUnitName)));
-	addQSslCertificateInfo(l, tr("Country"), processQSslCertificateInfo(c.subjectInfo(QSslCertificate::CountryName)));
-	addQSslCertificateInfo(l, tr("Locality"), processQSslCertificateInfo(c.subjectInfo(QSslCertificate::LocalityName)));
-	addQSslCertificateInfo(l, tr("State"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::StateOrProvinceName)));
-	l << tr("Valid from: %1").arg(c.effectiveDate().toString());
-	l << tr("Valid to: %1").arg(c.expiryDate().toString());
-	l << tr("Serial: %1").arg(QString::fromLatin1(c.serialNumber().toHex()));
-	l << tr("Public Key: %1 bits %2")
-			 .arg(c.publicKey().length())
-			 .arg((c.publicKey().algorithm() == QSsl::Rsa) ? tr("RSA") : tr("DSA"));
-	l << tr("Digest (SHA-1): %1").arg(prettifyDigest(QString::fromLatin1(c.digest(QCryptographicHash::Sha1).toHex())));
-	l << tr("Digest (SHA-256): %1")
-			 .arg(prettifyDigest(QString::fromLatin1(c.digest(QCryptographicHash::Sha256).toHex())));
-
-	const QMultiMap< QSsl::AlternativeNameEntryType, QString > &alts = c.subjectAlternativeNames();
-	QMultiMap< QSsl::AlternativeNameEntryType, QString >::const_iterator i;
-
-	for (i = alts.constBegin(); i != alts.constEnd(); ++i) {
-		switch (i.key()) {
-			case QSsl::EmailEntry: {
-				l << tr("Email: %1").arg(i.value());
-			} break;
-			case QSsl::DnsEntry: {
-				l << tr("DNS: %1").arg(i.value());
-			} break;
-			default:
-				break;
-		}
-	}
-
-	l << QString();
-	l << tr("Issued by:");
-	addQSslCertificateInfo(l, tr("Common Name"), processQSslCertificateInfo(c.issuerInfo(QSslCertificate::CommonName)));
-	addQSslCertificateInfo(l, tr("Organization"),
-						   processQSslCertificateInfo(c.issuerInfo(QSslCertificate::Organization)));
-	addQSslCertificateInfo(l, tr("Unit Name"),
-						   processQSslCertificateInfo(c.issuerInfo(QSslCertificate::OrganizationalUnitName)));
-	addQSslCertificateInfo(l, tr("Country"), processQSslCertificateInfo(c.issuerInfo(QSslCertificate::CountryName)));
-	addQSslCertificateInfo(l, tr("Locality"), processQSslCertificateInfo(c.issuerInfo(QSslCertificate::LocalityName)));
-	addQSslCertificateInfo(l, tr("State"),
-						   processQSslCertificateInfo(c.issuerInfo(QSslCertificate::StateOrProvinceName)));
-
-	qlwCert->addItems(l);
-}
+#endif
