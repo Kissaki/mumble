@@ -3,83 +3,70 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_USERLISTMODEL_H_
-#define MUMBLE_MUMBLE_USERLISTMODEL_H_
+#include "Usage.h"
 
-#include <QAbstractTableModel>
-#include <QDateTime>
-#include <QHash>
-#include <QItemSelection>
-#include <QList>
-#include <QModelIndex>
-#include <QObject>
-#include <QString>
-#include <QVariant>
-#include <Qt>
+#include "ClientUser.h"
+#include "LCD.h"
+#include "NetworkConfig.h"
+#include "OSInfo.h"
+#include "Version.h"
+#include "Global.h"
 
-#include "Mumble.pb.h"
+#include <QtCore/QTimer>
+#include <QtNetwork/QHostAddress>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QtXml/QDomElement>
 
-///
-/// The UserListModel class provides a table model backed by a UserList protobuf structure.
-/// It supports removing rows and editing user nicks.
-///
-class UserListModel : public QAbstractTableModel {
-	Q_OBJECT
-public:
-	/// Enumerates the columns in the table model
-	enum Columns { COL_NICK, COL_INACTIVEDAYS, COL_LASTCHANNEL, COUNT_COL };
+Usage::Usage(QObject *p) : QObject(p) {
+	qbReport.open(QBuffer::ReadWrite);
+	qdsReport.setDevice(&qbReport);
+	qdsReport.setVersion(QDataStream::Qt_4_4);
+	qdsReport << static_cast< unsigned int >(2);
 
-	/// UserListModel constructs a table model representing the userList.
-	/// @param userList User list protobuf structure (will be copied)
-	/// @param parent Parent in QObject hierarchy
-	UserListModel(const MumbleProto::UserList &userList, QObject *parent = nullptr);
+	// Wait 10 minutes (so we know they're actually using this), then...
+	QTimer::singleShot(60 * 10 * 1000, this, SLOT(registerUsage()));
+}
 
-	int rowCount(const QModelIndex &parentIndex = QModelIndex()) const Q_DECL_OVERRIDE;
-	int columnCount(const QModelIndex &parentIndex = QModelIndex()) const Q_DECL_OVERRIDE;
+void Usage::registerUsage() {
+	if (!g.s.bUsage
+		|| g.s.uiUpdateCounter == 0) // Only register usage if allowed by the user and first wizard run has finished
+		return;
 
-	QVariant headerData(int section, Qt::Orientation orientation, int role) const Q_DECL_OVERRIDE;
-	QVariant data(const QModelIndex &dataIndex, int role = Qt::DisplayRole) const Q_DECL_OVERRIDE;
-	bool setData(const QModelIndex &dataIndex, const QVariant &value, int role) Q_DECL_OVERRIDE;
-	Qt::ItemFlags flags(const QModelIndex &flagIndex) const Q_DECL_OVERRIDE;
+	QDomDocument doc;
+	QDomElement root = doc.createElement(QLatin1String("usage"));
+	doc.appendChild(root);
 
-	bool removeRows(int row, int count, const QModelIndex &parentIndex = QModelIndex()) Q_DECL_OVERRIDE;
+	QDomElement tag;
+	QDomText t;
 
-	/// Function for removing all rows in a selection
-	void removeRowsInSelection(const QItemSelection &selection);
+	OSInfo::fillXml(doc, root);
 
-	/// Returns a message for updating the original server state to the current model state.
-	MumbleProto::UserList getUserListUpdate() const;
+	tag = doc.createElement(QLatin1String("in"));
+	root.appendChild(tag);
+	t = doc.createTextNode(g.s.qsAudioInput);
+	tag.appendChild(t);
 
-	/// Returns true if the UserList given during construction was changed.
-	bool isUserListDirty() const;
+	tag = doc.createElement(QLatin1String("out"));
+	root.appendChild(tag);
+	t = doc.createTextNode(g.s.qsAudioOutput);
+	tag.appendChild(t);
 
-	/// Returns true if the model only contains COL_NICK (true for Mumble <= 1.2.4)
-	bool isLegacy() const;
+	tag = doc.createElement(QLatin1String("lcd"));
+	root.appendChild(tag);
+	t = doc.createTextNode(QString::number(g.lcd->hasDevices() ? 1 : 0));
+	tag.appendChild(t);
 
-private:
-	/// Given an ISO formatted UTC time string returns the number of days since then.
-	/// @return QVariant() is returned for invalid strings.
-	QVariant lastSeenToTodayDayCount(const std::string &lastSeenDate) const;
-	/// Returns a textual representation of the channel hierarchy of the given channel
-	QString pathForChannelId(const int channelId) const;
-	/// Converts a ISO formatted UTC time string to a QDateTime object.
-	QDateTime isoUTCToDateTime(const std::string &isoTime) const;
+	QBuffer *qb = new QBuffer();
+	qb->setData(doc.toString().toUtf8());
+	qb->open(QIODevice::ReadOnly);
 
-	typedef QList< MumbleProto::UserList_User > ModelUserList;
-	/// Model backend for user data
-	ModelUserList m_userList;
+	QNetworkRequest req(QUrl(QLatin1String("https://usage-report.mumble.info/v1/report")));
+	Network::prepareRequest(req);
+	req.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("text/xml"));
 
-	typedef QHash<::google::protobuf::uint32, MumbleProto::UserList_User > ModelUserListChangeMap;
-	/// Change map indexed by user id
-	ModelUserListChangeMap m_changes;
+	QNetworkReply *rep = g.nam->post(req, qb);
+	qb->setParent(rep);
 
-	/// True if the message given on construction lacked column data (true for murmur <= 1.2.4)
-	bool m_legacyMode;
-
-	/// Cache for lastSeenToTodayDayCount
-	mutable QHash< QString, QVariant > m_stringToLastSeenToTodayCount;
-	/// Cache for pathForChannelId conversions
-	mutable QHash< int, QString > m_channelIdToPathMap;
-};
-
-#endif // MUMBLE_MUMBLE_USERLISTMODEL_H_
+	connect(rep, SIGNAL(finished()), rep, SLOT(deleteLater()));
+}
