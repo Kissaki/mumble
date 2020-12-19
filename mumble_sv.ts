@@ -1,159 +1,270 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "G15LCDEngine_lglcd.h"
-
-#define G15_MAX_DEV 5
-#define G15_MAX_WIDTH 160
-#define G15_MAX_HEIGHT 43
-#define G15_MAX_BPP 1
-#define G15_MAX_FBMEM (G15_MAX_WIDTH * G15_MAX_HEIGHT * G15_MAX_BPP)
-#define G15_MAX_FBMEM_BITS (G15_MAX_FBMEM / 8)
-#if defined(WIN32)
-#	define G15_WIDGET_NAME L"Mumble G15 Display"
-#elif defined(APPLE)
-#	define G15_WIDGET_NAME CFSTR("Mumble G15 Display")
-#endif
-
-static LCDEngine *G15LCDEngineNew() {
-	return new G15LCDEngineLGLCD();
-}
-
-static LCDEngineRegistrar registrar(G15LCDEngineNew);
-
-G15LCDEngineLGLCD::G15LCDEngineLGLCD() : LCDEngine() {
-	DWORD dwErr;
-
-	ZeroMemory(&llcceConnect, sizeof(llcceConnect));
-	ZeroMemory(&llcContext, sizeof(llcContext));
-
-	llcceConnect.appFriendlyName               = G15_WIDGET_NAME;
-	llcceConnect.isAutostartable               = FALSE;
-	llcceConnect.isPersistent                  = FALSE;
-	llcceConnect.dwAppletCapabilitiesSupported = LGLCD_APPLET_CAP_BASIC | LGLCD_APPLET_CAP_BW;
-	llcceConnect.connection                    = LGLCD_INVALID_CONNECTION;
-
-	llcContext.device = LGLCD_INVALID_DEVICE;
-
-	dwErr = lgLcdInit();
-	if (dwErr != ERROR_SUCCESS) {
-		qWarning() << "LGLCD: Unable to initialize Logitech LCD library" << dwErr;
-		return;
-	}
-
-	dwErr = lgLcdConnectEx(&llcceConnect);
-	if (dwErr != ERROR_SUCCESS) {
-		qWarning() << "LGLCD: Unable to connect to Logitech LCD manager" << dwErr;
-		return;
-	}
-
-
-	qlDevices << new G15LCDDeviceLGLCD(this);
-
-	QMetaObject::connectSlotsByName(this);
-}
-
-G15LCDEngineLGLCD::~G15LCDEngineLGLCD() {
-	if (llcContext.device != LGLCD_INVALID_DEVICE) {
-		lgLcdClose(llcContext.device);
-		llcContext.device = LGLCD_INVALID_DEVICE;
-	}
-	if (llcceConnect.connection != LGLCD_INVALID_CONNECTION) {
-		lgLcdDisconnect(llcceConnect.connection);
-		llcceConnect.connection = LGLCD_INVALID_CONNECTION;
-	}
-	lgLcdDeInit();
-}
-
-QList< LCDDevice * > G15LCDEngineLGLCD::devices() const {
-	return qlDevices;
-}
-
-/* -- */
-
-G15LCDDeviceLGLCD::G15LCDDeviceLGLCD(G15LCDEngineLGLCD *e) : LCDDevice(), bEnabled(false) {
-	engine = e;
-}
-
-G15LCDDeviceLGLCD::~G15LCDDeviceLGLCD() {
-}
-
-bool G15LCDDeviceLGLCD::enabled() {
-	return bEnabled;
-}
-
-void G15LCDDeviceLGLCD::setEnabled(bool b) {
-	bEnabled = b;
-
-	if (bEnabled && (engine->llcContext.device == LGLCD_INVALID_DEVICE)) {
-		ZeroMemory(&engine->llcContext, sizeof(engine->llcContext));
-		engine->llcContext.connection = engine->llcceConnect.connection;
-		engine->llcContext.device     = LGLCD_INVALID_DEVICE;
-		engine->llcContext.deviceType = LGLCD_DEVICE_BW;
-
-		DWORD dwErr = lgLcdOpenByType(&engine->llcContext);
-
-	} else if (!bEnabled && (engine->llcContext.device != LGLCD_INVALID_DEVICE)) {
-		lgLcdClose(engine->llcContext.device);
-		engine->llcContext.device = LGLCD_INVALID_DEVICE;
-	}
-}
-
-void G15LCDDeviceLGLCD::blitImage(QImage *img, bool alert) {
-	Q_ASSERT(img);
-	int len    = G15_MAX_FBMEM_BITS;
-	uchar *tmp = img->bits();
-
-	lgLcdBitmap160x43x1 bitmap;
-	unsigned char *buf = bitmap.pixels;
-
-	if (engine->llcContext.device == LGLCD_INVALID_DEVICE)
-		return;
-
-	if (!bEnabled)
-		return;
-
-	/*
-	 * The amount of copying/conversion we're doing is hideous.
-	 *
-	 * To draw to the LCD display using Logitech's SDK, we need to pass
-	 * it a byte array (in which each byte represents a single pixel on
-	 * the LCD.)
-	 *
-	 * Unfortunately, there's no way out, really.  We *could* perhaps draw
-	 * directly to a monochrome "bytemap" (via Format_Indexed8, and a mono-
-	 * chrome colormap), but QPainter simply doesn't want to draw to a
-	 * QImage of Format_Indexed8.
-	 *
-	 * (What's even worse is that the byte array passed to the Logitech SDK
-	 * isn't even the native format of the LCD. It has to convert it once
-	 * more, when it receives a frame.)
-	 */
-	for (int i = 0; i < len; i++) {
-		int idx      = i * 8;
-		buf[idx + 7] = tmp[i] & 0x80 ? 0xff : 0x00;
-		buf[idx + 6] = tmp[i] & 0x40 ? 0xff : 0x00;
-		buf[idx + 5] = tmp[i] & 0x20 ? 0xff : 0x00;
-		buf[idx + 4] = tmp[i] & 0x10 ? 0xff : 0x00;
-		buf[idx + 3] = tmp[i] & 0x08 ? 0xff : 0x00;
-		buf[idx + 2] = tmp[i] & 0x04 ? 0xff : 0x00;
-		buf[idx + 1] = tmp[i] & 0x02 ? 0xff : 0x00;
-		buf[idx + 0] = tmp[i] & 0x01 ? 0xff : 0x00;
-	}
-
-	bitmap.hdr.Format = LGLCD_BMP_FORMAT_160x43x1;
-
-	DWORD dwErr =
-		lgLcdUpdateBitmap(engine->llcContext.device, &bitmap.hdr,
-						  alert ? LGLCD_SYNC_UPDATE(LGLCD_PRIORITY_ALERT) : LGLCD_SYNC_UPDATE(LGLCD_PRIORITY_NORMAL));
-}
-
-QString G15LCDDeviceLGLCD::name() const {
-	return QString::fromLatin1("Logitech Gamepanel");
-}
-
-QSize G15LCDDeviceLGLCD::size() const {
-	return QSize(G15_MAX_WIDTH, G15_MAX_HEIGHT);
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GlobalShortcut</class>
+ <widget class="QWidget" name="GlobalShortcut">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>621</width>
+    <height>542</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QWidget" name="qwWarningContainer" native="true">
+     <layout class="QVBoxLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QWidget" name="qwMacWarning" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system's Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="textFormat">
+            <enum>Qt::RichText</enum>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <spacer name="horizontalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbOpenAccessibilityPrefs">
+             <property name="text">
+              <string>Open Accessibility Preferences</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbSkipWarning">
+             <property name="text">
+              <string>Skip</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>10</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbShortcuts">
+     <property name="title">
+      <string>Shortcuts</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QCheckBox" name="qcbEnableGlobalShortcuts">
+          <property name="text">
+           <string>Enable Global Shortcuts</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTreeWidget" name="qtwShortcuts">
+          <property name="toolTip">
+           <string>List of configured shortcuts</string>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::AllEditTriggers</set>
+          </property>
+          <property name="alternatingRowColors">
+           <bool>true</bool>
+          </property>
+          <property name="rootIsDecorated">
+           <bool>false</bool>
+          </property>
+          <property name="uniformRowHeights">
+           <bool>true</bool>
+          </property>
+          <attribute name="headerDefaultSectionSize">
+           <number>100</number>
+          </attribute>
+          <attribute name="headerMinimumSectionSize">
+           <number>50</number>
+          </attribute>
+          <attribute name="headerStretchLastSection">
+           <bool>false</bool>
+          </attribute>
+          <column>
+           <property name="text">
+            <string>Function</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Data</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Shortcut</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Suppress</string>
+           </property>
+          </column>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="qpbAdd">
+          <property name="toolTip">
+           <string>Add new shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will add a new global shortcut</string>
+          </property>
+          <property name="text">
+           <string>&amp;Add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="qpbRemove">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Remove selected shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will permanently remove a selected shortcut.</string>
+          </property>
+          <property name="text">
+           <string>&amp;Remove</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>59</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="qgbWindowsShortcutEngines">
+        <property name="whatsThis">
+         <string>&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</string>
+        </property>
+        <property name="title">
+         <string>Additional Shortcut Engines</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_5">
+         <item>
+          <widget class="QCheckBox" name="qcbEnableUIAccess">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
+&lt;br /&gt;&lt;br /&gt;
+Without this option enabled, using Mumble's global shortcuts in privileged applications will not work. This can seem inconsistent: for example, if the Push-to-Talk button is pressed in a non-privileged program, but released in a privileged application, Mumble will not observe that it has been released and you will continue to talk until you press the Push-to-Talk button again.</string>
+           </property>
+           <property name="text">
+            <string>Enable shortcuts in privileged applications</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableWinHooks">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</string>
+           </property>
+           <property name="text">
+            <string>Enable Windows hooks</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableGKey">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</string>
+           </property>
+           <property name="text">
+            <string>Enable GKey</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableXboxInput">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</string>
+           </property>
+           <property name="text">
+            <string>Enable XInput</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
