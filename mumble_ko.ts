@@ -3,44 +3,95 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_DBUS_H_
-#define MUMBLE_MUMBLE_DBUS_H_
+#ifndef MUMBLE_MUMBLE_AUDIOCONFIGDIALOG_H_
+#define MUMBLE_MUMBLE_AUDIOCONFIGDIALOG_H_
 
-#include <QtDBus/QDBusAbstractAdaptor>
+#include "ConfigDialog.h"
 
-class QDBusMessage;
+#include "ui_AudioInput.h"
+#include "ui_AudioOutput.h"
 
-class MumbleDBus : public QDBusAbstractAdaptor {
+class AudioInputDialog : public ConfigWidget, public Ui::AudioInput {
 private:
 	Q_OBJECT
-	Q_CLASSINFO("D-Bus Interface", "net.sourceforge.mumble.Mumble")
-	Q_DISABLE_COPY(MumbleDBus)
-	Q_PROPERTY(bool mute READ isSelfMuted WRITE setSelfMuted)
-	Q_PROPERTY(bool deaf READ isSelfDeaf WRITE setSelfDeaf)
+	Q_DISABLE_COPY(AudioInputDialog)
+protected:
+	QTimer *qtTick;
+	void hideEvent(QHideEvent *event) Q_DECL_OVERRIDE;
+	void showEvent(QShowEvent *event) Q_DECL_OVERRIDE;
+	void updateEchoEnableState();
+
+	void showSpeexNoiseSuppressionSlider(bool show);
+
 public:
-	MumbleDBus(QObject *parent);
+	/// The unique name of this ConfigWidget
+	static const QString name;
+	AudioInputDialog(Settings &st);
+	QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	QIcon icon() const Q_DECL_OVERRIDE;
+
 public slots:
-	void openUrl(const QString &url, const QDBusMessage &);
-	void getCurrentUrl(const QDBusMessage &);
-	void getTalkingUsers(const QDBusMessage &);
-	void focus();
+	void save() const Q_DECL_OVERRIDE;
+	void load(const Settings &r) Q_DECL_OVERRIDE;
+	void updateBitrate();
+	void continuePlayback();
 
-	/// Change when Mumble transmits voice.
-	///
-	/// @param mode The new transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
-	void setTransmitMode(unsigned int mode, const QDBusMessage &);
+	void on_qcbPushClick_clicked(bool);
+	void on_qpbPushClickBrowseOn_clicked();
+	void on_qpbPushClickBrowseOff_clicked();
+	void on_qpbPushClickPreview_clicked();
+	void on_qpbPushClickReset_clicked();
 
-	/// Get the current transmit mode.
-	///
-	/// @return The current transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
-	unsigned int getTransmitMode();
+	void on_qsTransmitHold_valueChanged(int v);
+	void on_qsFrames_valueChanged(int v);
+	void on_qsQuality_valueChanged(int v);
+	void on_qsAmp_valueChanged(int v);
+	void on_qsDoublePush_valueChanged(int v);
+	void on_qsPTTHold_valueChanged(int v);
+	void on_qsSpeexNoiseSupStrength_valueChanged(int v);
+	void on_qcbTransmit_currentIndexChanged(int v);
+	void on_qcbSystem_currentIndexChanged(int);
+	void on_Tick_timeout();
+	void on_qcbIdleAction_currentIndexChanged(int v);
+	void on_qrbNoiseSupSpeex_toggled(bool checked);
+	void on_qrbNoiseSupBoth_toggled(bool checked);
+};
 
-	void setSelfMuted(bool mute);
-	void setSelfDeaf(bool deafen);
-	bool isSelfMuted();
-	bool isSelfDeaf();
-	void startTalking();
-	void stopTalking();
+class AudioOutputDialog : public ConfigWidget, public Ui::AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioOutputDialog)
+
+	void enablePulseAudioAttenuationOptionsFor(const QString &outputName);
+
+public:
+	/// The unique name of this ConfigWidget
+	static const QString name;
+	AudioOutputDialog(Settings &st);
+	QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	QIcon icon() const Q_DECL_OVERRIDE;
+	/// @returns The name of the currently selected audio output interface
+	QString getCurrentlySelectedOutputInterfaceName() const;
+public slots:
+	void save() const Q_DECL_OVERRIDE;
+	void load(const Settings &r) Q_DECL_OVERRIDE;
+	void on_qsDelay_valueChanged(int v);
+	void on_qsJitter_valueChanged(int v);
+	void on_qsVolume_valueChanged(int v);
+	void on_qsOtherVolume_valueChanged(int v);
+	void on_qsPacketDelay_valueChanged(int v);
+	void on_qsPacketLoss_valueChanged(int v);
+	void on_qcbLoopback_currentIndexChanged(int v);
+	void on_qsMinDistance_valueChanged(int v);
+	void on_qsMaxDistance_valueChanged(int v);
+	void on_qsBloom_valueChanged(int v);
+	void on_qsMaxDistVolume_valueChanged(int v);
+	void on_qcbSystem_currentIndexChanged(int);
+	void on_qcbAttenuateOthersOnTalk_clicked(bool checked);
+	void on_qcbAttenuateOthers_clicked(bool checked);
+	void on_qcbOnlyAttenuateSameOutput_clicked(bool checked);
 };
 
 #endif
