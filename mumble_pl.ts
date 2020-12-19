@@ -3,341 +3,463 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Overlay.h"
+#ifndef MUMBLE_MUMBLE_SETTINGS_H_
+#define MUMBLE_MUMBLE_SETTINGS_H_
 
-#include "Channel.h"
-#include "MainWindow.h"
-#include "MumbleApplication.h"
-#include "OverlayConfig.h"
-#include "User.h"
+#include <QtCore/QList>
+#include <QtCore/QPair>
+#include <QtCore/QRectF>
+#include <QtCore/QSettings>
+#include <QtCore/QStringList>
+#include <QtCore/QVariant>
+#include <QtGui/QColor>
+#include <QtGui/QFont>
+#include <QtNetwork/QSslCertificate>
+#include <QtNetwork/QSslKey>
 
-#include "Overlay_win.h"
+// Global helper classes to spread variables around across threads
+// especially helpful to initialize things like the stored
+// preference for audio transmission, since the GUI elements
+// will be created long before the AudioInput object, and the
+// latter lives in a separate thread and so cannot touch the
+// GUI.
 
-#include "../../overlay/overlay_exe/overlay_exe.h"
+struct Shortcut {
+	int iIndex;
+	QList< QVariant > qlButtons;
+	QVariant qvData;
+	bool bSuppress;
+	bool operator<(const Shortcut &) const;
+	bool isServerSpecific() const;
+	bool operator==(const Shortcut &) const;
+};
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+struct ShortcutTarget {
+	bool bCurrentSelection;
+	bool bUsers;
+	QStringList qlUsers;
+	QList< unsigned int > qlSessions;
+	int iChannel;
+	QString qsGroup;
+	bool bLinks;
+	bool bChildren;
+	bool bForceCenter;
+	ShortcutTarget();
+	bool isServerSpecific() const;
+	bool operator<(const ShortcutTarget &) const;
+	bool operator==(const ShortcutTarget &) const;
+};
 
-// Used by the overlay to detect whether we injected into ourselves.
-//
-// A similar declaration can be found in mumble_exe's Overlay.cpp,
-// for the overlay's self-detection checks to continue working in a
-// mumble_app.dll world.
-extern "C" __declspec(dllexport) void mumbleSelfDetection(){};
+quint32 qHash(const ShortcutTarget &);
+quint32 qHash(const QList< ShortcutTarget > &);
 
-// Determine if the current Mumble client is able to host
-// x64 programs.
-//
-// If we're on x86, we use use the IsWoW64Process function
-// to determine this.  If we're on x64, we already know we're
-// capable, so we simply return TRUE.
-static bool canRun64BitPrograms() {
-#if defined(_M_X64)
-	return TRUE;
-#elif defined(_M_IX86)
-	typedef BOOL(WINAPI * IsWow64ProcessPtr)(HANDLE, BOOL *);
-	IsWow64ProcessPtr wow64check = (IsWow64ProcessPtr) GetProcAddress(GetModuleHandle(L"kernel32"), "IsWow64Process");
-	if (wow64check) {
-		BOOL isWoW64 = FALSE;
-		wow64check(GetCurrentProcess(), &isWoW64);
-		return isWoW64;
-	}
-	return FALSE;
+QDataStream &operator<<(QDataStream &, const ShortcutTarget &);
+QDataStream &operator>>(QDataStream &, ShortcutTarget &);
+Q_DECLARE_METATYPE(ShortcutTarget)
+
+struct OverlaySettings {
+	enum OverlayPresets { AvatarAndName, LargeSquareAvatar };
+
+	enum OverlayShow { Talking, Active, HomeChannel, LinkedChannels };
+
+	enum OverlaySort { Alphabetical, LastStateChange };
+
+	enum OverlayExclusionMode { LauncherFilterExclusionMode, WhitelistExclusionMode, BlacklistExclusionMode };
+
+	bool bEnable;
+
+	QString qsStyle;
+
+	OverlayShow osShow;
+	bool bAlwaysSelf;
+	int uiActiveTime; // Time in seconds for a user to stay active after talking
+	OverlaySort osSort;
+
+	float fX;
+	float fY;
+
+	qreal fZoom;
+	unsigned int uiColumns;
+
+	QColor qcUserName[5];
+	QFont qfUserName;
+
+	QColor qcChannel;
+	QFont qfChannel;
+
+	QColor qcFps;
+	QFont qfFps;
+
+	qreal fBoxPad;
+	qreal fBoxPenWidth;
+	QColor qcBoxPen;
+	QColor qcBoxFill;
+
+	bool bUserName;
+	bool bChannel;
+	bool bMutedDeafened;
+	bool bAvatar;
+	bool bBox;
+	bool bFps;
+	bool bTime;
+
+	qreal fUserName;
+	qreal fChannel;
+	qreal fMutedDeafened;
+	qreal fAvatar;
+	qreal fUser[5];
+	qreal fFps;
+
+	QRectF qrfUserName;
+	QRectF qrfChannel;
+	QRectF qrfMutedDeafened;
+	QRectF qrfAvatar;
+	QRectF qrfFps;
+	QRectF qrfTime;
+
+	Qt::Alignment qaUserName;
+	Qt::Alignment qaChannel;
+	Qt::Alignment qaMutedDeafened;
+	Qt::Alignment qaAvatar;
+
+	OverlayExclusionMode oemOverlayExcludeMode;
+	QStringList qslLaunchers;
+	QStringList qslLaunchersExclude;
+	QStringList qslWhitelist;
+	QStringList qslWhitelistExclude;
+	QStringList qslPaths;
+	QStringList qslPathsExclude;
+	QStringList qslBlacklist;
+	QStringList qslBlacklistExclude;
+
+	OverlaySettings();
+	void setPreset(const OverlayPresets preset = AvatarAndName);
+
+	void load();
+	void load(QSettings *);
+	void save();
+	void save(QSettings *);
+};
+
+struct Settings {
+	enum AudioTransmit { Continuous, VAD, PushToTalk };
+	enum VADSource { Amplitude, SignalToNoise };
+	enum LoopMode { None, Local, Server };
+	enum ChannelExpand { NoChannels, ChannelsWithUsers, AllChannels };
+	enum ChannelDrag { Ask, DoNothing, Move };
+	enum ServerShow { ShowPopulated, ShowReachable, ShowAll };
+	enum TalkState { Passive, Talking, Whispering, Shouting, MutedTalking };
+	enum IdleAction { Nothing, Deafen, Mute };
+	enum NoiseCancel { NoiseCancelOff, NoiseCancelSpeex, NoiseCancelRNN, NoiseCancelBoth };
+	typedef QPair< QList< QSslCertificate >, QSslKey > KeyPair;
+
+	AudioTransmit atTransmit;
+	quint64 uiDoublePush;
+	quint64 pttHold;
+
+	bool bTxAudioCue;
+	static const QString cqsDefaultPushClickOn;
+	static const QString cqsDefaultPushClickOff;
+	QString qsTxAudioCueOn;
+	QString qsTxAudioCueOff;
+
+	bool bTransmitPosition;
+	bool bMute, bDeaf;
+	bool bTTS;
+	bool bUserTop;
+	bool bWhisperFriends;
+	bool bTTSMessageReadBack;
+	bool bTTSNoScope;
+	bool bTTSNoAuthor;
+	int iTTSVolume, iTTSThreshold;
+	/// The Text-to-Speech language to use. This setting overrides
+	/// the default language for the Text-to-Speech engine, which
+	/// is usually inferred from the current locale.
+	///
+	/// The language is expected to be in BCP47 form.
+	///
+	/// The setting is currently only supported by the speech-dispatcher
+	/// backend.
+	QString qsTTSLanguage;
+	int iQuality, iMinLoudness, iVoiceHold, iJitterBufferSize;
+	bool bAllowLowDelay;
+	NoiseCancel noiseCancelMode;
+	int iSpeexNoiseCancelStrength;
+	quint64 uiAudioInputChannelMask;
+
+	// Idle auto actions
+	unsigned int iIdleTime;
+	IdleAction iaeIdleAction;
+	bool bUndoIdleActionUponActivity;
+
+	VADSource vsVAD;
+	float fVADmin, fVADmax;
+	int iFramesPerPacket;
+	QString qsAudioInput, qsAudioOutput;
+	float fVolume;
+	float fOtherVolume;
+	bool bAttenuateOthersOnTalk;
+	bool bAttenuateOthers;
+	bool bAttenuateUsersOnPrioritySpeak;
+	bool bOnlyAttenuateSameOutput;
+	bool bAttenuateLoopbacks;
+	int iOutputDelay;
+
+	QString qsALSAInput, qsALSAOutput;
+	QString qsPulseAudioInput, qsPulseAudioOutput;
+	QString qsJackClientName, qsJackAudioOutput;
+	bool bJackStartServer, bJackAutoConnect;
+	QString qsOSSInput, qsOSSOutput;
+	int iPortAudioInput, iPortAudioOutput;
+
+	bool bASIOEnable;
+	QString qsASIOclass;
+	QList< QVariant > qlASIOmic;
+	QList< QVariant > qlASIOspeaker;
+
+	QString qsCoreAudioInput, qsCoreAudioOutput;
+
+	QString qsWASAPIInput, qsWASAPIOutput;
+	/// qsWASAPIRole is configured via 'wasapi/role'.
+	/// It is a string explaining Mumble's purpose for opening
+	/// the audio device. This can be used to force Windows
+	/// to not treat Mumble as a communications program
+	/// (the default).
+	///
+	/// The default is "communications". When this is set,
+	/// Windows treats Mumble as a telephony app, including
+	/// potential audio ducking.
+	///
+	/// Other values include:
+	///
+	///   "console", which should be used for games, system
+	///              notification sounds, and voice commands.
+	///
+	///   "multimedia", which should be used for music, movies,
+	///                 narration, and live music recording.
+	///
+	/// This is practically a direct mapping of the ERole enum
+	/// from Windows: https://msdn.microsoft.com/en-us/library/windows/desktop/dd370842
+	QString qsWASAPIRole;
+
+	bool bExclusiveInput, bExclusiveOutput;
+	bool bEcho;
+	bool bEchoMulti;
+	bool bPositionalAudio;
+	bool bPositionalHeadphone;
+	float fAudioMinDistance, fAudioMaxDistance, fAudioMaxDistVolume, fAudioBloom;
+	QMap< QString, bool > qmPositionalAudioPlugins;
+
+	OverlaySettings os;
+
+	int iOverlayWinHelperRestartCooldownMsec;
+	bool bOverlayWinHelperX86Enable;
+	bool bOverlayWinHelperX64Enable;
+
+	int iLCDUserViewMinColWidth;
+	int iLCDUserViewSplitterWidth;
+	QMap< QString, bool > qmLCDDevices;
+
+	bool bShortcutEnable;
+	bool bSuppressMacEventTapWarning;
+	bool bEnableEvdev;
+	bool bEnableXInput2;
+	bool bEnableGKey;
+	bool bEnableXboxInput;
+	bool bEnableWinHooks;
+	/// Enable verbose logging in GlobalShortcutWin's DirectInput backend.
+	bool bDirectInputVerboseLogging;
+	/// Enable use of UIAccess (Windows's UI automation feature). This allows
+	/// Mumble greater access to global shortcuts.
+	bool bEnableUIAccess;
+	QList< Shortcut > qlShortcuts;
+
+	enum MessageLog {
+		LogNone      = 0x00,
+		LogConsole   = 0x01,
+		LogTTS       = 0x02,
+		LogBalloon   = 0x04,
+		LogSoundfile = 0x08,
+		LogHighlight = 0x10
+	};
+	int iMaxLogBlocks;
+	bool bLog24HourClock;
+	int iChatMessageMargins;
+
+	static const QPoint UNSPECIFIED_POSITION;
+	QPoint qpTalkingUI_Position;
+	bool bShowTalkingUI;
+	bool bTalkingUI_LocalUserStaysVisible;
+	bool bTalkingUI_AbbreviateChannelNames;
+	bool bTalkingUI_AbbreviateCurrentChannel;
+	bool bTalkingUI_ShowLocalListeners;
+	/// relative font size in %
+	int iTalkingUI_RelativeFontSize;
+	int iTalkingUI_SilentUserLifeTime;
+	int iTalkingUI_ChannelHierarchyDepth;
+	int iTalkingUI_MaxChannelNameLength;
+	int iTalkingUI_PrefixCharCount;
+	int iTalkingUI_PostfixCharCount;
+	QString qsTalkingUI_ChannelSeparator;
+	QString qsTalkingUI_AbbreviationReplacement;
+
+	int manualPlugin_silentUserDisplaytime;
+
+	QMap< int, QString > qmMessageSounds;
+	QMap< int, quint32 > qmMessages;
+
+	QString qsLanguage;
+
+	/// Name of the theme to use. @see Themes
+	QString themeName;
+	/// Name of the style to use from theme. @see Themes
+	QString themeStyleName;
+
+	QByteArray qbaMainWindowGeometry, qbaMainWindowState, qbaMinimalViewGeometry, qbaMinimalViewState, qbaSplitterState,
+		qbaHeaderState;
+	QByteArray qbaConfigGeometry;
+	enum WindowLayout { LayoutClassic, LayoutStacked, LayoutHybrid, LayoutCustom };
+	WindowLayout wlWindowLayout;
+	ChannelExpand ceExpand;
+	ChannelDrag ceChannelDrag;
+	ChannelDrag ceUserDrag;
+	bool bMinimalView;
+	bool bHideFrame;
+	enum AlwaysOnTopBehaviour { OnTopNever, OnTopAlways, OnTopInMinimal, OnTopInNormal };
+	AlwaysOnTopBehaviour aotbAlwaysOnTop;
+	bool bAskOnQuit;
+	bool bEnableDeveloperMenu;
+	bool bLockLayout;
+	bool bHideInTray;
+	bool bStateInTray;
+	bool bUsage;
+	bool bShowUserCount;
+	bool bShowVolumeAdjustments;
+	bool bChatBarUseSelection;
+	bool bFilterHidesEmptyChannels;
+	bool bFilterActive;
+	QByteArray qbaConnectDialogHeader, qbaConnectDialogGeometry;
+	bool bShowContextMenuInMenuBar;
+
+	QString qsUsername;
+	QString qsLastServer;
+	ServerShow ssFilter;
+
+	QString qsImagePath;
+
+	bool bUpdateCheck;
+	bool bPluginCheck;
+
+	// PTT Button window
+	bool bShowPTTButtonWindow;
+	QByteArray qbaPTTButtonWindowGeometry;
+
+	// Network settings
+	enum ProxyType { NoProxy, HttpProxy, Socks5Proxy };
+	bool bTCPCompat;
+	bool bReconnect;
+	bool bAutoConnect;
+	bool bQoS;
+	/// Disables the "Public Internet" section in the connect dialog if set.
+	bool bDisablePublicList;
+	ProxyType ptProxyType;
+	QString qsProxyHost, qsProxyUsername, qsProxyPassword;
+	unsigned short usProxyPort;
+
+	/// The ping interval in milliseconds. The Mumble client
+	/// will regularly send TCP and UDP pings to the remote
+	/// server. This setting specifies the time (in milliseconds)
+	/// between each ping message.
+	int iPingIntervalMsec;
+
+	/// The connection timeout duration in milliseconds.
+	/// If a connection is not fully established to the
+	/// server within this duration, the client will
+	/// forcefully disconnect.
+	int iConnectionTimeoutDurationMsec;
+
+	/// bUdpForceTcpAddr forces Mumble to bind its UDP
+	/// socket to the same address as its TCP
+	/// connection is using.
+	bool bUdpForceTcpAddr;
+
+	/// iMaxInFlightTCPPings specifies the maximum
+	/// number of ping messages that the client has
+	/// sent, but not yet recieved a response for
+	/// from the server. This value is checked when
+	/// the client sends its next ping message. If
+	/// the maximum is reached, the connection will
+	/// be closed.
+	/// If this setting is assigned a value of 0 or
+	/// a negative number, the TCP ping check is
+	/// disabled.
+	int iMaxInFlightTCPPings;
+
+	/// The service prefix that the WebFetch class will use
+	/// when it constructs its fully-qualified URL. If this
+	/// is empty, no prefix is used.
+	///
+	/// When the WebFetch class receives a HTTP response which
+	/// includes the header "Use-Service-Prefix", this setting
+	/// is updated to reflect the received service prefix.
+	///
+	/// For more information, see the documentation for WebFetch::fetch().
+	QString qsServicePrefix;
+
+	// Network settings - SSL
+	QString qsSslCiphers;
+
+	// Privacy settings
+	bool bHideOS;
+
+	int iMaxImageWidth;
+	int iMaxImageHeight;
+	KeyPair kpCertificate;
+	bool bSuppressIdentity;
+
+	bool bShowTransmitModeComboBox;
+
+	// Accessibility
+	bool bHighContrast;
+
+	// Recording
+	QString qsRecordingPath;
+	QString qsRecordingFile;
+	enum RecordingMode { RecordingMixdown, RecordingMultichannel };
+	RecordingMode rmRecordingMode;
+	int iRecordingFormat;
+
+	// Special configuration options not exposed to UI
+
+	/// Codec kill-switch
+	bool bDisableCELT;
+
+	/// Removes the add and edit options in the connect dialog if set.
+	bool disableConnectDialogEditing;
+
+	/// Asks the user for consent to ping servers in the public server list if not set.
+	bool bPingServersDialogViewed;
+
+	// Config updates
+	unsigned int uiUpdateCounter;
+
+	/// Path to SQLite-DB
+	QString qsDatabaseLocation;
+
+	// Nonsaved
+	LoopMode lmLoopMode;
+	float dPacketLoss;
+	float dMaxPacketDelay;
+	/// If true settings in this structure require a client restart to apply fully
+	bool requireRestartToApply;
+
+	bool doEcho() const;
+	bool doPositionalAudio() const;
+
+	Settings();
+	void load();
+	void load(QSettings *);
+	void save();
+};
+
 #endif
-}
-
-OverlayPrivateWin::OverlayPrivateWin(QObject *p)
-	: OverlayPrivate(p), m_helper_enabled(true), m_helper64_enabled(true), m_mumble_handle(0), m_active(false) {
-	// Acquire a handle to ourselves and duplicate it. We duplicate it because
-	// want it to be inheritable by our helper processes, and the handle returned
-	// by GetCurrentProcess is not inheritable. Duplicating it makes it inheritable.
-	// This allows our helper processes to access the handle.
-	//
-	// The helper processes need a handle to us, their parent, to be able to listen
-	// detect when our process dies.
-	//
-	// The value of the handle is passed as an argument to the helper processes via
-	// the command line as a number. The HANDLE type in Windows is typedef'd to LPVOID,
-	// but for handles that are supposed to be shared between processes (like a process
-	// handle that we are using), only the lower 32-bits of the HANDLE are considered:
-	//
-	//   "When sharing a handle between 32-bit and 64-bit applications, only the lower
-	//    32 bits are significant [...]"
-	//
-	// from https://msdn.microsoft.com/en-us/library/aa384203.aspx
-	HANDLE curproc = GetCurrentProcess();
-	if (!DuplicateHandle(curproc, curproc, curproc, &m_mumble_handle, 0, TRUE, DUPLICATE_SAME_ACCESS)) {
-		qFatal("OverlayPrivateWin: unable to duplicate handle to the Mumble process.");
-		return;
-	}
-
-	m_helper_exe_path =
-		QString::fromLatin1("%1/mumble_ol_helper.exe").arg(MumbleApplication::instance()->applicationVersionRootPath());
-	m_helper_exe_args << QString::number(OVERLAY_MAGIC_NUMBER)
-					  << QString::number(reinterpret_cast< quintptr >(m_mumble_handle));
-	m_helper_process = new QProcess(this);
-
-	connect(m_helper_process, SIGNAL(started()), this, SLOT(onHelperProcessStarted()));
-
-	connect(m_helper_process, SIGNAL(error(QProcess::ProcessError)), this,
-			SLOT(onHelperProcessError(QProcess::ProcessError)));
-
-	connect(m_helper_process, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-			SLOT(onHelperProcessExited(int, QProcess::ExitStatus)));
-
-	m_helper_restart_timer = new QTimer(this);
-	m_helper_restart_timer->setSingleShot(true);
-	connect(m_helper_restart_timer, SIGNAL(timeout()), this, SLOT(onDelayedRestartTimerTriggered()));
-
-	if (!g.s.bOverlayWinHelperX86Enable) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper.exe (32-bit overlay helper) disabled via "
-				 "'overlay_win/enable_x86_helper' config option.");
-		m_helper_enabled = false;
-	}
-
-	m_helper64_exe_path = QString::fromLatin1("%1/mumble_ol_helper_x64.exe")
-							  .arg(MumbleApplication::instance()->applicationVersionRootPath());
-	m_helper64_exe_args = m_helper_exe_args;
-	m_helper64_process  = new QProcess(this);
-
-	connect(m_helper64_process, SIGNAL(started()), this, SLOT(onHelperProcessStarted()));
-
-	connect(m_helper64_process, SIGNAL(error(QProcess::ProcessError)), this,
-			SLOT(onHelperProcessError(QProcess::ProcessError)));
-
-	connect(m_helper64_process, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-			SLOT(onHelperProcessExited(int, QProcess::ExitStatus)));
-
-	m_helper64_restart_timer = new QTimer(this);
-	m_helper64_restart_timer->setSingleShot(true);
-	connect(m_helper64_restart_timer, SIGNAL(timeout()), this, SLOT(onDelayedRestartTimerTriggered()));
-
-	if (!canRun64BitPrograms()) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper_x64.exe (64-bit overlay helper) disabled because the host is not "
-				 "x64 capable.");
-		m_helper64_enabled = false;
-	} else if (!g.s.bOverlayWinHelperX64Enable) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper_x64.exe (64-bit overlay helper) disabled via "
-				 "'overlay_win/enable_x64_helper' config option.");
-		m_helper64_enabled = false;
-	}
-}
-
-OverlayPrivateWin::~OverlayPrivateWin() {
-	m_active = false;
-
-	if (!CloseHandle(m_mumble_handle)) {
-		qFatal("OverlayPrivateWin: unable to close Mumble process handle.");
-		return;
-	}
-
-	// Remove all signals, so they don't
-	// interfere with our calls to waitForFinished
-	// below.
-	m_helper_process->disconnect();
-	m_helper64_process->disconnect();
-
-	m_helper_process->terminate();
-	m_helper64_process->terminate();
-
-	m_helper_process->waitForFinished();
-	m_helper64_process->waitForFinished();
-}
-
-void OverlayPrivateWin::startHelper(QProcess *helper) {
-	if (helper->state() == QProcess::NotRunning) {
-		if (helper == m_helper_process) {
-			helper->start(m_helper_exe_path, m_helper_exe_args);
-			m_helper_start_time.restart();
-		} else if (helper == m_helper64_process) {
-			helper->start(m_helper64_exe_path, m_helper64_exe_args);
-			m_helper64_start_time.restart();
-		} else {
-			qFatal("OverlayPrivateWin: invalid helper passed to startHelper().");
-		}
-	} else {
-		qWarning("OverlayPrivateWin: startHelper() called while process is already running. skipping.");
-	}
-}
-
-void OverlayPrivateWin::setActive(bool active) {
-	if (m_active != active) {
-		m_active = active;
-
-		if (m_active) {
-			if (m_helper_enabled) {
-				startHelper(m_helper_process);
-			}
-			if (m_helper64_enabled) {
-				startHelper(m_helper64_process);
-			}
-		} else {
-			if (m_helper_enabled) {
-				m_helper_process->terminate();
-			}
-			if (m_helper64_enabled) {
-				m_helper64_process->terminate();
-			}
-		}
-	}
-}
-
-static const char *exitStatusString(QProcess::ExitStatus exitStatus) {
-	switch (exitStatus) {
-		case QProcess::NormalExit:
-			return "normal exit";
-		case QProcess::CrashExit:
-			return "crash";
-	}
-
-	return "unknown";
-}
-
-static const char *processErrorString(QProcess::ProcessError processError) {
-	switch (processError) {
-		case QProcess::FailedToStart:
-			return "process failed to start";
-		case QProcess::Crashed:
-			return "process crashed";
-		case QProcess::Timedout:
-			return "process wait operation timed out";
-		case QProcess::WriteError:
-			return "an error occurred when attempting to write to the process";
-		case QProcess::ReadError:
-			return "an error occurred when attempting to read from the process";
-		case QProcess::UnknownError:
-			return "an unknown error occurred";
-	}
-
-	return "unknown";
-}
-
-void OverlayPrivateWin::onHelperProcessStarted() {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-	QString path;
-	if (helper == m_helper_process) {
-		path = m_helper_exe_path;
-	} else if (helper == m_helper64_process) {
-		path = m_helper64_exe_path;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessStarted().");
-	}
-
-	PROCESS_INFORMATION *pi = helper->pid();
-	qWarning("OverlayPrivateWin: overlay helper process '%s' started with PID %llu.", qPrintable(path),
-			 static_cast< unsigned long long >(pi->dwProcessId));
-}
-
-void OverlayPrivateWin::onHelperProcessError(QProcess::ProcessError processError) {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-	QString path;
-	if (helper == m_helper_process) {
-		path = m_helper_exe_path;
-	} else if (helper == m_helper64_process) {
-		path = m_helper64_exe_path;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessError().");
-	}
-
-	qWarning("OverlayPrivateWin: an error occured for overlay helper process '%s': %s", qPrintable(path),
-			 processErrorString(processError));
-}
-
-void OverlayPrivateWin::onHelperProcessExited(int exitCode, QProcess::ExitStatus exitStatus) {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-
-	QString path;
-	qint64 elapsedMsec   = 0;
-	QTimer *restartTimer = nullptr;
-	if (helper == m_helper_process) {
-		path         = m_helper_exe_path;
-		elapsedMsec  = m_helper_start_time.elapsed();
-		restartTimer = m_helper_restart_timer;
-	} else if (helper == m_helper64_process) {
-		path         = m_helper64_exe_path;
-		elapsedMsec  = m_helper64_start_time.elapsed();
-		restartTimer = m_helper64_restart_timer;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessExited().");
-	}
-
-	const char *helperErrString = OverlayHelperErrorToString(static_cast< OverlayHelperError >(exitCode));
-	qWarning("OverlayPrivateWin: overlay helper process '%s' exited (%s) with status code %s.", qPrintable(path),
-			 exitStatusString(exitStatus), helperErrString ? helperErrString : qPrintable(QString::number(exitCode)));
-
-	// If the helper process exited while we're in 'active'
-	// mode, restart it.
-	if (m_active) {
-		// If the helper was only recently started, be
-		// a little more patient with restarting it.
-		// We could be hitting a crash bug in the helper,
-		// and we don't want to do too much harm in that
-		// case by spawning thousands of processes.
-		qint64 cooldownMsec = (qint64) g.s.iOverlayWinHelperRestartCooldownMsec;
-		if (elapsedMsec < cooldownMsec) {
-			qint64 delayMsec = cooldownMsec - elapsedMsec;
-			qWarning("OverlayPrivateWin: waiting %llu seconds until restarting helper process '%s'. last restart was "
-					 "%llu seconds ago.",
-					 (unsigned long long) delayMsec / 1000ULL, qPrintable(path),
-					 (unsigned long long) elapsedMsec / 1000ULL);
-			if (!restartTimer->isActive()) {
-				restartTimer->start(delayMsec);
-			}
-		} else {
-			startHelper(helper);
-		}
-	}
-}
-
-void OverlayPrivateWin::onDelayedRestartTimerTriggered() {
-	if (!m_active) {
-		return;
-	}
-
-	QTimer *timer = qobject_cast< QTimer * >(sender());
-
-	QProcess *helper = nullptr;
-	if (timer == m_helper_restart_timer) {
-		helper = m_helper_process;
-	} else if (timer == m_helper64_restart_timer) {
-		helper = m_helper64_process;
-	} else {
-		qFatal("OverlayPrivateWin: unknown timer found in onDelayedRestartTimerTriggered().");
-	}
-
-	if (helper->state() == QProcess::NotRunning) {
-		startHelper(helper);
-	}
-}
-
-void Overlay::platformInit() {
-	d = new OverlayPrivateWin(this);
-}
-
-void Overlay::setActiveInternal(bool act) {
-	if (d) {
-		// Only act if the private instance has been created already
-		static_cast< OverlayPrivateWin * >(d)->setActive(act);
-	}
-}
-
-bool OverlayConfig::supportsInstallableOverlay() {
-	return false;
-}
-
-bool OverlayConfig::isInstalled() {
-	return true;
-}
-
-bool OverlayConfig::needsUpgrade() {
-	return false;
-}
-
-bool OverlayConfig::installFiles() {
-	return false;
-}
-
-bool OverlayConfig::uninstallFiles() {
-	return false;
-}
