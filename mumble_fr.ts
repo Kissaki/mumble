@@ -3,237 +3,150 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "MumbleApplication.h"
+/* SPECIFICATION
+ * The code interfacing with the Logitech G-Keys DLL was implemented using the
+ * following spec:
+ *
+ * The G-keys DLL lives in
+ * "C:\Program Files\Logitech Gaming Software\SDK\G-key\x64\LogitechGkey.dll" for x64 and
+ * "C:\Program Files\Logitech Gaming Software\SDK\G-key\x86\LogitechGkey.dll" for x86.
+ *
+ * Its location can also be read from the registry, using the following keys:
+ *
+ * x86:
+ * "HKEY_CLASSES_ROOT\CLSID\{7bded654-f278-4977-a20f-6e72a0d07859}\ServerBinary"
+ *
+ * x64:
+ * "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{7bded654-f278-4977-a20f-6e72a0d07859}\ServerBinary"
+ *
+ * The registry keys are needed if a user installed the Logitech Gaming
+ * Software in a non-standard location.
+ *
+ * The DLL has an init function, it's called "LogiGkeyInit". It takes a
+ * pointer, but the parameter must always be nullptr. The function returns a BOOL
+ * as a status code.
+ *
+ * The DLL also has a shutdown function, called "LogiGkeyShutdown". It takes
+ * no parameters and does not return anything.
+ *
+ * You can poll for button states with the DLL using the functions
+ * "LogiGkeyIsMouseButtonPressed" and "LogiGkeyIsKeyboardGkeyPressed".
+ *
+ * The function "LogiGkeyIsMouseButtonPressed" takes a single int parameter, a
+ * button number. Mouse button numbers run from 6 up to and including 20. The
+ * function returns a BOOL that is true if the button is pressed, and false if
+ * not.
+ *
+ * The function "LogiGkeyIsKeyboardGkeyPressed" takes two int parameters, a
+ * button number and a mode number. Keyboard button numbers run from 1 up to
+ * and including 29. The mode number can 1, 2 or 3. The mode checks the button
+ * state in a specific mode. Typically, one queries all buttons for all modes,
+ * so one ends up with 29*3 calls to the function. The function returns a BOOL
+ * that is true if the button in the given mode is pressed, and false if not.
+ *
+ * There are also two functions, "LogiGkeyGetMouseButtonString" and
+ * "LogiGkeyGetKeyboardGkeyString". They take the same parameters as the
+ * polling functions above, but do not check whether the button is pressed or
+ * not. Instead, they return the name of the button being queried as a pointer
+ * to a NUL-terminated array of wchar_t's. Presumably, the pointer will be
+ * nullptr if the name cannot be retrieved or translated.
+ */
 
-#include <QtCore/QStandardPaths>
+/* USAGE
+ * In order to use the gkeys on a logitech keyboard, any user must have the
+ * Logitech Gaming Software version 8.55+ installed on their computer. Then
+ * (re)start mumble. When mumble initializes the library, the LGS (Logitech
+ * Gaming Software) will create a profile called "mumble", featuring the mumble
+ * icon. In LGS, right click this icon, and select either "Set as Default" or
+ * "Set as Persistent". (See "What are persistent and default profiles?" in the
+ * LGS help by clicking on the "?" icon on the LGS window, or at
+ * http://www.logitech.com/assets/51813/3/lgs-guide.pdf). If mumble is not set
+ * as the default or persistent profile, then your keys will not be active
+ * unless mumble is the active window.
+ */
 
-#ifdef Q_OS_WIN
-#	include <shlobj.h>
-#endif
+#include "GKey.h"
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-Global *Global::g_global_struct;
-
-#ifndef Q_OS_WIN
-static void migrateDataDir() {
-#	ifdef Q_OS_MAC
-	QString olddir  = QDir::homePath() + QLatin1String("/Library/Preferences/Mumble");
-	QString newdir  = QStandardPaths::writableLocation(QStandardPaths::DataLocation);
-	QString linksTo = QFile::symLinkTarget(olddir);
-	if (!QFile::exists(newdir) && QFile::exists(olddir) && linksTo.isEmpty()) {
-		QDir d;
-		d.mkpath(newdir + QLatin1String("/.."));
-		if (d.rename(olddir, newdir)) {
-			if (d.cd(QDir::homePath() + QLatin1String("/Library/Preferences"))) {
-				if (QFile::link(d.relativeFilePath(newdir), olddir)) {
-					qWarning("Migrated application data directory from '%s' to '%s'", qPrintable(olddir),
-							 qPrintable(newdir));
-					return;
-				}
-			}
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                            \
+		{                                                                           \
+			var    = reinterpret_cast< __typeof__(var) >(qlLogiGkey.resolve(#var)); \
+			bValid = bValid && var;                                                 \
 		}
-	} else {
-		/* Data dir has already been migrated. */
-		return;
-	}
-
-	qWarning("Application data migration failed.");
-#	endif // Q_OS_MAC
-
-// Qt4 used another data directory on Unix-like systems, to ensure a seamless
-// transition we must first move the users data to the new directory.
-#	if defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
-	QString olddir =
-		QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("/data/Mumble");
-	QString newdir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("/Mumble");
-
-	if (!QFile::exists(newdir) && QFile::exists(olddir)) {
-		QDir d;
-		if (d.rename(olddir, newdir)) {
-			qWarning("Migrated application data directory from '%s' to '%s'", qPrintable(olddir), qPrintable(newdir));
-			return;
-		}
-	} else {
-		/* Data dir has already been migrated. */
-		return;
-	}
-
-	qWarning("Application data migration failed.");
-#	endif // defined(Q_OS_UNIX) && ! defined(Q_OS_MAC)
-}
-#endif // Q_OS_WIN
-
-Global::Global(const QString &qsConfigPath) {
-	mw              = 0;
-	db              = 0;
-	p               = 0;
-	nam             = 0;
-	c               = 0;
-	talkingUI       = 0;
-	uiSession       = 0;
-	uiDoublePush    = 1000000;
-	iPushToTalk     = 0;
-	iTarget         = 0;
-	iPrevTarget     = 0;
-	bPushToMute     = false;
-	bCenterPosition = false;
-	bPosTest        = false;
-	bInAudioWizard  = false;
-	iAudioPathTime  = 0;
-	iAudioBandwidth = -1;
-	iMaxBandwidth   = -1;
-
-	iCodecAlpha  = 0;
-	iCodecBeta   = 0;
-	bPreferAlpha = true;
-#ifdef USE_OPUS
-	bOpus = true;
 #else
-	bOpus = false;
-#endif
-
-	bAttenuateOthers              = false;
-	prioritySpeakerActiveOverride = false;
-
-	bAllowHTML      = true;
-	uiMessageLength = 5000;
-	uiImageLength   = 131072;
-	uiMaxUsers      = 0;
-
-	qs = nullptr;
-
-	zeroconf = nullptr;
-	lcd      = nullptr;
-	l        = nullptr;
-
-#ifdef USE_OVERLAY
-	ocIntercept = nullptr;
-	o           = nullptr;
-#endif
-
-	bHappyEaster = false;
-
-	bQuit            = false;
-	bDebugDumpInput  = false;
-	bDebugPrintQueue = false;
-
-#if defined(Q_OS_WIN)
-	QString appdata;
-	wchar_t appData[MAX_PATH];
-#endif
-
-	if (!qsConfigPath.isEmpty()) {
-		QFile inifile(qsConfigPath);
-		qs = new QSettings(inifile.fileName(), QSettings::IniFormat);
-	} else {
-		QStringList qsl;
-		qsl << QCoreApplication::instance()->applicationDirPath();
-		qsl << QStandardPaths::writableLocation(QStandardPaths::DataLocation);
-
-#if defined(Q_OS_WIN)
-		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appData))) {
-			appdata = QDir::fromNativeSeparators(QString::fromWCharArray(appData));
-
-			if (!appdata.isEmpty()) {
-				appdata.append(QLatin1String("/Mumble"));
-				qsl << appdata;
-			}
+#	define RESOLVE(var)                                                                          \
+		{                                                                                         \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlLogiGkey.resolve(#var)); \
+			bValid                             = bValid && var;                                   \
 		}
 #endif
 
-		foreach (const QString &dir, qsl) {
-			QFile inifile(QString::fromLatin1("%1/mumble.ini").arg(dir));
-			if (inifile.exists() && inifile.permissions().testFlag(QFile::WriteUser)) {
-				qdBasePath.setPath(dir);
-				qs = new QSettings(inifile.fileName(), QSettings::IniFormat);
-				break;
-			}
+const QUuid GKeyLibrary::quMouse    = QUuid(QString::fromLatin1(GKEY_MOUSE_GUID));
+const QUuid GKeyLibrary::quKeyboard = QUuid(QString::fromLatin1(GKEY_KEYBOARD_GUID));
+
+GKeyLibrary::GKeyLibrary() {
+	QStringList alternatives;
+
+	HKEY key   = nullptr;
+	DWORD type = 0;
+	WCHAR wcLocation[510];
+	DWORD len = 510;
+	if (RegOpenKeyEx(GKEY_LOGITECH_DLL_REG_HKEY, GKEY_LOGITECH_DLL_REG_PATH, 0, KEY_READ, &key) == ERROR_SUCCESS) {
+		LONG err = RegQueryValueEx(key, L"", nullptr, &type, reinterpret_cast< LPBYTE >(wcLocation), &len);
+		if (err == ERROR_SUCCESS && type == REG_SZ) {
+			QString qsLocation = QString::fromUtf16(reinterpret_cast< ushort * >(wcLocation), len / 2);
+			qWarning("GKeyLibrary: Found ServerBinary with libLocation = \"%s\", len = %lu", qPrintable(qsLocation),
+					 static_cast< unsigned long >(len));
+			alternatives << qsLocation;
+		} else {
+			qWarning("GKeyLibrary: Error looking up ServerBinary (Error: 0x%lx, Type: 0x%lx, len: %lu)",
+					 static_cast< unsigned long >(err), static_cast< unsigned long >(type),
+					 static_cast< unsigned long >(len));
 		}
 	}
 
-	if (!qs) {
-		qs = new QSettings();
-#if defined(Q_OS_WIN)
-		if (!appdata.isEmpty())
-			qdBasePath.setPath(appdata);
-#else
-		migrateDataDir();
-		qdBasePath.setPath(QStandardPaths::writableLocation(QStandardPaths::DataLocation));
-#endif
-		if (!qdBasePath.exists()) {
-			QDir::root().mkpath(qdBasePath.absolutePath());
-			if (!qdBasePath.exists())
-				qdBasePath = QDir::home();
+	alternatives << QString::fromLatin1(GKEY_LOGITECH_DLL_DEFAULT_LOCATION);
+	foreach (const QString &lib, alternatives) {
+		qlLogiGkey.setFileName(lib);
+
+		if (qlLogiGkey.load()) {
+			bValid = true;
+			break;
 		}
 	}
 
-	if (!qdBasePath.exists(QLatin1String("Plugins")))
-		qdBasePath.mkpath(QLatin1String("Plugins"));
-	if (!qdBasePath.exists(QLatin1String("Overlay")))
-		qdBasePath.mkpath(QLatin1String("Overlay"));
-	if (!qdBasePath.exists(QLatin1String("Themes")))
-		qdBasePath.mkpath(QLatin1String("Themes"));
+	RESOLVE(LogiGkeyInit);
+	RESOLVE(LogiGkeyShutdown);
+	RESOLVE(LogiGkeyIsMouseButtonPressed);
+	RESOLVE(LogiGkeyIsKeyboardGkeyPressed);
+	RESOLVE(LogiGkeyGetMouseButtonString);
+	RESOLVE(LogiGkeyGetKeyboardGkeyString);
 
-	qs->setIniCodec("UTF-8");
+	if (bValid)
+		bValid = LogiGkeyInit(nullptr);
 }
 
-Global::~Global() {
-	delete qs;
+GKeyLibrary::~GKeyLibrary() {
+	if (LogiGkeyShutdown)
+		LogiGkeyShutdown();
 }
 
-const char Global::ccHappyEaster[] = {
-	072,  057,  0162, 0145, 0143, 056,  0163, 0166, 0147, 0,    0117, 0160, 0145, 0156, 040,  0164, 0150, 0145, 040,
-	0160, 0157, 0144, 040,  0142, 0141, 0171, 040,  0144, 0157, 0157, 0162, 0163, 054,  040,  0110, 0101, 0114, 056,
-	0,    0111, 047,  0155, 040,  0163, 0157, 0162, 0162, 0171, 054,  040,  045,  061,  056,  040,  0111, 047,  0155,
-	040,  0141, 0146, 0162, 0141, 0151, 0144, 040,  0111, 040,  0143, 0141, 0156, 047,  0164, 040,  0144, 0157, 040,
-	0164, 0150, 0141, 0164, 056,  0,    0121, 0127, 0151, 0144, 0147, 0145, 0164, 0173, 0142, 0141, 0143, 0153, 0147,
-	0162, 0157, 0165, 0156, 0144, 055,  0143, 0157, 0154, 0157, 0162, 072,  0142, 0154, 0141, 0143, 0153, 073,  0141,
-	0154, 0164, 0145, 0162, 0156, 0141, 0164, 0145, 055,  0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144,
-	055,  0143, 0157, 0154, 0157, 0162, 072,  043,  063,  063,  060,  060,  060,  060,  073,  0143, 0157, 0154, 0157,
-	0162, 072,  0167, 0150, 0151, 0164, 0145, 073,  0175, 0121, 0124, 0145, 0170, 0164, 0102, 0162, 0157, 0167, 0163,
-	0145, 0162, 0173, 0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0151, 0155, 0141, 0147, 0145,
-	072,  0165, 0162, 0154, 050,  072,  057,  0162, 0145, 0143, 056,  0163, 0166, 0147, 051,  073,  0142, 0141, 0143,
-	0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0160, 0157, 0163, 0151, 0164, 0151, 0157, 0156, 072,  0143, 0145,
-	0156, 0164, 0145, 0162, 0143, 0145, 0156, 0164, 0145, 0162, 073,  0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165,
-	0156, 0144, 055,  0143, 0154, 0151, 0160, 072,  0160, 0141, 0144, 0144, 0151, 0156, 0147, 073,  0142, 0141, 0143,
-	0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0157, 0162, 0151, 0147, 0151, 0156, 072,  0160, 0141, 0144, 0144,
-	0151, 0156, 0147, 073,  0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0162, 0145, 0160, 0145,
-	0141, 0164, 072,  0156, 0157, 055,  0162, 0145, 0160, 0145, 0141, 0164, 073,  0142, 0141, 0143, 0153, 0147, 0162,
-	0157, 0165, 0156, 0144, 055,  0141, 0164, 0164, 0141, 0143, 0150, 0155, 0145, 0156, 0164, 072,  0146, 0151, 0170,
-	0145, 0144, 073,  0175, 0121, 0115, 0145, 0156, 0165, 0102, 0141, 0162, 072,  072,  0151, 0164, 0145, 0155, 0173,
-	0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 072,  0164, 0162, 0141, 0156, 0163, 0160, 0141, 0162,
-	0145, 0156, 0164, 073,  0175, 0121, 0110, 0145, 0141, 0144, 0145, 0162, 0126, 0151, 0145, 0167, 072,  072,  0163,
-	0145, 0143, 0164, 0151, 0157, 0156, 0173, 0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 072,  0164,
-	0162, 0141, 0156, 0163, 0160, 0141, 0162, 0145, 0156, 0164, 073,  0175, 0121, 0124, 0141, 0142, 0102, 0141, 0162,
-	072,  072,  0164, 0141, 0142, 0173, 0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 072,  0164, 0162,
-	0141, 0156, 0163, 0160, 0141, 0162, 0145, 0156, 0164, 073,  0175, 0
-};
-
-QMultiMap< int, DeferInit * > *DeferInit::qmDeferers = nullptr;
-
-void DeferInit::add(int priority) {
-	if (!qmDeferers) {
-		qmDeferers = new QMultiMap< int, DeferInit * >();
-	}
-	qmDeferers->insert(priority, this);
+bool GKeyLibrary::isValid() const {
+	return bValid;
 }
 
-DeferInit::~DeferInit() {
+bool GKeyLibrary::isMouseButtonPressed(int button) {
+	return LogiGkeyIsMouseButtonPressed(button);
 }
 
-void DeferInit::run_initializers() {
-	if (!qmDeferers)
-		return;
-	foreach (DeferInit *d, *qmDeferers) { d->initialize(); }
+bool GKeyLibrary::isKeyboardGkeyPressed(int key, int mode) {
+	return LogiGkeyIsKeyboardGkeyPressed(key, mode);
 }
 
-void DeferInit::run_destroyers() {
-	if (!qmDeferers)
-		return;
-	foreach (DeferInit *d, *qmDeferers) { d->destroy(); }
-	delete qmDeferers;
-	qmDeferers = nullptr;
+QString GKeyLibrary::getMouseButtonString(int button) {
+	return QString::fromWCharArray(LogiGkeyGetMouseButtonString(button));
+}
+
+QString GKeyLibrary::getKeyboardGkeyString(int key, int mode) {
+	return QString::fromWCharArray(LogiGkeyGetKeyboardGkeyString(key, mode));
 }
