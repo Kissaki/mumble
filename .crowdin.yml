@@ -1,0 +1,3 @@
+files:
+  - source: /src/mumble/
+    translation: /mumble_%two_letters_code%.ts
