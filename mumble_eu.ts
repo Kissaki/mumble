@@ -3,48 +3,88 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "DeveloperConsole.h"
+#ifndef MUMBLE_MUMBLE_DATABASE_H_
+#define MUMBLE_MUMBLE_DATABASE_H_
 
-#include "LogEmitter.h"
+#include "Settings.h"
+#include "UnresolvedServerAddress.h"
+#include <QSqlDatabase>
 
-#include <QtWidgets/QTextBrowser>
+struct FavoriteServer {
+	QString qsName;
+	QString qsUsername;
+	QString qsPassword;
+	QString qsHostname;
+	QString qsUrl;
+	unsigned short usPort;
+};
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+class Database : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Database)
 
-DeveloperConsole::DeveloperConsole(QObject *parent) : QObject(parent) {
-	connect(g.le.data(), SIGNAL(newLogEntry(const QString &)), this, SLOT(addLogMessage(const QString &)));
-}
+	QSqlDatabase db;
+	/// This function is called when no database location is configured
+	/// in the config file. It tries to find an existing database file and
+	/// creates a new one if none was found.
+	bool findOrCreateDatabase();
 
-DeveloperConsole::~DeveloperConsole() {
-	QMainWindow *mw = m_window.data();
-	delete mw;
-}
+public:
+	Database(const QString &dbname);
+	~Database() Q_DECL_OVERRIDE;
 
-void DeveloperConsole::show() {
-	if (m_window.isNull()) {
-		QMainWindow *mw = new QMainWindow();
-		mw->setAttribute(Qt::WA_DeleteOnClose);
-		QTextBrowser *tb = new QTextBrowser();
-		mw->resize(675, 300);
-		mw->setCentralWidget(tb);
-		mw->setWindowTitle(tr("Developer Console"));
+	QList< FavoriteServer > getFavorites();
+	void setFavorites(const QList< FavoriteServer > &servers);
+	void setPassword(const QString &host, unsigned short port, const QString &user, const QString &pw);
+	bool fuzzyMatch(QString &name, QString &user, QString &pw, QString &host, unsigned short port);
 
-		connect(g.le.data(), SIGNAL(newLogEntry(const QString &)), tb, SLOT(append(const QString &)));
+	bool isLocalIgnored(const QString &hash);
+	void setLocalIgnored(const QString &hash, bool ignored);
 
-		foreach (const QString &m, m_logEntries)
-			tb->append(m);
-		m_window = QPointer< QMainWindow >(mw);
-	}
+	bool isLocalIgnoredTTS(const QString &hash);
+	void setLocalIgnoredTTS(const QString &hash, bool ignoredTTS);
 
-	m_window.data()->show();
-	m_window.data()->activateWindow();
-}
+	bool isLocalMuted(const QString &hash);
+	void setLocalMuted(const QString &hash, bool muted);
 
-void DeveloperConsole::addLogMessage(const QString &msg) {
-	if (m_logEntries.count() >= 1000)
-		m_logEntries.removeFirst();
+	float getUserLocalVolume(const QString &hash);
+	void setUserLocalVolume(const QString &hash, float volume);
 
-	m_logEntries.append(msg);
-}
+	bool isChannelFiltered(const QByteArray &server_cert_digest, const int channel_id);
+	void setChannelFiltered(const QByteArray &server_cert_digest, const int channel_id, bool hidden);
+
+	QMap< UnresolvedServerAddress, unsigned int > getPingCache();
+	void setPingCache(const QMap< UnresolvedServerAddress, unsigned int > &cache);
+
+	bool seenComment(const QString &hash, const QByteArray &commenthash);
+	void setSeenComment(const QString &hash, const QByteArray &commenthash);
+
+	QByteArray blob(const QByteArray &hash);
+	void setBlob(const QByteArray &hash, const QByteArray &blob);
+
+	QStringList getTokens(const QByteArray &digest);
+	void setTokens(const QByteArray &digest, QStringList &tokens);
+
+	QList< Shortcut > getShortcuts(const QByteArray &digest);
+	bool setShortcuts(const QByteArray &digest, QList< Shortcut > &shortcuts);
+
+	void addFriend(const QString &name, const QString &hash);
+	void removeFriend(const QString &hash);
+	const QString getFriend(const QString &hash);
+	const QMap< QString, QString > getFriends();
+
+	const QString getDigest(const QString &hostname, unsigned short port);
+	void setDigest(const QString &hostname, unsigned short port, const QString &digest);
+
+	bool getUdp(const QByteArray &digest);
+	void setUdp(const QByteArray &digest, bool udp);
+
+	QList< int > getChannelListeners(const QByteArray &digest);
+	void setChannelListeners(const QByteArray &digest, const QSet< int > &channelIDs);
+
+	QHash< int, float > getChannelListenerLocalVolumeAdjustments(const QByteArray &digest);
+	void setChannelListenerLocalVolumeAdjustments(const QByteArray &digest, const QHash< int, float > &volumeMap);
+};
+
+#endif
