@@ -3,34 +3,58 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TEXTTOSPEECH_H_
-#define MUMBLE_MUMBLE_TEXTTOSPEECH_H_
+#include "TextToSpeech.h"
 
-#include <QtCore/QObject>
+#include <QTextToSpeech>
 
-class TextToSpeechPrivate;
-
-class TextToSpeech : public QObject {
-	friend class TextToSpeechPrivate;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(TextToSpeech)
-	Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled)
-protected:
-	bool enabled;
-
+class TextToSpeechPrivate {
 public:
-	TextToSpeech(QObject *parent = nullptr);
-	~TextToSpeech() Q_DECL_OVERRIDE;
-	bool isEnabled() const;
-public slots:
+	QTextToSpeech *m_tts;
+	QVector< QVoice > m_voices;
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
 	void say(const QString &text);
-	void setEnabled(bool ena);
-	void setVolume(int volume);
-
-private:
-	TextToSpeechPrivate *d;
+	void setVolume(int v);
 };
 
-#endif
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	m_tts = new QTextToSpeech();
+}
+
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	delete m_tts;
+}
+
+void TextToSpeechPrivate::say(const QString &text) {
+	m_tts->say(text);
+}
+
+void TextToSpeechPrivate::setVolume(int volume) {
+	m_tts->setVolume(volume);
+}
+
+TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+	enabled = true;
+	d       = new TextToSpeechPrivate();
+}
+
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
+
+void TextToSpeech::say(const QString &text) {
+	if (enabled)
+		d->say(text);
+}
+
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
+
+void TextToSpeech::setVolume(int volume) {
+	d->setVolume(volume);
+}
+
+bool TextToSpeech::isEnabled() const {
+	return enabled;
+}
