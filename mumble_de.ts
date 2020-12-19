@@ -3,35 +3,100 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OSS_H_
-#define MUMBLE_MUMBLE_OSS_H_
+#include "OpusCodec.h"
 
-#include "AudioInput.h"
-#include "AudioOutput.h"
+#include "Audio.h"
+#include "MumbleApplication.h"
+#include "Version.h"
 
-class OSSInput : public AudioInput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(OSSInput)
-protected:
-	void release();
-
-public:
-	OSSInput();
-	~OSSInput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
-};
-
-class OSSOutput : public AudioOutput {
-	friend class OSSUser;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(OSSOutput)
-public:
-	OSSOutput();
-	~OSSOutput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
-};
-
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                        \
+		{                                                                       \
+			var    = reinterpret_cast< __typeof__(var) >(qlOpus.resolve(#var)); \
+			bValid = bValid && var;                                             \
+		}
+#else
+#	define RESOLVE(var)                                                                      \
+		{                                                                                     \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlOpus.resolve(#var)); \
+			bValid                             = bValid && var;                               \
+		}
 #endif
+
+OpusCodec::OpusCodec() {
+	bValid = false;
+	qlOpus.setLoadHints(QLibrary::ResolveAllSymbolsHint);
+
+	QStringList alternatives;
+#if defined(Q_OS_MAC)
+	alternatives << QString::fromLatin1("libopus0.dylib");
+	alternatives << QString::fromLatin1("opus0.dylib");
+	alternatives << QString::fromLatin1("libopus.dylib");
+	alternatives << QString::fromLatin1("opus.dylib");
+#elif defined(Q_OS_UNIX)
+	alternatives << QString::fromLatin1("libopus.so.0");
+	alternatives << QString::fromLatin1("libopus0.so");
+	alternatives << QString::fromLatin1("libopus.so");
+	alternatives << QString::fromLatin1("opus.so");
+#else
+	alternatives << QString::fromLatin1("opus0.dll");
+	alternatives << QString::fromLatin1("opus.dll");
+#endif
+	foreach (const QString &lib, alternatives) {
+		qlOpus.setFileName(MumbleApplication::instance()->applicationVersionRootPath() + QLatin1String("/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+
+#ifdef Q_OS_MAC
+		qlOpus.setFileName(QApplication::instance()->applicationDirPath() + QLatin1String("/../Codecs/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
+
+#ifdef MUMBLE_LIBRARY_PATH
+		qlOpus.setFileName(QLatin1String(MUMTEXT(MUMBLE_LIBRARY_PATH) "/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
+
+		qlOpus.setFileName(lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+	}
+
+	RESOLVE(opus_get_version_string);
+
+	RESOLVE(opus_encode);
+	RESOLVE(opus_decode_float);
+
+	RESOLVE(opus_encoder_create);
+	RESOLVE(opus_encoder_ctl);
+	RESOLVE(opus_encoder_destroy);
+	RESOLVE(opus_decoder_create);
+	RESOLVE(opus_decoder_ctl);
+	RESOLVE(opus_decoder_destroy);
+
+	RESOLVE(opus_decoder_get_nb_samples);
+
+	RESOLVE(opus_packet_get_samples_per_frame);
+}
+
+OpusCodec::~OpusCodec() {
+	qlOpus.unload();
+}
+
+bool OpusCodec::isValid() const {
+	return bValid;
+}
+
+void OpusCodec::report() const {
+	qDebug("%s from %s", opus_get_version_string(), qPrintable(qlOpus.fileName()));
+}
