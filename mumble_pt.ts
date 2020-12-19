@@ -3,90 +3,49 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "PathListWidget.h"
+#ifndef MUMBLE_MUMBLE_OPUSCODEC_H_
+#define MUMBLE_MUMBLE_OPUSCODEC_H_
 
-#include "Overlay.h"
+#include <opus.h>
 
-#include <QtCore/QDir>
-#include <QtCore/QFile>
-#include <QtCore/QMimeData>
-#include <QtGui/QDragEnterEvent>
-#include <QtGui/QDragMoveEvent>
-#include <QtGui/QDropEvent>
+#include <QtCore/QLibrary>
 
-PathListWidget::PathListWidget(QWidget *parent) : QListWidget(parent), pathType(FILE_EXE) {
-	setAcceptDrops(true);
-}
+#ifndef Q_OS_WIN
+#	define __cdecl
+#endif
 
-void PathListWidget::setPathType(PathType type) {
-	pathType = type;
-}
+/// Loads Opus from a shared library and acts as a wrapper for its functions.
+class OpusCodec {
+private:
+	Q_DISABLE_COPY(OpusCodec)
+protected:
+	QLibrary qlOpus;
+	bool bValid;
 
-void PathListWidget::addFilePath(const QString &path) {
-	QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(path);
-	QStringList qslIdentifiers;
-	for (int i = 0; i < count(); i++) {
-		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
-	}
-	if (!qslIdentifiers.contains(qsAppIdentifier)) {
-		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
-		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, this);
-		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
-		setCurrentItem(qlwiApplication);
-	}
-}
+public:
+	OpusCodec();
+	virtual ~OpusCodec();
 
-void PathListWidget::addFolderPath(const QString &path) {
-	QString dir = QDir::toNativeSeparators(path);
-	QStringList qslIdentifiers;
-	for (int i = 0; i < count(); i++) {
-		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
-	}
-	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
-		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), QDir(dir).path(), this);
-		qlwiPath->setData(Qt::UserRole, QVariant(dir));
-		setCurrentItem(qlwiPath);
-	}
-}
+	bool isValid() const;
+	void report() const;
 
-void PathListWidget::checkAcceptDragEvent(QDropEvent *event, bool store) {
-	if (event->mimeData()->hasUrls()) {
-		foreach (QUrl url, event->mimeData()->urls()) {
-			if (url.isLocalFile()) {
-				QFileInfo info(url.toLocalFile());
-				switch (pathType) {
-					case FILE_EXE:
-						if (info.isFile() && info.isExecutable()) {
-							if (store) {
-								addFilePath(info.filePath());
-							}
-							event->setDropAction(Qt::LinkAction);
-							event->accept();
-						}
-						break;
-					case FOLDER:
-						if (info.isDir()) {
-							if (store) {
-								addFolderPath(url.toLocalFile());
-							}
-							event->setDropAction(Qt::LinkAction);
-							event->accept();
-						}
-						break;
-				}
-			}
-		}
-	}
-}
+	const char *(__cdecl *opus_get_version_string)();
 
-void PathListWidget::dragEnterEvent(QDragEnterEvent *event) {
-	checkAcceptDragEvent(event, false);
-}
+	OpusEncoder *(__cdecl *opus_encoder_create)(opus_int32 Fs, int channels, int application, int *error);
+	int(__cdecl *opus_encoder_ctl)(OpusEncoder *st, int request, ...);
+	void(__cdecl *opus_encoder_destroy)(OpusEncoder *st);
+	OpusDecoder *(__cdecl *opus_decoder_create)(opus_int32 Fs, int channels, int *error);
+	int(__cdecl *opus_decoder_ctl)(OpusDecoder *st, int request, ...);
+	void(__cdecl *opus_decoder_destroy)(OpusDecoder *st);
 
-void PathListWidget::dragMoveEvent(QDragMoveEvent *event) {
-	checkAcceptDragEvent(event, false);
-}
+	int(__cdecl *opus_encode)(OpusEncoder *st, const opus_int16 *pcm, int frame_size, unsigned char *compressed,
+							  int nbCompressedBytes);
+	int(__cdecl *opus_decode_float)(OpusDecoder *st, const unsigned char *data, opus_int32 len, float *pcm,
+									int frame_size, int decode_fec);
 
-void PathListWidget::dropEvent(QDropEvent *event) {
-	checkAcceptDragEvent(event, true);
-}
+	int(__cdecl *opus_decoder_get_nb_samples)(OpusDecoder *st, const unsigned char packet[], opus_int32 len);
+
+	int(__cdecl *opus_packet_get_samples_per_frame)(const unsigned char *data, opus_int32 Fs);
+};
+
+#endif // OPUSCODEC_H_
