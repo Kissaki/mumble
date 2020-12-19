@@ -1,21 +1,36 @@
-# This file controls whether the translations foudn in this
-# directory are simply a fallback for the cases in which Qt
-# doesn't ship with its own translation for that locale or
-# whether our translations are actually enforced (aka they
-# overwrite Qt's)
-#
-# A line starting with a # is interpreted as a comment and is
-# discarded
-# All non-empty lines that are no comment have to be in the format
-# <operator> <fileName>
-# where <operator> is either fallback or overwrite (or override)
-#
-# To provide translation file x.ts as a fallback use
-# fallback x.ts
-# to force its usage use
-# overwrite x.ts
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-fallback qt_it.ts
-fallback qt_nl.ts
-fallback qt_tr.ts
-overwrite qt_zh_CN.ts
+#include "MUComboBox.h"
+
+#include <QtWidgets/QListView>
+
+MUComboBox::MUComboBox(QWidget *parent) : QComboBox(parent) {
+	// Set the QComboBox to be backed by a QListView.
+	// By default on macOS, QComboBoxes are backed by
+	// something that tries to emulate a native macOS
+	// menu.
+	//
+	// However, that QAbstractItemView behaves
+	// inconsistently when styled. For example, it does
+	// not seem possible to set the size of individual
+	// items, because they're restricted to the height
+	// of a normal macOS menu item.
+	// Also, at least for this QComboBox (which lives
+	// inside a QToolbar), the height of the QAbstractItemView
+	// was also wrong when styled. This caused the combo box
+	// to always scroll, even though it seemingly was sized
+	// correctly.
+	//
+	// To get consistent behavior, we use QListView instead.
+	QListView *lv = new QListView();
+	// Don't show ellipses. In this combo box, the
+	// text does fit -- and is resized automatically to fit.
+	// But ellipses are added anyway.
+	// So, forcefully disable them.
+	lv->setTextElideMode(Qt::ElideNone);
+
+	this->setView(lv);
+}
