@@ -3,308 +3,134 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ClientUser.h"
+#include "DBus.h"
 
-#include "AudioOutput.h"
 #include "Channel.h"
+#include "ClientUser.h"
+#include "MainWindow.h"
+#include "ServerHandler.h"
+
+#include <QtCore/QUrlQuery>
+#include <QtDBus/QDBusConnection>
+#include <QtDBus/QDBusMessage>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-QHash< unsigned int, ClientUser * > ClientUser::c_qmUsers;
-QReadWriteLock ClientUser::c_qrwlUsers;
-
-QList< ClientUser * > ClientUser::c_qlTalking;
-QReadWriteLock ClientUser::c_qrwlTalking;
-
-ClientUser::ClientUser(QObject *p)
-	: QObject(p), tsState(Settings::Passive), tLastTalkStateChange(false), bLocalIgnore(false), bLocalIgnoreTTS(false),
-	  bLocalMute(false), fPowerMin(0.0f), fPowerMax(0.0f), fAverageAvailable(0.0f), iFrames(0), iSequence(0) {
+MumbleDBus::MumbleDBus(QObject *mw) : QDBusAbstractAdaptor(mw) {
 }
 
-float ClientUser::getLocalVolumeAdjustments() const {
-	return m_localVolume;
-}
-
-ClientUser *ClientUser::get(unsigned int uiSession) {
-	QReadLocker lock(&c_qrwlUsers);
-	ClientUser *p = c_qmUsers.value(uiSession);
-	return p;
-}
-
-QList< ClientUser * > ClientUser::getTalking() {
-	QReadLocker lock(&c_qrwlTalking);
-	return c_qlTalking;
-}
-
-QList< ClientUser * > ClientUser::getActive() {
-	QReadLocker lock(&c_qrwlUsers);
-	QList< ClientUser * > activeUsers;
-	foreach (ClientUser *cu, c_qmUsers) {
-		if (cu->isActive())
-			activeUsers << cu;
-	}
-	return activeUsers;
-}
-
-bool ClientUser::isValid(unsigned int uiSession) {
-	QReadLocker lock(&c_qrwlUsers);
-
-	return c_qmUsers.contains(uiSession);
-}
-
-ClientUser *ClientUser::add(unsigned int uiSession, QObject *po) {
-	QWriteLocker lock(&c_qrwlUsers);
-
-	ClientUser *p        = new ClientUser(po);
-	p->uiSession         = uiSession;
-	c_qmUsers[uiSession] = p;
-	return p;
-}
-
-ClientUser *ClientUser::match(const ClientUser *other, bool matchname) {
-	QReadLocker lock(&c_qrwlUsers);
-
-	ClientUser *p;
-	foreach (p, c_qmUsers) {
-		if (p == other)
-			continue;
-		if ((p->iId >= 0) && (p->iId == other->iId))
-			return p;
-		if (matchname && (p->qsName == other->qsName))
-			return p;
-	}
-	return nullptr;
-}
-
-void ClientUser::remove(unsigned int uiSession) {
-	ClientUser *p;
-	{
-		QWriteLocker lock(&c_qrwlUsers);
-		p = c_qmUsers.take(uiSession);
-
-		if (p) {
-			if (p->cChannel)
-				p->cChannel->removeUser(p);
-
-			if (p->tsState != Settings::Passive) {
-				QWriteLocker writeLock(&c_qrwlTalking);
-				c_qlTalking.removeAll(p);
-			}
-		}
-	}
-
-	if (p) {
-		AudioOutputPtr ao = g.ao;
-		if (ao) {
-			// It is safe to call this function and to give the ClientUser pointer
-			// to it even though we don't hold the lock anymore as it will only take
-			// the pointer to use as the key in a HashMap lookup. At no point in the
-			// code triggered by this function call will the ClientUser pointer be
-			// dereferenced.
-			// Furthermore ClientUser objects are deleted in UserModel::removeUser which
-			// calls this very function before doing so. Thus the object shouldn't be
-			// deleted before this function returns anyways.
-			ao->removeBuffer(p);
-		}
+void MumbleDBus::openUrl(const QString &url, const QDBusMessage &msg) {
+	QUrl u     = QUrl::fromEncoded(url.toLatin1());
+	bool valid = u.isValid();
+	valid      = valid && (u.scheme() == QLatin1String("mumble"));
+	if (!valid) {
+		QDBusConnection::sessionBus().send(
+			msg.createErrorReply(QLatin1String("net.sourceforge.mumble.Error.url"), QLatin1String("Invalid URL")));
+	} else {
+		g.mw->openUrl(u);
 	}
 }
 
-void ClientUser::remove(ClientUser *p) {
-	remove(p->uiSession);
-}
-
-QString ClientUser::getFlagsString() const {
-	QStringList flags;
-
-	if (!qsFriendName.isEmpty())
-		flags << ClientUser::tr("Friend");
-	if (iId >= 0)
-		flags << ClientUser::tr("Authenticated");
-	if (bPrioritySpeaker)
-		flags << ClientUser::tr("Priority speaker");
-	if (bRecording)
-		flags << ClientUser::tr("Recording");
-	if (bMute)
-		flags << ClientUser::tr("Muted (server)");
-	if (bDeaf)
-		flags << ClientUser::tr("Deafened (server)");
-	if (bLocalIgnore)
-		flags << ClientUser::tr("Local Ignore (Text messages)");
-	if (bLocalIgnoreTTS)
-		flags << ClientUser::tr("Local Ignore (Text-To-Speech)");
-	if (bLocalMute)
-		flags << ClientUser::tr("Local Mute");
-	if (bSelfMute)
-		flags << ClientUser::tr("Muted (self)");
-	if (bSelfDeaf)
-		flags << ClientUser::tr("Deafened (self)");
-
-	return flags.join(QLatin1String(", "));
-}
-
-void ClientUser::setTalking(Settings::TalkState ts) {
-	if (tsState == ts)
+void MumbleDBus::getCurrentUrl(const QDBusMessage &msg) {
+	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
+		QDBusConnection::sessionBus().send(msg.createErrorReply(
+			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
 		return;
-
-	bool nstate = false;
-	if (ts == Settings::Passive)
-		nstate = true;
-	else if (tsState == Settings::Passive)
-		nstate = true;
-
-	tsState = ts;
-	tLastTalkStateChange.restart();
-	emit talkingStateChanged();
-
-	if (nstate && cChannel) {
-		QWriteLocker lock(&c_qrwlTalking);
-		if (ts == Settings::Passive)
-			c_qlTalking.removeAll(this);
-		else
-			c_qlTalking << this;
 	}
-}
+	QString host, user, pw;
+	unsigned short port;
+	QUrl u;
 
-void ClientUser::setMute(bool mute) {
-	if (bMute == mute)
-		return;
-	bMute = mute;
-	if (!bMute)
-		bDeaf = false;
-	emit muteDeafStateChanged();
-}
+	g.sh->getConnectionInfo(host, port, user, pw);
+	u.setScheme(QLatin1String("mumble"));
+	u.setHost(host);
+	u.setPort(port);
+	u.setUserName(user);
 
-void ClientUser::setSuppress(bool suppress) {
-	if (bSuppress == suppress)
-		return;
-	bSuppress = suppress;
-	emit muteDeafStateChanged();
-}
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
+	u.setQuery(query);
 
-void ClientUser::setLocalIgnore(bool ignore) {
-	if (bLocalIgnore == ignore)
-		return;
-	bLocalIgnore = ignore;
-	emit muteDeafStateChanged();
-}
-
-void ClientUser::setLocalIgnoreTTS(bool ignoreTTS) {
-	bLocalIgnoreTTS = ignoreTTS;
-}
-
-void ClientUser::setLocalMute(bool mute) {
-	if (bLocalMute == mute)
-		return;
-	bLocalMute = mute;
-	emit muteDeafStateChanged();
-}
-
-void ClientUser::setDeaf(bool deaf) {
-	bDeaf = deaf;
-	if (bDeaf)
-		bMute = true;
-	emit muteDeafStateChanged();
-}
-
-void ClientUser::setSelfMute(bool mute) {
-	bSelfMute = mute;
-	if (!mute)
-		bSelfDeaf = false;
-	emit muteDeafStateChanged();
-}
-
-void ClientUser::setSelfDeaf(bool deaf) {
-	bSelfDeaf = deaf;
-	if (deaf)
-		bSelfMute = true;
-	emit muteDeafStateChanged();
-}
-
-void ClientUser::setPrioritySpeaker(bool priority) {
-	if (bPrioritySpeaker == priority)
-		return;
-	bPrioritySpeaker = priority;
-	emit prioritySpeakerStateChanged();
-}
-
-void ClientUser::setRecording(bool recording) {
-	if (bRecording == recording)
-		return;
-	bRecording = recording;
-	emit recordingStateChanged();
-}
-
-void ClientUser::setLocalVolumeAdjustment(float adjustment) {
-	float oldAdjustment = m_localVolume;
-	m_localVolume       = adjustment;
-
-	emit localVolumeAdjustmentsChanged(m_localVolume, oldAdjustment);
-}
-
-bool ClientUser::lessThanOverlay(const ClientUser *first, const ClientUser *second) {
-	if (g.s.os.osSort == OverlaySettings::LastStateChange) {
-		// Talkers above non-talkers
-		if (first->tsState != Settings::Passive && second->tsState == Settings::Passive)
-			return true;
-		if (first->tsState == Settings::Passive && second->tsState != Settings::Passive)
-			return false;
-
-		// Valid time above invalid time (possible when there wasn't a state-change yet)
-		if (first->tLastTalkStateChange.isStarted() && !second->tLastTalkStateChange.isStarted())
-			return true;
-		if (!first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted())
-			return false;
-
-		// If both have a valid time
-		if (first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted()) {
-			// Among talkers, long > short
-			// (if two clients are talking, the client that started first is above the other)
-			if (first->tsState != Settings::Passive && second->tsState != Settings::Passive)
-				return first->tLastTalkStateChange > second->tLastTalkStateChange;
-
-			// Among non-talkers, short -> long
-			// (if two clients are passive, the client that most recently stopped talking is above)
-			if (first->tsState == Settings::Passive && second->tsState == Settings::Passive)
-				return first->tLastTalkStateChange < second->tLastTalkStateChange;
-		}
-
-		// If both times are invalid, fall back to alphabetically (continuing below)
+	QStringList path;
+	Channel *c = ClientUser::get(g.uiSession)->cChannel;
+	while (c->cParent) {
+		path.prepend(c->qsName);
+		c = c->cParent;
 	}
-
-	if (first->cChannel == second->cChannel || !first->cChannel || !second->cChannel)
-		return lessThan(first, second);
-
-	// When sorting for the overlay always place the local users
-	// channel above the others
-	ClientUser *self = c_qmUsers.value(g.uiSession);
-	if (self) {
-		if (self->cChannel == first->cChannel)
-			return true;
-		else if (self->cChannel == second->cChannel)
-			return false;
+	QString fullpath = path.join(QLatin1String("/"));
+	// Make sure fullpath starts with a slash for non-empty paths. Setting
+	// a path without a leading slash clears the whole QUrl.
+	if (!fullpath.isEmpty()) {
+		fullpath.prepend(QLatin1String("/"));
 	}
-
-	return Channel::lessThan(first->cChannel, second->cChannel);
+	u.setPath(fullpath);
+	QDBusConnection::sessionBus().send(msg.createReply(QString::fromLatin1(u.toEncoded())));
 }
 
-void ClientUser::sortUsersOverlay(QList< ClientUser * > &list) {
-	QReadLocker lock(&c_qrwlUsers);
-
-	std::sort(list.begin(), list.end(), ClientUser::lessThanOverlay);
+void MumbleDBus::getTalkingUsers(const QDBusMessage &msg) {
+	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
+		QDBusConnection::sessionBus().send(msg.createErrorReply(
+			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
+		return;
+	}
+	QStringList names;
+	foreach (ClientUser *cu, ClientUser::getTalking()) { names.append(cu->qsName); }
+	QDBusConnection::sessionBus().send(msg.createReply(names));
 }
 
-bool ClientUser::isActive() {
-	if (tsState != Settings::Passive)
-		return true;
-
-	if (!tLastTalkStateChange.isStarted())
-		return false;
-
-	return tLastTalkStateChange.elapsed() < g.s.os.uiActiveTime * 1000000U;
+void MumbleDBus::focus() {
+	g.mw->show();
+	g.mw->raise();
+	g.mw->activateWindow();
 }
 
-/* From Channel.h
- */
-void Channel::addClientUser(ClientUser *p) {
-	addUser(p);
-	p->setParent(this);
+void MumbleDBus::setTransmitMode(unsigned int mode, const QDBusMessage &msg) {
+	switch (mode) {
+		case 0:
+			g.s.atTransmit = Settings::Continuous;
+			break;
+		case 1:
+			g.s.atTransmit = Settings::VAD;
+			break;
+		case 2:
+			g.s.atTransmit = Settings::PushToTalk;
+			break;
+		default:
+			QDBusConnection::sessionBus().send(msg.createErrorReply(
+				QLatin1String("net.sourceforge.mumble.Error.transmitMode"), QLatin1String("Invalid transmit mode")));
+			return;
+	}
+	QMetaObject::invokeMethod(g.mw, "updateTransmitModeComboBox", Qt::QueuedConnection);
+}
+
+unsigned int MumbleDBus::getTransmitMode() {
+	return g.s.atTransmit;
+}
+
+void MumbleDBus::setSelfMuted(bool mute) {
+	g.mw->qaAudioMute->setChecked(!mute);
+	g.mw->qaAudioMute->trigger();
+}
+
+void MumbleDBus::setSelfDeaf(bool deafen) {
+	g.mw->qaAudioDeaf->setChecked(!deafen);
+	g.mw->qaAudioDeaf->trigger();
+}
+
+bool MumbleDBus::isSelfMuted() {
+	return g.s.bMute;
+}
+
+bool MumbleDBus::isSelfDeaf() {
+	return g.s.bDeaf;
+}
+
+void MumbleDBus::startTalking() {
+	g.mw->on_PushToTalk_triggered(true, QVariant());
+}
+
+void MumbleDBus::stopTalking() {
+	g.mw->on_PushToTalk_triggered(false, QVariant());
 }
