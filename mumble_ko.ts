@@ -3,464 +3,89 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "PAAudio.h"
+#ifndef MUMBLE_MUMBLE_PLUGINS_H_
+#define MUMBLE_MUMBLE_PLUGINS_H_
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include "ConfigDialog.h"
 
-#ifdef Q_CC_GNU
-#	define RESOLVE(var)                                                          \
-		{                                                                         \
-			var = reinterpret_cast< __typeof__(var) >(qlPortAudio.resolve(#var)); \
-			if (!var)                                                             \
-				return;                                                           \
-		}
-#else
-#	define RESOLVE(var)                                                                           \
-		{                                                                                          \
-			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlPortAudio.resolve(#var)); \
-			if (!var)                                                                              \
-				return;                                                                            \
-		}
-#endif
+#include "ui_Plugins.h"
 
-static std::unique_ptr< PortAudioSystem > pas;
-
-class PortAudioInputRegistrar : public AudioInputRegistrar {
-private:
-	AudioInput *create() Q_DECL_OVERRIDE;
-	const QList< audioDevice > getDeviceChoices() Q_DECL_OVERRIDE;
-	void setDeviceChoice(const QVariant &, Settings &) Q_DECL_OVERRIDE;
-	bool canEcho(const QString &) const Q_DECL_OVERRIDE;
-
-public:
-	PortAudioInputRegistrar();
-};
-
-class PortAudioOutputRegistrar : public AudioOutputRegistrar {
-private:
-	AudioOutput *create() Q_DECL_OVERRIDE;
-	const QList< audioDevice > getDeviceChoices() Q_DECL_OVERRIDE;
-	void setDeviceChoice(const QVariant &, Settings &) Q_DECL_OVERRIDE;
-
-public:
-	PortAudioOutputRegistrar();
-};
-
-class PortAudioInit : public DeferInit {
-private:
-	std::unique_ptr< PortAudioInputRegistrar > airPortAudio;
-	std::unique_ptr< PortAudioOutputRegistrar > aorPortAudio;
-	void initialize();
-	void destroy();
-};
-
-PortAudioInputRegistrar::PortAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("PortAudio")) {
-}
-
-AudioInput *PortAudioInputRegistrar::create() {
-	return new PortAudioInput();
-}
-
-const QList< audioDevice > PortAudioInputRegistrar::getDeviceChoices() {
-	return pas->enumerateDevices(true, g.s.iPortAudioInput);
-}
-
-void PortAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
-	s.iPortAudioInput = choice.toInt();
-}
-
-bool PortAudioInputRegistrar::canEcho(const QString &) const {
-	return false;
-}
-
-PortAudioOutputRegistrar::PortAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("PortAudio")) {
-}
-
-AudioOutput *PortAudioOutputRegistrar::create() {
-	return new PortAudioOutput();
-}
-
-const QList< audioDevice > PortAudioOutputRegistrar::getDeviceChoices() {
-	return pas->enumerateDevices(false, g.s.iPortAudioOutput);
-}
-
-void PortAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
-	s.iPortAudioOutput = choice.toInt();
-}
-
-void PortAudioInit::initialize() {
-	pas.reset(new PortAudioSystem());
-
-	pas->qmWait.lock();
-	pas->qwcWait.wait(&pas->qmWait, 1000);
-	pas->qmWait.unlock();
-
-	if (pas->bOk) {
-		airPortAudio.reset(new PortAudioInputRegistrar());
-		aorPortAudio.reset(new PortAudioOutputRegistrar());
-	} else {
-		pas.reset();
-	}
-}
-
-void PortAudioInit::destroy() {
-	airPortAudio.reset();
-	aorPortAudio.reset();
-	pas.reset();
-}
-
-// Instantiate PortAudioSystem, PortAudioInputRegistrar and PortAudioOutputRegistrar
-static PortAudioInit pai;
-
-PortAudioSystem::PortAudioSystem() : bOk(false) {
-	QStringList alternatives;
 #ifdef Q_OS_WIN
-	alternatives << QLatin1String("portaudio_x64.dll");
-	alternatives << QLatin1String("portaudio_x86.dll");
-#elif defined(Q_OS_MAC)
-	alternatives << QLatin1String("libportaudio.dylib");
-	alternatives << QLatin1String("libportaudio.2.dylib");
-#else
-	alternatives << QLatin1String("libportaudio.so");
-	alternatives << QLatin1String("libportaudio.so.2");
+#	include "win.h"
 #endif
-	for (const auto &lib : alternatives) {
-		qlPortAudio.setFileName(lib);
-		if (qlPortAudio.load()) {
-			break;
-		}
-	}
 
-	if (!qlPortAudio.isLoaded()) {
-		return;
-	}
-
-	RESOLVE(Pa_GetVersionText)
-	RESOLVE(Pa_GetErrorText)
-	RESOLVE(Pa_Initialize)
-	RESOLVE(Pa_Terminate)
-	RESOLVE(Pa_OpenStream)
-	RESOLVE(Pa_CloseStream)
-	RESOLVE(Pa_StartStream)
-	RESOLVE(Pa_StopStream)
-	RESOLVE(Pa_IsStreamActive)
-	RESOLVE(Pa_GetDefaultInputDevice)
-	RESOLVE(Pa_GetDefaultOutputDevice)
-	RESOLVE(Pa_HostApiDeviceIndexToDeviceIndex)
-	RESOLVE(Pa_GetHostApiCount)
-	RESOLVE(Pa_GetHostApiInfo)
-	RESOLVE(Pa_GetDeviceInfo)
-
-	const auto ret = Pa_Initialize();
-	if (ret != paNoError) {
-		qWarning("PortAudioSystem: failed to initialize library - Pa_Initialize() returned: %s", Pa_GetErrorText(ret));
-		return;
-	}
-
-	bOk = true;
-
-	qDebug("%s from %s", Pa_GetVersionText(), qPrintable(qlPortAudio.fileName()));
-}
-
-PortAudioSystem::~PortAudioSystem() {
-	if (bOk) {
-		const auto ret = Pa_Terminate();
-		if (ret != paNoError) {
-			qWarning("PortAudioSystem: failed to terminate library - Pa_Terminate() returned: %s",
-					 Pa_GetErrorText(ret));
-		}
-	}
-}
-
-const QList< audioDevice > PortAudioSystem::enumerateDevices(const bool input, const PaDeviceIndex current) {
-	QList< audioDevice > audioDevices;
-
-	if (!bOk) {
-		return audioDevices;
-	}
-
-	audioDevices << audioDevice(tr("Default device"), -1);
-
-	for (PaHostApiIndex apiIndex = 0; apiIndex < Pa_GetHostApiCount(); ++apiIndex) {
-		const auto *apiInfo = Pa_GetHostApiInfo(apiIndex);
-		if (!apiInfo) {
-			continue;
-		}
-
-		for (PaDeviceIndex apiDeviceIndex = 0; apiDeviceIndex < apiInfo->deviceCount; ++apiDeviceIndex) {
-			const auto deviceIndex = Pa_HostApiDeviceIndexToDeviceIndex(apiIndex, apiDeviceIndex);
-			const auto *deviceInfo = Pa_GetDeviceInfo(deviceIndex);
-			if (!deviceInfo) {
-				continue;
-			}
-
-			if ((input && (deviceInfo->maxInputChannels > 0)) || (!input && (deviceInfo->maxOutputChannels > 0))) {
-				audioDevices << audioDevice(
-					QLatin1String(apiInfo->name) + QLatin1String(": ") + QLatin1String(deviceInfo->name), deviceIndex);
-			}
-		}
-	}
-
-	for (auto i = 0; i < audioDevices.count(); ++i) {
-		if (audioDevices.at(i).second == current) {
-			// We want the current device to appear at the top of the list
-			audioDevice audioDevice = audioDevices.takeAt(i);
-			audioDevices.prepend(audioDevice);
-			break;
-		}
-	}
-
-	return audioDevices;
-}
-
-bool PortAudioSystem::isStreamRunning(PaStream *stream) {
-	if (!bOk || !stream) {
-		return false;
-	}
-
-	const auto ret = Pa_IsStreamActive(stream);
-	if (ret == 1) {
-		return true;
-	} else if (ret != 0) {
-		qWarning("PortAudioSystem: failed to determine stream status - Pa_IsStreamActive() returned: %s",
-				 Pa_GetErrorText(ret));
-	}
-
-	return false;
-}
-
-int PortAudioSystem::openStream(PaStream **stream, PaDeviceIndex device, const uint32_t frameSize, const bool isInput) {
-	if (!bOk || !stream) {
-		return 0;
-	}
-
-	QMutexLocker lock(&qmWait);
-
-	// -1 is the default device
-	if (device == -1) {
-		device = (isInput ? Pa_GetDefaultInputDevice() : Pa_GetDefaultOutputDevice());
-	}
-
-	const auto *devInfo = Pa_GetDeviceInfo(device);
-	if (!devInfo) {
-		qWarning("PortAudioSystem: failed to retrieve info about device %d - Pa_GetDeviceInfo() returned: nullptr",
-				 device);
-		return 0;
-	}
-
-	const auto *apiInfo = Pa_GetHostApiInfo(devInfo->hostApi);
-	if (!apiInfo) {
-		qWarning(
-			"PortAudioSystem: failed to retrieve info about API %d (device %d) - Pa_GetHostApiInfo() returned: nullptr",
-			devInfo->hostApi, device);
-		return 0;
-	}
-
-	qDebug("PortAudioSystem: using %s %s", apiInfo->name, devInfo->name);
-
-	PaStreamParameters streamPar;
-	streamPar.channelCount = 1;
-
-	if (!isInput && devInfo->maxOutputChannels > 1) {
-		// TODO: add support for more than 2 channels
-		streamPar.channelCount = 2;
-	}
-
-	streamPar.device           = device;
-	streamPar.sampleFormat     = paFloat32;
-	streamPar.suggestedLatency = (isInput ? devInfo->defaultLowInputLatency : devInfo->defaultLowOutputLatency);
-	streamPar.hostApiSpecificStreamInfo = nullptr;
-
-	const auto ret =
-		Pa_OpenStream(stream, isInput ? &streamPar : nullptr, isInput ? nullptr : &streamPar, SAMPLE_RATE, frameSize,
-					  paClipOff | paDitherOff, &streamCallback, reinterpret_cast< void * >(isInput));
-	if (ret != paNoError) {
-		qWarning("PortAudioSystem: failed to open stream - Pa_OpenStream() returned: %s", Pa_GetErrorText(ret));
-		*stream = nullptr;
-		return 0;
-	}
-
-	return streamPar.channelCount;
-}
-
-bool PortAudioSystem::closeStream(PaStream *stream) {
-	if (!bOk || !stream) {
-		return false;
-	}
-
-	QMutexLocker lock(&qmWait);
-
-	const auto ret = Pa_CloseStream(stream);
-	if (ret != paNoError) {
-		qWarning("PortAudioSystem: failed to close stream - Pa_CloseStream() returned: %s", Pa_GetErrorText(ret));
-		return false;
-	}
-
-	return true;
-}
-
-bool PortAudioSystem::startStream(PaStream *stream) {
-	if (!bOk) {
-		return false;
-	}
-
-	if (isStreamRunning(stream)) {
-		return true;
-	}
-
-	const auto ret = Pa_StartStream(stream);
-	if (ret != paNoError) {
-		qWarning("PortAudioSystem: failed to start stream - Pa_StartStream() returned: %s", Pa_GetErrorText(ret));
-		return false;
-	}
-
-	return true;
-}
-
-bool PortAudioSystem::stopStream(PaStream *stream) {
-	if (!bOk) {
-		return false;
-	}
-
-	if (!isStreamRunning(stream)) {
-		return true;
-	}
-
-	const auto ret = Pa_StopStream(stream);
-	if (ret != paNoError) {
-		qWarning("PortAudioSystem: failed to stop stream - Pa_StopStream() returned: %s", Pa_GetErrorText(ret));
-		return false;
-	}
-
-	return true;
-}
-
-int PortAudioSystem::streamCallback(const void *input, void *output, unsigned long frames,
-									const PaStreamCallbackTimeInfo *, PaStreamCallbackFlags, void *isInput) {
-	if (isInput) {
-		auto const pai = dynamic_cast< PortAudioInput * >(g.ai.get());
-		if (!pai) {
-			return paAbort;
-		}
-
-		pai->process(frames, input);
-	} else {
-		auto const pao = dynamic_cast< PortAudioOutput * >(g.ao.get());
-		if (!pao) {
-			return paAbort;
-		}
-
-		pao->process(frames, output);
-	}
-
-	return paContinue;
-}
-
-PortAudioInput::PortAudioInput() : stream(nullptr) {
-	iMicChannels = pas->openStream(&stream, g.s.iPortAudioInput, iFrameSize, true);
-	if (!iMicChannels) {
-		qWarning("PortAudioInput: failed to open stream");
-		return;
-	}
-
-	iMicFreq   = SAMPLE_RATE;
-	eMicFormat = SampleFloat;
-	initializeMixer();
-
-	if (!pas->startStream(stream)) {
-		qWarning("PortAudioInput: failed to start stream");
-	}
-}
-
-PortAudioInput::~PortAudioInput() {
-	// Request interruption
-	qmWait.lock();
-
-	if (!pas->stopStream(stream)) {
-		qWarning("PortAudioInput: failed to stop stream");
-	}
-
-	qwcSleep.wakeAll();
-	qmWait.unlock();
-
-	// Wait for thread to exit
-	wait();
-
-	// Cleanup
-	if (!pas->closeStream(stream)) {
-		qWarning("PortAudioInput: failed to close stream");
-	}
-}
-
-void PortAudioInput::process(const uint32_t frames, const void *buffer) {
-	addMic(buffer, frames);
-}
-
-void PortAudioInput::run() {
-	if (!pas->isStreamRunning(stream)) {
-		return;
-	}
-
-	// Pause thread until interruption is requested by the destructor
-	qmWait.lock();
-	qwcSleep.wait(&qmWait);
-	qmWait.unlock();
-}
-
-PortAudioOutput::PortAudioOutput() : stream(nullptr) {
-	iChannels = pas->openStream(&stream, g.s.iPortAudioOutput, iFrameSize, false);
-	if (!iChannels) {
-		qWarning("PortAudioOutput: failed to open stream");
-		return;
-	}
-
-	iMixerFreq    = SAMPLE_RATE;
-	eSampleFormat = SampleFloat;
-
-	const uint32_t channelsMask[]{ SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT };
-
-	initializeMixer(channelsMask);
-
-	if (!pas->startStream(stream)) {
-		qWarning("PortAudioOutput: failed to start stream");
-	}
-}
-
-PortAudioOutput::~PortAudioOutput() {
-	// Request interruption
-	qmWait.lock();
-
-	if (!pas->stopStream(stream)) {
-		qWarning("PortAudioOutput: failed to stop stream");
-	}
-
-	qwcSleep.wakeAll();
-	qmWait.unlock();
-
-	// Wait for thread to exit
-	wait();
-
-	// Cleanup
-	if (!pas->closeStream(stream)) {
-		qWarning("PortAudioOutput: failed to close stream");
-	}
-}
-
-void PortAudioOutput::process(const uint32_t frames, void *buffer) {
-	if (!mix(buffer, frames)) {
-		memset(buffer, 0, sizeof(float) * frames * iChannels);
-	}
-}
-
-void PortAudioOutput::run() {
-	if (!pas->isStreamRunning(stream)) {
-		return;
-	}
-
-	// Pause thread until interruption is requested by the destructor
-	qmWait.lock();
-	qwcSleep.wait(&qmWait);
-	qmWait.unlock();
-}
+#include <QtCore/QMutex>
+#include <QtCore/QObject>
+#include <QtCore/QReadWriteLock>
+#include <QtCore/QUrl>
+
+struct PluginInfo;
+
+class PluginConfig : public ConfigWidget, public Ui::PluginConfig {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PluginConfig)
+protected:
+	void refillPluginList();
+	PluginInfo *pluginForItem(QTreeWidgetItem *) const;
+
+public:
+	/// The unique name of this ConfigWidget
+	static const QString name;
+	PluginConfig(Settings &st);
+	virtual QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	virtual QIcon icon() const Q_DECL_OVERRIDE;
+public slots:
+	void save() const Q_DECL_OVERRIDE;
+	void load(const Settings &r) Q_DECL_OVERRIDE;
+	void on_qpbConfig_clicked();
+	void on_qpbAbout_clicked();
+	void on_qpbReload_clicked();
+	void on_qtwPlugins_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
+};
+
+struct PluginFetchMeta;
+
+class Plugins : public QObject {
+	friend class PluginConfig;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Plugins)
+protected:
+	QReadWriteLock qrwlPlugins;
+	QMutex qmPluginStrings;
+	QList< PluginInfo * > qlPlugins;
+	PluginInfo *locked;
+	PluginInfo *prevlocked;
+	void clearPlugins();
+	int iPluginTry;
+	QMap< QString, PluginFetchMeta > qmPluginFetchMeta;
+	QString qsSystemPlugins;
+	QString qsUserPlugins;
+#ifdef Q_OS_WIN
+	HANDLE hToken;
+	TOKEN_PRIVILEGES tpPrevious;
+	DWORD cbPrevious;
+#endif
+public:
+	std::string ssContext, ssContextSent;
+	std::wstring swsIdentity, swsIdentitySent;
+	bool bValid;
+	bool bUnlink;
+	float fPosition[3], fFront[3], fTop[3];
+	float fCameraPosition[3], fCameraFront[3], fCameraTop[3];
+
+	Plugins(QObject *p = nullptr);
+	~Plugins() Q_DECL_OVERRIDE;
+public slots:
+	void on_Timer_timeout();
+	void rescanPlugins();
+	bool fetch();
+	void checkUpdates();
+	void fetchedUpdatePAPlugins(QByteArray, QUrl);
+	void fetchedPAPluginDL(QByteArray, QUrl);
+};
+
+#endif
