@@ -3,134 +3,44 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "DBus.h"
+#ifndef MUMBLE_MUMBLE_DBUS_H_
+#define MUMBLE_MUMBLE_DBUS_H_
 
-#include "Channel.h"
-#include "ClientUser.h"
-#include "MainWindow.h"
-#include "ServerHandler.h"
+#include <QtDBus/QDBusAbstractAdaptor>
 
-#include <QtCore/QUrlQuery>
-#include <QtDBus/QDBusConnection>
-#include <QtDBus/QDBusMessage>
+class QDBusMessage;
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+class MumbleDBus : public QDBusAbstractAdaptor {
+private:
+	Q_OBJECT
+	Q_CLASSINFO("D-Bus Interface", "net.sourceforge.mumble.Mumble")
+	Q_DISABLE_COPY(MumbleDBus)
+	Q_PROPERTY(bool mute READ isSelfMuted WRITE setSelfMuted)
+	Q_PROPERTY(bool deaf READ isSelfDeaf WRITE setSelfDeaf)
+public:
+	MumbleDBus(QObject *parent);
+public slots:
+	void openUrl(const QString &url, const QDBusMessage &);
+	void getCurrentUrl(const QDBusMessage &);
+	void getTalkingUsers(const QDBusMessage &);
+	void focus();
 
-MumbleDBus::MumbleDBus(QObject *mw) : QDBusAbstractAdaptor(mw) {
-}
+	/// Change when Mumble transmits voice.
+	///
+	/// @param mode The new transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
+	void setTransmitMode(unsigned int mode, const QDBusMessage &);
 
-void MumbleDBus::openUrl(const QString &url, const QDBusMessage &msg) {
-	QUrl u     = QUrl::fromEncoded(url.toLatin1());
-	bool valid = u.isValid();
-	valid      = valid && (u.scheme() == QLatin1String("mumble"));
-	if (!valid) {
-		QDBusConnection::sessionBus().send(
-			msg.createErrorReply(QLatin1String("net.sourceforge.mumble.Error.url"), QLatin1String("Invalid URL")));
-	} else {
-		g.mw->openUrl(u);
-	}
-}
+	/// Get the current transmit mode.
+	///
+	/// @return The current transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
+	unsigned int getTransmitMode();
 
-void MumbleDBus::getCurrentUrl(const QDBusMessage &msg) {
-	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
-		QDBusConnection::sessionBus().send(msg.createErrorReply(
-			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
-		return;
-	}
-	QString host, user, pw;
-	unsigned short port;
-	QUrl u;
+	void setSelfMuted(bool mute);
+	void setSelfDeaf(bool deafen);
+	bool isSelfMuted();
+	bool isSelfDeaf();
+	void startTalking();
+	void stopTalking();
+};
 
-	g.sh->getConnectionInfo(host, port, user, pw);
-	u.setScheme(QLatin1String("mumble"));
-	u.setHost(host);
-	u.setPort(port);
-	u.setUserName(user);
-
-	QUrlQuery query;
-	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
-	u.setQuery(query);
-
-	QStringList path;
-	Channel *c = ClientUser::get(g.uiSession)->cChannel;
-	while (c->cParent) {
-		path.prepend(c->qsName);
-		c = c->cParent;
-	}
-	QString fullpath = path.join(QLatin1String("/"));
-	// Make sure fullpath starts with a slash for non-empty paths. Setting
-	// a path without a leading slash clears the whole QUrl.
-	if (!fullpath.isEmpty()) {
-		fullpath.prepend(QLatin1String("/"));
-	}
-	u.setPath(fullpath);
-	QDBusConnection::sessionBus().send(msg.createReply(QString::fromLatin1(u.toEncoded())));
-}
-
-void MumbleDBus::getTalkingUsers(const QDBusMessage &msg) {
-	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
-		QDBusConnection::sessionBus().send(msg.createErrorReply(
-			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
-		return;
-	}
-	QStringList names;
-	foreach (ClientUser *cu, ClientUser::getTalking()) { names.append(cu->qsName); }
-	QDBusConnection::sessionBus().send(msg.createReply(names));
-}
-
-void MumbleDBus::focus() {
-	g.mw->show();
-	g.mw->raise();
-	g.mw->activateWindow();
-}
-
-void MumbleDBus::setTransmitMode(unsigned int mode, const QDBusMessage &msg) {
-	switch (mode) {
-		case 0:
-			g.s.atTransmit = Settings::Continuous;
-			break;
-		case 1:
-			g.s.atTransmit = Settings::VAD;
-			break;
-		case 2:
-			g.s.atTransmit = Settings::PushToTalk;
-			break;
-		default:
-			QDBusConnection::sessionBus().send(msg.createErrorReply(
-				QLatin1String("net.sourceforge.mumble.Error.transmitMode"), QLatin1String("Invalid transmit mode")));
-			return;
-	}
-	QMetaObject::invokeMethod(g.mw, "updateTransmitModeComboBox", Qt::QueuedConnection);
-}
-
-unsigned int MumbleDBus::getTransmitMode() {
-	return g.s.atTransmit;
-}
-
-void MumbleDBus::setSelfMuted(bool mute) {
-	g.mw->qaAudioMute->setChecked(!mute);
-	g.mw->qaAudioMute->trigger();
-}
-
-void MumbleDBus::setSelfDeaf(bool deafen) {
-	g.mw->qaAudioDeaf->setChecked(!deafen);
-	g.mw->qaAudioDeaf->trigger();
-}
-
-bool MumbleDBus::isSelfMuted() {
-	return g.s.bMute;
-}
-
-bool MumbleDBus::isSelfDeaf() {
-	return g.s.bDeaf;
-}
-
-void MumbleDBus::startTalking() {
-	g.mw->on_PushToTalk_triggered(true, QVariant());
-}
-
-void MumbleDBus::stopTalking() {
-	g.mw->on_PushToTalk_triggered(false, QVariant());
-}
+#endif
