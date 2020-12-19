@@ -3,434 +3,180 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "LCD.h"
+#ifndef MUMBLE_MUMBLE_JACKAUDIO_H_
+#define MUMBLE_MUMBLE_JACKAUDIO_H_
 
-#include "Channel.h"
-#include "ClientUser.h"
-#include "Message.h"
-#include "ServerHandler.h"
-#include "Utils.h"
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-#include <QtGui/QPainter>
+#include <QtCore/QLibrary>
+#include <QtCore/QSemaphore>
+#include <QtCore/QVector>
+#include <QtCore/QWaitCondition>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include <jack/types.h>
 
-const QString LCDConfig::name = QLatin1String("LCDConfig");
+#define JACK_MAX_OUTPUT_PORTS 2
+#define JACK_BUFFER_PERIODS 3
 
-QList< LCDEngineNew > *LCDEngineRegistrar::qlInitializers;
+// Definitions from <jack/ringbuffer.h>
+typedef void *jack_ringbuffer_t;
 
-LCDEngineRegistrar::LCDEngineRegistrar(LCDEngineNew cons) {
-	if (!qlInitializers)
-		qlInitializers = new QList< LCDEngineNew >();
-	n = cons;
-	qlInitializers->append(n);
-}
+struct jack_ringbuffer_data_t {
+	char *buf;
+	size_t len;
+};
 
-LCDEngineRegistrar::~LCDEngineRegistrar() {
-	qlInitializers->removeAll(n);
-	if (qlInitializers->isEmpty()) {
-		delete qlInitializers;
-		qlInitializers = nullptr;
-	}
-}
+typedef QVector< jack_port_t * > JackPorts;
+typedef QVector< jack_default_audio_sample_t * > JackBuffers;
 
-static ConfigWidget *LCDConfigDialogNew(Settings &st) {
-	return new LCDConfig(st);
-}
+class JackAudioInit;
 
-class LCDDeviceManager : public DeferInit {
+class JackAudioSystem : public QObject {
+	friend JackAudioInit;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioSystem)
+
 protected:
-	ConfigRegistrar *crLCD;
+	bool bAvailable;
+	uint8_t users;
+	QMutex qmWait;
+	QLibrary qlJack;
+	QWaitCondition qwcWait;
+	jack_client_t *client;
+
+	static int processCallback(jack_nframes_t frames, void *);
+	static int sampleRateCallback(jack_nframes_t, void *);
+	static int bufferSizeCallback(jack_nframes_t frames, void *);
+	static void shutdownCallback(void *);
+
+	const char *(*jack_get_version_string)();
+	const char **(*jack_get_ports)(jack_client_t *client, const char *port_name_pattern, const char *type_name_pattern,
+								   unsigned long flags);
+	char *(*jack_get_client_name)(jack_client_t *client);
+	char *(*jack_port_name)(jack_port_t *port);
+	int (*jack_client_close)(jack_client_t *client);
+	int (*jack_activate)(jack_client_t *client);
+	int (*jack_deactivate)(jack_client_t *client);
+	int (*jack_set_process_callback)(jack_client_t *client, JackProcessCallback process_callback, void *arg);
+	int (*jack_set_sample_rate_callback)(jack_client_t *client, JackSampleRateCallback process_callback, void *arg);
+	int (*jack_set_buffer_size_callback)(jack_client_t *client, JackBufferSizeCallback process_callback, void *arg);
+	int (*jack_on_shutdown)(jack_client_t *client, JackShutdownCallback process_callback, void *arg);
+	int (*jack_connect)(jack_client_t *client, const char *source_port, const char *destination_port);
+	int (*jack_port_disconnect)(jack_client_t *client, jack_port_t *port);
+	int (*jack_port_unregister)(jack_client_t *client, jack_port_t *port);
+	int (*jack_port_flags)(const jack_port_t *port);
+	void *(*jack_port_get_buffer)(jack_port_t *port, jack_nframes_t frames);
+	void (*jack_free)(void *ptr);
+	jack_client_t *(*jack_client_open)(const char *client_name, jack_options_t options, jack_status_t *status, ...);
+	jack_nframes_t (*jack_get_sample_rate)(jack_client_t *client);
+	jack_nframes_t (*jack_get_buffer_size)(jack_client_t *client);
+	jack_port_t *(*jack_port_by_name)(jack_client_t *client, const char *port_name);
+	jack_port_t *(*jack_port_register)(jack_client_t *client, const char *port_name, const char *port_type,
+									   unsigned long flags, unsigned long buffer_size);
+
+	jack_ringbuffer_t *(*jack_ringbuffer_create)(size_t sz);
+	void (*jack_ringbuffer_free)(jack_ringbuffer_t *rb);
+	int (*jack_ringbuffer_mlock)(jack_ringbuffer_t *rb);
+	size_t (*jack_ringbuffer_read)(jack_ringbuffer_t *rb, char *dest, size_t cnt);
+	size_t (*jack_ringbuffer_read_space)(const jack_ringbuffer_t *rb);
+	size_t (*jack_ringbuffer_write)(jack_ringbuffer_t *rb, const char *src, size_t cnt);
+	void (*jack_ringbuffer_get_write_vector)(const jack_ringbuffer_t *rb, jack_ringbuffer_data_t *vec);
+	size_t (*jack_ringbuffer_write_space)(const jack_ringbuffer_t *rb);
+	void (*jack_ringbuffer_write_advance)(jack_ringbuffer_t *rb, size_t cnt);
 
 public:
-	QList< LCDEngine * > qlEngines;
-	QList< LCDDevice * > qlDevices;
-	void initialize();
-	void destroy();
+	QHash< QString, QString > qhInput;
+	QHash< QString, QString > qhOutput;
+
+	bool isOk();
+	uint8_t outPorts();
+	jack_nframes_t sampleRate();
+	jack_nframes_t bufferSize();
+	JackPorts getPhysicalPorts(const uint8_t flags);
+	void *getPortBuffer(jack_port_t *port, const jack_nframes_t frames);
+	jack_port_t *registerPort(const char *name, const uint8_t flags);
+	bool unregisterPort(jack_port_t *port);
+	bool connectPort(jack_port_t *sourcePort, jack_port_t *destinationPort);
+	bool disconnectPort(jack_port_t *port);
+
+	jack_ringbuffer_t *ringbufferCreate(const size_t size);
+	void ringbufferFree(jack_ringbuffer_t *buffer);
+	int ringbufferMlock(jack_ringbuffer_t *buffer);
+	size_t ringbufferRead(jack_ringbuffer_t *buffer, const size_t size, void *destination);
+	size_t ringbufferReadSpace(const jack_ringbuffer_t *buffer);
+	size_t ringbufferWrite(jack_ringbuffer_t *buffer, const size_t size, const void *source);
+	void ringbufferGetWriteVector(const jack_ringbuffer_t *buffer, jack_ringbuffer_data_t *vector);
+	size_t ringbufferWriteSpace(const jack_ringbuffer_t *buffer);
+	void ringbufferWriteAdvance(jack_ringbuffer_t *buffer, const size_t size);
+
+	bool initialize();
+	void deinitialize();
+	bool activate();
+	void deactivate();
+
+	JackAudioSystem();
+	~JackAudioSystem();
 };
 
-void LCDDeviceManager::initialize() {
-	if (LCDEngineRegistrar::qlInitializers) {
-		foreach (LCDEngineNew engine, *LCDEngineRegistrar::qlInitializers) {
-			LCDEngine *e = engine();
-			qlEngines.append(e);
+class JackAudioInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioInput)
 
-			foreach (LCDDevice *d, e->devices()) { qlDevices << d; }
-		}
-	}
-	if (qlDevices.count() > 0) {
-		crLCD = new ConfigRegistrar(5900, LCDConfigDialogNew);
-	} else {
-		crLCD = nullptr;
-	}
-}
+protected:
+	volatile bool bReady;
+	QMutex qmWait;
+	QSemaphore qsSleep;
+	jack_port_t *port;
+	jack_ringbuffer_t *buffer;
+	size_t bufferSize;
 
-void LCDDeviceManager::destroy() {
-	qlDevices.clear();
-	foreach (LCDEngine *e, qlEngines) { delete e; }
-	delete crLCD;
-}
+public:
+	bool isReady();
+	bool process(const jack_nframes_t frames);
+	bool allocBuffer(const jack_nframes_t frames);
+	bool activate();
+	void deactivate();
+	bool registerPorts();
+	bool unregisterPorts();
+	void connectPorts();
+	bool disconnectPorts();
 
-static LCDDeviceManager devmgr;
-
-/* --- */
-
-
-LCDConfig::LCDConfig(Settings &st) : ConfigWidget(st) {
-	setupUi(this);
-	qtwDevices->setAccessibleName(tr("Devices"));
-	qsMinColWidth->setAccessibleName(tr("Minimum column width"));
-	qsSplitterWidth->setAccessibleName(tr("Splitter width"));
-
-	QTreeWidgetItem *qtwi;
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		qtwi = new QTreeWidgetItem(qtwDevices);
-
-		qtwi->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
-
-		qtwi->setText(0, d->name());
-		qtwi->setToolTip(0, d->name().toHtmlEscaped());
-
-		QSize lcdsize  = d->size();
-		QString qsSize = QString::fromLatin1("%1x%2").arg(lcdsize.width()).arg(lcdsize.height());
-		qtwi->setText(1, qsSize);
-		qtwi->setToolTip(1, qsSize);
-
-		qtwi->setCheckState(2, Qt::Unchecked);
-		qtwi->setToolTip(2, tr("Enable this device"));
-	}
-}
-
-QString LCDConfig::title() const {
-	return tr("LCD");
-}
-
-const QString &LCDConfig::getName() const {
-	return LCDConfig::name;
-}
-
-QIcon LCDConfig::icon() const {
-	return QIcon(QLatin1String("skin:config_lcd.png"));
-}
-
-void LCDConfig::load(const Settings &r) {
-	QList< QTreeWidgetItem * > qlItems = qtwDevices->findItems(QString(), Qt::MatchContains);
-	foreach (QTreeWidgetItem *qtwi, qlItems) {
-		QString qsName = qtwi->text(0);
-		bool enabled   = r.qmLCDDevices.contains(qsName) ? r.qmLCDDevices.value(qsName) : true;
-		qtwi->setCheckState(2, enabled ? Qt::Checked : Qt::Unchecked);
-	}
-
-	loadSlider(qsMinColWidth, r.iLCDUserViewMinColWidth);
-	loadSlider(qsSplitterWidth, r.iLCDUserViewSplitterWidth);
-}
-
-void LCDConfig::save() const {
-	QList< QTreeWidgetItem * > qlItems = qtwDevices->findItems(QString(), Qt::MatchContains);
-
-	foreach (QTreeWidgetItem *qtwi, qlItems) {
-		QString qsName = qtwi->text(0);
-		s.qmLCDDevices.insert(qsName, qtwi->checkState(2) == Qt::Checked);
-	}
-
-	s.iLCDUserViewMinColWidth   = qsMinColWidth->value();
-	s.iLCDUserViewSplitterWidth = qsSplitterWidth->value();
-}
-
-void LCDConfig::accept() const {
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		bool enabled = s.qmLCDDevices.value(d->name());
-		d->setEnabled(enabled);
-	}
-	g.lcd->updateUserView();
-}
-
-void LCDConfig::on_qsMinColWidth_valueChanged(int v) {
-	qlMinColWidth->setText(QString::number(v));
-}
-
-void LCDConfig::on_qsSplitterWidth_valueChanged(int v) {
-	qlSplitterWidth->setText(QString::number(v));
-}
-
-/* --- */
-
-LCD::LCD() : QObject() {
-#ifdef Q_OS_MAC
-	qfNormal.setStyleStrategy(QFont::NoAntialias);
-	qfNormal.setKerning(false);
-	qfNormal.setPointSize(10);
-	qfNormal.setFixedPitch(true);
-	qfNormal.setFamily(QString::fromLatin1("Andale Mono"));
-#else
-	qfNormal = QFont(QString::fromLatin1("Arial"), 7);
-#endif
-
-	qfItalic = qfNormal;
-	qfItalic.setItalic(true);
-
-	qfBold = qfNormal;
-	qfBold.setWeight(QFont::Black);
-
-	qfItalicBold = qfBold;
-	qfItalic.setItalic(true);
-
-	QFontMetrics qfm(qfNormal);
-
-	iFontHeight = 10;
-
-	initBuffers();
-
-	iFrameIndex = 0;
-
-	qtTimer = new QTimer(this);
-	connect(qtTimer, SIGNAL(timeout()), this, SLOT(tick()));
-
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		bool enabled = g.s.qmLCDDevices.contains(d->name()) ? g.s.qmLCDDevices.value(d->name()) : true;
-		d->setEnabled(enabled);
-	}
-	qiLogo = QIcon(QLatin1String("skin:mumble.svg")).pixmap(48, 48).toImage().convertToFormat(QImage::Format_MonoLSB);
-
-#if QT_VERSION >= 0x050600 && QT_VERSION <= 0x050601
-	// Don't invert the logo image when using Qt 5.6.
-	// See mumble-voip/mumble#2429
-#else
-	qiLogo.invertPixels();
-#endif
-
-	updateUserView();
-}
-
-void LCD::tick() {
-	iFrameIndex++;
-	updateUserView();
-}
-
-void LCD::initBuffers() {
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		QSize size = d->size();
-		if (!qhImageBuffers.contains(size)) {
-			size_t buflen        = (size.width() * size.height()) / 8;
-			qhImageBuffers[size] = new unsigned char[buflen];
-			qhImages[size] = new QImage(qhImageBuffers[size], size.width(), size.height(), QImage::Format_MonoLSB);
-		}
-	}
-}
-
-void LCD::destroyBuffers() {
-	foreach (QImage *img, qhImages)
-		delete img;
-	qhImages.clear();
-
-	foreach (unsigned char *buf, qhImageBuffers)
-		delete[] buf;
-	qhImageBuffers.clear();
-}
-
-struct ListEntry {
-	QString qsString;
-	bool bBold;
-	bool bItalic;
-	ListEntry(const QString &qs, bool bB, bool bI) : qsString(qs), bBold(bB), bItalic(bI){};
+	void run() Q_DECL_OVERRIDE;
+	JackAudioInput();
+	~JackAudioInput() Q_DECL_OVERRIDE;
 };
 
-static bool entriesSort(const ListEntry &a, const ListEntry &b) {
-	return a.qsString < b.qsString;
-}
+class JackAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(JackAudioOutput)
 
-void LCD::updateUserView() {
-	if (qhImages.count() == 0)
-		return;
+protected:
+	volatile bool bReady;
+	QMutex qmWait;
+	QSemaphore qsSleep;
+	JackPorts ports;
+	JackBuffers outputBuffers;
+	jack_ringbuffer_t *buffer;
 
-	QStringList qslTalking;
-	User *me      = g.uiSession ? ClientUser::get(g.uiSession) : nullptr;
-	Channel *home = me ? me->cChannel : nullptr;
-	bool alert    = false;
+public:
+	bool isReady();
+	bool process(const jack_nframes_t frames);
+	bool allocBuffer(const jack_nframes_t frames);
+	bool activate();
+	void deactivate();
+	bool registerPorts();
+	bool unregisterPorts();
+	void connectPorts();
+	bool disconnectPorts();
 
-	foreach (const QSize &size, qhImages.keys()) {
-		QImage *img = qhImages.value(size);
-		QPainter painter(img);
-		painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing, false);
+	void run() Q_DECL_OVERRIDE;
+	JackAudioOutput();
+	~JackAudioOutput() Q_DECL_OVERRIDE;
+};
 
-#if QT_VERSION >= 0x050600 && QT_VERSION <= 0x050601
-		// Use Qt::white instead of Qt::color1 on Qt 5.6.
-		// See mumble-voip/mumble#2429
-		painter.setPen(Qt::white);
-#else
-		painter.setPen(Qt::color1);
 #endif
-
-		painter.setFont(qfNormal);
-
-		img->fill(Qt::color0);
-
-		if (!me) {
-			qmNew.clear();
-			qmOld.clear();
-			qmSpeaking.clear();
-			qmNameCache.clear();
-			painter.drawImage(0, 0, qiLogo);
-			painter.drawText(60, 20, tr("Not connected"));
-			continue;
-		}
-
-		foreach (User *p, me->cChannel->qlUsers) {
-			if (!qmNew.contains(p->uiSession)) {
-				qmNew.insert(p->uiSession, Timer());
-				qmNameCache.insert(p->uiSession, p->qsName);
-				qmOld.remove(p->uiSession);
-			}
-		}
-
-		foreach (unsigned int session, qmNew.keys()) {
-			User *p = ClientUser::get(session);
-			if (!p || (p->cChannel != me->cChannel)) {
-				qmNew.remove(session);
-				qmOld.insert(session, Timer());
-			}
-		}
-
-		QMap< unsigned int, Timer > old;
-
-		foreach (unsigned int session, qmOld.keys()) {
-			Timer t = qmOld.value(session);
-			if (t.elapsed() > 3000000) {
-				qmNameCache.remove(session);
-			} else {
-				old.insert(session, qmOld.value(session));
-			}
-		}
-		qmOld = old;
-
-		QList< struct ListEntry > entries;
-		entries << ListEntry(
-			QString::fromLatin1("[%1:%2]").arg(me->cChannel->qsName).arg(me->cChannel->qlUsers.count()), false, false);
-
-		bool hasnew = false;
-
-		QMap< unsigned int, Timer > speaking;
-
-		foreach (Channel *c, home->allLinks()) {
-			foreach (User *p, c->qlUsers) {
-				ClientUser *u = static_cast< ClientUser * >(p);
-				bool bTalk    = (u->tsState != Settings::Passive);
-				if (bTalk) {
-					speaking.insert(p->uiSession, Timer());
-				} else if (qmSpeaking.contains(p->uiSession)) {
-					Timer t = qmSpeaking.value(p->uiSession);
-					if (t.elapsed() > 1000000)
-						qmSpeaking.remove(p->uiSession);
-					else {
-						speaking.insert(p->uiSession, t);
-						bTalk = true;
-					}
-				}
-				if (bTalk) {
-					alert = true;
-					entries << ListEntry(p->qsName, true, (p->cChannel != me->cChannel));
-				} else if (c == me->cChannel) {
-					if (qmNew.value(p->uiSession).elapsed() < 3000000) {
-						entries << ListEntry(QLatin1String("+") + p->qsName, false, false);
-						hasnew = true;
-					}
-				}
-			}
-		}
-		qmSpeaking = speaking;
-
-		foreach (unsigned int session, qmOld.keys()) {
-			entries << ListEntry(QLatin1String("-") + qmNameCache.value(session), false, false);
-		}
-
-		if (!qmOld.isEmpty() || hasnew || !qmSpeaking.isEmpty()) {
-			qtTimer->start(500);
-		} else {
-			qtTimer->stop();
-		}
-
-		std::sort(++entries.begin(), entries.end(), entriesSort);
-
-		const int iWidth          = size.width();
-		const int iHeight         = size.height();
-		const int iUsersPerColumn = iHeight / iFontHeight;
-		const int iSplitterWidth  = g.s.iLCDUserViewSplitterWidth;
-		const int iUserColumns    = (entries.count() + iUsersPerColumn - 1) / iUsersPerColumn;
-
-		int iColumns     = iUserColumns;
-		int iColumnWidth = 1;
-
-		while (iColumns >= 1) {
-			iColumnWidth = (iWidth - (iColumns - 1) * iSplitterWidth) / iColumns;
-			if (iColumnWidth >= g.s.iLCDUserViewMinColWidth)
-				break;
-			--iColumns;
-		}
-
-		int row = 0, col = 0;
-
-
-		foreach (const ListEntry &le, entries) {
-			if (row >= iUsersPerColumn) {
-				row = 0;
-				++col;
-			}
-			if (col > iColumns)
-				break;
-
-			if (!le.qsString.isEmpty()) {
-				if (le.bBold && le.bItalic)
-					painter.setFont(qfItalicBold);
-				else if (le.bBold)
-					painter.setFont(qfBold);
-				else if (le.bItalic)
-					painter.setFont(qfItalic);
-				else
-					painter.setFont(qfNormal);
-				painter.drawText(
-					QRect(col * (iColumnWidth + iSplitterWidth), row * iFontHeight, iColumnWidth, iFontHeight + 2),
-					Qt::AlignLeft, le.qsString);
-			}
-			++row;
-		}
-	}
-
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		QImage *img = qhImages[d->size()];
-		if (!img)
-			continue;
-		d->blitImage(img, alert);
-	}
-}
-
-LCD::~LCD() {
-	destroyBuffers();
-}
-
-bool LCD::hasDevices() {
-	return (!devmgr.qlDevices.isEmpty());
-}
-
-/* --- */
-
-LCDEngine::LCDEngine() : QObject() {
-}
-
-LCDEngine::~LCDEngine() {
-	foreach (LCDDevice *lcd, qlDevices)
-		delete lcd;
-}
-
-LCDDevice::LCDDevice() {
-}
-
-LCDDevice::~LCDDevice() {
-}
-
-/* --- */
-
-uint qHash(const QSize &size) {
-	return ((size.width() & 0xffff) << 16) | (size.height() & 0xffff);
-}
