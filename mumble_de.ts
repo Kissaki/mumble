@@ -3,55 +3,45 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_G15LCDENGINE_HELPER_H_
-#	define MUMBLE_MUMBLE_G15LCDENGINE_HELPER_H_
-
+#ifndef MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
+#	define MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
 #	include "../../g15helper/g15helper.h"
 #	include "LCD.h"
 
-#	include <QtCore/QProcess>
+class G15LCDDeviceLGLCD;
 
-class G15LCDDeviceHelper;
-
-class G15LCDEngineHelper : public LCDEngine {
-	friend class G15LCDDeviceHelper;
+class G15LCDEngineLGLCD : public LCDEngine {
+	friend class G15LCDDeviceLGLCD;
 
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(G15LCDEngineHelper)
+	Q_DISABLE_COPY(G15LCDEngineLGLCD)
 protected:
-	bool bUnavailable;
-	bool bRunning;
-	QProcess *qpHelper;
-	QString qsHelperExecutable;
-	bool framebufferReady() const;
-	void submitFrame(bool alert, uchar *buf, qint64 len);
-	void setProcessStatus(bool run);
+	lgLcdConnectContextEx llcceConnect;
+	lgLcdOpenByTypeContext llcContext;
 
 public:
-	G15LCDEngineHelper();
-	~G15LCDEngineHelper() Q_DECL_OVERRIDE;
-	QList< LCDDevice * > devices() const Q_DECL_OVERRIDE;
-public slots:
-	void on_Helper_finished(int exitCode, QProcess::ExitStatus status);
+	G15LCDEngineLGLCD();
+	~G15LCDEngineLGLCD();
+	QList< LCDDevice * > devices() const;
 };
 
-class G15LCDDeviceHelper : public LCDDevice {
+class G15LCDDeviceLGLCD : public LCDDevice {
 protected:
-	G15LCDEngineHelper *engine;
+	G15LCDEngineLGLCD *engine;
 	bool bEnabled;
 
 public:
-	G15LCDDeviceHelper(G15LCDEngineHelper *e);
-	~G15LCDDeviceHelper() Q_DECL_OVERRIDE;
-	bool enabled() Q_DECL_OVERRIDE;
-	void setEnabled(bool e) Q_DECL_OVERRIDE;
-	void blitImage(QImage *img, bool alert) Q_DECL_OVERRIDE;
-	QString name() const Q_DECL_OVERRIDE;
-	QSize size() const Q_DECL_OVERRIDE;
+	G15LCDDeviceLGLCD(G15LCDEngineLGLCD *e);
+	~G15LCDDeviceLGLCD();
+	bool enabled();
+	void setEnabled(bool e);
+	void blitImage(QImage *img, bool alert);
+	QString name() const;
+	QSize size() const;
 };
 
 #else
-class G15LCDEngineHelper;
-class G15LCDDeviceHelper;
+class G15LCDEngineLGLCD;
+class G15LCDDeviceLGLCD;
 #endif
