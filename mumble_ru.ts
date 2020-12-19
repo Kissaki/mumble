@@ -3,60 +3,91 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_MUMBLEAPPLICATION_H
-#define MUMBLE_MUMBLE_MUMBLEAPPLICATION_H
+#ifndef MUMBLE_MUMBLE_OVERLAYCLIENT_H_
+#define MUMBLE_MUMBLE_OVERLAYCLIENT_H_
 
-#include <QApplication>
-#include <QUrl>
+#include <QtCore/QScopedPointer>
+#include <QtCore/QUrl>
+#include <QtNetwork/QLocalSocket>
 
-#ifdef Q_OS_WIN
-#	include <QAbstractNativeEventFilter>
-#endif
+#include "../../overlay/overlay.h"
+#include "OverlayUserGroup.h"
+#include "SharedMemory.h"
+#include "Timer.h"
 
-/**
- * @brief Implements custom system shutdown behavior as well as event filtering.
- */
-#ifdef Q_OS_WIN
-class MumbleApplication : public QApplication, public QAbstractNativeEventFilter {
-#else
-class MumbleApplication : public QApplication {
-#endif
+class ClientUser;
+class Overlay;
+class QLibrary;
+class QLocalServer;
+class OverlayPositionableItem;
+
+class OverlayClient : public QObject {
+	friend class Overlay;
+
+private:
 	Q_OBJECT
-public:
-	/// The instance function returns an instance
-	/// of the MumbleApplication singleton.
-	static MumbleApplication *instance();
+	Q_DISABLE_COPY(OverlayClient)
+protected:
+	OverlayMsg omMsg;
+	QLocalSocket *qlsSocket;
+	SharedMemory2 *smMem;
+	QRect qrLast;
+	Timer t;
 
-	MumbleApplication(int &pargc, char **pargv);
+	float framesPerSecond;
+	int iOffsetX, iOffsetY;
 
-	/// applicationVersionRootPath returns
-	/// Mumble's "versioned root"-path.
-	///
-	/// This is a version-specific path that contains
-	/// supplementary binaries and other products
-	/// that Mumble needs to function.
-	///
-	/// In the current implementation, the versioned
-	/// root path is set by the MUMBLE_VERSION_ROOT
-	/// environment variable. This environment variable
-	/// is set in the mumble.exe launcher.
-	///
-	/// If a versioned root path has not been
-	/// configured in the environment, the function
-	/// returns the same path as Qt's own
-	/// QApplication::applicationDirPath().
-	QString applicationVersionRootPath();
+	/// The process ID of the process this OverlayClient is connected to.
+	quint64 uiPid;
+	/// The path to the executable of the process that this OverlayClient is connected to.
+	QString qsExecutablePath;
 
-	bool event(QEvent *e) Q_DECL_OVERRIDE;
-#ifdef Q_OS_WIN
-	bool nativeEventFilter(const QByteArray &eventType, void *message, long *result) Q_DECL_OVERRIDE;
+	QGraphicsScene qgs;
+
+	QScopedPointer< QGraphicsPixmapItem > qgpiCursor;
+	QScopedPointer< QGraphicsPixmapItem > qgpiLogo;
+	QScopedPointer< OverlayPositionableItem > qgpiFPS;
+	QScopedPointer< OverlayPositionableItem > qgpiTime;
+
+	OverlayUserGroup ougUsers;
+
+#ifdef Q_OS_MAC
+	QMap< Qt::CursorShape, QPixmap > qmCursors;
 #endif
 
-	QUrl quLaunchURL;
+	bool bWasVisible;
+	bool bDelete;
 
+	void setupRender();
+	void setupScene(bool show);
+
+	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
+
+	void readyReadMsgInit(unsigned int length);
+
+	QList< QRectF > qlDirty;
+protected slots:
+	void readyRead();
+	void changed(const QList< QRectF > &);
+	void render();
+
+public:
+	QGraphicsView qgv;
+	unsigned int uiWidth, uiHeight;
+	int iMouseX, iMouseY;
+
+	OverlayClient(QLocalSocket *, QObject *);
+	~OverlayClient() Q_DECL_OVERRIDE;
+	void reset();
 public slots:
-	/// Saves state and suppresses ask on quit before system shutdown.
-	void onCommitDataRequest(QSessionManager &);
+	void showGui();
+	void hideGui();
+	void scheduleDelete();
+	void updateMouse();
+	void updateFPS();
+	void updateTime();
+	bool update();
+	void openEditor();
 };
 
-#endif // MUMBLE_MUMBLE_MUMBLEAPPLICATION_H
+#endif
