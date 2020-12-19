@@ -3,60 +3,45 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CERT_H_
-#define MUMBLE_MUMBLE_CERT_H_
+#ifndef MUMBLE_MUMBLE_BANEDITOR_H_
+#define MUMBLE_MUMBLE_BANEDITOR_H_
 
-#include <QtCore/QString>
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QGroupBox>
+#include "Ban.h"
 
-#include <QtNetwork/QHostInfo>
-#include <QtNetwork/QSslCertificate>
+#include "ui_BanEditor.h"
 
-#include "Settings.h"
+namespace MumbleProto {
+class BanList;
+}
 
-class QLabel;
-class QWidget;
-
-class CertView : public QGroupBox {
+class BanEditor : public QDialog, public Ui::BanEditor {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(CertView)
+	Q_DISABLE_COPY(BanEditor)
 protected:
-	QList< QSslCertificate > qlCert;
-	QLabel *qlSubjectName, *qlSubjectEmail, *qlIssuerName, *qlExpiry;
+	QList< Ban > qlBans;
+
+	int maskDefaultValue;
+
+	Ban toBan(bool &);
 
 public:
-	CertView(QWidget *p);
-	void setCert(const QList< QSslCertificate > &cert);
-};
-
-#include "ui_Cert.h"
-
-class CertWizard : public QWizard, public Ui::Certificates {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(CertWizard)
-protected:
-	Settings::KeyPair kpCurrent, kpNew;
-
-public:
-	CertWizard(QWidget *p = nullptr);
-	int nextId() const Q_DECL_OVERRIDE;
-	void initializePage(int) Q_DECL_OVERRIDE;
-	bool validateCurrentPage() Q_DECL_OVERRIDE;
-	static bool validateCert(const Settings::KeyPair &);
-	static Settings::KeyPair generateNewCert(QString name = QString(), const QString &email = QString());
-	static QByteArray exportCert(const Settings::KeyPair &cert);
-	static Settings::KeyPair importCert(QByteArray, const QString & = QString());
+	BanEditor(const MumbleProto::BanList &msbl, QWidget *p = nullptr);
 public slots:
-	void on_qleEmail_textChanged(const QString &);
-	void on_qpbExportFile_clicked();
-	void on_qleExportFile_textChanged(const QString &);
-	void on_qpbImportFile_clicked();
-	void on_qleImportFile_textChanged(const QString &);
-	void on_qlePassword_textChanged(const QString &);
-	void on_qlIntroText_linkActivated(const QString &);
+	void accept();
+	void on_qlwBans_currentRowChanged();
+	void on_qpbAdd_clicked();
+	void on_qpbUpdate_clicked();
+	void on_qpbRemove_clicked();
+	void refreshBanList();
+	void on_qdteEnd_editingFinished();
+	void on_qpbClear_clicked();
+private slots:
+	void on_qleHash_textChanged(QString);
+	void on_qleSearch_textChanged(const QString &match);
+	void on_qleReason_textChanged(QString);
+	void on_qleIP_textChanged(QString);
+	void on_qleUser_textChanged(QString);
 };
 
 #endif
