@@ -3,126 +3,146 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
+/* Copyright (C) 2005-2011, Thorvald Natvig <thorvald@natvig.com>
+   Copyright (C) 2007, Sebastian Schlingmann <mit_service@users.sourceforge.net>
+   Copyright (C) 2008-2011, Mikkel Krautz <mikkel@krautz.dk>
+   Copyright (C) 2014, Mayur Pawashe <zorgiepoo@gmail.com>
+
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions
+   are met:
+
+   - Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+   - Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+   - Neither the name of the Mumble Developers nor the names of its
+     contributors may be used to endorse or promote products derived from this
+     software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
+   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+#import <AppKit/AppKit.h>
+
+#include "Global.h"
 #include "TextToSpeech.h"
 
-#ifdef USE_SPEECHD
-#	ifdef USE_SPEECHD_PKGCONFIG
-#		include <speech-dispatcher/libspeechd.h>
-#	else
-#		include <libspeechd.h>
-#	endif
+@interface MUSpeechSynthesizerPrivateHelper : NSObject {
+	NSMutableArray *m_messages;
+	NSSpeechSynthesizer *m_synthesizer;
+}
+- (NSSpeechSynthesizer *)synthesizer;
+- (void)appendMessage:(NSString *)message;
+- (void)processSpeech;
+@end
+
+#if !defined(USE_MAC_UNIVERSAL) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+@interface MUSpeechSynthesizerPrivateHelper () <NSSpeechSynthesizerDelegate>
+@end
 #endif
 
-#include <QtCore/QLocale>
+@implementation MUSpeechSynthesizerPrivateHelper
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+- (id)init {
+	if ((self = [super init])) {
+		m_synthesizer = [[NSSpeechSynthesizer alloc] initWithVoice:nil];
+		m_messages = [[NSMutableArray alloc] init];
+		[m_synthesizer setDelegate:self];
+	}
+	return self;
+}
+
+- (void)dealloc {
+	[m_synthesizer release];
+	[m_messages release];
+	[super dealloc];
+}
+
+- (NSSpeechSynthesizer *)synthesizer {
+	return m_synthesizer;
+}
+
+- (void)appendMessage:(NSString *)message {
+	[m_messages insertObject:message atIndex:0];
+}
+
+- (void)processSpeech {
+	Q_ASSERT([m_messages count] == 0);
+	
+	NSString *poppedMessage = [m_messages lastObject];
+	[m_synthesizer startSpeakingString:poppedMessage];
+	[m_messages removeLastObject];
+}
+
+- (void)speechSynthesizer:(NSSpeechSynthesizer *)synthesizer didFinishSpeaking:(BOOL)success {
+	Q_UNUSED(synthesizer);
+	Q_UNUSED(success);
+
+	if ([m_messages count] != 0) {
+		[self processSpeech];
+	}
+}
+
+@end
 
 class TextToSpeechPrivate {
-#ifdef USE_SPEECHD
-protected:
-	SPDConnection *spd;
-	/// Used to store the requested volume of the TextToSpeech object
-	/// before speech-dispatcher has been initialized.
-	int volume;
-	bool initialized;
-	void ensureInitialized();
-#endif
-public:
-	TextToSpeechPrivate();
-	~TextToSpeechPrivate();
-	void say(const QString &text);
-	void setVolume(int v);
+	public:
+		MUSpeechSynthesizerPrivateHelper *m_synthesizerHelper;
+
+		TextToSpeechPrivate();
+		~TextToSpeechPrivate();
+		void say(const QString &text);
+		void setVolume(int v);
 };
 
-#ifdef USE_SPEECHD
 TextToSpeechPrivate::TextToSpeechPrivate() {
-	initialized = false;
-	volume      = -1;
-	spd         = nullptr;
+	m_synthesizerHelper = [[MUSpeechSynthesizerPrivateHelper alloc] init];
 }
 
 TextToSpeechPrivate::~TextToSpeechPrivate() {
-	if (spd) {
-		spd_close(spd);
-		spd = nullptr;
-	}
+	[m_synthesizerHelper release];
 }
 
-void TextToSpeechPrivate::ensureInitialized() {
-	if (initialized) {
+void TextToSpeechPrivate::say(const QString &text) {
+	QByteArray byteArray = text.toUtf8();
+	NSString *message = [[NSString alloc] initWithBytes:byteArray.constData() length:byteArray.size() encoding:NSUTF8StringEncoding];
+
+	if (message == nil) {
 		return;
 	}
 
-	spd = spd_open("Mumble", nullptr, nullptr, SPD_MODE_THREADED);
-	if (!spd) {
-		qWarning("TextToSpeech: Failed to contact speech dispatcher.");
-	} else {
-		QString lang;
-		if (!g.s.qsTTSLanguage.isEmpty()) {
-			lang = g.s.qsTTSLanguage;
-		} else if (!g.s.qsLanguage.isEmpty()) {
-			QLocale locale(g.s.qsLanguage);
-			lang = locale.bcp47Name();
-		} else {
-			QLocale systemLocale;
-			lang = systemLocale.bcp47Name();
-		}
-		if (!lang.isEmpty()) {
-			if (spd_set_language(spd, lang.toLocal8Bit().constData()) != 0) {
-				qWarning("TextToSpeech: Failed to set language.");
-			}
-		}
+	[m_synthesizerHelper appendMessage:message];
+	[message release];
 
-		if (spd_set_punctuation(spd, SPD_PUNCT_NONE) != 0)
-			qWarning("TextToSpech: Failed to set punctuation mode.");
-		if (spd_set_spelling(spd, SPD_SPELL_ON) != 0)
-			qWarning("TextToSpeech: Failed to set spelling mode.");
-	}
-
-	initialized = true;
-
-	if (volume != -1) {
-		setVolume(volume);
+	if (![[m_synthesizerHelper synthesizer] isSpeaking]) {
+		[m_synthesizerHelper processSpeech];
 	}
 }
 
-void TextToSpeechPrivate::say(const QString &txt) {
-	ensureInitialized();
-
-	if (spd)
-		spd_say(spd, SPD_MESSAGE, txt.toUtf8());
-}
-
-void TextToSpeechPrivate::setVolume(int vol) {
-	if (!initialized) {
-		volume = vol;
-		return;
+void TextToSpeechPrivate::setVolume(int volume) {
+	// Check for setVolume: availability. It's only available on 10.5+.
+	if ([[m_synthesizerHelper synthesizer] respondsToSelector:@selector(setVolume:)]) {
+		[[m_synthesizerHelper synthesizer] setVolume:volume / 100.0];
 	}
-
-	if (spd)
-		spd_set_volume(spd, vol * 2 - 100);
-}
-#else
-TextToSpeechPrivate::TextToSpeechPrivate() {
-	qWarning("TextToSpeech: Compiled without support for speech-dispatcher");
 }
 
-TextToSpeechPrivate::~TextToSpeechPrivate() {
-}
-
-void TextToSpeechPrivate::say(const QString &) {
-}
-
-void TextToSpeechPrivate::setVolume(int) {
-}
-#endif
-
-
-TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+TextToSpeech::TextToSpeech(QObject *) {
 	enabled = true;
-	d       = new TextToSpeechPrivate();
+	d = new TextToSpeechPrivate();
 }
 
 TextToSpeech::~TextToSpeech() {
@@ -130,7 +150,7 @@ TextToSpeech::~TextToSpeech() {
 }
 
 void TextToSpeech::say(const QString &text) {
-	if (enabled)
+	if (d && enabled)
 		d->say(text);
 }
 
@@ -139,9 +159,9 @@ void TextToSpeech::setEnabled(bool e) {
 }
 
 void TextToSpeech::setVolume(int volume) {
-	d->setVolume(volume);
+	if (d && enabled)
+		d->setVolume(volume);
 }
-
 
 bool TextToSpeech::isEnabled() const {
 	return enabled;
