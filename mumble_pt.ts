@@ -1,223 +1,81 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>ConnectDialog</class>
- <widget class="QDialog" name="ConnectDialog">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>574</width>
-    <height>366</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Mumble Server Connect</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="2" column="0" colspan="3">
-    <widget class="QDialogButtonBox" name="qdbbButtonBox">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="0" colspan="3">
-    <widget class="ServerView" name="qtwServers">
-     <property name="contextMenuPolicy">
-      <enum>Qt::CustomContextMenu</enum>
-     </property>
-     <property name="dragEnabled">
-      <bool>true</bool>
-     </property>
-     <property name="dragDropMode">
-      <enum>QAbstractItemView::DragDrop</enum>
-     </property>
-     <property name="alternatingRowColors">
-      <bool>true</bool>
-     </property>
-     <property name="autoExpandDelay">
-      <number>250</number>
-     </property>
-     <property name="rootIsDecorated">
-      <bool>true</bool>
-     </property>
-     <property name="uniformRowHeights">
-      <bool>true</bool>
-     </property>
-     <property name="sortingEnabled">
-      <bool>true</bool>
-     </property>
-     <attribute name="headerStretchLastSection">
-      <bool>false</bool>
-     </attribute>
-     <column>
-      <property name="text">
-       <string>Servername</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Ping</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Users</string>
-      </property>
-     </column>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="3">
-    <widget class="QGroupBox" name="qgbSearch">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
-     <property name="title">
-      <string>Search</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlSearchServername">
-        <property name="text">
-         <string>Servername</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLineEdit" name="qleSearchServername">
-        <property name="placeholderText">
-         <string>Servername</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlSearchLocation">
-        <property name="text">
-         <string>Location</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QComboBox" name="qcbSearchLocation"/>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="qlFilter">
-        <property name="text">
-         <string>Filter</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QComboBox" name="qcbFilter">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <item>
-         <property name="text">
-          <string>Show All</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Show Populated</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Show Reachable</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
-  <action name="qaFavoriteRemove">
-   <property name="text">
-    <string>Remove from Favorites</string>
-   </property>
-  </action>
-  <action name="qaFavoriteEdit">
-   <property name="text">
-    <string>&amp;Edit...</string>
-   </property>
-  </action>
-  <action name="qaFavoriteAddNew">
-   <property name="text">
-    <string>&amp;Add New...</string>
-   </property>
-   <property name="toolTip">
-    <string>Add custom server</string>
-   </property>
-  </action>
-  <action name="qaFavoriteAdd">
-   <property name="text">
-    <string>Add to &amp;Favorites</string>
-   </property>
-  </action>
-  <action name="qaUrl">
-   <property name="text">
-    <string>Open &amp;Webpage</string>
-   </property>
-  </action>
-  <action name="qaFavoriteCopy">
-   <property name="text">
-    <string>&amp;Copy</string>
-   </property>
-   <property name="toolTip">
-    <string>Copy favorite link to clipboard</string>
-   </property>
-  </action>
-  <action name="qaFavoritePaste">
-   <property name="text">
-    <string>&amp;Paste</string>
-   </property>
-   <property name="toolTip">
-    <string>Paste favorite from clipboard</string>
-   </property>
-  </action>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>ServerView</class>
-   <extends>QTreeWidget</extends>
-   <header>ConnectDialog.h</header>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>ConnectDialog</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>365</x>
-     <y>270</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>365</x>
-     <y>513</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>rejected()</signal>
-   <receiver>ConnectDialog</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>459</x>
-     <y>275</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>456</x>
-     <y>494</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
+#define MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
+
+#include <celt.h>
+#include <speex/speex.h>
+#include <speex/speex_jitter.h>
+#include <speex/speex_resampler.h>
+
+#include <QtCore/QMutex>
+
+#include "AudioOutputUser.h"
+#include "Message.h"
+
+class CELTCodec;
+class OpusCodec;
+class ClientUser;
+struct OpusDecoder;
+
+class AudioOutputSpeech : public AudioOutputUser {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioOutputSpeech)
+protected:
+	unsigned int iAudioBufferSize;
+	unsigned int iBufferOffset;
+	unsigned int iBufferFilled;
+	unsigned int iOutputSize;
+	unsigned int iLastConsume;
+	unsigned int iFrameSize;
+	unsigned int iFrameSizePerChannel;
+	unsigned int iSampleRate;
+	unsigned int iMixerFreq;
+	bool bLastAlive;
+	bool bHasTerminator;
+
+	float *fFadeIn;
+	float *fFadeOut;
+	float *fResamplerBuffer;
+
+	SpeexResamplerState *srs;
+
+	QMutex qmJitter;
+	JitterBuffer *jbJitter;
+	int iMissCount;
+
+	CELTCodec *cCodec;
+	CELTDecoder *cdDecoder;
+
+	OpusCodec *oCodec;
+	OpusDecoder *opusState;
+
+	SpeexBits sbBits;
+	void *dsSpeex;
+
+	QList< QByteArray > qlFrames;
+
+public:
+	unsigned char ucFlags;
+	MessageHandler::UDPMessageType umtType;
+	int iMissedFrames;
+	ClientUser *p;
+
+	/// Fetch and decode frames from the jitter buffer. Called in mix().
+	///
+	/// @param frameCount Number of frames to decode. frame means a bundle of one sample from each channel.
+	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
+
+	void addFrameToBuffer(const QByteArray &, unsigned int iBaseSeq);
+
+	/// @param systemMaxBufferSize maximum number of samples the system audio play back may request each time
+	AudioOutputSpeech(ClientUser *, unsigned int freq, MessageHandler::UDPMessageType type,
+					  unsigned int systemMaxBufferSize);
+	~AudioOutputSpeech() Q_DECL_OVERRIDE;
+};
+
+#endif // AUDIOOUTPUTSPEECH_H_
