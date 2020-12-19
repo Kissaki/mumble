@@ -1,91 +1,236 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_PLUGINS_H_
-#define MUMBLE_MUMBLE_PLUGINS_H_
-
-#include "ConfigDialog.h"
-
-#include "ui_Plugins.h"
-
-#ifdef Q_OS_WIN
-#	include "win.h"
-#endif
-
-#include <QtCore/QMutex>
-#include <QtCore/QObject>
-#include <QtCore/QReadWriteLock>
-#include <QtCore/QUrl>
-
-struct PluginInfo;
-
-class PluginConfig : public ConfigWidget, public Ui::PluginConfig {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PluginConfig)
-protected:
-	void refillPluginList();
-	PluginInfo *pluginForItem(QTreeWidgetItem *) const;
-
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	PluginConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void on_qpbConfig_clicked();
-	void on_qpbAbout_clicked();
-	void on_qpbReload_clicked();
-	void on_qtwPlugins_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
-};
-
-struct PluginFetchMeta;
-
-class Plugins : public QObject {
-	friend class PluginConfig;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(Plugins)
-protected:
-	QReadWriteLock qrwlPlugins;
-	QMutex qmPluginStrings;
-	QList< PluginInfo * > qlPlugins;
-	PluginInfo *locked;
-	PluginInfo *prevlocked;
-	void clearPlugins();
-	int iPluginTry;
-	QMap< QString, PluginFetchMeta > qmPluginFetchMeta;
-	QString qsSystemPlugins;
-	QString qsUserPlugins;
-#ifdef Q_OS_WIN
-	HANDLE hToken;
-	TOKEN_PRIVILEGES tpPrevious;
-	DWORD cbPrevious;
-#endif
-public:
-	std::string ssContext, ssContextSent;
-	std::wstring swsIdentity, swsIdentitySent;
-	bool bValid;
-	bool bUnlink;
-	float fPosition[3], fFront[3], fTop[3];
-	float fCameraPosition[3], fCameraFront[3], fCameraTop[3];
-
-	Plugins(QObject *p = nullptr);
-	~Plugins() Q_DECL_OVERRIDE;
-public slots:
-	void on_Timer_timeout();
-	void rescanPlugins();
-	bool fetch();
-	void checkUpdates();
-	void fetchedUpdatePAPlugins(QByteArray, QUrl);
-	void fetchedPAPluginDL(QByteArray, QUrl);
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OverlayEditor</class>
+ <widget class="QDialog" name="OverlayEditor">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>718</width>
+    <height>556</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Overlay Editor</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0" colspan="2">
+    <widget class="QGroupBox" name="qgbState">
+     <property name="title">
+      <string>State</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QRadioButton" name="qrbPassive">
+        <property name="toolTip">
+         <string>User is not talking</string>
+        </property>
+        <property name="text">
+         <string>Passive</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="qrbTalking">
+        <property name="toolTip">
+         <string>User is talking in your channel or a linked channel</string>
+        </property>
+        <property name="text">
+         <string>Talking</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="qrbWhisper">
+        <property name="toolTip">
+         <string>User is whispering to you privately</string>
+        </property>
+        <property name="text">
+         <string>Private Whisper</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="qrbShout">
+        <property name="toolTip">
+         <string>User is shouting to your channel</string>
+        </property>
+        <property name="text">
+         <string>Channel Whisper</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QGraphicsView" name="qgvView">
+     <property name="interactive">
+      <bool>true</bool>
+     </property>
+     <property name="renderHints">
+      <set>QPainter::Antialiasing|QPainter::SmoothPixmapTransform|QPainter::TextAntialiasing</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QGroupBox" name="qgbZoom">
+     <property name="title">
+      <string>Zoom</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QSlider" name="qsZoom">
+        <property name="toolTip">
+         <string>Zoom Factor</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>10</number>
+        </property>
+        <property name="pageStep">
+         <number>5</number>
+        </property>
+        <property name="value">
+         <number>2</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="tickPosition">
+         <enum>QSlider::TicksBelow</enum>
+        </property>
+        <property name="tickInterval">
+         <number>1</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="2" column="0" colspan="2">
+    <widget class="QGroupBox" name="qgbElements">
+     <property name="title">
+      <string>Enabled Elements</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item>
+       <widget class="QCheckBox" name="qcbAvatar">
+        <property name="toolTip">
+         <string>User avatar, chosen by each user</string>
+        </property>
+        <property name="text">
+         <string>Avatar</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbUser">
+        <property name="toolTip">
+         <string>User's name</string>
+        </property>
+        <property name="text">
+         <string>Username</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbChannel">
+        <property name="toolTip">
+         <string>Name of user's channel, if outside your current channel</string>
+        </property>
+        <property name="text">
+         <string>Channel</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbMutedDeafened">
+        <property name="toolTip">
+         <string>Muted or deafened</string>
+        </property>
+        <property name="text">
+         <string>Mute state</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbBox">
+        <property name="toolTip">
+         <string>Bounding box, automatically shrunk to minimum size to contain all visible elements</string>
+        </property>
+        <property name="text">
+         <string>Bounding box</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="3" column="0" colspan="2">
+    <widget class="QDialogButtonBox" name="qdbbBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::Reset</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>qrbPassive</tabstop>
+  <tabstop>qrbTalking</tabstop>
+  <tabstop>qrbWhisper</tabstop>
+  <tabstop>qrbShout</tabstop>
+  <tabstop>qcbAvatar</tabstop>
+  <tabstop>qcbUser</tabstop>
+  <tabstop>qcbChannel</tabstop>
+  <tabstop>qcbMutedDeafened</tabstop>
+  <tabstop>qcbBox</tabstop>
+  <tabstop>qsZoom</tabstop>
+  <tabstop>qgvView</tabstop>
+  <tabstop>qdbbBox</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>qdbbBox</sender>
+   <signal>accepted()</signal>
+   <receiver>OverlayEditor</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>227</x>
+     <y>538</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qdbbBox</sender>
+   <signal>rejected()</signal>
+   <receiver>OverlayEditor</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>295</x>
+     <y>544</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
