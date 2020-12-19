@@ -1,128 +1,71 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>ConfigDialog</class>
- <widget class="QDialog" name="ConfigDialog">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>709</width>
-    <height>505</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Mumble Configuration</string>
-  </property>
-  <property name="sizeGripEnabled">
-   <bool>true</bool>
-  </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="QListWidget" name="qlwIcons">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="iconSize">
-      <size>
-       <width>24</width>
-       <height>24</height>
-      </size>
-     </property>
-     <property name="resizeMode">
-      <enum>QListView::Adjust</enum>
-     </property>
-     <property name="layoutMode">
-      <enum>QListView::Batched</enum>
-     </property>
-     <property name="uniformItemSizes">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="3">
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <item>
-      <widget class="QDialogButtonBox" name="pageButtonBox">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer>
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>474</width>
-         <height>22</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QDialogButtonBox" name="dialogButtonBox">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="standardButtons">
-        <set>QDialogButtonBox::Apply|QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item row="0" column="1" rowspan="1">
-    <widget class="QStackedWidget" name="qswPages">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-       <horstretch>1</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources>
-  <include location="mumble.qrc"/>
- </resources>
- <connections>
-  <connection>
-   <sender>dialogButtonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>ConfigDialog</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>167</x>
-     <y>344</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>191</x>
-     <y>319</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>dialogButtonBox</sender>
-   <signal>rejected()</signal>
-   <receiver>ConfigDialog</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>260</x>
-     <y>356</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>284</x>
-     <y>319</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "ConfigWidget.h"
+
+#include "MumbleApplication.h"
+
+#include <QtCore/QMap>
+#include <QtGui/QIcon>
+#include <QtWidgets/QAbstractButton>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QSlider>
+
+QMap< int, ConfigWidgetNew > *ConfigRegistrar::c_qmNew;
+
+ConfigRegistrar::ConfigRegistrar(int priority, ConfigWidgetNew n) {
+	if (!c_qmNew)
+		c_qmNew = new QMap< int, ConfigWidgetNew >();
+	iPriority = priority;
+	c_qmNew->insert(priority, n);
+}
+
+ConfigRegistrar::~ConfigRegistrar() {
+	c_qmNew->remove(iPriority);
+	if (c_qmNew->isEmpty()) {
+		delete c_qmNew;
+		c_qmNew = nullptr;
+	}
+}
+
+ConfigWidget::ConfigWidget(Settings &st) : s(st) {
+}
+
+QIcon ConfigWidget::icon() const {
+	return qApp->windowIcon();
+}
+
+void ConfigWidget::accept() const {
+}
+
+void ConfigWidget::loadSlider(QSlider *slider, int v) {
+	if (v != slider->value()) {
+		slider->setValue(v);
+	} else {
+		connect(this, SIGNAL(intSignal(int)), slider, SIGNAL(valueChanged(int)));
+		emit intSignal(v);
+		disconnect(SIGNAL(intSignal(int)));
+	}
+}
+
+void ConfigWidget::loadCheckBox(QAbstractButton *c, bool v) {
+	if (v != c->isChecked()) {
+		c->setChecked(v);
+	} else {
+		connect(this, SIGNAL(intSignal(int)), c, SIGNAL(stateChanged(int)));
+		emit intSignal(v ? 1 : 0);
+		disconnect(SIGNAL(intSignal(int)));
+	}
+}
+
+void ConfigWidget::loadComboBox(QComboBox *c, int v) {
+	if (c->currentIndex() != v) {
+		c->setCurrentIndex(v);
+	} else {
+		connect(this, SIGNAL(intSignal(int)), c, SIGNAL(currentIndexChanged(int)));
+		emit intSignal(v);
+		disconnect(SIGNAL(intSignal(int)));
+	}
+}
