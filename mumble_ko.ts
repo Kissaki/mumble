@@ -3,37 +3,54 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "SvgIcon.h"
+#ifndef MUMBLE_MUMBLE_OVERLAY_WIN_H_
+#define MUMBLE_MUMBLE_OVERLAY_WIN_H_
 
-#include <QPainter>
-#include <QSvgRenderer>
+#include "Overlay.h"
 
-void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
-	QSvgRenderer svg(fn);
+#include "win.h"
 
-	QList< QSize > commonSizes;
-	commonSizes << QSize(8, 8);
-	commonSizes << QSize(16, 16);
-	commonSizes << QSize(22, 22); // Plasma notification area size
-	commonSizes << QSize(24, 24);
-	commonSizes << QSize(32, 32);
-	commonSizes << QSize(44, 44); // Plasma notification area size @x2
-	commonSizes << QSize(48, 48);
-	commonSizes << QSize(64, 64);
-	commonSizes << QSize(96, 96);
-	commonSizes << QSize(128, 128);
-	commonSizes << QSize(256, 256);
+#include <QElapsedTimer>
+#include <QProcess>
+#include <QString>
+#include <QStringList>
+#include <QTimer>
 
-	foreach (QSize size, commonSizes) {
-		QPixmap pm(size);
-		pm.fill(Qt::transparent);
+class OverlayPrivateWin : public OverlayPrivate {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(OverlayPrivateWin)
 
-		QPainter p(&pm);
-		p.setRenderHint(QPainter::Antialiasing);
-		p.setRenderHint(QPainter::TextAntialiasing);
-		p.setRenderHint(QPainter::SmoothPixmapTransform);
-		svg.render(&p);
+public:
+	void setActive(bool);
+	OverlayPrivateWin(QObject *);
+	~OverlayPrivateWin();
 
-		icon.addPixmap(pm);
-	}
-}
+public slots:
+	void onHelperProcessStarted();
+	void onHelperProcessError(QProcess::ProcessError);
+	void onHelperProcessExited(int exitCode, QProcess::ExitStatus exitStatus);
+	void onDelayedRestartTimerTriggered();
+
+protected:
+	QProcess *m_helper_process;
+	QString m_helper_exe_path;
+	QStringList m_helper_exe_args;
+	QElapsedTimer m_helper_start_time;
+	QTimer *m_helper_restart_timer;
+	bool m_helper_enabled;
+
+	QProcess *m_helper64_process;
+	QString m_helper64_exe_path;
+	QStringList m_helper64_exe_args;
+	QElapsedTimer m_helper64_start_time;
+	QTimer *m_helper64_restart_timer;
+	bool m_helper64_enabled;
+
+	HANDLE m_mumble_handle;
+	bool m_active;
+
+	void startHelper(QProcess *helper);
+};
+
+#endif
