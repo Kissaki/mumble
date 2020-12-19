@@ -3,104 +3,84 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Log.h"
+#ifndef MUMBLE_MUMBLE_MANUALPLUGIN_H_
+#define MUMBLE_MUMBLE_MANUALPLUGIN_H_
 
-#include <QtCore/QOperatingSystemVersion>
+#include <QtCore/QtGlobal>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QGraphicsItem>
+#include <QtWidgets/QGraphicsScene>
 
-#include <Foundation/Foundation.h>
+#include "ui_ManualPlugin.h"
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include "../../plugins/mumble_plugin.h"
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+#include <atomic>
+#include <chrono>
 
-@interface MUUserNotificationCenterDelegate : NSObject <NSUserNotificationCenterDelegate>
-@end
+struct Position2D {
+	float x;
+	float y;
+};
 
-@implementation MUUserNotificationCenterDelegate
-- (void) userNotificationCenter:(NSUserNotificationCenter *)center didDeliverNotification:(NSUserNotification *)notification {
-	Q_UNUSED(center);
-	Q_UNUSED(notification);
-}
+// We need this typedef in order to be able to pass this hash as an argument
+// to QMetaObject::invokeMethod
+using PositionMap = QHash< unsigned int, Position2D >;
+Q_DECLARE_METATYPE(PositionMap);
 
-- (void) userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
-	[center removeDeliveredNotification:notification];
-}
 
-- (BOOL) userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification {
-	Q_UNUSED(center);
-	Q_UNUSED(notification);
+/// A struct holding information about a stale entry in the
+/// manual plugin's position window
+struct StaleEntry {
+	/// The time point since when this entry is considered stale
+	std::chrono::time_point< std::chrono::steady_clock > staleSince;
+	/// The pointer to the stale item
+	QGraphicsItem *staleItem;
+};
 
-	return NO;
-}
-@end
+class Manual : public QDialog, public Ui::Manual {
+	Q_OBJECT
+public:
+	Manual(QWidget *parent = 0);
 
-static NSString *Log_QString_to_NSString(const QString& string) {
-	return const_cast<NSString *>(reinterpret_cast<const NSString *>(CFStringCreateWithCharacters(kCFAllocatorDefault,
-	                                reinterpret_cast<const UniChar *>(string.unicode()), string.length())));
-}
+	static void setSpeakerPositions(const QHash< unsigned int, Position2D > &positions);
+
+
+public slots:
+	void on_qpbUnhinge_pressed();
+	void on_qpbLinked_clicked(bool);
+	void on_qpbActivated_clicked(bool);
+	void on_qdsbX_valueChanged(double);
+	void on_qdsbY_valueChanged(double);
+	void on_qdsbZ_valueChanged(double);
+	void on_qsbAzimuth_valueChanged(int);
+	void on_qsbElevation_valueChanged(int);
+	void on_qdAzimuth_valueChanged(int);
+	void on_qdElevation_valueChanged(int);
+	void on_qleContext_editingFinished();
+	void on_qleIdentity_editingFinished();
+	void on_buttonBox_clicked(QAbstractButton *);
+	void on_qsbSilentUserDisplaytime_valueChanged(int);
+
+	void on_speakerPositionUpdate(PositionMap positions);
+
+	void on_updateStaleSpeakers();
+
+protected:
+	QGraphicsScene *qgsScene;
+	QGraphicsItem *qgiPosition;
+
+	std::atomic< bool > updateLoopRunning;
+
+	QHash< unsigned int, QGraphicsItem * > speakerPositions;
+	QHash< unsigned int, StaleEntry > staleSpeakerPositions;
+
+	bool eventFilter(QObject *, QEvent *);
+	void changeEvent(QEvent *e);
+	void updateTopAndFront(int orientation, int azimut);
+};
+
+MumblePlugin *ManualPlugin_getMumblePlugin();
+MumblePluginQt *ManualPlugin_getMumblePluginQt();
 
 #endif
-
-#if QT_VERSION < 0x050800
-extern bool qt_mac_execute_apple_script(const QString &script, AEDesc *ret);
-
-static bool growl_available() {
-	static int isAvailable = -1;
-	if (isAvailable == -1)  {
-		OSStatus err = LSFindApplicationForInfo('GRRR', CFSTR("com.Growl.GrowlHelperApp"), CFSTR("GrowlHelperApp.app"), nullptr, nullptr);
-		isAvailable = (err != kLSApplicationNotFoundErr) ? 1 : 0;
-		if (isAvailable) {
-			QStringList qslAllEvents;
-			for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
-				Log::MsgType t = static_cast<Log::MsgType>(i);
-				qslAllEvents << QString::fromLatin1("\"%1\"").arg(g.l->msgName(t));
-			}
-			QString qsScript = QString::fromLatin1(
-				"tell application \"GrowlHelperApp\"\n"
-				"	set the allNotificationsList to {%1}\n"
-				"	set the enabledNotificationsList to {%1}\n"
-				"	register as application \"Mumble\""
-				"		all notifications allNotificationsList"
-				"		default notifications enabledNotificationsList"
-				"		icon of application \"Mumble\"\n"
-				"end tell\n").arg(qslAllEvents.join(QLatin1String(",")));
-			qt_mac_execute_apple_script(qsScript, nullptr);
-		}
-	}
-	return isAvailable == 1;
-}
-#endif // QT_VERSION
-
-void Log::postNotification(MsgType mt, const QString &plain) {
-	QString title = msgName(mt);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
-# if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
-	const QOperatingSystemVersion current = QOperatingSystemVersion::current();
-	if (current.majorVersion() > 10 || (current.majorVersion() == 10 && current.minorVersion() >= 8)) {
-# else
-	if (QSysInfo::MacintoshVersion >= QSysInfo::MV_MOUNTAINLION) {
-# endif
-		NSUserNotificationCenter *userNotificationCenter = [NSUserNotificationCenter defaultUserNotificationCenter];
-		if (userNotificationCenter.delegate == nil) {
-			// We hand the delegate property a delegate with a retain count of 1.  We don't keep
-			// a reference to the delegate anywhere else, so it's not really a leak.
-			userNotificationCenter.delegate = [[MUUserNotificationCenterDelegate alloc] init];
-		}
-		NSUserNotification *userNotification = [[[NSUserNotification alloc] init] autorelease];
-		userNotification.title = [Log_QString_to_NSString(title) autorelease];
-		userNotification.informativeText = [Log_QString_to_NSString(plain) autorelease];
-		[userNotificationCenter scheduleNotification:userNotification];
-	} else
-#endif
-	{
-#if QT_VERSION < 0x050800
-		QString qsScript = QString::fromLatin1(
-			"tell application \"GrowlHelperApp\"\n"
-			"	notify with name \"%1\" title \"%1\" description \"%2\" application name \"Mumble\"\n"
-			"end tell\n").arg(title).arg(plain);
-		if (growl_available())
-			qt_mac_execute_apple_script(qsScript, nullptr);
-#endif
-	}
-}
