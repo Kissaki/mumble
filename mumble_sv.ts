@@ -1,327 +1,712 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>AudioStats</class>
- <widget class="QDialog" name="AudioStats">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>598</width>
-    <height>548</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Audio Statistics</string>
-  </property>
-  <layout class="QVBoxLayout">
-   <item>
-    <layout class="QHBoxLayout">
-     <item>
-      <widget class="QGroupBox" name="qgbInput">
-       <property name="title">
-        <string>Input Levels</string>
-       </property>
-       <layout class="QGridLayout">
-        <item row="0" column="0">
-         <widget class="QLabel" name="qliMicLevel">
-          <property name="text">
-           <string>Peak microphone level</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QLabel" name="qlMicLevel">
-          <property name="toolTip">
-           <string>Peak power in last frame</string>
-          </property>
-          <property name="whatsThis">
-           <string>This shows the peak power in the last frame (20 ms), and is the same measurement as you would usually find displayed as &quot;input power&quot;. Please disregard this and look at &lt;b&gt;Microphone power&lt;/b&gt; instead, which is much more steady and disregards outliers.</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="qliSpeakerLevel">
-          <property name="text">
-           <string>Peak speaker level</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QLabel" name="qlSpeakerLevel">
-          <property name="toolTip">
-           <string>Peak power in last frame</string>
-          </property>
-          <property name="whatsThis">
-           <string>This shows the peak power of the speakers in the last frame (20 ms). Unless you are using a multi-channel sampling method (such as ASIO) with speaker channels configured, this will be 0. If you have such a setup configured, and this still shows 0 while you're playing audio from other programs, your setup is not working.</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="qliSignalLevel">
-          <property name="text">
-           <string>Peak clean level</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QLabel" name="qlSignalLevel">
-          <property name="toolTip">
-           <string>Peak power in last frame</string>
-          </property>
-          <property name="whatsThis">
-           <string>This shows the peak power in the last frame (20 ms) after all processing. Ideally, this should be -96 dB when you're not talking. In reality, a sound studio should see -60 dB, and you should hopefully see somewhere around -20 dB. When you are talking, this should rise to somewhere between -5 and -10 dB.&lt;br /&gt;If you are using echo cancellation, and this rises to more than -15 dB when you're not talking, your setup is not working, and you'll annoy other users with echoes.</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </item>
-     <item>
-      <widget class="QGroupBox" name="qgbSignal">
-       <property name="title">
-        <string>Signal Analysis</string>
-       </property>
-       <layout class="QGridLayout">
-        <item row="0" column="0">
-         <widget class="QLabel" name="qliMicVolume">
-          <property name="text">
-           <string>Microphone power</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QLabel" name="qlMicVolume">
-          <property name="toolTip">
-           <string>How close the current input level is to ideal</string>
-          </property>
-          <property name="whatsThis">
-           <string>This shows how close your current input volume is to the ideal. To adjust your microphone level, open whatever program you use to adjust the recording volume, and look at the value here while talking.&lt;br /&gt;&lt;b&gt;Talk loud, as you would when you're upset over getting fragged by a noob.&lt;/b&gt;&lt;br /&gt;Adjust the volume until this value is close to 100%, but make sure it doesn't go above. If it does go above, you are likely to get clipping in parts of your speech, which will degrade sound quality.</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="qliMicSNR">
-          <property name="text">
-           <string>Signal-To-Noise ratio</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QLabel" name="qlMicSNR">
-          <property name="toolTip">
-           <string>Signal-To-Noise ratio from the microphone</string>
-          </property>
-          <property name="whatsThis">
-           <string>This is the Signal-To-Noise Ratio (SNR) of the microphone in the last frame (20 ms). It shows how much clearer the voice is compared to the noise.&lt;br /&gt;If this value is below 1.0, there's more noise than voice in the signal, and so quality is reduced.&lt;br /&gt;There is no upper limit to this value, but don't expect to see much above 40-50 without a sound studio.</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="qliSpeechProb">
-          <property name="text">
-           <string>Speech Probability</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QLabel" name="qlSpeechProb">
-          <property name="toolTip">
-           <string>Probability of speech</string>
-          </property>
-          <property name="whatsThis">
-           <string>This is the probability that the last frame (20 ms) was speech and not environment noise.&lt;br /&gt;Voice activity transmission depends on this being right. The trick with this is that the middle of a sentence is always detected as speech; the problem is the pauses between words and the start of speech. It's hard to distinguish a sigh from a word starting with 'h'.&lt;br /&gt;If this is in bold font, it means Mumble is currently transmitting (if you're connected).</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbConfiguration">
-     <property name="title">
-      <string>Configuration feedback</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliBitrate">
-        <property name="text">
-         <string>Current audio bitrate</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="qlBitrate">
-        <property name="minimumSize">
-         <size>
-          <width>20</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Bitrate of last frame</string>
-        </property>
-        <property name="whatsThis">
-         <string>This is the audio bitrate of the last compressed frame (20 ms), and as such will jump up and down as the VBR adjusts the quality. The peak bitrate can be adjusted in the Settings dialog.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="3">
-       <widget class="QLabel" name="qliDoublePush">
-        <property name="text">
-         <string>DoublePush interval</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="4">
-       <widget class="QLabel" name="qlDoublePush">
-        <property name="minimumSize">
-         <size>
-          <width>20</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Time between last two Push-To-Talk presses</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliSpeech">
-        <property name="text">
-         <string>Speech Detection</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1" colspan="4">
-       <widget class="AudioBar" name="abSpeech" native="true">
-        <property name="toolTip">
-         <string>Current speech detection chance</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <spacer>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbSpectrum">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Signal and noise power spectrum</string>
-     </property>
-     <layout class="QVBoxLayout">
-      <item>
-       <widget class="AudioNoiseWidget" name="anwNoise" native="true">
-        <property name="toolTip">
-         <string>Power spectrum of input signal and noise estimate</string>
-        </property>
-        <property name="whatsThis">
-         <string>This shows the power spectrum of the current input signal (red line) and the current noise estimate (filled blue).&lt;br /&gt;All amplitudes are multiplied by 30 to show the interesting parts (how much more signal than noise is present in each waveband).&lt;br /&gt;This is probably only of interest if you're trying to fine-tune noise conditions on your microphone. Under good conditions, there should be just a tiny flutter of blue at the bottom. If the blue is more than halfway up on the graph, you have a seriously noisy environment.</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbEcho">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Echo Analysis</string>
-     </property>
-     <layout class="QVBoxLayout">
-      <item>
-       <widget class="AudioEchoWidget" name="aewEcho" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Weights of the echo canceller</string>
-        </property>
-        <property name="whatsThis">
-         <string>This shows the weights of the echo canceller, with time increasing downwards and frequency increasing to the right.&lt;br /&gt;Ideally, this should be black, indicating no echo exists at all. More commonly, you'll have one or more horizontal stripes of bluish color representing time delayed echo. You should be able to see the weights updated in real time.&lt;br /&gt;Please note that as long as you have nothing to echo off, you won't see much useful data here. Play some music and things should stabilize. &lt;br /&gt;You can choose to view the real or imaginary parts of the frequency-domain weights, or alternately the computed modulus and phase. The most useful of these will likely be modulus, which is the amplitude of the echo, and shows you how much of the outgoing signal is being removed at that time step. The other viewing modes are mostly useful to people who want to tune the echo cancellation algorithms.&lt;br /&gt;Please note: If the entire image fluctuates massively while in modulus mode, the echo canceller fails to find any correlation whatsoever between the two input sources (speakers and microphone). Either you have a very long delay on the echo, or one of the input sources is configured wrong.</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>AudioBar</class>
-   <extends>QWidget</extends>
-   <header>AudioStats.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>AudioNoiseWidget</class>
-   <extends>QWidget</extends>
-   <header>AudioStats.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>AudioEchoWidget</class>
-   <extends>QWidget</extends>
-   <header>AudioStats.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "AudioWizard.h"
+
+#include "AudioInput.h"
+#include "AudioOutputSample.h"
+#include "Log.h"
+#include "MainWindow.h"
+#include "Utils.h"
+
+#include <QtGui/QMouseEvent>
+#include <QtWidgets/QGraphicsEllipseItem>
+
+#include <cmath>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+CompletablePage::CompletablePage(QWizard *p) : QWizardPage(p) {
+	bComplete = true;
+}
+
+void CompletablePage::setComplete(bool b) {
+	bComplete = b;
+	emit completeChanged();
+}
+
+bool CompletablePage::isComplete() const {
+	return bComplete;
+}
+
+AudioWizard::AudioWizard(QWidget *p) : QWizard(p) {
+	bInit            = true;
+	bLastActive      = false;
+	g.bInAudioWizard = true;
+
+	ticker = new QTimer(this);
+	ticker->setObjectName(QLatin1String("Ticker"));
+
+	setupUi(this);
+
+	qcbInput->setAccessibleName(tr("Input system"));
+	qcbInputDevice->setAccessibleName(tr("Input device"));
+	qcbOutput->setAccessibleName(tr("Output system"));
+	qcbOutputDevice->setAccessibleName(tr("Output device"));
+	qsOutputDelay->setAccessibleName(tr("Output delay"));
+	qsMaxAmp->setAccessibleName(tr("Maximum amplification"));
+	skwPTT->setAccessibleName(tr("PTT key"));
+	qsVAD->setAccessibleName(tr("VAD level"));
+
+	// Done
+	qcbUsage->setChecked(g.s.bUsage);
+
+	// Device
+	if (AudioInputRegistrar::qmNew) {
+		foreach (AudioInputRegistrar *air, *AudioInputRegistrar::qmNew) {
+			qcbInput->addItem(air->name);
+			if (air->name == AudioInputRegistrar::current) {
+				qcbInput->setCurrentIndex(qcbInput->count() - 1);
+				qcbEcho->setEnabled(air->canEcho(qcbOutput->currentText()));
+			}
+			QList< audioDevice > ql = air->getDeviceChoices();
+		}
+	}
+	if (qcbInput->count() < 2) {
+		qcbInput->setEnabled(false);
+	}
+
+	qcbEcho->setChecked(g.s.bEcho);
+
+	if (AudioOutputRegistrar::qmNew) {
+		foreach (AudioOutputRegistrar *aor, *AudioOutputRegistrar::qmNew) {
+			qcbOutput->addItem(aor->name);
+			if (aor->name == AudioOutputRegistrar::current) {
+				qcbOutput->setCurrentIndex(qcbOutput->count() - 1);
+				bDelay = aor->usesOutputDelay();
+				qcbAttenuateOthers->setEnabled(aor->canMuteOthers());
+			}
+			QList< audioDevice > ql = aor->getDeviceChoices();
+		}
+	}
+
+	if (qcbOutput->count() < 2) {
+		qcbOutput->setEnabled(false);
+	}
+
+	qcbHighContrast->setChecked(g.s.bHighContrast);
+	on_qcbHighContrast_clicked(g.s.bHighContrast);
+#ifdef Q_OS_WIN
+	// On windows we can autodetect this
+	qcbHighContrast->setVisible(false);
+#endif
+
+	// Settings
+	if (g.s.iQuality == 16000 && g.s.iFramesPerPacket == 6)
+		qrbQualityLow->setChecked(true);
+	else if (g.s.iQuality == 40000 && g.s.iFramesPerPacket == 2)
+		qrbQualityBalanced->setChecked(true);
+	else if (g.s.iQuality == 72000 && g.s.iFramesPerPacket == 1)
+		qrbQualityUltra->setChecked(true);
+	else
+		qrbQualityCustom->setChecked(true);
+
+	quint32 iMessage = Settings::LogNone;
+	for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
+		iMessage |= (g.s.qmMessages[i] & (Settings::LogSoundfile | Settings::LogTTS));
+	}
+
+#ifdef USE_NO_TTS
+	qrbNotificationCustom->setChecked(false);
+	qrbNotificationCustom->setDisabled(true);
+	qrbNotificationTTS->setChecked(false);
+	qrbNotificationTTS->setDisabled(true);
+	qrbNotificationSounds->setChecked(true);
+#else
+	if (iMessage == Settings::LogTTS && g.s.bTTS)
+		qrbNotificationTTS->setChecked(true);
+	else if (iMessage == Settings::LogSoundfile)
+		qrbNotificationSounds->setChecked(true);
+	else // If we find mixed message types or only tts with main tts disable assume custom
+		qrbNotificationCustom->setChecked(true);
+	qrbNotificationCustom->setVisible(qrbNotificationCustom->isChecked());
+#endif
+
+	qrbQualityCustom->setVisible(qrbQualityCustom->isChecked());
+	qlQualityCustom->setVisible(qrbQualityCustom->isChecked());
+
+	qcbPositional->setChecked(g.s.bPositionalAudio);
+	qcbAttenuateOthers->setChecked(g.s.bAttenuateOthers);
+
+	on_qcbInput_activated(qcbInput->currentIndex());
+	on_qcbOutput_activated(qcbOutput->currentIndex());
+
+	abAmplify->qcBelow  = Qt::blue;
+	abAmplify->qcInside = Qt::green;
+	abAmplify->qcAbove  = Qt::red;
+
+	// Trigger
+	foreach (const Shortcut &s, g.s.qlShortcuts) {
+		if (s.iIndex == g.mw->gsPushTalk->idx) {
+			skwPTT->setShortcut(s.qlButtons);
+			break;
+		}
+	}
+
+	if (g.s.atTransmit == Settings::PushToTalk)
+		qrPTT->setChecked(true);
+	else if (g.s.vsVAD == Settings::Amplitude)
+		qrAmplitude->setChecked(true);
+	else
+		qrSNR->setChecked(true);
+
+	abVAD->qcBelow  = Qt::red;
+	abVAD->qcInside = Qt::yellow;
+	abVAD->qcAbove  = Qt::green;
+
+	qsVAD->setValue(iroundf(g.s.fVADmax * 32767.f + 0.5f));
+
+	// Positional
+	qcbHeadphone->setChecked(g.s.bPositionalHeadphone);
+
+	fAngle = 0.0f;
+	fX = fY   = 0.0f;
+	qgsScene  = nullptr;
+	qgiSource = nullptr;
+	aosSource = nullptr;
+	qgvView->scale(1.0f, -1.0f);
+	qgvView->viewport()->installEventFilter(this);
+	qgvView->setRenderHints(QPainter::Antialiasing);
+
+	// Volume
+	qsMaxAmp->setValue(g.s.iMinLoudness);
+
+	// Device Tuning
+	qsOutputDelay->setValue(g.s.iOutputDelay);
+
+	on_qsOutputDelay_valueChanged(qsOutputDelay->value());
+
+	setOption(QWizard::NoCancelButton, false);
+	resize(700, 500);
+
+	updateTriggerWidgets(qrPTT->isChecked());
+	sOldSettings        = g.s;
+	g.s.lmLoopMode      = Settings::Local;
+	g.s.dPacketLoss     = 0.0;
+	g.s.dMaxPacketDelay = 0.0;
+	g.s.bMute           = true;
+	g.s.bDeaf           = false;
+
+	bTransmitChanged = false;
+
+	iMaxPeak = 0;
+	iTicks   = 0;
+
+	qpTalkingOn  = QPixmap::fromImage(QImage(QLatin1String("skin:talking_on.svg")).scaled(64, 64));
+	qpTalkingOff = QPixmap::fromImage(QImage(QLatin1String("skin:talking_off.svg")).scaled(64, 64));
+
+	bInit = false;
+
+	connect(this, SIGNAL(currentIdChanged(int)), this, SLOT(showPage(int)));
+
+	ticker->setSingleShot(false);
+	ticker->start(20);
+}
+
+bool AudioWizard::eventFilter(QObject *obj, QEvent *evt) {
+	if ((evt->type() == QEvent::MouseButtonPress) || (evt->type() == QEvent::MouseMove)) {
+		QMouseEvent *qme = dynamic_cast< QMouseEvent * >(evt);
+		if (qme) {
+			if (qme->buttons() & Qt::LeftButton) {
+				QPointF qpf = qgvView->mapToScene(qme->pos());
+				fX          = static_cast< float >(qpf.x());
+				fY          = static_cast< float >(qpf.y());
+			}
+		}
+	}
+	return QWizard::eventFilter(obj, evt);
+}
+
+void AudioWizard::on_qcbInput_activated(int) {
+	qcbInputDevice->clear();
+
+	if (!AudioInputRegistrar::qmNew)
+		return;
+
+	AudioInputRegistrar *air = AudioInputRegistrar::qmNew->value(qcbInput->currentText());
+	QList< audioDevice > ql  = air->getDeviceChoices();
+
+	foreach (audioDevice d, ql) { qcbInputDevice->addItem(d.first, d.second); }
+
+	qcbInputDevice->setEnabled(ql.count() > 1);
+
+	on_qcbInputDevice_activated(0);
+}
+
+void AudioWizard::on_qcbInputDevice_activated(int) {
+	if (bInit)
+		return;
+
+	if (!AudioInputRegistrar::qmNew)
+		return;
+
+	Audio::stopInput();
+
+	AudioInputRegistrar *air = AudioInputRegistrar::qmNew->value(qcbInput->currentText());
+	int idx                  = qcbInputDevice->currentIndex();
+	if (idx > -1) {
+		air->setDeviceChoice(qcbInputDevice->itemData(idx), g.s);
+	}
+
+	qcbEcho->setEnabled(air->canEcho(qcbOutput->currentText()));
+
+	g.ai = AudioInputPtr(air->create());
+	g.ai->start(QThread::HighestPriority);
+}
+
+void AudioWizard::on_qcbOutput_activated(int) {
+	qcbOutputDevice->clear();
+
+	if (!AudioOutputRegistrar::qmNew)
+		return;
+
+	AudioOutputRegistrar *aor = AudioOutputRegistrar::qmNew->value(qcbOutput->currentText());
+	QList< audioDevice > ql   = aor->getDeviceChoices();
+
+	foreach (audioDevice d, ql) { qcbOutputDevice->addItem(d.first, d.second); }
+
+	qcbAttenuateOthers->setEnabled(aor->canMuteOthers());
+
+	qcbOutputDevice->setEnabled(ql.count() > 1);
+
+	on_qcbOutputDevice_activated(0);
+}
+
+void AudioWizard::on_qcbOutputDevice_activated(int) {
+	if (bInit)
+		return;
+
+	if (!AudioOutputRegistrar::qmNew)
+		return;
+
+	Audio::stopOutput();
+
+	AudioOutputRegistrar *aor = AudioOutputRegistrar::qmNew->value(qcbOutput->currentText());
+	int idx                   = qcbOutputDevice->currentIndex();
+	if (idx > -1) {
+		aor->setDeviceChoice(qcbOutputDevice->itemData(idx), g.s);
+		bDelay = aor->usesOutputDelay();
+	}
+
+	AudioInputRegistrar *air = AudioInputRegistrar::qmNew->value(qcbInput->currentText());
+	qcbEcho->setEnabled(air->canEcho(qcbOutput->currentText()));
+
+	g.ao = AudioOutputPtr(aor->create());
+	g.ao->start(QThread::HighPriority);
+}
+
+void AudioWizard::on_qsOutputDelay_valueChanged(int v) {
+	qlOutputDelay->setText(tr("%1 ms").arg(v * 10));
+	g.s.iOutputDelay = v;
+	restartAudio();
+}
+
+void AudioWizard::on_qsMaxAmp_valueChanged(int v) {
+	g.s.iMinLoudness = qMin(v, 30000);
+}
+
+void AudioWizard::showPage(int pageid) {
+	if (pageid == -1)
+		return;
+
+	CompletablePage *cp = qobject_cast< CompletablePage * >(currentPage());
+
+	AudioOutputPtr ao = g.ao;
+	if (ao)
+		ao->wipe();
+	aosSource = nullptr;
+
+	g.bPosTest = false;
+
+	if (cp == qwpIntro) {
+		g.s.bMute = true;
+	} else if (cp == qwpDone) {
+		g.s.bMute = true;
+	} else if (cp == qwpDeviceTuning) {
+		g.s.bMute = true;
+		playChord();
+	} else if (cp == qwpPositional) {
+		fX = fY    = 0.0f;
+		g.s.bMute  = true;
+		g.bPosTest = true;
+		if (qgsScene) {
+			delete qgsScene;
+			qgiSource = nullptr;
+			qgsScene  = nullptr;
+		}
+		playChord();
+	} else {
+		g.s.bMute = false;
+	}
+
+	if ((cp == qwpTrigger) || (cp == qwpSettings)) {
+		if (!bTransmitChanged)
+			g.s.atTransmit = sOldSettings.atTransmit;
+		else if (qrPTT->isChecked())
+			g.s.atTransmit = Settings::PushToTalk;
+		else
+			g.s.atTransmit = Settings::VAD;
+	} else {
+		g.s.atTransmit = Settings::Continuous;
+	}
+}
+
+int AudioWizard::nextId() const {
+	AudioOutputPtr ao = g.ao;
+
+	int nextid = QWizard::nextId();
+	if (currentPage() == qwpSettings && !g.s.bPositionalAudio)
+		nextid++;
+	else if ((currentPage() == qwpDevice) && !bDelay)
+		nextid++;
+	return nextid;
+}
+
+void AudioWizard::playChord() {
+	AudioOutputPtr ao = g.ao;
+	if (!ao || aosSource || bInit)
+		return;
+	aosSource = ao->playSample(QLatin1String(":/wb_male.oga"), true);
+}
+
+void AudioWizard::restartAudio() {
+	aosSource = nullptr;
+
+	Audio::stop();
+
+	g.s.qsAudioInput  = qcbInput->currentText();
+	g.s.qsAudioOutput = qcbOutput->currentText();
+
+	Audio::start();
+
+	if (qgsScene) {
+		delete qgsScene;
+		qgiSource = nullptr;
+		qgsScene  = nullptr;
+	}
+
+	if ((currentPage() == qwpPositional) || (currentPage() == qwpDeviceTuning))
+		playChord();
+}
+
+void AudioWizard::reject() {
+	g.s = sOldSettings;
+
+	g.s.lmLoopMode = Settings::None;
+	restartAudio();
+
+	AudioOutputPtr ao = g.ao;
+	if (ao)
+		ao->wipe();
+	aosSource        = nullptr;
+	g.bInAudioWizard = false;
+
+	QWizard::reject();
+}
+
+void AudioWizard::accept() {
+	if (!bTransmitChanged)
+		g.s.atTransmit = sOldSettings.atTransmit;
+	else if (qrPTT->isChecked())
+		g.s.atTransmit = Settings::PushToTalk;
+	else
+		g.s.atTransmit = Settings::VAD;
+
+	g.s.bMute      = sOldSettings.bMute;
+	g.s.bDeaf      = sOldSettings.bDeaf;
+	g.s.lmLoopMode = Settings::None;
+
+	// Switch TTS<->Sounds according to user selection
+	if (!qrbNotificationCustom->isChecked()) {
+		Settings::MessageLog mlReplace = qrbNotificationTTS->isChecked() ? Settings::LogSoundfile : Settings::LogTTS;
+
+		for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
+			if (g.s.qmMessages[i] & mlReplace)
+				g.s.qmMessages[i] ^= Settings::LogSoundfile | Settings::LogTTS;
+		}
+
+		if (qrbNotificationTTS->isChecked()) {
+			g.s.bTTS = true;
+			g.mw->qaAudioTTS->setChecked(true);
+		}
+	}
+
+	g.s.bUsage = qcbUsage->isChecked();
+	g.bPosTest = false;
+	restartAudio();
+	g.bInAudioWizard = false;
+	QWizard::accept();
+}
+
+bool AudioWizard::validateCurrentPage() {
+	if (currentId() == 1) {
+		if ((qcbInput->currentIndex() < 0) || (qcbOutput->currentIndex() < 0))
+			return false;
+	}
+	return true;
+}
+
+void AudioWizard::on_Ticker_timeout() {
+	AudioInputPtr ai  = g.ai;
+	AudioOutputPtr ao = g.ao;
+	if (!ai || !ao)
+		return;
+
+	int iPeak = static_cast< int >(ai->dMaxMic);
+
+	if (iTicks++ >= 50) {
+		iMaxPeak = 0;
+		iTicks   = 0;
+	}
+	if (iPeak > iMaxPeak)
+		iMaxPeak = iPeak;
+
+	abAmplify->iBelow = qsMaxAmp->value();
+	abAmplify->iValue = iPeak;
+	abAmplify->iPeak  = iMaxPeak;
+	abAmplify->update();
+
+	abVAD->iBelow = iroundf(g.s.fVADmin * 32767.0f + 0.5f);
+	abVAD->iAbove = iroundf(g.s.fVADmax * 32767.0f + 0.5f);
+
+	if (g.s.vsVAD == Settings::Amplitude) {
+		abVAD->iValue = iroundf((32767.f / 96.0f) * (96.0f + ai->dPeakCleanMic) + 0.5f);
+	} else {
+		abVAD->iValue = iroundf(ai->fSpeechProb * 32767.0f + 0.5f);
+	}
+	abVAD->update();
+
+	bool active = ai->isTransmitting();
+	if (active != bLastActive) {
+		bLastActive = active;
+		qlTalkIcon->setPixmap(active ? qpTalkingOn : qpTalkingOff);
+	}
+
+	if (!qgsScene) {
+		const float baseRadius = 0.5;
+
+		unsigned int nspeaker = 0;
+
+		// Note: when updating these, make sure the colors in AudioWizard.ui match up.
+		const QColor skyBlueColor(QLatin1String("#56b4e9"));
+		const QColor bluishGreenColor(QLatin1String("#009e73"));
+		const QColor vermillionColor(QLatin1String("#d55e00"));
+
+		// Get the directions of the speakers as unit vectors and also the amount of them
+		const float *spos = ao->getSpeakerPos(nspeaker);
+
+		if ((nspeaker > 0) && spos) {
+			qgsScene = new QGraphicsScene(QRectF(-4.0f, -4.0f, 8.0f, 8.0f), this);
+
+			QPen pen;
+			// A width of 0 will cause it to always use a width
+			// of exactly 1 pixel
+			pen.setWidth(0);
+
+			QGraphicsEllipseItem *ownPos = qgsScene->addEllipse(
+				QRectF(-baseRadius, -baseRadius, 2 * baseRadius, 2 * baseRadius), pen, QBrush(skyBlueColor));
+			ownPos->setPos(0, 0);
+
+			// Good for debugging: This draws a cross at the origin
+			// qgsScene->addLine(QLineF(0,-1,0,1), pen);
+			// qgsScene->addLine(QLineF(-1,0,1,0), pen);
+
+			const float speakerScale  = 0.9;
+			const float speakerRadius = baseRadius * speakerScale;
+
+			// nspeaker is in format [x1,y1,z1, x2,y2,z2, ...]
+			for (unsigned int i = 0; i < nspeaker; ++i) {
+				if ((spos[3 * i] != 0.0f) || (spos[3 * i + 1] != 0.0f) || (spos[3 * i + 2] != 0.0f)) {
+					float x = spos[3 * i];
+					float z = spos[3 * i + 2];
+
+					const float lengthInPlane = std::sqrt(x * x + z * z);
+
+					// Scale the vector in the xz plane so that its length is at least enough for
+					// the speaker icons and the icon for the own pos don't overlap
+					if ((baseRadius + speakerRadius) < lengthInPlane) {
+						const float scaleFactor = (baseRadius + speakerRadius) / lengthInPlane;
+
+						x *= scaleFactor;
+						z *= scaleFactor;
+					}
+
+					QGraphicsEllipseItem *ellipse = qgsScene->addEllipse(
+						QRectF(-speakerRadius, -speakerRadius, 2 * speakerRadius, 2 * speakerRadius), pen,
+						QBrush(vermillionColor));
+					ellipse->setPos(x, z);
+				}
+			}
+
+			const float sourceScale  = 0.9;
+			const float sourceRadius = baseRadius * sourceScale;
+
+			qgiSource = qgsScene->addEllipse(QRectF(-sourceRadius, -sourceRadius, 2 * sourceRadius, 2 * sourceRadius),
+											 pen, QBrush(bluishGreenColor));
+			qgiSource->setPos(0, (sourceRadius + baseRadius) * 1.5);
+
+			qgvView->setScene(qgsScene);
+			qgvView->fitInView(-4.0f, -4.0f, 8.0f, 8.0f, Qt::KeepAspectRatio);
+		}
+	} else if (currentPage() == qwpPositional) {
+		// This block here is responsible for setting the position of
+		// the audio source. Unless the user has clicked on the scene,
+		// the source will rotate around the origin at a radius of 2.
+		// Once the user has clicked on the scene, the sound source
+		// is put where (s)he clicked last.
+		float xp, yp;
+		if ((fX == 0.0f) && (fY == 0.0f)) {
+			// increase the angle of the sound source by a certain amount. he higher
+			// this value is, the faster will the source rotate.
+			fAngle += 0.02f;
+
+			xp = sinf(fAngle) * 2.0f;
+			yp = cosf(fAngle) * 2.0f;
+		} else {
+			xp = fX;
+			yp = fY;
+		}
+
+		qgiSource->setPos(xp, yp);
+		if (aosSource) {
+			aosSource->fPos[0] = xp;
+			aosSource->fPos[1] = 0;
+			aosSource->fPos[2] = yp;
+		}
+	}
+}
+
+void AudioWizard::on_qsVAD_valueChanged(int v) {
+	if (!bInit) {
+		g.s.fVADmax = static_cast< float >(v) / 32767.0f;
+		g.s.fVADmin = g.s.fVADmax * 0.9f;
+	}
+}
+
+void AudioWizard::on_qrSNR_clicked(bool on) {
+	if (on) {
+		g.s.vsVAD      = Settings::SignalToNoise;
+		g.s.atTransmit = Settings::VAD;
+		updateTriggerWidgets(false);
+		bTransmitChanged = true;
+	}
+}
+
+void AudioWizard::on_qrAmplitude_clicked(bool on) {
+	if (on) {
+		g.s.vsVAD      = Settings::Amplitude;
+		g.s.atTransmit = Settings::VAD;
+		updateTriggerWidgets(false);
+		bTransmitChanged = true;
+	}
+}
+
+void AudioWizard::on_qrPTT_clicked(bool on) {
+	if (on) {
+		g.s.atTransmit = Settings::PushToTalk;
+		updateTriggerWidgets(true);
+		bTransmitChanged = true;
+	}
+}
+
+void AudioWizard::on_skwPTT_keySet(bool valid, bool last) {
+	if (valid)
+		qrPTT->setChecked(true);
+	else if (qrPTT->isChecked())
+		qrAmplitude->setChecked(true);
+	updateTriggerWidgets(valid);
+	bTransmitChanged = true;
+
+	if (last) {
+		const QList< QVariant > &buttons = skwPTT->getShortcut();
+		QList< Shortcut > ql;
+		bool found = false;
+		foreach (Shortcut s, g.s.qlShortcuts) {
+			if (s.iIndex == g.mw->gsPushTalk->idx) {
+				if (buttons.isEmpty())
+					continue;
+				else if (!found) {
+					s.qlButtons = buttons;
+					found       = true;
+				}
+			}
+			ql << s;
+		}
+		if (!found && !buttons.isEmpty()) {
+			Shortcut s;
+			s.iIndex    = g.mw->gsPushTalk->idx;
+			s.bSuppress = false;
+			s.qlButtons = buttons;
+			ql << s;
+		}
+		g.s.qlShortcuts                          = ql;
+		GlobalShortcutEngine::engine->bNeedRemap = true;
+		GlobalShortcutEngine::engine->needRemap();
+	}
+}
+
+void AudioWizard::on_qcbEcho_clicked(bool on) {
+	g.s.bEcho = on;
+	restartAudio();
+}
+
+void AudioWizard::on_qcbHeadphone_clicked(bool on) {
+	g.s.bPositionalHeadphone = on;
+	restartAudio();
+}
+
+void AudioWizard::on_qcbPositional_clicked(bool on) {
+	g.s.bPositionalAudio  = on;
+	g.s.bTransmitPosition = on;
+	restartAudio();
+}
+
+void AudioWizard::updateTriggerWidgets(bool ptt) {
+	qwVAD->setEnabled(!ptt);
+	qwpTrigger->setComplete(!ptt || (skwPTT->qlButtons.count() > 0));
+}
+
+void AudioWizard::on_qcbAttenuateOthers_clicked(bool checked) {
+	g.s.bAttenuateOthers = checked;
+}
+
+void AudioWizard::on_qcbHighContrast_clicked(bool on) {
+	g.s.bHighContrast = on;
+
+	qliAmpTuningText->setVisible(!g.s.bHighContrast);
+	qliAmpTuningTextHC->setVisible(g.s.bHighContrast);
+
+	qliVolumeTuningText->setVisible(!g.s.bHighContrast);
+	qliVolumeTuningTextHC->setVisible(g.s.bHighContrast);
+
+	qliVadTuningText->setVisible(!g.s.bHighContrast);
+	qliVadTuningTextHC->setVisible(g.s.bHighContrast);
+}
+
+void AudioWizard::on_qrbQualityLow_clicked() {
+	g.s.iQuality         = 16000;
+	g.s.iFramesPerPacket = 6;
+	restartAudio();
+}
+
+void AudioWizard::on_qrbQualityBalanced_clicked() {
+	g.s.iQuality         = 40000;
+	g.s.iFramesPerPacket = 2;
+	restartAudio();
+}
+
+void AudioWizard::on_qrbQualityUltra_clicked() {
+	g.s.iQuality         = 72000;
+	g.s.iFramesPerPacket = 1;
+	restartAudio();
+}
+
+void AudioWizard::on_qrbQualityCustom_clicked() {
+	g.s.iQuality         = sOldSettings.iQuality;
+	g.s.iFramesPerPacket = sOldSettings.iFramesPerPacket;
+	restartAudio();
+}
