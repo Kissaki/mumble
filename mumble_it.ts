@@ -3,49 +3,100 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OPUSCODEC_H_
-#define MUMBLE_MUMBLE_OPUSCODEC_H_
+#include "OpusCodec.h"
 
-#include <opus.h>
+#include "Audio.h"
+#include "MumbleApplication.h"
+#include "Version.h"
 
-#include <QtCore/QLibrary>
-
-#ifndef Q_OS_WIN
-#	define __cdecl
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                        \
+		{                                                                       \
+			var    = reinterpret_cast< __typeof__(var) >(qlOpus.resolve(#var)); \
+			bValid = bValid && var;                                             \
+		}
+#else
+#	define RESOLVE(var)                                                                      \
+		{                                                                                     \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlOpus.resolve(#var)); \
+			bValid                             = bValid && var;                               \
+		}
 #endif
 
-/// Loads Opus from a shared library and acts as a wrapper for its functions.
-class OpusCodec {
-private:
-	Q_DISABLE_COPY(OpusCodec)
-protected:
-	QLibrary qlOpus;
-	bool bValid;
+OpusCodec::OpusCodec() {
+	bValid = false;
+	qlOpus.setLoadHints(QLibrary::ResolveAllSymbolsHint);
 
-public:
-	OpusCodec();
-	virtual ~OpusCodec();
+	QStringList alternatives;
+#if defined(Q_OS_MAC)
+	alternatives << QString::fromLatin1("libopus0.dylib");
+	alternatives << QString::fromLatin1("opus0.dylib");
+	alternatives << QString::fromLatin1("libopus.dylib");
+	alternatives << QString::fromLatin1("opus.dylib");
+#elif defined(Q_OS_UNIX)
+	alternatives << QString::fromLatin1("libopus.so.0");
+	alternatives << QString::fromLatin1("libopus0.so");
+	alternatives << QString::fromLatin1("libopus.so");
+	alternatives << QString::fromLatin1("opus.so");
+#else
+	alternatives << QString::fromLatin1("opus0.dll");
+	alternatives << QString::fromLatin1("opus.dll");
+#endif
+	foreach (const QString &lib, alternatives) {
+		qlOpus.setFileName(MumbleApplication::instance()->applicationVersionRootPath() + QLatin1String("/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
 
-	bool isValid() const;
-	void report() const;
+#ifdef Q_OS_MAC
+		qlOpus.setFileName(QApplication::instance()->applicationDirPath() + QLatin1String("/../Codecs/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
 
-	const char *(__cdecl *opus_get_version_string)();
+#ifdef MUMBLE_LIBRARY_PATH
+		qlOpus.setFileName(QLatin1String(MUMTEXT(MUMBLE_LIBRARY_PATH) "/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
 
-	OpusEncoder *(__cdecl *opus_encoder_create)(opus_int32 Fs, int channels, int application, int *error);
-	int(__cdecl *opus_encoder_ctl)(OpusEncoder *st, int request, ...);
-	void(__cdecl *opus_encoder_destroy)(OpusEncoder *st);
-	OpusDecoder *(__cdecl *opus_decoder_create)(opus_int32 Fs, int channels, int *error);
-	int(__cdecl *opus_decoder_ctl)(OpusDecoder *st, int request, ...);
-	void(__cdecl *opus_decoder_destroy)(OpusDecoder *st);
+		qlOpus.setFileName(lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+	}
 
-	int(__cdecl *opus_encode)(OpusEncoder *st, const opus_int16 *pcm, int frame_size, unsigned char *compressed,
-							  int nbCompressedBytes);
-	int(__cdecl *opus_decode_float)(OpusDecoder *st, const unsigned char *data, opus_int32 len, float *pcm,
-									int frame_size, int decode_fec);
+	RESOLVE(opus_get_version_string);
 
-	int(__cdecl *opus_decoder_get_nb_samples)(OpusDecoder *st, const unsigned char packet[], opus_int32 len);
+	RESOLVE(opus_encode);
+	RESOLVE(opus_decode_float);
 
-	int(__cdecl *opus_packet_get_samples_per_frame)(const unsigned char *data, opus_int32 Fs);
-};
+	RESOLVE(opus_encoder_create);
+	RESOLVE(opus_encoder_ctl);
+	RESOLVE(opus_encoder_destroy);
+	RESOLVE(opus_decoder_create);
+	RESOLVE(opus_decoder_ctl);
+	RESOLVE(opus_decoder_destroy);
 
-#endif // OPUSCODEC_H_
+	RESOLVE(opus_decoder_get_nb_samples);
+
+	RESOLVE(opus_packet_get_samples_per_frame);
+}
+
+OpusCodec::~OpusCodec() {
+	qlOpus.unload();
+}
+
+bool OpusCodec::isValid() const {
+	return bValid;
+}
+
+void OpusCodec::report() const {
+	qDebug("%s from %s", opus_get_version_string(), qPrintable(qlOpus.fileName()));
+}
