@@ -3,59 +3,20 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Screen.h"
+#ifndef MUMBLE_MUMBLE_SCREEN_H
+#define MUMBLE_MUMBLE_SCREEN_H
 
-#include "MumbleApplication.h"
+class QPoint;
+class QScreen;
+class QWidget;
+class QWindow;
 
-#include <QScreen>
-#include <QWidget>
-#include <QWindow>
+class Screen {
+public:
+	/// Inspired by https://phabricator.kde.org/D22379
+	static QWindow *windowFromWidget(const QWidget &widget);
+	static QScreen *screenFromWidget(const QWidget &widget);
+	static QScreen *screenAt(const QPoint &point);
+};
 
-QWindow *Screen::windowFromWidget(const QWidget &widget) {
-	QWindow *window = widget.windowHandle();
-	if (window) {
-		return window;
-	}
-
-	const QWidget *parent = widget.nativeParentWidget();
-	if (parent) {
-		return parent->windowHandle();
-	}
-
-	return nullptr;
-}
-
-QScreen *Screen::screenFromWidget(const QWidget &widget) {
-	const QWindow *window = windowFromWidget(widget);
-	if (window && window->screen()) {
-		return window->screen();
-	}
-
-	return qApp->primaryScreen();
-}
-
-QScreen *Screen::screenAt(const QPoint &point) {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-	return qApp->screenAt(point);
-#else
-	// Adapted from qguiapplication.cpp (Qt)
-	QVarLengthArray< const QScreen *, 8 > visitedScreens;
-
-	for (const QScreen *screen : qApp->screens()) {
-		if (visitedScreens.contains(screen)) {
-			continue;
-		}
-
-		// The virtual siblings include the screen itself, so iterate directly
-		for (QScreen *sibling : screen->virtualSiblings()) {
-			if (sibling->geometry().contains(point)) {
-				return sibling;
-			}
-
-			visitedScreens.append(sibling);
-		}
-	}
-
-	return nullptr;
 #endif
-}
