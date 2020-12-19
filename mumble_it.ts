@@ -3,419 +3,334 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#define _USE_MATH_DEFINES
-
-#include <QtCore/QtCore>
-#include <QtGui/QtGui>
-#include <QtWidgets/QMessageBox>
-
-#include "ManualPlugin.h"
-#include "ui_ManualPlugin.h"
-#include <QPointer>
-
-#include <float.h>
-
-#include "../../plugins/mumble_plugin.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-static QPointer< Manual > mDlg = nullptr;
-static bool bLinkable          = false;
-static bool bActive            = true;
-
-static int iAzimuth   = 180;
-static int iElevation = 0;
-
-static const QString defaultContext  = QString::fromLatin1("Mumble");
-static const QString defaultIdentity = QString::fromLatin1("Agent47");
-
-static struct {
-	float avatar_pos[3];
-	float avatar_front[3];
-	float avatar_top[3];
-	float camera_pos[3];
-	float camera_front[3];
-	float camera_top[3];
-	std::string context;
-	std::wstring identity;
-} my = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, std::string(), std::wstring() };
-
-Manual::Manual(QWidget *p) : QDialog(p) {
-	setupUi(this);
-
-	qgvPosition->viewport()->installEventFilter(this);
-	qgvPosition->scale(1.0f, 1.0f);
-	qgsScene = new QGraphicsScene(QRectF(-5.0f, -5.0f, 10.0f, 10.0f), this);
-
-	const float indicatorDiameter = 4.0f;
-	QPainterPath indicator;
-	// The center of the indicator's circle will represent the current position
-	indicator.addEllipse(QRectF(-indicatorDiameter / 2, -indicatorDiameter / 2, indicatorDiameter, indicatorDiameter));
-	// A line will indicate the indicator's orientation (azimuth)
-	indicator.moveTo(0, indicatorDiameter / 2);
-	indicator.lineTo(0, indicatorDiameter);
-
-	qgiPosition = qgsScene->addPath(indicator);
-
-	qgvPosition->setScene(qgsScene);
-	qgvPosition->fitInView(-5.0f, -5.0f, 10.0f, 10.0f, Qt::KeepAspectRatio);
-
-	qdsbX->setRange(-FLT_MAX, FLT_MAX);
-	qdsbY->setRange(-FLT_MAX, FLT_MAX);
-	qdsbZ->setRange(-FLT_MAX, FLT_MAX);
-
-	qdsbX->setValue(my.avatar_pos[0]);
-	qdsbY->setValue(my.avatar_pos[1]);
-	qdsbZ->setValue(my.avatar_pos[2]);
-
-	qpbActivated->setChecked(bActive);
-	qpbLinked->setChecked(bLinkable);
-
-	qsbAzimuth->setValue(iAzimuth);
-	qsbElevation->setValue(iElevation);
-	updateTopAndFront(iAzimuth, iElevation);
-
-	// Set context and identity to default values in order to
-	// a) make positional audio work out of the box (needs a context)
-	// b) make the user aware of what each field might contain
-	qleContext->setText(defaultContext);
-	qleIdentity->setText(defaultIdentity);
-	my.context  = defaultContext.toStdString();
-	my.identity = defaultIdentity.toStdWString();
-
-	qsbSilentUserDisplaytime->setValue(g.s.manualPlugin_silentUserDisplaytime);
-
-	updateLoopRunning.store(false);
-}
-
-void Manual::setSpeakerPositions(const QHash< unsigned int, Position2D > &positions) {
-	if (mDlg) {
-		QMetaObject::invokeMethod(mDlg, "on_speakerPositionUpdate", Qt::QueuedConnection,
-								  Q_ARG(PositionMap, positions));
-	}
-}
-
-bool Manual::eventFilter(QObject *obj, QEvent *evt) {
-	if ((evt->type() == QEvent::MouseButtonPress) || (evt->type() == QEvent::MouseMove)) {
-		QMouseEvent *qme = dynamic_cast< QMouseEvent * >(evt);
-		if (qme) {
-			if (qme->buttons() & Qt::LeftButton) {
-				QPointF qpf = qgvPosition->mapToScene(qme->pos());
-				qdsbX->setValue(qpf.x());
-				qdsbZ->setValue(-qpf.y());
-				qgiPosition->setPos(qpf);
-			}
-		}
-	}
-	return QDialog::eventFilter(obj, evt);
-}
-
-void Manual::changeEvent(QEvent *e) {
-	QDialog::changeEvent(e);
-	switch (e->type()) {
-		case QEvent::LanguageChange:
-			retranslateUi(this);
-			break;
-		default:
-			break;
-	}
-}
-
-void Manual::on_qpbUnhinge_pressed() {
-	qpbUnhinge->setEnabled(false);
-	mDlg->setParent(nullptr);
-	mDlg->show();
-}
-
-void Manual::on_qpbLinked_clicked(bool b) {
-	bLinkable = b;
-}
-
-void Manual::on_qpbActivated_clicked(bool b) {
-	bActive = b;
-}
-
-void Manual::on_qdsbX_valueChanged(double d) {
-	my.avatar_pos[0] = my.camera_pos[0] = static_cast< float >(d);
-	qgiPosition->setPos(my.avatar_pos[0], -my.avatar_pos[2]);
-}
-
-void Manual::on_qdsbY_valueChanged(double d) {
-	my.avatar_pos[1] = my.camera_pos[1] = static_cast< float >(d);
-}
-
-void Manual::on_qdsbZ_valueChanged(double d) {
-	my.avatar_pos[2] = my.camera_pos[2] = static_cast< float >(d);
-	qgiPosition->setPos(my.avatar_pos[0], -my.avatar_pos[2]);
-}
-
-void Manual::on_qsbAzimuth_valueChanged(int i) {
-	if (i > 360)
-		qdAzimuth->setValue(i % 360);
-	else
-		qdAzimuth->setValue(i);
-
-	updateTopAndFront(i, qsbElevation->value());
-}
-
-void Manual::on_qsbElevation_valueChanged(int i) {
-	qdElevation->setValue(90 - i);
-	updateTopAndFront(qsbAzimuth->value(), i);
-}
-
-void Manual::on_qdAzimuth_valueChanged(int i) {
-	if (i < 0)
-		qsbAzimuth->setValue(360 + i);
-	else
-		qsbAzimuth->setValue(i);
-}
-
-void Manual::on_qdElevation_valueChanged(int i) {
-	if (i < -90)
-		qdElevation->setValue(180);
-	else if (i < 0)
-		qdElevation->setValue(0);
-	else
-		qsbElevation->setValue(90 - i);
-}
-
-void Manual::on_qleContext_editingFinished() {
-	my.context = qleContext->text().toStdString();
-}
-
-void Manual::on_qleIdentity_editingFinished() {
-	my.identity = qleIdentity->text().toStdWString();
-}
-
-void Manual::on_buttonBox_clicked(QAbstractButton *button) {
-	if (buttonBox->buttonRole(button) == buttonBox->ResetRole) {
-		qpbLinked->setChecked(false);
-		qpbActivated->setChecked(true);
-
-		bLinkable = false;
-		bActive   = true;
-
-		qdsbX->setValue(0);
-		qdsbY->setValue(0);
-		qdsbZ->setValue(0);
-
-		qleContext->clear();
-		qleIdentity->clear();
-
-		qsbElevation->setValue(0);
-		qsbAzimuth->setValue(0);
-	}
-}
-
-void Manual::on_qsbSilentUserDisplaytime_valueChanged(int value) {
-	g.s.manualPlugin_silentUserDisplaytime = value;
-}
-
-void Manual::on_speakerPositionUpdate(QHash< unsigned int, Position2D > positions) {
-	// First iterate over the stale items to check whether one of them is actually no longer stale
-	QMutableHashIterator< unsigned int, StaleEntry > staleIt(staleSpeakerPositions);
-	while (staleIt.hasNext()) {
-		staleIt.next();
-
-		const unsigned int sessionID = staleIt.key();
-		QGraphicsItem *staleItem     = staleIt.value().staleItem;
-
-		if (positions.contains(sessionID)) {
-			// The item is no longer stale -> restore opacity and re-insert into speakerPositions
-			staleItem->setOpacity(1.0);
-
-			staleIt.remove();
-			speakerPositions.insert(sessionID, staleItem);
-		} else if (!updateLoopRunning.load()) {
-			QMetaObject::invokeMethod(this, "on_updateStaleSpeakers", Qt::QueuedConnection);
-			updateLoopRunning.store(true);
-		}
-	}
-
-	// Now iterate over all active items and check whether they have become stale or whether their
-	// position can be updated
-	QMutableHashIterator< unsigned int, QGraphicsItem * > speakerIt(speakerPositions);
-	while (speakerIt.hasNext()) {
-		speakerIt.next();
-
-		const unsigned int sessionID = speakerIt.key();
-		QGraphicsItem *speakerItem   = speakerIt.value();
-
-		if (positions.contains(sessionID)) {
-			Position2D newPos = positions.take(sessionID);
-
-			// Update speaker's position (remember that y-axis is inverted in screen-coordinates
-			speakerItem->setPos(newPos.x, -newPos.y);
-		} else {
-			// Remove the stale item
-			speakerIt.remove();
-			if (g.s.manualPlugin_silentUserDisplaytime == 0) {
-				// Delete it immediately
-				delete speakerItem;
-			} else {
-				staleSpeakerPositions.insert(sessionID, { std::chrono::steady_clock::now(), speakerItem });
-			}
-		}
-	}
-
-	// Finally iterate over the remaining new speakers and create new items for them
-	QHashIterator< unsigned int, Position2D > remainingIt(positions);
-	while (remainingIt.hasNext()) {
-		remainingIt.next();
-
-		const float speakerRadius  = 1.2;
-		QGraphicsItem *speakerItem = qgsScene->addEllipse(-speakerRadius, -speakerRadius, 2 * speakerRadius,
-														  2 * speakerRadius, QPen(), QBrush(Qt::red));
-
-		Position2D pos = remainingIt.value();
-
-		// y-axis is inverted in screen-space
-		speakerItem->setPos(pos.x, -pos.y);
-
-		speakerPositions.insert(remainingIt.key(), speakerItem);
-	}
-}
-
-void Manual::on_updateStaleSpeakers() {
-	if (staleSpeakerPositions.isEmpty()) {
-		// If there are no stale speakers, this loop doesn't have to run
-		updateLoopRunning.store(false);
-		return;
-	}
-
-	// Iterate over all stale items and check whether they have to be removed entirely. If not, update
-	// their opacity.
-	QMutableHashIterator< unsigned int, StaleEntry > staleIt(staleSpeakerPositions);
-	while (staleIt.hasNext()) {
-		staleIt.next();
-
-		StaleEntry entry = staleIt.value();
-
-		double elapsedTime =
-			static_cast< std::chrono::duration< double > >(std::chrono::steady_clock::now() - entry.staleSince).count();
-
-		if (elapsedTime >= g.s.manualPlugin_silentUserDisplaytime) {
-			// The item has been around long enough - remove it now
-			staleIt.remove();
-			delete entry.staleItem;
-		} else {
-			// Let the item fade out
-			double opacity = (g.s.manualPlugin_silentUserDisplaytime - elapsedTime)
-							 / static_cast< double >(g.s.manualPlugin_silentUserDisplaytime);
-			entry.staleItem->setOpacity(opacity);
-		}
-	}
-
-	if (!staleSpeakerPositions.isEmpty()) {
-		updateLoopRunning.store(true);
-		// Call this function again in the next iteration of the event loop
-		QMetaObject::invokeMethod(this, "on_updateStaleSpeakers", Qt::QueuedConnection);
-	} else {
-		updateLoopRunning.store(false);
-	}
-}
-
-void Manual::updateTopAndFront(int azimuth, int elevation) {
-	iAzimuth   = azimuth;
-	iElevation = elevation;
-
-	qgiPosition->setRotation(azimuth);
-
-	double azim = azimuth * M_PI / 180.;
-	double elev = elevation * M_PI / 180.;
-
-	my.avatar_front[0] = static_cast< float >(cos(elev) * sin(azim));
-	my.avatar_front[1] = static_cast< float >(sin(elev));
-	my.avatar_front[2] = static_cast< float >(cos(elev) * cos(azim));
-
-	my.avatar_top[0] = static_cast< float >(-sin(elev) * sin(azim));
-	my.avatar_top[1] = static_cast< float >(cos(elev));
-	my.avatar_top[2] = static_cast< float >(-sin(elev) * cos(azim));
-
-	memcpy(my.camera_top, my.avatar_top, sizeof(float) * 3);
-	memcpy(my.camera_front, my.avatar_front, sizeof(float) * 3);
-}
-
-static int trylock() {
-	return bLinkable;
-}
-
-static void unlock() {
-	if (mDlg) {
-		mDlg->qpbLinked->setChecked(false);
-	}
-	bLinkable = false;
-}
-
-static void config(void *ptr) {
-	QWidget *w = reinterpret_cast< QWidget * >(ptr);
-
-	if (mDlg) {
-		mDlg->setParent(w, Qt::Dialog);
-		mDlg->qpbUnhinge->setEnabled(true);
-	} else {
-		mDlg = new Manual(w);
-	}
-
-	mDlg->show();
-}
-
-static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front,
-				 float *camera_top, std::string &context, std::wstring &identity) {
-	if (!bLinkable)
-		return false;
-
-	if (!bActive) {
-		memset(avatar_pos, 0, sizeof(float) * 3);
-		memset(camera_pos, 0, sizeof(float) * 3);
-		return true;
-	}
-
-	memcpy(avatar_pos, my.avatar_pos, sizeof(float) * 3);
-	memcpy(avatar_front, my.avatar_front, sizeof(float) * 3);
-	memcpy(avatar_top, my.avatar_top, sizeof(float) * 3);
-
-	memcpy(camera_pos, my.camera_pos, sizeof(float) * 3);
-	memcpy(camera_front, my.camera_front, sizeof(float) * 3);
-	memcpy(camera_top, my.camera_top, sizeof(float) * 3);
-
-	context.assign(my.context);
-	identity.assign(my.identity);
-
-	return true;
-}
-
-static const std::wstring longdesc() {
-	return std::wstring(L"This is the manual placement plugin. It allows you to place yourself manually.");
-}
-
-static std::wstring description(L"Manual placement plugin");
-static std::wstring shortname(L"Manual placement");
-
-static void about(void *ptr) {
-	QWidget *w = reinterpret_cast< QWidget * >(ptr);
-
-	QMessageBox::about(w, QString::fromStdWString(description), QString::fromStdWString(longdesc()));
-}
-
-static MumblePlugin manual = { MUMBLE_PLUGIN_MAGIC,
-							   description,
-							   shortname,
-							   nullptr, // About is handled by MumblePluginQt
-							   nullptr, // Config is handled by MumblePluginQt
-							   trylock,
-							   unlock,
-							   longdesc,
-							   fetch };
-
-static MumblePluginQt manualqt = { MUMBLE_PLUGIN_MAGIC_QT, about, config };
-
-MumblePlugin *ManualPlugin_getMumblePlugin() {
-	return &manual;
-}
-
-MumblePluginQt *ManualPlugin_getMumblePluginQt() {
-	return &manualqt;
-}
+#ifndef MUMBLE_MUMBLE_MAINWINDOW_H_
+#define MUMBLE_MUMBLE_MAINWINDOW_H_
+
+#include <QtCore/QPointer>
+#include <QtCore/QtGlobal>
+#include <QtNetwork/QAbstractSocket>
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QSystemTrayIcon>
+
+#include "CustomElements.h"
+#include "MUComboBox.h"
+#include "Message.h"
+#include "Mumble.pb.h"
+#include "Usage.h"
+#include "UserLocalVolumeDialog.h"
+
+#include "ui_MainWindow.h"
+
+#define MB_QEVENT (QEvent::User + 939)
+#define OU_QEVENT (QEvent::User + 940)
+
+class ACLEditor;
+class BanEditor;
+class UserEdit;
+class ServerHandler;
+class GlobalShortcut;
+class TextToSpeech;
+class UserModel;
+class Tokens;
+class Channel;
+class UserInformation;
+class VoiceRecorderDialog;
+class PTTButtonWidget;
+
+struct ShortcutTarget;
+
+class MessageBoxEvent : public QEvent {
+public:
+	QString msg;
+	MessageBoxEvent(QString msg);
+};
+
+class OpenURLEvent : public QEvent {
+public:
+	QUrl url;
+	OpenURLEvent(QUrl url);
+};
+
+class MainWindow : public QMainWindow, public MessageHandler, public Ui::MainWindow {
+	friend class UserModel;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(MainWindow)
+public:
+	UserModel *pmModel;
+	QSystemTrayIcon *qstiIcon;
+	QMenu *qmUser;
+	QMenu *qmChannel;
+	QMenu *qmListener;
+	QMenu *qmDeveloper;
+	QMenu *qmTray;
+	QIcon qiIcon, qiIconMutePushToMute, qiIconMuteSelf, qiIconMuteServer, qiIconDeafSelf, qiIconDeafServer,
+		qiIconMuteSuppressed;
+	QIcon qiTalkingOn, qiTalkingWhisper, qiTalkingShout, qiTalkingOff;
+	QMap< unsigned int, UserLocalVolumeDialog * > qmUserVolTracker;
+
+	/// "Action" for when there are no actions available
+	QAction *qaEmpty;
+
+	GlobalShortcut *gsPushTalk, *gsResetAudio, *gsMuteSelf, *gsDeafSelf;
+	GlobalShortcut *gsUnlink, *gsPushMute, *gsJoinChannel;
+#ifdef USE_OVERLAY
+	GlobalShortcut *gsToggleOverlay;
+#endif
+	GlobalShortcut *gsMinimal, *gsVolumeUp, *gsVolumeDown, *gsWhisper, *gsLinkChannel;
+	GlobalShortcut *gsCycleTransmitMode, *gsToggleMainWindowVisibility, *gsTransmitModePushToTalk, *gsTransmitModeContinuous, *gsTransmitModeVAD;
+	GlobalShortcut *gsSendTextMessage, *gsSendClipboardTextMessage;
+	DockTitleBar *dtbLogDockTitle, *dtbChatDockTitle;
+
+	ACLEditor *aclEdit;
+	BanEditor *banEdit;
+	UserEdit *userEdit;
+	Tokens *tokenEdit;
+
+	VoiceRecorderDialog *voiceRecorderDialog;
+
+	MumbleProto::Reject_RejectType rtLast;
+	bool bRetryServer;
+	QString qsDesiredChannel;
+
+	bool bSuppressAskOnQuit;
+	/// Restart the client after shutdown
+	bool restartOnQuit;
+	bool bAutoUnmute;
+
+	/// Contains the cursor whose position is immediately before the image to
+	/// save when activating the "Save Image As..." context menu item.
+	QTextCursor qtcSaveImageCursor;
+
+	QPointer< Channel > cContextChannel;
+	QPointer< ClientUser > cuContextUser;
+
+	QPoint qpContextPosition;
+
+	void recheckTTS();
+	void msgBox(QString msg);
+	void setOnTop(bool top);
+	void setShowDockTitleBars(bool doShow);
+	void updateTrayIcon();
+	void updateUserModel();
+	void focusNextMainWidget();
+	QPair< QByteArray, QImage > openImageFile();
+
+	void updateChatBar();
+	void openTextMessageDialog(ClientUser *p);
+	void openUserLocalVolumeDialog(ClientUser *p);
+
+#ifdef Q_OS_WIN
+	bool nativeEvent(const QByteArray &eventType, void *message, long *result) Q_DECL_OVERRIDE;
+	unsigned int uiNewHardware;
+#endif
+protected:
+	Usage uUsage;
+	QTimer *qtReconnect;
+
+	QList< QAction * > qlServerActions;
+	QList< QAction * > qlChannelActions;
+	QList< QAction * > qlUserActions;
+
+	QHash< ShortcutTarget, int > qmCurrentTargets;
+	/// A map that contains information about the currently active
+	/// shout/whisper targets. The mapping is between a List of
+	/// ShortcutTargets that are all triggered together and the
+	/// target ID for this specific combination of ShortcutTargets.
+	/// The target ID is what the server uses to identify this specific
+	/// set of ShortcutTargets.
+	QHash< QList< ShortcutTarget >, int > qmTargets;
+	/// This is a map between all target IDs the client will ever use
+	/// and a helper-number (see iTargetCounter).
+	QMap< int, int > qmTargetUse;
+	Channel *mapChannel(int idx) const;
+	/// This is a pure helper number whose job is to always be increased
+	/// if a new VoiceTarget is needed. It will be used as the helper
+	/// number in qmTargetUse.
+	int iTargetCounter;
+	QMap< unsigned int, UserInformation * > qmUserInformations;
+
+	PTTButtonWidget *qwPTTButtonWidget;
+
+	MUComboBox *qcbTransmitMode;
+	QAction *qaTransmitMode;
+	QAction *qaTransmitModeSeparator;
+
+	void createActions();
+	void setupGui();
+	void updateWindowTitle();
+	/// updateToolbar updates the state of the toolbar depending on the current
+	/// window layout setting.
+	/// If the window layout setting is 'custom', the toolbar is made movable. If the
+	/// window layout is not 'custom', the toolbar is locked in place at the top of
+	/// the MainWindow.
+	void updateToolbar();
+	void customEvent(QEvent *evt) Q_DECL_OVERRIDE;
+	void findDesiredChannel();
+	void setupView(bool toggle_minimize = true);
+	void closeEvent(QCloseEvent *e) Q_DECL_OVERRIDE;
+	void hideEvent(QHideEvent *e) Q_DECL_OVERRIDE;
+	void showEvent(QShowEvent *e) Q_DECL_OVERRIDE;
+	void changeEvent(QEvent *e) Q_DECL_OVERRIDE;
+	void keyPressEvent(QKeyEvent *e) Q_DECL_OVERRIDE;
+
+	QMenu *createPopupMenu() Q_DECL_OVERRIDE;
+
+	bool handleSpecialContextMenu(const QUrl &url, const QPoint &pos_, bool focus = false);
+	Channel *getContextMenuChannel();
+	ClientUser *getContextMenuUser();
+
+public slots:
+	void on_qmServer_aboutToShow();
+	void on_qaServerConnect_triggered(bool autoconnect = false);
+	void on_qaServerDisconnect_triggered();
+	void on_qaServerBanList_triggered();
+	void on_qaServerUserList_triggered();
+	void on_qaServerInformation_triggered();
+	void on_qaServerTexture_triggered();
+	void on_qaServerTextureRemove_triggered();
+	void on_qaServerTokens_triggered();
+	void on_qmSelf_aboutToShow();
+	void on_qaSelfComment_triggered();
+	void on_qaSelfRegister_triggered();
+	void qcbTransmitMode_activated(int index);
+	void updateTransmitModeComboBox();
+	void qmUser_aboutToShow();
+	void qmListener_aboutToShow();
+	void on_qaUserCommentReset_triggered();
+	void on_qaUserTextureReset_triggered();
+	void on_qaUserCommentView_triggered();
+	void on_qaUserKick_triggered();
+	void on_qaUserBan_triggered();
+	void on_qaUserMute_triggered();
+	void on_qaUserDeaf_triggered();
+	void on_qaSelfPrioritySpeaker_triggered();
+	void on_qaUserPrioritySpeaker_triggered();
+	void on_qaUserLocalIgnore_triggered();
+	void on_qaUserLocalIgnoreTTS_triggered();
+	void on_qaUserLocalMute_triggered();
+	void on_qaUserLocalVolume_triggered();
+	void on_qaUserTextMessage_triggered();
+	void on_qaUserRegister_triggered();
+	void on_qaUserInformation_triggered();
+	void on_qaUserFriendAdd_triggered();
+	void on_qaUserFriendRemove_triggered();
+	void on_qaUserFriendUpdate_triggered();
+	void qmChannel_aboutToShow();
+	void on_qaChannelJoin_triggered();
+	void on_qaUserJoin_triggered();
+	void on_qaChannelListen_triggered();
+	void on_qaChannelAdd_triggered();
+	void on_qaChannelRemove_triggered();
+	void on_qaChannelACL_triggered();
+	void on_qaChannelLink_triggered();
+	void on_qaChannelUnlink_triggered();
+	void on_qaChannelUnlinkAll_triggered();
+	void on_qaChannelSendMessage_triggered();
+	void on_qaChannelFilter_triggered();
+	void on_qaChannelCopyURL_triggered();
+	void on_qaListenerLocalVolume_triggered();
+	void on_qaAudioReset_triggered();
+	void on_qaAudioMute_triggered();
+	void on_qaAudioDeaf_triggered();
+	void on_qaRecording_triggered();
+	void on_qaAudioTTS_triggered();
+	void on_qaAudioUnlink_triggered();
+	void on_qaAudioStats_triggered();
+	void on_qaConfigDialog_triggered();
+	void on_qaConfigHideFrame_triggered();
+	void on_qmConfig_aboutToShow();
+	void on_qaConfigMinimal_triggered();
+	void on_qaConfigCert_triggered();
+	void on_qaAudioWizard_triggered();
+	void on_qaDeveloperConsole_triggered();
+	void on_qaHelpWhatsThis_triggered();
+	void on_qaHelpAbout_triggered();
+	void on_qaHelpAboutQt_triggered();
+	void on_qaHelpVersionCheck_triggered();
+	void on_qaQuit_triggered();
+	void on_qaHide_triggered();
+	void on_qteChat_tabPressed();
+	void on_qteChat_backtabPressed();
+	void on_qteChat_ctrlSpacePressed();
+	void on_qtvUsers_customContextMenuRequested(const QPoint &mpos, bool usePositionForGettingContext = true);
+	void on_qteLog_customContextMenuRequested(const QPoint &pos);
+	void on_qteLog_anchorClicked(const QUrl &);
+	void on_qteLog_highlighted(const QUrl &link);
+	void on_PushToTalk_triggered(bool, QVariant);
+	void on_PushToMute_triggered(bool, QVariant);
+	void on_VolumeUp_triggered(bool, QVariant);
+	void on_VolumeDown_triggered(bool, QVariant);
+	void on_gsMuteSelf_down(QVariant);
+	void on_gsDeafSelf_down(QVariant);
+	void on_gsWhisper_triggered(bool, QVariant);
+	void addTarget(ShortcutTarget *);
+	void removeTarget(ShortcutTarget *);
+	void on_gsCycleTransmitMode_triggered(bool, QVariant);
+	void on_gsToggleMainWindowVisibility_triggered(bool, QVariant);
+	void on_gsTransmitModePushToTalk_triggered(bool, QVariant);
+	void on_gsTransmitModeContinuous_triggered(bool, QVariant);
+	void on_gsTransmitModeVAD_triggered(bool, QVariant);
+	void on_gsSendTextMessage_triggered(bool, QVariant);
+	void on_gsSendClipboardTextMessage_triggered(bool, QVariant);
+	void on_Reconnect_timeout();
+	void on_Icon_activated(QSystemTrayIcon::ActivationReason);
+	void on_qaTalkingUIToggle_triggered();
+	void voiceRecorderDialog_finished(int);
+	void qtvUserCurrentChanged(const QModelIndex &, const QModelIndex &);
+	void serverConnected();
+	void serverDisconnected(QAbstractSocket::SocketError, QString reason);
+	void resolverError(QAbstractSocket::SocketError, QString reason);
+	void viewCertificate(bool);
+	void openUrl(const QUrl &url);
+	void context_triggered();
+	void updateTarget();
+	void updateMenuPermissions();
+	/// Handles state changes like talking mode changes and mute/unmute
+	/// or priority speaker flag changes for the gui user
+	void userStateChanged();
+	void destroyUserInformation();
+	void trayAboutToShow();
+	void sendChatbarMessage(QString msg);
+	void sendChatbarText(QString msg);
+	void pttReleased();
+	void whisperReleased(QVariant scdata);
+	void onResetAudio();
+	void showRaiseWindow();
+	void on_qaFilterToggle_triggered();
+	/// Opens a save dialog for the image referenced by qtcSaveImageCursor.
+	void saveImageAs();
+	/// Returns the path to the user's image directory, optionally with a
+	/// filename included.
+	QString getImagePath(QString filename = QString()) const;
+	/// Updates the user's image directory to the given path (any included
+	/// filename is discarded).
+	void updateImagePath(QString filepath) const;
+signals:
+	/// Signal emitted when the server and the client have finished
+	/// synchronizing (after a new connection).
+	void serverSynchronized();
+	/// Signal emitted whenever a user adds a new ChannelListener
+	void userAddedChannelListener(ClientUser *user, Channel *channel);
+	/// Signal emitted whenever a user removes a ChannelListener
+	void userRemovedChannelListener(ClientUser *user, Channel *channel);
+
+public:
+	MainWindow(QWidget *parent);
+	~MainWindow() Q_DECL_OVERRIDE;
+
+	// From msgHandler. Implementation in Messages.cpp
+#define MUMBLE_MH_MSG(x) void msg##x(const MumbleProto::x &);
+	MUMBLE_MH_ALL
+#undef MUMBLE_MH_MSG
+	void removeContextAction(const MumbleProto::ContextActionModify &msg);
+	/// Logs a message that an action could not be saved permanently because
+	/// the user has no certificate and can't be reliably identified.
+	///
+	/// @param actionName  The name of the action that has been executed.
+	/// @param p  The user on which the action was performed.
+	void logChangeNotPermanent(const QString &actionName, ClientUser *const p) const;
+};
+
+#endif
