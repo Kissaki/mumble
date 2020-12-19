@@ -1,72 +1,119 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "Usage.h"
-
-#include "ClientUser.h"
-#include "LCD.h"
-#include "NetworkConfig.h"
-#include "OSInfo.h"
-#include "Version.h"
-#include "Global.h"
-
-#include <QtCore/QTimer>
-#include <QtNetwork/QHostAddress>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkReply>
-#include <QtXml/QDomElement>
-
-Usage::Usage(QObject *p) : QObject(p) {
-	qbReport.open(QBuffer::ReadWrite);
-	qdsReport.setDevice(&qbReport);
-	qdsReport.setVersion(QDataStream::Qt_4_4);
-	qdsReport << static_cast< unsigned int >(2);
-
-	// Wait 10 minutes (so we know they're actually using this), then...
-	QTimer::singleShot(60 * 10 * 1000, this, SLOT(registerUsage()));
-}
-
-void Usage::registerUsage() {
-	if (!g.s.bUsage
-		|| g.s.uiUpdateCounter == 0) // Only register usage if allowed by the user and first wizard run has finished
-		return;
-
-	QDomDocument doc;
-	QDomElement root = doc.createElement(QLatin1String("usage"));
-	doc.appendChild(root);
-
-	QDomElement tag;
-	QDomText t;
-
-	OSInfo::fillXml(doc, root);
-
-	tag = doc.createElement(QLatin1String("in"));
-	root.appendChild(tag);
-	t = doc.createTextNode(g.s.qsAudioInput);
-	tag.appendChild(t);
-
-	tag = doc.createElement(QLatin1String("out"));
-	root.appendChild(tag);
-	t = doc.createTextNode(g.s.qsAudioOutput);
-	tag.appendChild(t);
-
-	tag = doc.createElement(QLatin1String("lcd"));
-	root.appendChild(tag);
-	t = doc.createTextNode(QString::number(g.lcd->hasDevices() ? 1 : 0));
-	tag.appendChild(t);
-
-	QBuffer *qb = new QBuffer();
-	qb->setData(doc.toString().toUtf8());
-	qb->open(QIODevice::ReadOnly);
-
-	QNetworkRequest req(QUrl(QLatin1String("https://usage-report.mumble.info/v1/report")));
-	Network::prepareRequest(req);
-	req.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("text/xml"));
-
-	QNetworkReply *rep = g.nam->post(req, qb);
-	qb->setParent(rep);
-
-	connect(rep, SIGNAL(finished()), rep, SLOT(deleteLater()));
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Tokens</class>
+ <widget class="QDialog" name="Tokens">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>514</width>
+    <height>659</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Mumble - Access Tokens</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QListWidget" name="qlwTokens">
+     <property name="toolTip">
+      <string>List of access tokens on current server</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;This is an editable list of access tokens on the connected server.&lt;/b&gt;
+&lt;br /&gt;
+An access token is a text string, which can be used as a password for very simple access management on channels. Mumble will remember the tokens you've used and resend them to the server next time you reconnect, so you don't have to enter these every time.
+</string>
+     </property>
+     <property name="editTriggers">
+      <set>QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed</set>
+     </property>
+     <property name="alternatingRowColors">
+      <bool>true</bool>
+     </property>
+     <property name="selectionMode">
+      <enum>QAbstractItemView::MultiSelection</enum>
+     </property>
+     <property name="sortingEnabled">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <widget class="QPushButton" name="qpbAdd">
+       <property name="toolTip">
+        <string>Add a token</string>
+       </property>
+       <property name="text">
+        <string>&amp;Add</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="qpbRemove">
+       <property name="toolTip">
+        <string>Remove a token</string>
+       </property>
+       <property name="text">
+        <string>&amp;Remove</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="qbbButtons">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>qlwTokens</tabstop>
+  <tabstop>qpbAdd</tabstop>
+  <tabstop>qpbRemove</tabstop>
+  <tabstop>qbbButtons</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>qbbButtons</sender>
+   <signal>accepted()</signal>
+   <receiver>Tokens</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>227</x>
+     <y>617</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qbbButtons</sender>
+   <signal>rejected()</signal>
+   <receiver>Tokens</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>295</x>
+     <y>623</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
