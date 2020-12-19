@@ -3,299 +3,163 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "UserListModel.h"
+#include "ThemeInfo.h"
 
-#include "Channel.h"
-#include "Message.h"
-#include "Utils.h"
+#include <QtCore/QDebug>
+#include <QtCore/QDir>
+#include <QtCore/QSettings>
 
-#include <algorithm>
-
-#ifdef _MSC_VER
-#	include <functional>
+QFileInfo ThemeInfo::StyleInfo::getPlatformQss() const {
+#if defined(Q_OS_WIN)
+	return qssFiles.value(QLatin1String("WIN"), defaultQss);
+#elif defined(Q_OS_LINUX)
+	return qssFiles.value(QLatin1String("LINUX"), defaultQss);
+#elif defined(Q_OS_MAC)
+	return qssFiles.value(QLatin1String("MAC"), defaultQss);
+#else
+	return defaultQss;
 #endif
-
-#include <vector>
-
-UserListModel::UserListModel(const MumbleProto::UserList &userList, QObject *parent_)
-	: QAbstractTableModel(parent_), m_legacyMode(false) {
-	m_userList.reserve(userList.users_size());
-	for (int i = 0; i < userList.users_size(); ++i) {
-		m_userList.append(userList.users(i));
-	}
-
-	if (!m_userList.empty()) {
-		const MumbleProto::UserList_User &user = m_userList.back();
-		m_legacyMode                           = !user.has_last_seen() || !user.has_last_channel();
-	}
 }
 
-int UserListModel::rowCount(const QModelIndex &parentIndex) const {
-	if (parentIndex.isValid())
-		return 0;
+boost::optional< ThemeInfo::StyleInfo > readStyleFromConfig(QSettings &themeConfig, const QString &styleId,
+															const ThemeInfo &theme, const QDir &themeDir) {
+	QRegExp qssPlatformRegex(QString::fromLatin1("^%1/qss_(.*)").arg(styleId));
 
-	return m_userList.size();
-}
+	ThemeInfo::StyleInfo style;
 
-int UserListModel::columnCount(const QModelIndex &parentIndex) const {
-	if (parentIndex.isValid())
-		return 0;
+	style.name      = themeConfig.value(QString::fromLatin1("%1/name").arg(styleId)).toString();
+	style.themeName = theme.name;
+	style.defaultQss =
+		QFileInfo(themeDir.filePath(themeConfig.value(QString::fromLatin1("%1/qss").arg(styleId)).toString()));
 
-	if (m_legacyMode) {
-		// Only COL_NICK
-		return 1;
+	if (style.name.isNull()) {
+		qWarning() << "Style " << styleId << " of theme" << theme.name << " has no name, skipping theme";
+		return boost::none;
 	}
 
-	return COUNT_COL;
-}
-
-QVariant UserListModel::headerData(int section, Qt::Orientation orientation, int role) const {
-	if (orientation != Qt::Horizontal)
-		return QVariant();
-
-	if (section < 0 || section >= columnCount())
-		return QVariant();
-
-	if (role == Qt::DisplayRole) {
-		switch (section) {
-			case COL_NICK:
-				return tr("Nick");
-			case COL_INACTIVEDAYS:
-				return tr("Inactive days");
-			case COL_LASTCHANNEL:
-				return tr("Last channel");
-			default:
-				return QVariant();
-		}
+	if (!style.defaultQss.exists() || !style.defaultQss.isFile()) {
+		qWarning() << "Style " << style.name << " of theme " << theme.name << " references invalid qss "
+				   << style.defaultQss.filePath() << ", skipping theme";
+		return boost::none;
 	}
 
-	return QVariant();
-}
+	foreach (const QString &platformQssConfig, themeConfig.allKeys().filter(qssPlatformRegex)) {
+		qssPlatformRegex.indexIn(platformQssConfig);
+		const QString platform = qssPlatformRegex.cap(1);
 
-QVariant UserListModel::data(const QModelIndex &dataIndex, int role) const {
-	if (!dataIndex.isValid())
-		return QVariant();
-
-	if (dataIndex.row() < 0 || dataIndex.row() >= m_userList.size())
-		return QVariant();
-
-	if (dataIndex.column() >= columnCount())
-		return QVariant();
-
-	const MumbleProto::UserList_User &user = m_userList[dataIndex.row()];
-
-	if (role == Qt::DisplayRole) {
-		switch (dataIndex.column()) {
-			case COL_NICK:
-				return u8(user.name());
-			case COL_INACTIVEDAYS:
-				return lastSeenToTodayDayCount(user.last_seen());
-			case COL_LASTCHANNEL:
-				return pathForChannelId(user.last_channel());
-			default:
-				return QVariant();
-		}
-	} else if (role == Qt::ToolTipRole) {
-		switch (dataIndex.column()) {
-			case COL_INACTIVEDAYS:
-				return tr("Last seen: %1")
-					.arg(user.last_seen().empty() ? tr("Never") : u8(user.last_seen()).toHtmlEscaped());
-			case COL_LASTCHANNEL:
-				return tr("Channel ID: %1").arg(user.last_channel());
-			default:
-				return QVariant();
-		}
-	} else if (role == Qt::UserRole) {
-		switch (dataIndex.column()) {
-			case COL_INACTIVEDAYS:
-				return isoUTCToDateTime(user.last_seen());
-			case COL_LASTCHANNEL:
-				return user.last_channel();
-			default:
-				return QVariant();
-		}
-	} else if (role == Qt::EditRole) {
-		if (dataIndex.column() == COL_NICK) {
-			return u8(user.name());
-		}
-	}
-
-	return QVariant();
-}
-
-bool UserListModel::setData(const QModelIndex &dataIndex, const QVariant &value, int role) {
-	if (!dataIndex.isValid())
-		return false;
-
-	if (dataIndex.column() != COL_NICK || role != Qt::EditRole)
-		return false;
-
-	if (dataIndex.row() < 0 || dataIndex.row() >= m_userList.size())
-		return false;
-
-	const std::string newNick = u8(value.toString());
-	if (newNick.empty()) {
-		// Empty nick is not valid
-		return false;
-	}
-
-	MumbleProto::UserList_User &user = m_userList[dataIndex.row()];
-	if (newNick != user.name()) {
-		foreach (const MumbleProto::UserList_User &otherUser, m_userList) {
-			if (otherUser.name() == newNick) {
-				// Duplicate is not valid
-				return false;
-			}
+		QFileInfo platformQss = (themeDir.filePath(themeConfig.value(platformQssConfig).toString()));
+		if (!platformQss.exists() || !platformQss.isFile()) {
+			qWarning() << "Style" << style.name << " of theme " << theme.name << " references invalid qss "
+					   << platformQss.filePath() << " for platform " << platform << ", skipping theme";
+			return boost::none;
 		}
 
-		user.set_name(newNick);
-		m_changes[user.user_id()] = user;
-
-		emit dataChanged(dataIndex, dataIndex);
+		style.qssFiles.insert(platform, platformQss);
 	}
 
-	return true;
+	return style;
 }
 
-Qt::ItemFlags UserListModel::flags(const QModelIndex &flagIndex) const {
-	const Qt::ItemFlags original = QAbstractTableModel::flags(flagIndex);
+boost::optional< ThemeInfo > loadLegacyThemeInfo(const QDir &themeDirectory) {
+	ThemeInfo theme;
+	theme.name = themeDirectory.dirName();
 
-	if (flagIndex.column() == COL_NICK) {
-		return original | Qt::ItemIsEditable;
+	QStringList filters;
+	filters << QLatin1String("*.qss");
+
+	foreach (const QFileInfo &qssFile, themeDirectory.entryInfoList(filters, QDir::Files)) {
+		ThemeInfo::StyleInfo style;
+		style.name       = qssFile.baseName();
+		style.themeName  = theme.name;
+		style.defaultQss = qssFile;
+
+		theme.styles.insert(style.name, style);
 	}
 
-	return original;
-}
-
-bool UserListModel::removeRows(int row, int count, const QModelIndex &parentIndex) {
-	if (row + count > m_userList.size())
-		return false;
-
-	beginRemoveRows(parentIndex, row, row + count - 1);
-
-	ModelUserList::Iterator startIt = m_userList.begin() + row;
-	ModelUserList::Iterator endIt   = startIt + count;
-
-	for (ModelUserList::Iterator it = startIt; it != endIt; ++it) {
-		it->clear_name();
-		m_changes[it->user_id()] = *it;
+	if (theme.styles.isEmpty()) {
+		qWarning() << themeDirectory.absolutePath() << " does not seem to contain a old-style theme, skipping";
+		return boost::none;
 	}
 
-	m_userList.erase(startIt, endIt);
+	theme.defaultStyle = theme.styles.begin()->name;
 
-	endRemoveRows();
-	return true;
+	return theme;
 }
 
-void UserListModel::removeRowsInSelection(const QItemSelection &selection) {
-	QModelIndexList indices = selection.indexes();
+boost::optional< ThemeInfo > ThemeInfo::load(const QDir &themeDirectory) {
+	QFile themeFile(themeDirectory.absoluteFilePath(QLatin1String("theme.ini")));
+	if (!themeFile.exists()) {
+		qWarning() << "Directory " << themeDirectory.absolutePath() << " has no theme.ini, trying fallback";
 
-	std::vector< int > rows;
-	rows.reserve(indices.size());
+		return loadLegacyThemeInfo(themeDirectory);
+	}
 
-	foreach (const QModelIndex &idx, indices) {
-		if (idx.column() != COL_NICK)
+	QSettings themeConfig(themeFile.fileName(), QSettings::IniFormat);
+	if (themeConfig.status() != QSettings::NoError) {
+		qWarning() << "Failed to load theme config from " << themeFile.fileName() << ", skipping";
+		return boost::none;
+	}
+
+	ThemeInfo theme;
+	QStringList styleIds;
+
+	theme.name = themeConfig.value(QLatin1String("theme/name")).toString();
+	styleIds   = themeConfig.value(QLatin1String("theme/styles")).toStringList();
+
+	if (theme.name.isNull()) {
+		qWarning() << "Theme in " << themeFile.fileName() << " does not have a name, skipping";
+		return boost::none;
+	}
+
+	if (styleIds.isEmpty()) {
+		qWarning() << "Theme " << theme.name << " doesn't have any styles, skipping";
+		return boost::none;
+	}
+
+	foreach (const QString &styleId, styleIds) {
+		boost::optional< ThemeInfo::StyleInfo > style =
+			readStyleFromConfig(themeConfig, styleId, theme, themeDirectory);
+		if (!style) {
+			return boost::none;
+		}
+		theme.styles.insert(style->name, *style);
+	}
+
+	theme.defaultStyle = theme.styles.begin()->name;
+
+	return theme;
+}
+
+ThemeInfo::StyleInfo ThemeInfo::getStyle(QString name_) const {
+	Q_ASSERT(styles.contains(defaultStyle));
+
+	return styles.value(name_, styles.value(defaultStyle));
+}
+
+
+ThemeMap ThemeInfo::scanDirectory(const QDir &themesDirectory) {
+	ThemeMap themes;
+
+	foreach (const QFileInfo &subdirInfo, themesDirectory.entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot)) {
+		QDir subdir(subdirInfo.absoluteFilePath());
+
+		boost::optional< ThemeInfo > theme = ThemeInfo::load(subdir);
+		if (!theme) {
 			continue;
-
-		rows.push_back(idx.row());
-	}
-
-	// Make sure to presort the rows so we work from back (high) to front (low).
-	// This prevents the row numbers from becoming invalid after removing a group.
-	// The basic idea is to take a number of sorted rows (e.g. 10,9,5,3,2,1) and
-	// delete them with the minimum number of removeRows calls. This means grouping
-	// adjacent rows (e.g. (10,9),(5),(3,2,1)) and using a removeRows call for each group.
-	std::sort(rows.begin(), rows.end(), std::greater< int >());
-
-	int nextRow       = -2;
-	int groupRowCount = 0;
-
-	for (size_t i = 0; i < rows.size(); ++i) {
-		if (rows[i] == nextRow) {
-			++groupRowCount;
-			--nextRow;
-		} else {
-			if (groupRowCount > 0) {
-				// Remove previous group
-				const int lastRowInGroup = nextRow + 1;
-				removeRows(lastRowInGroup, groupRowCount);
-			}
-
-			// Start next group
-			nextRow       = rows[i] - 1;
-			groupRowCount = 1;
-		}
-	}
-
-	if (groupRowCount > 0) {
-		// Remove leftover group
-		const int lastRowInGroup = nextRow + 1;
-		removeRows(lastRowInGroup, groupRowCount);
-	}
-}
-
-MumbleProto::UserList UserListModel::getUserListUpdate() const {
-	MumbleProto::UserList updateList;
-
-	for (ModelUserListChangeMap::ConstIterator it = m_changes.constBegin(); it != m_changes.constEnd(); ++it) {
-		MumbleProto::UserList_User *user = updateList.add_users();
-		*user                            = it.value();
-	}
-
-	return updateList;
-}
-
-bool UserListModel::isUserListDirty() const {
-	return !m_changes.empty();
-}
-
-bool UserListModel::isLegacy() const {
-	return m_legacyMode;
-}
-
-QVariant UserListModel::lastSeenToTodayDayCount(const std::string &lastSeenDate) const {
-	if (lastSeenDate.empty())
-		return QVariant();
-
-	QVariant count = m_stringToLastSeenToTodayCount.value(u8(lastSeenDate));
-	if (count.isNull()) {
-		QDateTime dt = isoUTCToDateTime(lastSeenDate);
-		if (!dt.isValid()) {
-			// Not convertable to int
-			return QVariant();
-		}
-		count = dt.daysTo(QDateTime::currentDateTime().toUTC());
-		m_stringToLastSeenToTodayCount.insert(u8(lastSeenDate), count);
-	}
-	return count;
-}
-
-QString UserListModel::pathForChannelId(const int channelId) const {
-	QString path = m_channelIdToPathMap.value(channelId);
-	if (path.isNull()) {
-		path = QLatin1String("-");
-
-		Channel *channel = Channel::get(channelId);
-		if (channel) {
-			QStringList pathParts;
-
-			while (channel->cParent) {
-				pathParts.prepend(channel->qsName);
-				channel = channel->cParent;
-			}
-
-			pathParts.append(QString());
-
-			path = QLatin1String("/ ") + pathParts.join(QLatin1String(" / "));
 		}
 
-		m_channelIdToPathMap.insert(channelId, path);
-	}
-	return path;
+		themes.insert(theme->name, *theme);
+	};
+
+	return themes;
 }
 
-QDateTime UserListModel::isoUTCToDateTime(const std::string &isoTime) const {
-	QDateTime dt = QDateTime::fromString(u8(isoTime), Qt::ISODate);
-	dt.setTimeSpec(Qt::UTC);
-	return dt;
+ThemeMap ThemeInfo::scanDirectories(const QVector< QDir > &themesDirectories) {
+	ThemeMap themes;
+
+	foreach (const QDir &themesDirectory, themesDirectories) {
+		foreach (const ThemeInfo &theme, scanDirectory(themesDirectory)) { themes.insert(theme.name, theme); }
+	}
+
+	return themes;
 }
