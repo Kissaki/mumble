@@ -79,12 +79,14 @@
     <message>
       <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
           Some video features have been disabled.</source>
+      <translatorcomment>RL - gstreamer0.10 plugins-good zijn aanvullende codecs voor gstreamer</translatorcomment>
       <translation type="unfinished">Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
           Some video features have been disabled.</translation>
     </message>
     <message>
       <source>Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</source>
+      <translatorcomment>RL - basis GStreamer plugins leveren de basis codecs om mediabestanden te kunnen afspelen</translatorcomment>
       <translation type="unfinished">Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</translation>
     </message>
@@ -103,6 +105,7 @@ have libgstreamer-plugins-base installed.</translation>
     </message>
     <message numerus="yes">
       <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
+      <translatorcomment>RL - kan nog niet goed vertaald worden omdat %n als single/plural place marker niet in source is opgenomen. Ticket #10400 aangemaakt bij virtualbox, afwachten tot bug hersteld is. RL - Ticket gesloten - is string van derde (Phonon) in Qt source, geen VirtualBox issue.</translatorcomment>
       <translation type="unfinished">
         <numerusform>A required codec is missing. You need to install the following codec(s) to play this content: %0</numerusform>
       </translation>
@@ -285,6 +288,7 @@ have libgstreamer-plugins-base installed.</translation>
     </message>
     <message>
       <source>Symlink to Special</source>
+      <translatorcomment>RL - naar de map &apos;Speciaal&apos;, als die map van naam verandert, deze string ook aanpassen</translatorcomment>
       <translation type="unfinished">Symlink to Special</translation>
     </message>
     <message>
@@ -333,6 +337,7 @@ have libgstreamer-plugins-base installed.</translation>
     </message>
     <message>
       <source>Sort by &amp;Size</source>
+      <translatorcomment>EG - size kan ook zijn omvang RL - verschil?</translatorcomment>
       <translation type="unfinished">Sort by &amp;Size</translation>
     </message>
     <message>
@@ -353,14 +358,17 @@ have libgstreamer-plugins-base installed.</translation>
     </message>
     <message>
       <source>the file</source>
+      <translatorcomment>RL - kleine &apos;h&apos; bij &apos;het&apos; (deze string is %1 bij andere string)</translatorcomment>
       <translation type="unfinished">the file</translation>
     </message>
     <message>
       <source>the directory</source>
+      <translatorcomment>RL - kleine &apos;d&apos; bij &apos;de&apos; (deze string is %1 bij andere string)</translatorcomment>
       <translation type="unfinished">the directory</translation>
     </message>
     <message>
       <source>the symlink</source>
+      <translatorcomment>RL - kleine &apos;d&apos; bij &apos;de&apos; (deze string is %1 bij andere string)</translatorcomment>
       <translation type="unfinished">the symlink</translation>
     </message>
     <message>
@@ -496,6 +504,7 @@ to
     </message>
     <message>
       <source>Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">Help</translation>
     </message>
     <message>
@@ -659,6 +668,7 @@ to
     </message>
     <message>
       <source>&amp;Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">&amp;Help</translation>
     </message>
   </context>
@@ -685,10 +695,12 @@ to
     <name>QAbstractSpinBox</name>
     <message>
       <source>&amp;Step up</source>
+      <translatorcomment>EG - nakijken  RL - tja....</translatorcomment>
       <translation type="unfinished">&amp;Step up</translation>
     </message>
     <message>
       <source>Step &amp;down</source>
+      <translatorcomment>EG - Nakijken  RL - tja..</translatorcomment>
       <translation type="unfinished">Step &amp;down</translation>
     </message>
     <message>
@@ -860,6 +872,7 @@ to
     </message>
     <message>
       <source>Unable to set autocommit</source>
+      <translatorcomment>RL - autocommit is techterm</translatorcomment>
       <translation type="unfinished">Unable to set autocommit</translation>
     </message>
   </context>
@@ -971,6 +984,7 @@ to
     </message>
     <message>
       <source>Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">Help</translation>
     </message>
     <message>
@@ -1081,6 +1095,7 @@ to
     <name>QErrorMessage</name>
     <message>
       <source>Debug Message:</source>
+      <translatorcomment>RL - debug als bekende term laten staan</translatorcomment>
       <translation type="unfinished">Debug Message:</translation>
     </message>
     <message>
@@ -1616,6 +1631,7 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>Host found</source>
+      <translatorcomment>RL - &apos;host&apos; als host vertalen, voorkomt &apos;gast&apos; en &apos;gastheer&apos; verwarring in VirtualBox (gebruikerswens)</translatorcomment>
       <translation type="unfinished">Host found</translation>
     </message>
     <message>
@@ -1720,10 +1736,6 @@ Do you want to delete it anyway?</translation>
       <translation type="unfinished">Authentication required</translation>
     </message>
     <message>
-      <source>HTTPS connection requested but SSL support not compiled in</source>
-      <translation type="unfinished">HTTPS connection requested but SSL support not compiled in</translation>
-    </message>
-    <message>
       <source>Connection refused (or timed out)</source>
       <translation type="unfinished">Connection refused (or timed out)</translation>
     </message>
@@ -1746,6 +1758,10 @@ Do you want to delete it anyway?</translation>
     <message>
       <source>SSL handshake failed</source>
       <translation type="unfinished">SSL handshake failed</translation>
+    </message>
+    <message>
+      <source>HTTPS connection requested but SSL support not compiled in</source>
+      <translation type="unfinished">HTTPS connection requested but SSL support not compiled in</translation>
     </message>
   </context>
   <context>
@@ -1903,6 +1919,7 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>Could not mmap &apos;%1&apos;: %2</source>
+      <translatorcomment>EG - wat is mmap   RL - mmap is (op unix en -----x familie) een system call dat bestanden of apparaten mapt naar het geheugen (map/unmap), dus gewoon vertalen als &apos;mmappen&apos;</translatorcomment>
       <translation type="unfinished">Could not mmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
@@ -1911,6 +1928,7 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>Could not unmap &apos;%1&apos;: %2</source>
+      <translatorcomment>EG - wat is unmap...RL - mmap is (op unix en -----x familie) een system call dat bestanden of apparaten mapt naar het geheugen (map/unmap), dus gewoon vertalen als &apos;unmappen&apos;</translatorcomment>
       <translation type="unfinished">Could not unmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
@@ -1919,6 +1937,7 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
+      <translatorcomment>RL - build key onvertaald laten</translatorcomment>
       <translation type="unfinished">The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</translation>
     </message>
     <message>
@@ -2086,6 +2105,7 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>Unable to bind outvalues</source>
+      <translatorcomment>RL - was vertaald &apos;overwaarde&apos;, maar betekent &apos;een hogere waarde hebbende dan&apos;  Wordt door bv Microsoft in Nederlands nooit vertaald</translatorcomment>
       <translation type="unfinished">Unable to bind outvalues</translation>
     </message>
     <message>
@@ -2105,6 +2125,7 @@ Do you want to delete it anyway?</translation>
     <name>QMdiArea</name>
     <message>
       <source>(Untitled)</source>
+      <translatorcomment>RL - opmaak, niet vertalen Zie virtualbox.org wikki translating</translatorcomment>
       <translation type="unfinished">(Untitled)</translation>
     </message>
   </context>
@@ -2176,6 +2197,7 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">Help</translation>
     </message>
     <message>
@@ -2202,6 +2224,7 @@ Do you want to delete it anyway?</translation>
     <name>QMessageBox</name>
     <message>
       <source>Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">Help</translation>
     </message>
     <message>
@@ -2237,6 +2260,7 @@ Do you want to delete it anyway?</translation>
     <name>QMultiInputContext</name>
     <message>
       <source>Select IM</source>
+      <translatorcomment>EG - wat is IM   RL - Ik weet het ook niet zeker, maar het zou zomaar kunnen dat hier -gezien de context- &apos;Input Method&apos; wordt afgekort</translatorcomment>
       <translation type="unfinished">Select IM</translation>
     </message>
   </context>
@@ -2275,6 +2299,7 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>Invalid socket descriptor</source>
+      <translatorcomment>EG - Wat is een descriptor  RL - Heel kort door de bocht: een beschrijver (zoals sockfd) hoe de socket moet worden benaderd. Techterm, onvertaald laten</translatorcomment>
       <translation type="unfinished">Invalid socket descriptor</translation>
     </message>
     <message>
@@ -2327,10 +2352,12 @@ Do you want to delete it anyway?</translation>
     </message>
     <message>
       <source>Unable to initialize non-blocking socket</source>
+      <translatorcomment>RL - non blocking socket: techterm, niet vertalen</translatorcomment>
       <translation type="unfinished">Unable to initialize non-blocking socket</translation>
     </message>
     <message>
       <source>Unable to initialize broadcast socket</source>
+      <translatorcomment>RL - broadcast socket: techterm, niet vertalen</translatorcomment>
       <translation type="unfinished">Unable to initialize broadcast socket</translation>
     </message>
     <message>
@@ -3000,6 +3027,7 @@ Please choose a different file name.</translation>
     <name>QPrintSettingsOutput</name>
     <message>
       <source>Form</source>
+      <translatorcomment>EG - Formulier of Vorm   RL - Even gechecked, het moet &apos;Papierformaat&apos; zijn, A4, Letter, Legal en zo...</translatorcomment>
       <translation type="unfinished">Form</translation>
     </message>
     <message>
@@ -3484,6 +3512,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">Help</translation>
     </message>
     <message>
@@ -4006,14 +4035,17 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>ZWJ Zero width joiner</source>
+      <translatorcomment>EG nog vertalen  RL - Techterm</translatorcomment>
       <translation type="unfinished">ZWJ Zero width joiner</translation>
     </message>
     <message>
       <source>ZWNJ Zero width non-joiner</source>
+      <translatorcomment>EG nog vertalen  RL - Techterm</translatorcomment>
       <translation type="unfinished">ZWNJ Zero width non-joiner</translation>
     </message>
     <message>
       <source>ZWSP Zero width space</source>
+      <translatorcomment>EG nog vertalen  RL - Techterm</translatorcomment>
       <translation type="unfinished">ZWSP Zero width space</translation>
     </message>
     <message>
@@ -4034,6 +4066,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>PDF Pop directional formatting</source>
+      <translatorcomment>EG nog vertalen  RL - Techterm</translatorcomment>
       <translation type="unfinished">PDF Pop directional formatting</translation>
     </message>
     <message>
@@ -4122,6 +4155,7 @@ Please choose a different file name.</translation>
     <message>
       <source>Open Image</source>
       <comment>Open Image in New Window context menu item</comment>
+      <translatorcomment>RL - Liever &apos;afbeelding&apos; dan &apos;plaatje&apos;</translatorcomment>
       <translation type="unfinished">Open Image</translation>
     </message>
     <message>
@@ -4357,6 +4391,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">Help</translation>
     </message>
     <message>
@@ -4373,6 +4408,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>&amp;Help</source>
+      <translatorcomment>RL - eng &apos;Help&apos; wordt bij Moz/KDe/GNOME/Ubuntu/Fedora/Windows/Mac standaard vertaald in Nederlands als &apos;Hulp&apos;</translatorcomment>
       <translation type="unfinished">&amp;Help</translation>
     </message>
     <message>
@@ -4428,6 +4464,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Restore Down</source>
+      <translatorcomment>Eg - nog vertalen   RL - Dit is de actie verbonden aan het raam-icoontje rechtsboven op titelbalk van venster (middelste van de drie), bij aanklikken gaat venster naar maximaal, nog eens aanklikken naar oude grootte. Wordt in Fedora vertaald als &apos;venster herstellen&apos;.</translatorcomment>
       <translation type="unfinished">Restore Down</translation>
     </message>
     <message>
@@ -4459,6 +4496,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>error occurred while parsing element</source>
+      <translatorcomment>RL - parsen is nl werkwoord, betekent analyseren van info, Techterm</translatorcomment>
       <translation type="unfinished">error occurred while parsing element</translation>
     </message>
     <message>
@@ -4499,6 +4537,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>letter is expected</source>
+      <translatorcomment>RL - letter als papierformaat, zoals A4 bv</translatorcomment>
       <translation type="unfinished">letter is expected</translation>
     </message>
     <message>
@@ -4554,6 +4593,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Namespace prefix &apos;%1&apos; not declared</source>
+      <translatorcomment>gewoon prefix</translatorcomment>
       <translation type="unfinished">Namespace prefix &apos;%1&apos; not declared</translation>
     </message>
     <message>
@@ -4693,11 +4733,8 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
+      <translatorcomment>EG - xml serialization = geserialiseerd</translatorcomment>
       <translation type="unfinished">Element %1 can&apos;t be serialized because it appears outside the document element.</translation>
-    </message>
-    <message>
-      <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
-      <translation type="unfinished">Attribute %1 can&apos;t be serialized because it appears at the top level.</translation>
     </message>
     <message>
       <source>Year %1 is invalid because it begins with %2.</source>
@@ -4713,6 +4750,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Overflow: Can&apos;t represent date %1.</source>
+      <translatorcomment>RL - Foutmelding dus Overflow onvertaald vermelden ivm foutopsporing op internet</translatorcomment>
       <translation type="unfinished">Overflow: Can&apos;t represent date %1.</translation>
     </message>
     <message>
@@ -4729,6 +4767,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Overflow: Date can&apos;t be represented.</source>
+      <translatorcomment>RL - Foutmelding dus Overflow onvertaald vermelden ivm foutopsporing op internet</translatorcomment>
       <translation type="unfinished">Overflow: Date can&apos;t be represented.</translation>
     </message>
     <message>
@@ -4785,10 +4824,13 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>A value of type %1 cannot have an Effective Boolean Value.</source>
+      <translatorcomment>RL - EBV: Waarde van George Boole, wiskundige. Wordt in Nederland wisselend niet vertaald (Boolean) en wel (Booleaans)</translatorcomment>
       <translation type="unfinished">A value of type %1 cannot have an Effective Boolean Value.</translation>
     </message>
     <message>
       <source>Effective Boolean Value cannot be calculated for a sequence containing two or more atomic values.</source>
+      <translatorcomment>RL - EBV: Waarde van George Boole, wiskundige. Wordt in Nederland wisselend niet vertaald (Boolean) en wel (Booleaans)
+RL - een attribuut is atomair indien het maar één enkele waarde kan bevatten</translatorcomment>
       <translation type="unfinished">Effective Boolean Value cannot be calculated for a sequence containing two or more atomic values.</translation>
     </message>
     <message>
@@ -4813,6 +4855,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Operator %1 cannot be used on atomic values of type %2 and %3.</source>
+      <translatorcomment>RL - een attribuut is atomair indien het maar één enkele waarde kan bevatten</translatorcomment>
       <translation type="unfinished">Operator %1 cannot be used on atomic values of type %2 and %3.</translation>
     </message>
     <message>
@@ -4829,6 +4872,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</source>
+      <translatorcomment>RL - literaal: constante die in een programmeertaal, als absolute rekengrootheid, vergelijkingswaarde of vast uitvoergegeven wordt weergegeven</translatorcomment>
       <translation type="unfinished">When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</translation>
     </message>
     <message>
@@ -4837,6 +4881,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>It is not possible to cast from %1 to %2.</source>
+      <translatorcomment>RL - To cast hier is eigenlijk &apos;omgieten&apos; bv van SQL-vorm naar Xml of andersom</translatorcomment>
       <translation type="unfinished">It is not possible to cast from %1 to %2.</translation>
     </message>
     <message>
@@ -4865,6 +4910,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Operator %1 is not available between atomic values of type %2 and %3.</source>
+      <translatorcomment>RL - een attribuut is atomair indien het maar één enkele waarde kan bevatten</translatorcomment>
       <translation type="unfinished">Operator %1 is not available between atomic values of type %2 and %3.</translation>
     </message>
     <message>
@@ -4877,6 +4923,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</source>
+      <translatorcomment>RL - Waarde van George Boole, wiskundige. Wordt in Nederland wisselend niet vertaald (Boolean) en wel (Booleaans)</translatorcomment>
       <translation type="unfinished">A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</translation>
     </message>
     <message>
@@ -4893,6 +4940,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</source>
+      <translatorcomment>RL - een attribuut is atomair indien het maar één enkele waarde kan bevatten</translatorcomment>
       <translation type="unfinished">The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</translation>
     </message>
     <message>
@@ -4913,6 +4961,7 @@ Please choose a different file name.</translation>
     </message>
     <message numerus="yes">
       <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
+      <translatorcomment>enkel en meervoud string, nieuwe format</translatorcomment>
       <translation type="unfinished">
         <numerusform>%1 takes at most %n argument(s). %2 is therefore invalid.</numerusform>
       </translation>
@@ -4997,6 +5046,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>The root node of the second argument to function %1 must be a document node. %2 is not a document node.</source>
+      <translatorcomment>RL - root node is Techterm</translatorcomment>
       <translation type="unfinished">The root node of the second argument to function %1 must be a document node. %2 is not a document node.</translation>
     </message>
     <message>
@@ -5053,6 +5103,7 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</source>
+      <translatorcomment>RL - Latin is karaktertype</translatorcomment>
       <translation type="unfinished">The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</translation>
     </message>
     <message>
@@ -5106,10 +5157,6 @@ Please choose a different file name.</translation>
     <message>
       <source>No value is available for the external variable by name %1.</source>
       <translation type="unfinished">No value is available for the external variable by name %1.</translation>
-    </message>
-    <message>
-      <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-      <translation type="unfinished">The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</translation>
     </message>
     <message>
       <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
@@ -5197,10 +5244,12 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
+      <translatorcomment>RL - een attribuut is atomair indien het maar één enkele waarde kan bevatten</translatorcomment>
       <translation type="unfinished">%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</translation>
     </message>
     <message>
       <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
+      <translatorcomment>RL - een attribuut is atomair indien het maar één enkele waarde kan bevatten</translatorcomment>
       <translation type="unfinished">%1 is not an atomic type. Casting is only possible to atomic types.</translation>
     </message>
     <message>
@@ -5257,7 +5306,16 @@ Please choose a different file name.</translation>
     </message>
     <message>
       <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
+      <translatorcomment>RL - Unicode Codepoint Collation niet vertalen</translatorcomment>
       <translation type="unfinished">Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</translation>
+    </message>
+    <message>
+      <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
+      <translation type="unfinished">Attribute %1 can&apos;t be serialized because it appears at the top level.</translation>
+    </message>
+    <message>
+      <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
+      <translation type="unfinished">The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</translation>
     </message>
   </context>
   <context>
