@@ -3,1358 +3,1075 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Settings.h"
+#include "PulseAudio.h"
 
-#include "AudioInput.h"
-#include "Cert.h"
-#include "Log.h"
-#include "SSL.h"
-
-#include "../../overlay/overlay.h"
-
-#include <QtCore/QProcessEnvironment>
-#include <QtCore/QStandardPaths>
-#include <QtGui/QImageReader>
-#include <QtWidgets/QSystemTrayIcon>
-#if QT_VERSION >= QT_VERSION_CHECK(5,9,0)
-#	include <QOperatingSystemVersion>
-#endif
-
-#include <boost/typeof/typeof.hpp>
-
-#include <limits>
+#include "MainWindow.h"
+#include "Timer.h"
+#include "User.h"
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-
-
-const QPoint Settings::UNSPECIFIED_POSITION =
-	QPoint(std::numeric_limits< int >::min(), std::numeric_limits< int >::max());
-
-bool Shortcut::isServerSpecific() const {
-	if (qvData.canConvert< ShortcutTarget >()) {
-		const ShortcutTarget &sc = qvariant_cast< ShortcutTarget >(qvData);
-		return sc.isServerSpecific();
-	}
-	return false;
-}
-
-bool Shortcut::operator<(const Shortcut &other) const {
-	return (iIndex < other.iIndex);
-}
-
-bool Shortcut::operator==(const Shortcut &other) const {
-	return (iIndex == other.iIndex) && (qlButtons == other.qlButtons) && (qvData == other.qvData)
-		   && (bSuppress == other.bSuppress);
-}
-
-ShortcutTarget::ShortcutTarget() {
-	bUsers            = true;
-	bCurrentSelection = false;
-	iChannel          = -3;
-	bLinks = bChildren = bForceCenter = false;
-}
-
-bool ShortcutTarget::isServerSpecific() const {
-	return !bCurrentSelection && !bUsers && iChannel >= 0;
-}
-
-bool ShortcutTarget::operator==(const ShortcutTarget &o) const {
-	if ((bUsers != o.bUsers) || (bForceCenter != o.bForceCenter) || (bCurrentSelection != o.bCurrentSelection))
-		return false;
-	if (bUsers)
-		return (qlUsers == o.qlUsers) && (qlSessions == o.qlSessions);
-	else
-		return (iChannel == o.iChannel) && (bLinks == o.bLinks) && (bChildren == o.bChildren) && (qsGroup == o.qsGroup);
-}
-
-quint32 qHash(const ShortcutTarget &t) {
-	quint32 h = t.bForceCenter ? 0x55555555 : 0xaaaaaaaa;
-
-	if (t.bCurrentSelection) {
-		h ^= 0x20000000;
-	}
-
-	if (t.bUsers) {
-		foreach (unsigned int u, t.qlSessions)
-			h ^= u;
-	} else {
-		h ^= t.iChannel;
-		if (t.bLinks)
-			h ^= 0x80000000;
-		if (t.bChildren)
-			h ^= 0x40000000;
-		h ^= qHash(t.qsGroup);
-		h = ~h;
-	}
-	return h;
-}
-
-quint32 qHash(const QList< ShortcutTarget > &l) {
-	quint32 h = l.count();
-	foreach (const ShortcutTarget &st, l)
-		h ^= qHash(st);
-	return h;
-}
-
-QDataStream &operator<<(QDataStream &qds, const ShortcutTarget &st) {
-	// Start by the version of this setting. This is needed to make sure we can stay compatible
-	// with older versions (aka don't break existing shortcuts when updating the implementation)
-	qds << QString::fromLatin1("v2");
-
-	qds << st.bCurrentSelection << st.bUsers << st.bForceCenter;
-
-	if (st.bCurrentSelection) {
-		return qds << st.bLinks << st.bChildren;
-	} else if (st.bUsers) {
-		return qds << st.qlUsers;
-	} else {
-		return qds << st.iChannel << st.qsGroup << st.bLinks << st.bChildren;
-	}
-}
-
-QDataStream &operator>>(QDataStream &qds, ShortcutTarget &st) {
-	// Check for presence of a leading version string
-	QString versionString;
-	QIODevice *device = qds.device();
-
-	if (device) {
-		// Qt's way of serializing the stream requires us to read a few characters into
-		// the stream in order to get accross some leading zeros and other meta stuff.
-		char buf[16];
-
-		// Init buf
-		for (unsigned int i = 0; i < sizeof(buf); i++) {
-			buf[i] = 0;
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                          \
+		{                                                                         \
+			var = reinterpret_cast< __typeof__(var) >(m_lib.resolve("pa_" #var)); \
+			if (!var)                                                             \
+				return;                                                           \
 		}
+#else
+#	define RESOLVE(var)                                                                           \
+		{                                                                                          \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(m_lib.resolve("pa_" #var)); \
+			if (!var)                                                                              \
+				return;                                                                            \
+		}
+#endif
 
-		int read = device->peek(buf, sizeof(buf));
+static const char *mumble_sink_input = "Mumble Speakers";
+static const char *mumble_echo       = "Mumble Speakers (Echo)";
 
-		for (int i = 0; i < read; i++) {
-			if (buf[i] >= 31) {
-				if (buf[i] == 'v') {
-					qds >> versionString;
-				} else {
+static PulseAudioSystem *pasys = nullptr;
+
+#define NBLOCKS 8
+
+class PulseAudioInputRegistrar : public AudioInputRegistrar {
+public:
+	PulseAudioInputRegistrar();
+	virtual AudioInput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	virtual bool canEcho(const QString &) const;
+};
+
+
+class PulseAudioOutputRegistrar : public AudioOutputRegistrar {
+public:
+	PulseAudioOutputRegistrar();
+	virtual AudioOutput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	bool canMuteOthers() const;
+};
+
+class PulseAudioInit : public DeferInit {
+public:
+	PulseAudioInputRegistrar *airPulseAudio;
+	PulseAudioOutputRegistrar *aorPulseAudio;
+	void initialize() {
+		pasys = new PulseAudioSystem();
+		pasys->qmWait.lock();
+		pasys->qwcWait.wait(&pasys->qmWait, 1000);
+		pasys->qmWait.unlock();
+		if (pasys->bPulseIsGood) {
+			airPulseAudio = new PulseAudioInputRegistrar();
+			aorPulseAudio = new PulseAudioOutputRegistrar();
+		} else {
+			airPulseAudio = nullptr;
+			aorPulseAudio = nullptr;
+			delete pasys;
+			pasys = nullptr;
+		}
+	};
+	void destroy() {
+		delete airPulseAudio;
+		delete aorPulseAudio;
+		delete pasys;
+		pasys = nullptr;
+	};
+};
+
+static PulseAudioInit pulseinit;
+
+PulseAudioSystem::PulseAudioSystem() {
+	pasInput = pasOutput = pasSpeaker = nullptr;
+	bSourceDone = bSinkDone = bServerDone = false;
+	iDelayCache                           = 0;
+	bAttenuating                          = false;
+	iRemainingOperations                  = 0;
+	bPulseIsGood                          = false;
+	iSinkId                               = -1;
+	bRunning                              = false;
+
+	if (!m_pulseAudio.m_ok) {
+		return;
+	}
+
+	pam                  = m_pulseAudio.threaded_mainloop_new();
+	pa_mainloop_api *api = m_pulseAudio.threaded_mainloop_get_api(pam);
+
+	pa_proplist *proplist = m_pulseAudio.proplist_new();
+	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_NAME, "Mumble");
+	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_ID, "net.sourceforge.mumble.mumble");
+	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_ICON_NAME, "mumble");
+	m_pulseAudio.proplist_sets(proplist, PA_PROP_MEDIA_ROLE, "game");
+
+	pacContext = m_pulseAudio.context_new_with_proplist(api, nullptr, proplist);
+	m_pulseAudio.proplist_free(proplist);
+
+	m_pulseAudio.context_set_subscribe_callback(pacContext, subscribe_callback, this);
+
+	m_pulseAudio.context_set_state_callback(pacContext, context_state_callback, this);
+	m_pulseAudio.context_connect(pacContext, nullptr, PA_CONTEXT_NOAUTOSPAWN, nullptr);
+
+	pade = api->defer_new(api, defer_event_callback, this);
+	api->defer_enable(pade, false);
+
+	m_pulseAudio.threaded_mainloop_start(pam);
+
+	bRunning = true;
+}
+
+PulseAudioSystem::~PulseAudioSystem() {
+	if (!m_pulseAudio.m_ok) {
+		return;
+	}
+
+	bRunning = false;
+
+	if (bAttenuating) {
+		qmWait.lock();
+		bAttenuating = false;
+		setVolumes();
+		bool success = qwcWait.wait(&qmWait, 1000);
+		if (!success) {
+			qWarning("PulseAudio: Shutdown timeout when attempting to restore volumes.");
+		}
+		qmWait.unlock();
+	}
+	m_pulseAudio.threaded_mainloop_stop(pam);
+	m_pulseAudio.context_disconnect(pacContext);
+	m_pulseAudio.context_unref(pacContext);
+	m_pulseAudio.threaded_mainloop_free(pam);
+}
+
+QString PulseAudioSystem::outputDevice() const {
+	QString odev = g.s.qsPulseAudioOutput;
+	if (odev.isEmpty()) {
+		odev = qsDefaultOutput;
+	}
+	if (!qhOutput.contains(odev)) {
+		odev = qsDefaultOutput;
+	}
+	return odev;
+}
+
+QString PulseAudioSystem::inputDevice() const {
+	QString idev = g.s.qsPulseAudioInput;
+	if (idev.isEmpty()) {
+		idev = qsDefaultInput;
+	}
+	if (!qhInput.contains(idev)) {
+		idev = qsDefaultInput;
+	}
+	return idev;
+}
+
+void PulseAudioSystem::wakeup() {
+	pa_mainloop_api *api = m_pulseAudio.threaded_mainloop_get_api(pam);
+	api->defer_enable(pade, true);
+}
+
+void PulseAudioSystem::wakeup_lock() {
+	m_pulseAudio.threaded_mainloop_lock(pam);
+	pa_mainloop_api *api = m_pulseAudio.threaded_mainloop_get_api(pam);
+	api->defer_enable(pade, true);
+	m_pulseAudio.threaded_mainloop_unlock(pam);
+}
+
+void PulseAudioSystem::defer_event_callback(pa_mainloop_api *a, pa_defer_event *e, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	pas->eventCallback(a, e);
+}
+
+void PulseAudioSystem::eventCallback(pa_mainloop_api *api, pa_defer_event *) {
+	api->defer_enable(pade, false);
+
+	if (!bSourceDone || !bSinkDone || !bServerDone)
+		return;
+
+	AudioInputPtr ai      = g.ai;
+	AudioOutputPtr ao     = g.ao;
+	AudioInput *raw_ai    = ai.get();
+	AudioOutput *raw_ao   = ao.get();
+	PulseAudioInput *pai  = dynamic_cast< PulseAudioInput * >(raw_ai);
+	PulseAudioOutput *pao = dynamic_cast< PulseAudioOutput * >(raw_ao);
+
+	if (raw_ao) {
+		QString odev        = outputDevice();
+		pa_stream_state ost = pasOutput ? m_pulseAudio.stream_get_state(pasOutput) : PA_STREAM_TERMINATED;
+		bool do_stop        = false;
+		bool do_start       = false;
+
+		if (!pao && (ost == PA_STREAM_READY)) {
+			do_stop = true;
+		} else if (pao) {
+			switch (ost) {
+				case PA_STREAM_TERMINATED: {
+					if (pasOutput)
+						m_pulseAudio.stream_unref(pasOutput);
+
+					pa_sample_spec pss = qhSpecMap.value(odev);
+					pa_channel_map pcm = qhChanMap.value(odev);
+					if ((pss.format != PA_SAMPLE_FLOAT32NE) && (pss.format != PA_SAMPLE_S16NE))
+						pss.format = PA_SAMPLE_FLOAT32NE;
+					pss.rate = SAMPLE_RATE;
+					if (pss.channels == 0)
+						pss.channels = 1;
+
+					pasOutput = m_pulseAudio.stream_new(pacContext, mumble_sink_input, &pss,
+														(pss.channels == 1) ? nullptr : &pcm);
+					m_pulseAudio.stream_set_state_callback(pasOutput, write_stream_callback, this);
+					m_pulseAudio.stream_set_write_callback(pasOutput, write_callback, this);
+				}
+					// Fallthrough
+				case PA_STREAM_UNCONNECTED:
+					do_start = true;
+					break;
+				case PA_STREAM_READY: {
+					if (g.s.iOutputDelay != iDelayCache) {
+						do_stop = true;
+					} else if (odev != qsOutputCache) {
+						do_stop = true;
+					}
 					break;
 				}
+				default:
+					break;
 			}
 		}
-	} else {
-		qCritical("Settings: Unable to determine version of setting for ShortcutTarget");
+		if (do_stop) {
+			qWarning("PulseAudio: Stopping output");
+			m_pulseAudio.stream_disconnect(pasOutput);
+			iSinkId = -1;
+		} else if (do_start) {
+			qWarning("PulseAudio: Starting output: %s", qPrintable(odev));
+			pa_buffer_attr buff;
+			const pa_sample_spec *pss    = m_pulseAudio.stream_get_sample_spec(pasOutput);
+			const size_t sampleSize      = (pss->format == PA_SAMPLE_FLOAT32NE) ? sizeof(float) : sizeof(short);
+			const unsigned int iBlockLen = pao->iFrameSize * pss->channels * static_cast< unsigned int >(sampleSize);
+			buff.tlength                 = iBlockLen * (g.s.iOutputDelay + 1);
+			buff.minreq                  = iBlockLen;
+			buff.maxlength               = -1;
+			buff.prebuf                  = -1;
+			buff.fragsize                = iBlockLen;
+
+			iDelayCache   = g.s.iOutputDelay;
+			qsOutputCache = odev;
+
+			m_pulseAudio.stream_connect_playback(pasOutput, qPrintable(odev), &buff, PA_STREAM_ADJUST_LATENCY, nullptr,
+												 nullptr);
+			m_pulseAudio.context_get_sink_info_by_name(pacContext, qPrintable(odev), sink_info_callback, this);
+		}
 	}
 
-	if (versionString == QLatin1String("v2")) {
-		qds >> st.bCurrentSelection;
+	if (raw_ai) {
+		QString idev        = inputDevice();
+		pa_stream_state ist = pasInput ? m_pulseAudio.stream_get_state(pasInput) : PA_STREAM_TERMINATED;
+		bool do_stop        = false;
+		bool do_start       = false;
+
+		if (!pai && (ist == PA_STREAM_READY)) {
+			do_stop = true;
+		} else if (pai) {
+			switch (ist) {
+				case PA_STREAM_TERMINATED: {
+					if (pasInput)
+						m_pulseAudio.stream_unref(pasInput);
+
+					pa_sample_spec pss = qhSpecMap.value(idev);
+					if ((pss.format != PA_SAMPLE_FLOAT32NE) && (pss.format != PA_SAMPLE_S16NE))
+						pss.format = PA_SAMPLE_FLOAT32NE;
+					pss.rate     = SAMPLE_RATE;
+					pss.channels = 1;
+
+					pasInput = m_pulseAudio.stream_new(pacContext, "Microphone", &pss, nullptr);
+					m_pulseAudio.stream_set_state_callback(pasInput, read_stream_callback, this);
+					m_pulseAudio.stream_set_read_callback(pasInput, read_callback, this);
+				}
+					// Fallthrough
+				case PA_STREAM_UNCONNECTED:
+					do_start = true;
+					break;
+				case PA_STREAM_READY: {
+					if (idev != qsInputCache) {
+						do_stop = true;
+					}
+					break;
+				}
+				default:
+					break;
+			}
+		}
+		if (do_stop) {
+			qWarning("PulseAudio: Stopping input");
+			m_pulseAudio.stream_disconnect(pasInput);
+		} else if (do_start) {
+			qWarning("PulseAudio: Starting input %s", qPrintable(idev));
+			pa_buffer_attr buff;
+			const pa_sample_spec *pss    = m_pulseAudio.stream_get_sample_spec(pasInput);
+			const size_t sampleSize      = (pss->format == PA_SAMPLE_FLOAT32NE) ? sizeof(float) : sizeof(short);
+			const unsigned int iBlockLen = pai->iFrameSize * pss->channels * static_cast< unsigned int >(sampleSize);
+			buff.tlength                 = iBlockLen;
+			buff.minreq                  = iBlockLen;
+			buff.maxlength               = -1;
+			buff.prebuf                  = -1;
+			buff.fragsize                = iBlockLen;
+
+			qsInputCache = idev;
+
+			m_pulseAudio.stream_connect_record(pasInput, qPrintable(idev), &buff, PA_STREAM_ADJUST_LATENCY);
+
+		}
 	}
 
-	qds >> st.bUsers >> st.bForceCenter;
+	if (raw_ai) {
+		QString odev        = outputDevice();
+		QString edev        = qhEchoMap.value(odev);
+		pa_stream_state est = pasSpeaker ? m_pulseAudio.stream_get_state(pasSpeaker) : PA_STREAM_TERMINATED;
+		bool do_stop        = false;
+		bool do_start       = false;
 
-	if (st.bCurrentSelection) {
-		return qds >> st.bLinks >> st.bChildren;
-	} else if (st.bUsers) {
-		return qds >> st.qlUsers;
-	} else {
-		return qds >> st.iChannel >> st.qsGroup >> st.bLinks >> st.bChildren;
+		if ((!pai || !g.s.doEcho()) && (est == PA_STREAM_READY)) {
+			do_stop = true;
+		} else if (pai && g.s.doEcho()) {
+			switch (est) {
+				case PA_STREAM_TERMINATED: {
+					if (pasSpeaker)
+						m_pulseAudio.stream_unref(pasSpeaker);
+
+					pa_sample_spec pss = qhSpecMap.value(edev);
+					pa_channel_map pcm = qhChanMap.value(edev);
+					if ((pss.format != PA_SAMPLE_FLOAT32NE) && (pss.format != PA_SAMPLE_S16NE))
+						pss.format = PA_SAMPLE_FLOAT32NE;
+					pss.rate = SAMPLE_RATE;
+					if ((pss.channels == 0) || (!g.s.bEchoMulti))
+						pss.channels = 1;
+
+					pasSpeaker =
+						m_pulseAudio.stream_new(pacContext, mumble_echo, &pss, (pss.channels == 1) ? nullptr : &pcm);
+					m_pulseAudio.stream_set_state_callback(pasSpeaker, read_stream_callback, this);
+					m_pulseAudio.stream_set_read_callback(pasSpeaker, read_callback, this);
+				}
+					// Fallthrough
+				case PA_STREAM_UNCONNECTED:
+					do_start = true;
+					break;
+				case PA_STREAM_READY: {
+					if (g.s.bEchoMulti != bEchoMultiCache) {
+						do_stop = true;
+					} else if (edev != qsEchoCache) {
+						do_stop = true;
+					}
+					break;
+				}
+				default:
+					break;
+			}
+		}
+		if (do_stop) {
+			qWarning("PulseAudio: Stopping echo");
+			m_pulseAudio.stream_disconnect(pasSpeaker);
+		} else if (do_start) {
+			qWarning("PulseAudio: Starting echo: %s", qPrintable(edev));
+			pa_buffer_attr buff;
+			const pa_sample_spec *pss    = m_pulseAudio.stream_get_sample_spec(pasSpeaker);
+			const size_t sampleSize      = (pss->format == PA_SAMPLE_FLOAT32NE) ? sizeof(float) : sizeof(short);
+			const unsigned int iBlockLen = pai->iFrameSize * pss->channels * static_cast< unsigned int >(sampleSize);
+			buff.tlength                 = iBlockLen;
+			buff.minreq                  = iBlockLen;
+			buff.maxlength               = -1;
+			buff.prebuf                  = -1;
+			buff.fragsize                = iBlockLen;
+
+			bEchoMultiCache = g.s.bEchoMulti;
+			qsEchoCache     = edev;
+
+			m_pulseAudio.stream_connect_record(pasSpeaker, qPrintable(edev), &buff, PA_STREAM_ADJUST_LATENCY);
+		}
 	}
 }
 
-const QString Settings::cqsDefaultPushClickOn  = QLatin1String(":/on.ogg");
-const QString Settings::cqsDefaultPushClickOff = QLatin1String(":/off.ogg");
-
-OverlaySettings::OverlaySettings() {
-	bEnable = false;
-
-	fX    = 1.0f;
-	fY    = 0.0f;
-	fZoom = 0.875f;
-
-#ifdef Q_OS_MAC
-	qsStyle = QLatin1String("Cleanlooks");
-#endif
-
-	osShow       = LinkedChannels;
-	bAlwaysSelf  = true;
-	uiActiveTime = 5;
-	osSort       = Alphabetical;
-
-	qcUserName[Settings::Passive]      = QColor(170, 170, 170);
-	qcUserName[Settings::MutedTalking] = QColor(170, 170, 170);
-	qcUserName[Settings::Talking]      = QColor(255, 255, 255);
-	qcUserName[Settings::Whispering]   = QColor(128, 255, 128);
-	qcUserName[Settings::Shouting]     = QColor(255, 128, 255);
-	qcChannel                          = QColor(255, 255, 128);
-	qcBoxPen                           = QColor(0, 0, 0, 224);
-	qcBoxFill                          = QColor(0, 0, 0);
-
-	setPreset();
-
-	// FPS and Time display settings
-	qcFps   = Qt::white;
-	fFps    = 0.75f;
-	qfFps   = qfUserName;
-	qrfFps  = QRectF(0.0f, 0.05, -1, 0.023438f);
-	bFps    = false;
-	qrfTime = QRectF(0.0f, 0.0, -1, 0.023438f);
-	bTime   = false;
-
-	oemOverlayExcludeMode = OverlaySettings::LauncherFilterExclusionMode;
+void PulseAudioSystem::context_state_callback(pa_context *c, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	pas->contextCallback(c);
 }
 
-void OverlaySettings::setPreset(const OverlayPresets preset) {
-	switch (preset) {
-		case LargeSquareAvatar:
-			uiColumns      = 2;
-			fUserName      = 0.75f;
-			fChannel       = 0.75f;
-			fMutedDeafened = 0.5f;
-			fAvatar        = 1.0f;
-
-#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
-			qfUserName = QFont(QLatin1String("Verdana"), 20);
-#else
-			qfUserName = QFont(QLatin1String("Arial"), 20);
-#endif
-			qfChannel = qfUserName;
-
-			fUser[Settings::Passive]      = 0.5f;
-			fUser[Settings::MutedTalking] = 0.5f;
-			fUser[Settings::Talking]      = (7.0f / 8.0f);
-			fUser[Settings::Whispering]   = (7.0f / 8.0f);
-			fUser[Settings::Shouting]     = (7.0f / 8.0f);
-
-			qrfUserName      = QRectF(-0.0625f, 0.101563f - 0.0625f, 0.125f, 0.023438f);
-			qrfChannel       = QRectF(-0.03125f, -0.0625f, 0.09375f, 0.015625f);
-			qrfMutedDeafened = QRectF(-0.0625f, -0.0625f, 0.0625f, 0.0625f);
-			qrfAvatar        = QRectF(-0.0625f, -0.0625f, 0.125f, 0.125f);
-
-			fBoxPenWidth = (1.f / 256.0f);
-			fBoxPad      = (1.f / 256.0f);
-
-			bUserName      = true;
-			bChannel       = true;
-			bMutedDeafened = true;
-			bAvatar        = true;
-			bBox           = false;
-
-			qaUserName      = Qt::AlignCenter;
-			qaMutedDeafened = Qt::AlignLeft | Qt::AlignTop;
-			qaAvatar        = Qt::AlignCenter;
-			qaChannel       = Qt::AlignCenter;
+void PulseAudioSystem::subscribe_callback(pa_context *, pa_subscription_event_type evt, unsigned int, void *userdata) {
+	switch (evt & PA_SUBSCRIPTION_EVENT_TYPE_MASK) {
+		case PA_SUBSCRIPTION_EVENT_NEW:
+		case PA_SUBSCRIPTION_EVENT_REMOVE:
 			break;
-		case AvatarAndName:
 		default:
-			uiColumns      = 1;
-			fUserName      = 1.0f;
-			fChannel       = (7.0f / 8.0f);
-			fMutedDeafened = (7.0f / 8.0f);
-			fAvatar        = 1.0f;
+			return;
+	}
+	switch (evt & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) {
+		case PA_SUBSCRIPTION_EVENT_SINK:
+		case PA_SUBSCRIPTION_EVENT_SOURCE:
+			break;
+		default:
+			return;
+	}
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	qWarning("PulseAudio: Sinks or inputs changed (inserted or removed sound card)");
+	pas->query();
+}
 
-#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
-			qfUserName = QFont(QLatin1String("Verdana"), 20);
-#else
-			qfUserName = QFont(QLatin1String("Arial"), 20);
-#endif
-			qfChannel = qfUserName;
+void PulseAudioSystem::sink_callback(pa_context *, const pa_sink_info *i, int eol, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	if (!i || eol) {
+		pas->bSinkDone = true;
+		pas->wakeup();
+		return;
+	}
 
-			fUser[Settings::Passive]      = 0.5f;
-			fUser[Settings::MutedTalking] = 0.5f;
-			fUser[Settings::Talking]      = (7.0f / 8.0f);
-			fUser[Settings::Whispering]   = (7.0f / 8.0f);
-			fUser[Settings::Shouting]     = (7.0f / 8.0f);
+	const QString name = QString::fromUtf8(i->name);
 
-			qrfUserName      = QRectF(0.015625f, -0.015625f, 0.250f, 0.03125f);
-			qrfChannel       = QRectF(0.03125f, -0.015625f, 0.1875f, 0.015625f);
-			qrfMutedDeafened = QRectF(0.234375f, -0.015625f, 0.03125f, 0.03125f);
-			qrfAvatar        = QRectF(-0.03125f, -0.015625f, 0.03125f, 0.03125f);
+	pas->qhSpecMap.insert(name, i->sample_spec);
+	pas->qhChanMap.insert(name, i->channel_map);
+	pas->qhOutput.insert(name, QString::fromUtf8(i->description));
+	pas->qhEchoMap.insert(name, QString::fromUtf8(i->monitor_source_name));
+}
 
-			fBoxPenWidth = 0.0f;
-			fBoxPad      = (1.f / 256.0f);
+void PulseAudioSystem::source_callback(pa_context *, const pa_source_info *i, int eol, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	if (!i || eol) {
+		pas->bSourceDone = true;
+		pas->wakeup();
+		return;
+	}
 
-			bUserName      = true;
-			bChannel       = false;
-			bMutedDeafened = true;
-			bAvatar        = true;
-			bBox           = true;
+	const QString name = QString::fromUtf8(i->name);
 
-			qaUserName      = Qt::AlignLeft | Qt::AlignVCenter;
-			qaMutedDeafened = Qt::AlignRight | Qt::AlignVCenter;
-			qaAvatar        = Qt::AlignCenter;
-			qaChannel       = Qt::AlignLeft | Qt::AlignTop;
+	pas->qhSpecMap.insert(name, i->sample_spec);
+	pas->qhChanMap.insert(name, i->channel_map);
+
+	pas->qhInput.insert(QString::fromUtf8(i->name), QString::fromUtf8(i->description));
+}
+
+void PulseAudioSystem::server_callback(pa_context *, const pa_server_info *i, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+
+	pas->qsDefaultInput  = QString::fromUtf8(i->default_source_name);
+	pas->qsDefaultOutput = QString::fromUtf8(i->default_sink_name);
+
+	pas->bServerDone = true;
+	pas->wakeup();
+}
+
+void PulseAudioSystem::sink_info_callback(pa_context *, const pa_sink_info *i, int eol, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	if (!i || eol) {
+		return;
+	}
+
+	pas->iSinkId = i->index;
+}
+
+void PulseAudioSystem::write_stream_callback(pa_stream *s, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	const auto &pa        = pas->m_pulseAudio;
+
+	switch (pa.stream_get_state(s)) {
+		case PA_STREAM_FAILED:
+			qWarning("PulseAudio: Stream error: %s", pa.strerror(pa.context_errno(pa.stream_get_context(s))));
+			break;
+		default:
 			break;
 	}
+	const pa_buffer_attr *bufferAttr;
+	if ((bufferAttr = pa.stream_get_buffer_attr(s))) {
+		g.ao->setBufferSize(bufferAttr->maxlength);
+	}
+	pas->wakeup();
 }
 
-Settings::Settings() {
-	qRegisterMetaType< ShortcutTarget >("ShortcutTarget");
-	qRegisterMetaTypeStreamOperators< ShortcutTarget >("ShortcutTarget");
-	qRegisterMetaType< QVariant >("QVariant");
+void PulseAudioSystem::read_stream_callback(pa_stream *s, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	const auto &pa        = pas->m_pulseAudio;
 
-	atTransmit        = VAD;
-	bTransmitPosition = false;
-	bMute = bDeaf                  = false;
-	bTTS                           = false;
-	bTTSMessageReadBack            = false;
-	bTTSNoScope                    = false;
-	bTTSNoAuthor                   = false;
-	iTTSVolume                     = 75;
-	iTTSThreshold                  = 250;
-	qsTTSLanguage                  = QString();
-	iQuality                       = 40000;
-	fVolume                        = 1.0f;
-	fOtherVolume                   = 0.5f;
-	bAttenuateOthersOnTalk         = false;
-	bAttenuateOthers               = false;
-	bAttenuateUsersOnPrioritySpeak = false;
-	bOnlyAttenuateSameOutput       = false;
-	bAttenuateLoopbacks            = false;
-	iMinLoudness                   = 1000;
-	iVoiceHold                     = 50;
-	iJitterBufferSize              = 1;
-	iFramesPerPacket               = 2;
-#ifdef USE_RNNOISE
-	noiseCancelMode = NoiseCancelRNN;
-#else
-	noiseCancelMode = NoiseCancelSpeex;
-#endif
-	iSpeexNoiseCancelStrength = -30;
-	bAllowLowDelay            = true;
-	uiAudioInputChannelMask   = 0xffffffffffffffffULL;
+	switch (pa.stream_get_state(s)) {
+		case PA_STREAM_FAILED:
+			qWarning("PulseAudio: Stream error: %s", pa.strerror(pa.context_errno(pa.stream_get_context(s))));
+			break;
+		default:
+			break;
+	}
+	pas->wakeup();
+}
 
-	// Idle auto actions
-	iIdleTime                   = 5 * 60;
-	iaeIdleAction               = Nothing;
-	bUndoIdleActionUponActivity = false;
+void PulseAudioSystem::read_callback(pa_stream *s, size_t bytes, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	const auto &pa        = pas->m_pulseAudio;
 
-	vsVAD   = Amplitude;
-	fVADmin = 0.80f;
-	fVADmax = 0.98f;
-
-	bTxAudioCue     = false;
-	qsTxAudioCueOn  = cqsDefaultPushClickOn;
-	qsTxAudioCueOff = cqsDefaultPushClickOff;
-
-	bUserTop = true;
-
-	bWhisperFriends = false;
-
-	uiDoublePush = 0;
-	pttHold      = 0;
-
-#ifdef NO_UPDATE_CHECK
-	bUpdateCheck = false;
-	bPluginCheck = false;
-#else
-	bUpdateCheck = true;
-	bPluginCheck = true;
-#endif
-
-	qsImagePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
-
-	ceExpand             = ChannelsWithUsers;
-	ceChannelDrag        = Ask;
-	ceUserDrag           = Move;
-	bMinimalView         = false;
-	bHideFrame           = false;
-	aotbAlwaysOnTop      = OnTopNever;
-	bAskOnQuit           = true;
-	bEnableDeveloperMenu = false;
-	bLockLayout          = false;
-#ifdef Q_OS_WIN
-	// Don't enable minimize to tray by default on Windows >= 7
-#	if QT_VERSION >= QT_VERSION_CHECK(5,9,0)
-	// Since Qt 5.9 QOperatingSystemVersion is preferred over QSysInfo::WinVersion
-	bHideInTray = QOperatingSystemVersion::current() < QOperatingSystemVersion::Windows7;
-#	else
-	const QSysInfo::WinVersion winVer = QSysInfo::windowsVersion();
-	bHideInTray                       = (winVer < QSysInfo::WV_WINDOWS7);
-#	endif
-#else
-	const bool isUnityDesktop =
-		QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_CURRENT_DESKTOP")) == QLatin1String("Unity");
-	bHideInTray = !isUnityDesktop && QSystemTrayIcon::isSystemTrayAvailable();
-#endif
-	bStateInTray              = true;
-	bUsage                    = true;
-	bShowUserCount            = false;
-	bShowVolumeAdjustments    = true;
-	bChatBarUseSelection      = false;
-	bFilterHidesEmptyChannels = true;
-	bFilterActive             = false;
-
-	wlWindowLayout            = LayoutClassic;
-	bShowContextMenuInMenuBar = false;
-
-	ssFilter = ShowReachable;
-
-	iOutputDelay = 5;
-
-	bASIOEnable = true;
-
-	qsALSAInput  = QLatin1String("default");
-	qsALSAOutput = QLatin1String("default");
-
-	qsJackClientName  = QLatin1String("mumble");
-	qsJackAudioOutput = QLatin1String("1");
-	bJackStartServer  = false;
-	bJackAutoConnect  = true;
-
-#ifndef Q_OS_MAC
-	// Enable echo cancellation by default everywhere except for Macs as we currently
-	// on't support echo cancelling on Macs
-	bEcho = true;
-#else
-	bEcho = false;
-#endif
-	bEchoMulti = false;
-
-	bExclusiveInput  = false;
-	bExclusiveOutput = false;
-
-	iPortAudioInput  = -1; // default device
-	iPortAudioOutput = -1; // default device
-
-	bPositionalAudio     = true;
-	bPositionalHeadphone = false;
-	fAudioMinDistance    = 1.0f;
-	fAudioMaxDistance    = 15.0f;
-	fAudioMaxDistVolume  = 0.80f;
-	fAudioBloom          = 0.5f;
-
-	// OverlayPrivateWin
-	iOverlayWinHelperRestartCooldownMsec = 10000;
-	bOverlayWinHelperX86Enable           = true;
-	bOverlayWinHelperX64Enable           = true;
-
-	iLCDUserViewMinColWidth   = 50;
-	iLCDUserViewSplitterWidth = 2;
-
-	// PTT Button window
-	bShowPTTButtonWindow = false;
-
-	// Network settings
-	bTCPCompat                     = false;
-	bQoS                           = true;
-	bReconnect                     = true;
-	bAutoConnect                   = false;
-	bDisablePublicList             = false;
-	ptProxyType                    = NoProxy;
-	usProxyPort                    = 0;
-	iMaxInFlightTCPPings           = 4;
-	bUdpForceTcpAddr               = true;
-	iPingIntervalMsec              = 5000;
-	iConnectionTimeoutDurationMsec = 30000;
-	iMaxImageWidth                 = 1024; // Allow 1024x1024 resolution
-	iMaxImageHeight                = 1024;
-	bSuppressIdentity              = false;
-	qsSslCiphers                   = MumbleSSL::defaultOpenSSLCipherString();
-	bHideOS                        = false;
-
-	bShowTransmitModeComboBox = false;
-
-	// Accessibility
-	bHighContrast = false;
-
-	// Recording
-	qsRecordingPath  = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-	qsRecordingFile  = QLatin1String("Mumble-%date-%time-%host-%user");
-	rmRecordingMode  = RecordingMixdown;
-	iRecordingFormat = 0;
-
-	// Special configuration options not exposed to UI
-	bDisableCELT                = false;
-	disableConnectDialogEditing = false;
-	bPingServersDialogViewed    = false;
-
-	// Config updates
-	uiUpdateCounter = 0;
-
-#if defined(AUDIO_TEST)
-	lmLoopMode = Server;
-#else
-	lmLoopMode = None;
-#endif
-	dPacketLoss     = 0;
-	dMaxPacketDelay = 0.0f;
-
-	requireRestartToApply = false;
-
-	iMaxLogBlocks       = 0;
-	bLog24HourClock     = true;
-	iChatMessageMargins = 3;
-
-	qpTalkingUI_Position                = UNSPECIFIED_POSITION;
-	bShowTalkingUI                      = false;
-	bTalkingUI_LocalUserStaysVisible    = false;
-	bTalkingUI_AbbreviateChannelNames   = true;
-	bTalkingUI_AbbreviateCurrentChannel = false;
-	bTalkingUI_ShowLocalListeners       = false;
-	iTalkingUI_RelativeFontSize         = 100;
-	iTalkingUI_SilentUserLifeTime       = 10;
-	iTalkingUI_ChannelHierarchyDepth    = 1;
-	iTalkingUI_MaxChannelNameLength     = 20;
-	iTalkingUI_PrefixCharCount          = 3;
-	iTalkingUI_PostfixCharCount         = 2;
-	qsTalkingUI_ChannelSeparator        = QLatin1String("/");
-	qsTalkingUI_AbbreviationReplacement = QLatin1String("...");
-
-	manualPlugin_silentUserDisplaytime = 1;
-
-	bShortcutEnable             = true;
-	bSuppressMacEventTapWarning = false;
-	bEnableEvdev                = false;
-	bEnableXInput2              = true;
-	bEnableGKey                 = false;
-	bEnableXboxInput            = true;
-	bEnableWinHooks             = true;
-	bDirectInputVerboseLogging  = false;
-	bEnableUIAccess             = true;
-
-	for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
-		qmMessages.insert(i, Settings::LogConsole | Settings::LogBalloon | Settings::LogTTS);
-		qmMessageSounds.insert(i, QString());
+	size_t length    = bytes;
+	const void *data = nullptr;
+	pa.stream_peek(s, &data, &length);
+	if (!data && length > 0) {
+		qWarning("PulseAudio: pa_stream_peek reports no data at current read index.");
+	} else if (!data && length == 0) {
+		qWarning("PulseAudio: pa_stream_peek reports empty memblockq.");
+	} else if (!data || length == 0) {
+		qWarning("PulseAudio: invalid pa_stream_peek state encountered.");
+		return;
 	}
 
-	qmMessageSounds[Log::CriticalError]          = QLatin1String(":/Critical.ogg");
-	qmMessageSounds[Log::PermissionDenied]       = QLatin1String(":/PermissionDenied.ogg");
-	qmMessageSounds[Log::SelfMute]               = QLatin1String(":/SelfMutedDeafened.ogg");
-	qmMessageSounds[Log::SelfUnmute]             = QLatin1String(":/SelfMutedDeafened.ogg");
-	qmMessageSounds[Log::SelfDeaf]               = QLatin1String(":/SelfMutedDeafened.ogg");
-	qmMessageSounds[Log::SelfUndeaf]             = QLatin1String(":/SelfMutedDeafened.ogg");
-	qmMessageSounds[Log::ServerConnected]        = QLatin1String(":/ServerConnected.ogg");
-	qmMessageSounds[Log::ServerDisconnected]     = QLatin1String(":/ServerDisconnected.ogg");
-	qmMessageSounds[Log::TextMessage]            = QLatin1String(":/TextMessage.ogg");
-	qmMessageSounds[Log::PrivateTextMessage]     = qmMessageSounds[Log::TextMessage];
-	qmMessageSounds[Log::ChannelJoin]            = QLatin1String(":/UserJoinedChannel.ogg");
-	qmMessageSounds[Log::ChannelLeave]           = QLatin1String(":/UserLeftChannel.ogg");
-	qmMessageSounds[Log::ChannelJoinConnect]     = qmMessageSounds[Log::ChannelJoin];
-	qmMessageSounds[Log::ChannelLeaveDisconnect] = qmMessageSounds[Log::ChannelLeave];
-	qmMessageSounds[Log::YouMutedOther]          = QLatin1String(":/UserMutedYouOrByYou.ogg");
-	qmMessageSounds[Log::YouMuted]               = QLatin1String(":/UserMutedYouOrByYou.ogg");
-	qmMessageSounds[Log::YouKicked]              = QLatin1String(":/UserKickedYouOrByYou.ogg");
-	qmMessageSounds[Log::Recording]              = QLatin1String(":/RecordingStateChanged.ogg");
+	AudioInputPtr ai     = g.ai;
+	PulseAudioInput *pai = dynamic_cast< PulseAudioInput * >(ai.get());
+	if (!pai) {
+		if (length > 0) {
+			pa.stream_drop(s);
+		}
+		pas->wakeup();
+		return;
+	}
 
-	qmMessages[Log::DebugInfo]       = Settings::LogConsole;
-	qmMessages[Log::Warning]         = Settings::LogConsole | Settings::LogBalloon;
-	qmMessages[Log::Information]     = Settings::LogConsole;
-	qmMessages[Log::UserJoin]        = Settings::LogConsole;
-	qmMessages[Log::UserLeave]       = Settings::LogConsole;
-	qmMessages[Log::UserKicked]      = Settings::LogConsole;
-	qmMessages[Log::OtherSelfMute]   = Settings::LogConsole;
-	qmMessages[Log::OtherMutedOther] = Settings::LogConsole;
-	qmMessages[Log::UserRenamed]     = Settings::LogConsole;
+	const pa_sample_spec *pss = pa.stream_get_sample_spec(s);
 
-	// Default theme
-	themeName      = QLatin1String("Mumble");
-	themeStyleName = QLatin1String("Lite");
-}
-
-bool Settings::doEcho() const {
-	if (!bEcho)
-		return false;
-
-	if (AudioInputRegistrar::qmNew) {
-		AudioInputRegistrar *air = AudioInputRegistrar::qmNew->value(qsAudioInput);
-		if (air) {
-			if (air->canEcho(qsAudioOutput))
-				return true;
+	if (s == pas->pasInput) {
+		if (!pa.sample_spec_equal(pss, &pai->pssMic)) {
+			pai->pssMic       = *pss;
+			pai->iMicFreq     = pss->rate;
+			pai->iMicChannels = pss->channels;
+			if (pss->format == PA_SAMPLE_FLOAT32NE)
+				pai->eMicFormat = PulseAudioInput::SampleFloat;
+			else
+				pai->eMicFormat = PulseAudioInput::SampleShort;
+			pai->initializeMixer();
+		}
+		if (data) {
+			pai->addMic(data, static_cast< unsigned int >(length) / pai->iMicSampleSize);
+		}
+	} else if (s == pas->pasSpeaker) {
+		if (!pa.sample_spec_equal(pss, &pai->pssEcho)) {
+			pai->pssEcho       = *pss;
+			pai->iEchoFreq     = pss->rate;
+			pai->iEchoChannels = pss->channels;
+			if (pss->format == PA_SAMPLE_FLOAT32NE)
+				pai->eEchoFormat = PulseAudioInput::SampleFloat;
+			else
+				pai->eEchoFormat = PulseAudioInput::SampleShort;
+			pai->initializeMixer();
+		}
+		if (data) {
+			pai->addEcho(data, static_cast< unsigned int >(length) / pai->iEchoSampleSize);
 		}
 	}
-	return false;
+
+	if (length > 0) {
+		pa.stream_drop(s);
+	}
 }
 
-bool Settings::doPositionalAudio() const {
-	return bPositionalAudio;
+void PulseAudioSystem::write_callback(pa_stream *s, size_t bytes, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	Q_ASSERT(s == pas->pasOutput);
+
+	AudioOutputPtr ao     = g.ao;
+	PulseAudioOutput *pao = dynamic_cast< PulseAudioOutput * >(ao.get());
+
+	if (!pao) {
+		return;
+	}
+
+	const auto &pa = pas->m_pulseAudio;
+
+	const pa_sample_spec *pss = pa.stream_get_sample_spec(s);
+	const pa_channel_map *pcm = pa.stream_get_channel_map(pas->pasOutput);
+	if (!pa.sample_spec_equal(pss, &pao->pss) || !pa.channel_map_equal(pcm, &pao->pcm)) {
+		pao->pss = *pss;
+		pao->pcm = *pcm;
+		if (pss->format == PA_SAMPLE_FLOAT32NE)
+			pao->eSampleFormat = PulseAudioOutput::SampleFloat;
+		else
+			pao->eSampleFormat = PulseAudioOutput::SampleShort;
+		pao->iMixerFreq = pss->rate;
+		pao->iChannels  = pss->channels;
+		unsigned int chanmasks[pss->channels];
+		for (int i = 0; i < pss->channels; ++i) {
+			unsigned int cm = 0;
+			switch (pcm->map[i]) {
+				case PA_CHANNEL_POSITION_LEFT:
+					cm = SPEAKER_FRONT_LEFT;
+					break;
+				case PA_CHANNEL_POSITION_RIGHT:
+					cm = SPEAKER_FRONT_RIGHT;
+					break;
+				case PA_CHANNEL_POSITION_CENTER:
+					cm = SPEAKER_FRONT_CENTER;
+					break;
+				case PA_CHANNEL_POSITION_REAR_LEFT:
+					cm = SPEAKER_BACK_LEFT;
+					break;
+				case PA_CHANNEL_POSITION_REAR_RIGHT:
+					cm = SPEAKER_BACK_RIGHT;
+					break;
+				case PA_CHANNEL_POSITION_REAR_CENTER:
+					cm = SPEAKER_BACK_CENTER;
+					break;
+				case PA_CHANNEL_POSITION_LFE:
+					cm = SPEAKER_LOW_FREQUENCY;
+					break;
+				case PA_CHANNEL_POSITION_SIDE_LEFT:
+					cm = SPEAKER_SIDE_LEFT;
+					break;
+				case PA_CHANNEL_POSITION_SIDE_RIGHT:
+					cm = SPEAKER_SIDE_RIGHT;
+					break;
+				case PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER:
+					cm = SPEAKER_FRONT_LEFT_OF_CENTER;
+					break;
+				case PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER:
+					cm = SPEAKER_FRONT_RIGHT_OF_CENTER;
+					break;
+				default:
+					cm = 0;
+					break;
+			}
+			chanmasks[i] = cm;
+		}
+		pao->initializeMixer(chanmasks);
+	}
+
+	const unsigned int iSampleSize = pao->iSampleSize;
+	const unsigned int samples     = static_cast< unsigned int >(bytes) / iSampleSize;
+	bool oldAttenuation            = pas->bAttenuating;
+
+	unsigned char buffer[bytes];
+	// do we have some mixed output?
+	if (pao->mix(buffer, samples)) {
+		// attenuate if instructed to or it's in settings
+		pas->bAttenuating = (g.bAttenuateOthers || g.s.bAttenuateOthers);
+
+	} else {
+		memset(buffer, 0, bytes);
+
+		// attenuate if intructed to (self-activated)
+		pas->bAttenuating = g.bAttenuateOthers;
+	}
+
+	// if the attenuation state has changed
+	if (oldAttenuation != pas->bAttenuating) {
+		pas->setVolumes();
+	}
+
+	pa.stream_write(s, buffer, iSampleSize * samples, nullptr, 0, PA_SEEK_RELATIVE);
 }
 
-#include BOOST_TYPEOF_INCREMENT_REGISTRATION_GROUP()
+void PulseAudioSystem::volume_sink_input_list_callback(pa_context *c, const pa_sink_input_info *i, int eol,
+													   void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	const auto &pa        = pas->m_pulseAudio;
 
+	if (eol == 0) {
+		// If we're using the default of "enable attenuation on all ouputs" and output from an application is
+		// loopbacked, both the loopback and the application will be attenuated leading to double attenuation.
+		if (!g.s.bOnlyAttenuateSameOutput && pas->iSinkId > -1 && !strcmp(i->driver, "module-loopback.c")) {
+			return;
+		}
+		// If we're not attenuating different sinks and the input is not on this sink, don't attenuate. Or,
+		// if the input is a loopback module and connected to Mumble's sink, also ignore it (loopbacks are used to
+		// connect sinks). An attenuated loopback means an indirect application attenuation.
+		if (g.s.bOnlyAttenuateSameOutput && pas->iSinkId > -1) {
+			if (int(i->sink) != pas->iSinkId
+				|| (int(i->sink) == pas->iSinkId && !strcmp(i->driver, "module-loopback.c")
+					&& !g.s.bAttenuateLoopbacks)) {
+				return;
+			}
+		}
+		// ensure we're not attenuating ourselves!
+		if (strcmp(i->name, mumble_sink_input) != 0) {
+			// create a new entry
+			PulseAttenuation patt;
+			patt.index             = i->index;
+			patt.name              = QString::fromUtf8(i->name);
+			patt.stream_restore_id = QString::fromUtf8(pa.proplist_gets(i->proplist, "module-stream-restore.id"));
+			patt.normal_volume     = i->volume;
 
-BOOST_TYPEOF_REGISTER_TYPE(Qt::Alignment)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::AudioTransmit)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::VADSource)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::LoopMode)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::OverlayShow)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::ProxyType)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::ChannelExpand)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::ChannelDrag)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::ServerShow)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::NoiseCancel)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::WindowLayout)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::AlwaysOnTopBehaviour)
-BOOST_TYPEOF_REGISTER_TYPE(Settings::RecordingMode)
-BOOST_TYPEOF_REGISTER_TYPE(QString)
-BOOST_TYPEOF_REGISTER_TYPE(QByteArray)
-BOOST_TYPEOF_REGISTER_TYPE(QColor)
-BOOST_TYPEOF_REGISTER_TYPE(QVariant)
-BOOST_TYPEOF_REGISTER_TYPE(QFont)
-BOOST_TYPEOF_REGISTER_TEMPLATE(QList, 1)
+			// calculate the attenuated volume
+			pa_volume_t adj = static_cast< pa_volume_t >(PA_VOLUME_NORM * g.s.fOtherVolume);
+			pa.sw_cvolume_multiply_scalar(&patt.attenuated_volume, &i->volume, adj);
 
-#define SAVELOAD(var, name) var = qvariant_cast< BOOST_TYPEOF(var) >(settings_ptr->value(QLatin1String(name), var))
-#define LOADENUM(var, name) \
-	var = static_cast< BOOST_TYPEOF(var) >(settings_ptr->value(QLatin1String(name), var).toInt())
-#define LOADFLAG(var, name) \
-	var = static_cast< BOOST_TYPEOF(var) >(settings_ptr->value(QLatin1String(name), static_cast< int >(var)).toInt())
-#define DEPRECATED(name) \
-	do {                 \
-	} while (0)
+			// set it on the sink input
+			pa.operation_unref(
+				pa.context_set_sink_input_volume(c, i->index, &patt.attenuated_volume, nullptr, nullptr));
 
-// Workaround for mumble-voip/mumble#2638.
-//
-// Qt previously expected to be able to write
-// NUL bytes in strings in plists. This is no
-// longer possible, which causes Qt to write
-// incomplete stings to the preferences plist.
-// These are of the form "@Variant(", and, for
-// Mumble, typically happen for float values.
-//
-// We detect this bad value and avoid loading
-// it. This causes such settings to fall back
-// to their defaults, instead of being set to
-// a zero value.
-#ifdef Q_OS_MAC
-#	undef SAVELOAD
-#	define SAVELOAD(var, name)                                                                          \
-		do {                                                                                             \
-			if (settings_ptr->value(QLatin1String(name)).toString() != QLatin1String("@Variant(")) {     \
-				var = qvariant_cast< BOOST_TYPEOF(var) >(settings_ptr->value(QLatin1String(name), var)); \
-			}                                                                                            \
-		} while (0)
-#endif
+			// store it
+			pas->qhVolumes[i->index] = patt;
+		}
 
-void OverlaySettings::load() {
-	load(g.qs);
+	} else if (eol < 0) {
+		qWarning("PulseAudio: Sink input introspection error.");
+	}
 }
 
-void OverlaySettings::load(QSettings *settings_ptr) {
-	SAVELOAD(bEnable, "enable");
+void PulseAudioSystem::restore_sink_input_list_callback(pa_context *c, const pa_sink_input_info *i, int eol,
+														void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	const auto &pa        = pas->m_pulseAudio;
 
-	LOADENUM(osShow, "show");
-	SAVELOAD(bAlwaysSelf, "alwaysself");
-	SAVELOAD(uiActiveTime, "activetime");
-	LOADENUM(osSort, "sort");
+	if (eol == 0) {
+		// if we were tracking this specific sink previously
+		if (pas->qhVolumes.contains(i->index)) {
+			// and if it has the attenuated volume we applied to it
+			if (pa.cvolume_equal(&i->volume, &pas->qhVolumes[i->index].attenuated_volume) != 0) {
+				// mark it as matched
+				pas->qlMatchedSinks.append(i->index);
 
-	SAVELOAD(fX, "x");
-	SAVELOAD(fY, "y");
-	SAVELOAD(fZoom, "zoom");
-	SAVELOAD(uiColumns, "columns");
+				// reset the volume to normal
+				pas->iRemainingOperations++;
+				pa.operation_unref(pa.context_set_sink_input_volume(
+					c, i->index, &pas->qhVolumes[i->index].normal_volume, restore_volume_success_callback, pas));
+			}
 
-	settings_ptr->beginReadArray(QLatin1String("states"));
-	for (int i = 0; i < 4; ++i) {
-		settings_ptr->setArrayIndex(i);
-		SAVELOAD(qcUserName[i], "color");
-		SAVELOAD(fUser[i], "opacity");
+			// otherwise, save for matching at the end of iteration
+		} else {
+			QString restore_id = QString::fromUtf8(pa.proplist_gets(i->proplist, "module-stream-restore.id"));
+			PulseAttenuation patt;
+			patt.index                        = i->index;
+			patt.normal_volume                = i->volume;
+			pas->qhUnmatchedSinks[restore_id] = patt;
+		}
+
+	} else if (eol < 0) {
+		qWarning("PulseAudio: Sink input introspection error.");
+
+	} else {
+		// build a list of missing streams by iterating our active list
+		QHash< uint32_t, PulseAttenuation >::const_iterator it;
+		for (it = pas->qhVolumes.constBegin(); it != pas->qhVolumes.constEnd(); ++it) {
+			// skip if previously matched
+			if (pas->qlMatchedSinks.contains(it.key())) {
+				continue;
+			}
+
+			// check if the restore id matches. the only case where this would
+			// happen is if the application was reopened during attenuation.
+			if (pas->qhUnmatchedSinks.contains(it.value().stream_restore_id)) {
+				PulseAttenuation active_sink = pas->qhUnmatchedSinks[it.value().stream_restore_id];
+				// if the volume wasn't changed from our attenuation
+				if (pa.cvolume_equal(&active_sink.normal_volume, &it.value().attenuated_volume) != 0) {
+					// reset the volume to normal
+					pas->iRemainingOperations++;
+					pa.operation_unref(pa.context_set_sink_input_volume(c, active_sink.index, &it.value().normal_volume,
+																		restore_volume_success_callback, pas));
+				}
+				continue;
+			}
+
+			// at this point, we don't know what happened to the sink. add
+			// it to a list to check the stream restore database for.
+			pas->qhMissingSinks[it.value().stream_restore_id] = it.value();
+		}
+
+		// clean up
+		pas->qlMatchedSinks.clear();
+		pas->qhUnmatchedSinks.clear();
+		pas->qhVolumes.clear();
+
+		// if we had missing sinks, check the stream restore database
+		// to see if we can find and update them.
+		if (pas->qhMissingSinks.count() > 0) {
+			pas->iRemainingOperations++;
+			pa.operation_unref(pa.ext_stream_restore_read(c, stream_restore_read_callback, pas));
+		}
+
+		// trigger the volume completion callback;
+		// necessary so that shutdown actions are called
+		restore_volume_success_callback(c, 1, pas);
 	}
-	settings_ptr->endArray();
-
-	SAVELOAD(qfUserName, "userfont");
-	SAVELOAD(qfChannel, "channelfont");
-	SAVELOAD(qcChannel, "channelcolor");
-	SAVELOAD(qfFps, "fpsfont");
-	SAVELOAD(qcFps, "fpscolor");
-
-	SAVELOAD(fBoxPad, "padding");
-	SAVELOAD(fBoxPenWidth, "penwidth");
-	SAVELOAD(qcBoxPen, "pencolor");
-	SAVELOAD(qcBoxFill, "fillcolor");
-
-	SAVELOAD(bUserName, "usershow");
-	SAVELOAD(bChannel, "channelshow");
-	SAVELOAD(bMutedDeafened, "mutedshow");
-	SAVELOAD(bAvatar, "avatarshow");
-	SAVELOAD(bBox, "boxshow");
-	SAVELOAD(bFps, "fpsshow");
-	SAVELOAD(bTime, "timeshow");
-
-	SAVELOAD(fUserName, "useropacity");
-	SAVELOAD(fChannel, "channelopacity");
-	SAVELOAD(fMutedDeafened, "mutedopacity");
-	SAVELOAD(fAvatar, "avataropacity");
-	SAVELOAD(fFps, "fpsopacity");
-
-	SAVELOAD(qrfUserName, "userrect");
-	SAVELOAD(qrfChannel, "channelrect");
-	SAVELOAD(qrfMutedDeafened, "mutedrect");
-	SAVELOAD(qrfAvatar, "avatarrect");
-	SAVELOAD(qrfFps, "fpsrect");
-	SAVELOAD(qrfTime, "timerect");
-
-	LOADFLAG(qaUserName, "useralign");
-	LOADFLAG(qaChannel, "channelalign");
-	LOADFLAG(qaMutedDeafened, "mutedalign");
-	LOADFLAG(qaAvatar, "avataralign");
-
-	LOADENUM(oemOverlayExcludeMode, "mode");
-	SAVELOAD(qslLaunchers, "launchers");
-	SAVELOAD(qslLaunchersExclude, "launchersexclude");
-	SAVELOAD(qslWhitelist, "whitelist");
-	SAVELOAD(qslWhitelistExclude, "whitelistexclude");
-	SAVELOAD(qslPaths, "paths");
-	SAVELOAD(qslPathsExclude, "pathsexclude");
-	SAVELOAD(qslBlacklist, "blacklist");
-	SAVELOAD(qslBlacklistExclude, "blacklistexclude");
 }
 
-void Settings::load() {
-	load(g.qs);
+void PulseAudioSystem::stream_restore_read_callback(pa_context *c, const pa_ext_stream_restore_info *i, int eol,
+													void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
+	const auto &pa        = pas->m_pulseAudio;
+
+	if (eol == 0) {
+		QString name = QString::fromUtf8(i->name);
+
+		// were we looking for this restoration?
+		if (pas->qhMissingSinks.contains(name)) {
+			// make sure it still has the volume we gave it
+			if (pa.cvolume_equal(&pas->qhMissingSinks[name].attenuated_volume, &i->volume) != 0) {
+				// update the stream restore record
+				pa_ext_stream_restore_info restore = *i;
+				restore.volume                     = pas->qhMissingSinks[name].normal_volume;
+				pas->iRemainingOperations++;
+				pa.operation_unref(pa.ext_stream_restore_write(c, PA_UPDATE_REPLACE, &restore, 1, 1,
+															   restore_volume_success_callback, pas));
+			}
+
+			pas->qhMissingSinks.remove(name);
+		}
+
+	} else if (eol < 0) {
+		qWarning("PulseAudio: Couldn't read stream restore database.");
+		pas->qhMissingSinks.clear();
+
+	} else {
+		// verify missing list is empty
+		if (pas->qhMissingSinks.count() > 0) {
+			qWarning("PulseAudio: Failed to match %d stream(s).", pas->qhMissingSinks.count());
+			pas->qhMissingSinks.clear();
+		}
+
+		// trigger the volume completion callback;
+		// necessary so that shutdown actions are called
+		restore_volume_success_callback(c, 1, pas);
+	}
 }
 
-void Settings::load(QSettings *settings_ptr) {
-	// Config updates
-	SAVELOAD(uiUpdateCounter, "lastupdate");
+void PulseAudioSystem::restore_volume_success_callback(pa_context *, int, void *userdata) {
+	PulseAudioSystem *pas = reinterpret_cast< PulseAudioSystem * >(userdata);
 
-	SAVELOAD(qsDatabaseLocation, "databaselocation");
+	pas->iRemainingOperations--;
 
-	SAVELOAD(bMute, "audio/mute");
-	SAVELOAD(bDeaf, "audio/deaf");
-	LOADENUM(atTransmit, "audio/transmit");
-	SAVELOAD(uiDoublePush, "audio/doublepush");
-	SAVELOAD(pttHold, "audio/ptthold");
-	SAVELOAD(bTxAudioCue, "audio/pushclick");
-	SAVELOAD(qsTxAudioCueOn, "audio/pushclickon");
-	SAVELOAD(qsTxAudioCueOff, "audio/pushclickoff");
-	SAVELOAD(iQuality, "audio/quality");
-	SAVELOAD(iMinLoudness, "audio/loudness");
-	SAVELOAD(fVolume, "audio/volume");
-	SAVELOAD(fOtherVolume, "audio/othervolume");
-	SAVELOAD(bAttenuateOthers, "audio/attenuateothers");
-	SAVELOAD(bAttenuateOthersOnTalk, "audio/attenuateothersontalk");
-	SAVELOAD(bAttenuateUsersOnPrioritySpeak, "audio/attenuateusersonpriorityspeak");
-	SAVELOAD(bOnlyAttenuateSameOutput, "audio/onlyattenuatesameoutput");
-	SAVELOAD(bAttenuateLoopbacks, "audio/attenuateloopbacks");
-	LOADENUM(vsVAD, "audio/vadsource");
-	SAVELOAD(fVADmin, "audio/vadmin");
-	SAVELOAD(fVADmax, "audio/vadmax");
-
-	int oldNoiseSuppress = 0;
-	SAVELOAD(oldNoiseSuppress, "audio/noisesupress");
-	SAVELOAD(iSpeexNoiseCancelStrength, "audio/speexNoiseCancelStrength");
-
-	// Select the most negative of the 2 (one is expected to be zero as it is
-	// unset). This is for compatibility as we have renamed the setting at some point.
-	iSpeexNoiseCancelStrength = std::min(oldNoiseSuppress, iSpeexNoiseCancelStrength);
-
-	LOADENUM(noiseCancelMode, "audio/noiseCancelMode");
-
-#ifndef USE_RNNOISE
-	if (noiseCancelMode == NoiseCancelRNN || noiseCancelMode == NoiseCancelBoth) {
-		// Use Speex instead as this Mumble build was built without support for RNNoise
-		noiseCancelMode = NoiseCancelSpeex;
+	// if there are no more pending volume adjustments and we're shutting down,
+	// let the main thread know
+	if (!pas->bRunning && pas->iRemainingOperations == 0) {
+		pas->qwcWait.wakeAll();
 	}
-#endif
-
-	SAVELOAD(bAllowLowDelay, "audio/allowlowdelay");
-	SAVELOAD(uiAudioInputChannelMask, "audio/inputchannelmask");
-	SAVELOAD(iVoiceHold, "audio/voicehold");
-	SAVELOAD(iOutputDelay, "audio/outputdelay");
-
-	// Idle auto actions
-	SAVELOAD(iIdleTime, "audio/idletime");
-	LOADENUM(iaeIdleAction, "audio/idleaction");
-	SAVELOAD(bUndoIdleActionUponActivity, "audio/undoidleactionuponactivity");
-
-	SAVELOAD(fAudioMinDistance, "audio/mindistance");
-	SAVELOAD(fAudioMaxDistance, "audio/maxdistance");
-	SAVELOAD(fAudioMaxDistVolume, "audio/maxdistancevolume");
-	SAVELOAD(fAudioBloom, "audio/bloom");
-	SAVELOAD(bEcho, "audio/echo");
-	SAVELOAD(bEchoMulti, "audio/echomulti");
-	SAVELOAD(bExclusiveInput, "audio/exclusiveinput");
-	SAVELOAD(bExclusiveOutput, "audio/exclusiveoutput");
-	SAVELOAD(bPositionalAudio, "audio/positional");
-	SAVELOAD(bPositionalHeadphone, "audio/headphone");
-	SAVELOAD(qsAudioInput, "audio/input");
-	SAVELOAD(qsAudioOutput, "audio/output");
-	SAVELOAD(bWhisperFriends, "audio/whisperfriends");
-	SAVELOAD(bTransmitPosition, "audio/postransmit");
-
-	SAVELOAD(iJitterBufferSize, "net/jitterbuffer");
-	SAVELOAD(iFramesPerPacket, "net/framesperpacket");
-
-	SAVELOAD(bASIOEnable, "asio/enable");
-	SAVELOAD(qsASIOclass, "asio/class");
-	SAVELOAD(qlASIOmic, "asio/mic");
-	SAVELOAD(qlASIOspeaker, "asio/speaker");
-
-	SAVELOAD(qsWASAPIInput, "wasapi/input");
-	SAVELOAD(qsWASAPIOutput, "wasapi/output");
-	SAVELOAD(qsWASAPIRole, "wasapi/role");
-
-	SAVELOAD(qsALSAInput, "alsa/input");
-	SAVELOAD(qsALSAOutput, "alsa/output");
-
-	SAVELOAD(qsPulseAudioInput, "pulseaudio/input");
-	SAVELOAD(qsPulseAudioOutput, "pulseaudio/output");
-
-	SAVELOAD(qsJackAudioOutput, "jack/output");
-	SAVELOAD(bJackStartServer, "jack/startserver");
-	SAVELOAD(bJackAutoConnect, "jack/autoconnect");
-
-	SAVELOAD(qsOSSInput, "oss/input");
-	SAVELOAD(qsOSSOutput, "oss/output");
-
-	SAVELOAD(qsCoreAudioInput, "coreaudio/input");
-	SAVELOAD(qsCoreAudioOutput, "coreaudio/output");
-
-	SAVELOAD(iPortAudioInput, "portaudio/input");
-	SAVELOAD(iPortAudioOutput, "portaudio/output");
-
-	SAVELOAD(bTTS, "tts/enable");
-	SAVELOAD(iTTSVolume, "tts/volume");
-	SAVELOAD(iTTSThreshold, "tts/threshold");
-	SAVELOAD(bTTSMessageReadBack, "tts/readback");
-	SAVELOAD(bTTSNoScope, "tts/noscope");
-	SAVELOAD(bTTSNoAuthor, "tts/noauthor");
-	SAVELOAD(qsTTSLanguage, "tts/language");
-
-	// Network settings
-	SAVELOAD(bTCPCompat, "net/tcponly");
-	SAVELOAD(bQoS, "net/qos");
-	SAVELOAD(bReconnect, "net/reconnect");
-	SAVELOAD(bAutoConnect, "net/autoconnect");
-	SAVELOAD(bSuppressIdentity, "net/suppress");
-	LOADENUM(ptProxyType, "net/proxytype");
-	SAVELOAD(qsProxyHost, "net/proxyhost");
-	SAVELOAD(usProxyPort, "net/proxyport");
-	SAVELOAD(qsProxyUsername, "net/proxyusername");
-	SAVELOAD(qsProxyPassword, "net/proxypassword");
-	DEPRECATED("net/maximagesize");
-	SAVELOAD(iMaxImageWidth, "net/maximagewidth");
-	SAVELOAD(iMaxImageHeight, "net/maximageheight");
-	SAVELOAD(qsServicePrefix, "net/serviceprefix");
-	SAVELOAD(iMaxInFlightTCPPings, "net/maxinflighttcppings");
-	SAVELOAD(iPingIntervalMsec, "net/pingintervalmsec");
-	SAVELOAD(iConnectionTimeoutDurationMsec, "net/connectiontimeoutdurationmsec");
-	SAVELOAD(bUdpForceTcpAddr, "net/udpforcetcpaddr");
-
-	// Network settings - SSL
-	SAVELOAD(qsSslCiphers, "net/sslciphers");
-
-	// Privacy settings
-	SAVELOAD(bHideOS, "privacy/hideos");
-
-	SAVELOAD(qsLanguage, "ui/language");
-	SAVELOAD(themeName, "ui/theme");
-	SAVELOAD(themeStyleName, "ui/themestyle");
-	LOADENUM(ceExpand, "ui/expand");
-	LOADENUM(ceChannelDrag, "ui/drag");
-	LOADENUM(ceUserDrag, "ui/userdrag");
-	LOADENUM(aotbAlwaysOnTop, "ui/alwaysontop");
-	SAVELOAD(bAskOnQuit, "ui/askonquit");
-	SAVELOAD(bEnableDeveloperMenu, "ui/developermenu");
-	SAVELOAD(bLockLayout, "ui/locklayout");
-	SAVELOAD(bMinimalView, "ui/minimalview");
-	SAVELOAD(bHideFrame, "ui/hideframe");
-	SAVELOAD(bUserTop, "ui/usertop");
-	SAVELOAD(qbaMainWindowGeometry, "ui/geometry");
-	SAVELOAD(qbaMainWindowState, "ui/state");
-	SAVELOAD(qbaMinimalViewGeometry, "ui/minimalviewgeometry");
-	SAVELOAD(qbaMinimalViewState, "ui/minimalviewstate");
-	SAVELOAD(qbaConfigGeometry, "ui/ConfigGeometry");
-	LOADENUM(wlWindowLayout, "ui/WindowLayout");
-	SAVELOAD(qbaSplitterState, "ui/splitter");
-	SAVELOAD(qbaHeaderState, "ui/header");
-	SAVELOAD(qsUsername, "ui/username");
-	SAVELOAD(qsLastServer, "ui/server");
-	LOADENUM(ssFilter, "ui/serverfilter");
-
-	SAVELOAD(bUpdateCheck, "ui/updatecheck");
-	SAVELOAD(bPluginCheck, "ui/plugincheck");
-
-	SAVELOAD(bHideInTray, "ui/hidetray");
-	SAVELOAD(bStateInTray, "ui/stateintray");
-	SAVELOAD(bUsage, "ui/usage");
-	SAVELOAD(bShowUserCount, "ui/showusercount");
-	SAVELOAD(bShowVolumeAdjustments, "ui/showVolumeAdjustments");
-	SAVELOAD(bChatBarUseSelection, "ui/chatbaruseselection");
-	SAVELOAD(bFilterHidesEmptyChannels, "ui/filterhidesemptychannels");
-	SAVELOAD(bFilterActive, "ui/filteractive");
-	SAVELOAD(qsImagePath, "ui/imagepath");
-	SAVELOAD(bShowContextMenuInMenuBar, "ui/showcontextmenuinmenubar");
-	SAVELOAD(qbaConnectDialogGeometry, "ui/connect/geometry");
-	SAVELOAD(qbaConnectDialogHeader, "ui/connect/header");
-	SAVELOAD(bShowTransmitModeComboBox, "ui/transmitmodecombobox");
-	SAVELOAD(bHighContrast, "ui/HighContrast");
-	SAVELOAD(iMaxLogBlocks, "ui/MaxLogBlocks");
-	SAVELOAD(bLog24HourClock, "ui/24HourClock");
-	SAVELOAD(iChatMessageMargins, "ui/ChatMessageMargins");
-	SAVELOAD(bDisablePublicList, "ui/disablepubliclist");
-
-	// TalkingUI
-	SAVELOAD(qpTalkingUI_Position, "ui/talkingUIPosition");
-	SAVELOAD(bShowTalkingUI, "ui/showTalkingUI");
-	SAVELOAD(bTalkingUI_LocalUserStaysVisible, "ui/talkingUI_LocalUserStaysVisible");
-	SAVELOAD(bTalkingUI_AbbreviateChannelNames, "ui/talkingUI_AbbreviateChannelNames");
-	SAVELOAD(bTalkingUI_AbbreviateCurrentChannel, "ui/talkingUI_AbbreviateCurrentChannel");
-	SAVELOAD(bTalkingUI_ShowLocalListeners, "ui/talkingUI_ShowLocalListeners");
-	SAVELOAD(iTalkingUI_RelativeFontSize, "ui/talkingUI_RelativeFontSize");
-	SAVELOAD(iTalkingUI_SilentUserLifeTime, "ui/talkingUI_SilentUserLifeTime");
-	SAVELOAD(iTalkingUI_ChannelHierarchyDepth, "ui/talkingUI_ChannelHierarchieDepth");
-	SAVELOAD(iTalkingUI_MaxChannelNameLength, "ui/talkingUI_MaxChannelNameLength");
-	SAVELOAD(iTalkingUI_PrefixCharCount, "ui/talkingUI_PrefixCharCount");
-	SAVELOAD(iTalkingUI_PostfixCharCount, "ui/talkingUI_PostfixCharCount");
-	SAVELOAD(qsTalkingUI_ChannelSeparator, "ui/talkingUI_ChannelSeparator");
-	SAVELOAD(qsTalkingUI_AbbreviationReplacement, "ui/talkingUI_AbbreviationReplacement");
-
-	SAVELOAD(manualPlugin_silentUserDisplaytime, "ui/manualPlugin_silentUserDisplaytime");
-
-	// PTT Button window
-	SAVELOAD(bShowPTTButtonWindow, "ui/showpttbuttonwindow");
-	SAVELOAD(qbaPTTButtonWindowGeometry, "ui/pttbuttonwindowgeometry");
-
-	// Recording
-	SAVELOAD(qsRecordingPath, "recording/path");
-	SAVELOAD(qsRecordingFile, "recording/file");
-	LOADENUM(rmRecordingMode, "recording/mode");
-	SAVELOAD(iRecordingFormat, "recording/format");
-
-	// Special configuration options not exposed to UI
-	SAVELOAD(bDisableCELT, "audio/disablecelt");
-	SAVELOAD(disableConnectDialogEditing, "ui/disableconnectdialogediting");
-	SAVELOAD(bPingServersDialogViewed, "consent/pingserversdialogviewed");
-
-	// OverlayPrivateWin
-	SAVELOAD(iOverlayWinHelperRestartCooldownMsec, "overlay_win/helper/restart_cooldown_msec");
-	SAVELOAD(bOverlayWinHelperX86Enable, "overlay_win/helper/x86/enable");
-	SAVELOAD(bOverlayWinHelperX64Enable, "overlay_win/helper/x64/enable");
-
-	// LCD
-	SAVELOAD(iLCDUserViewMinColWidth, "lcd/userview/mincolwidth");
-	SAVELOAD(iLCDUserViewSplitterWidth, "lcd/userview/splitterwidth");
-
-	QByteArray qba = qvariant_cast< QByteArray >(settings_ptr->value(QLatin1String("net/certificate")));
-	if (!qba.isEmpty())
-		kpCertificate = CertWizard::importCert(qba);
-
-	SAVELOAD(bShortcutEnable, "shortcut/enable");
-	SAVELOAD(bSuppressMacEventTapWarning, "shortcut/mac/suppresswarning");
-	SAVELOAD(bEnableEvdev, "shortcut/linux/evdev/enable");
-	SAVELOAD(bEnableXInput2, "shortcut/x11/xinput2/enable");
-	SAVELOAD(bEnableGKey, "shortcut/gkey");
-	SAVELOAD(bEnableXboxInput, "shortcut/windows/xbox/enable");
-	SAVELOAD(bEnableWinHooks, "winhooks");
-	SAVELOAD(bDirectInputVerboseLogging, "shortcut/windows/directinput/verboselogging");
-	SAVELOAD(bEnableUIAccess, "shortcut/windows/uiaccess/enable");
-
-	int nshorts = settings_ptr->beginReadArray(QLatin1String("shortcuts"));
-	for (int i = 0; i < nshorts; i++) {
-		settings_ptr->setArrayIndex(i);
-		Shortcut s;
-
-		s.iIndex = -2;
-
-		SAVELOAD(s.iIndex, "index");
-		SAVELOAD(s.qlButtons, "keys");
-		SAVELOAD(s.bSuppress, "suppress");
-		s.qvData = settings_ptr->value(QLatin1String("data"));
-		if (s.iIndex >= -1)
-			qlShortcuts << s;
-	}
-	settings_ptr->endArray();
-
-	settings_ptr->beginReadArray(QLatin1String("messages"));
-	for (QMap< int, quint32 >::const_iterator it = qmMessages.constBegin(); it != qmMessages.constEnd(); ++it) {
-		settings_ptr->setArrayIndex(it.key());
-		SAVELOAD(qmMessages[it.key()], "log");
-	}
-	settings_ptr->endArray();
-
-	settings_ptr->beginReadArray(QLatin1String("messagesounds"));
-	for (QMap< int, QString >::const_iterator it = qmMessageSounds.constBegin(); it != qmMessageSounds.constEnd();
-		 ++it) {
-		settings_ptr->setArrayIndex(it.key());
-		SAVELOAD(qmMessageSounds[it.key()], "logsound");
-	}
-	settings_ptr->endArray();
-
-	settings_ptr->beginGroup(QLatin1String("lcd/devices"));
-	foreach (const QString &d, settings_ptr->childKeys()) {
-		qmLCDDevices.insert(d, settings_ptr->value(d, true).toBool());
-	}
-	settings_ptr->endGroup();
-
-	settings_ptr->beginGroup(QLatin1String("audio/plugins"));
-	foreach (const QString &d, settings_ptr->childKeys()) {
-		qmPositionalAudioPlugins.insert(d, settings_ptr->value(d, true).toBool());
-	}
-	settings_ptr->endGroup();
-
-	settings_ptr->beginGroup(QLatin1String("overlay"));
-	os.load(settings_ptr);
-	settings_ptr->endGroup();
 }
 
-#undef SAVELOAD
-#define SAVELOAD(var, name)                               \
-	if (var != def.var)                                   \
-		settings_ptr->setValue(QLatin1String(name), var); \
-	else                                                  \
-		settings_ptr->remove(QLatin1String(name))
-#define SAVEFLAG(var, name)                                                   \
-	if (var != def.var)                                                       \
-		settings_ptr->setValue(QLatin1String(name), static_cast< int >(var)); \
-	else                                                                      \
-		settings_ptr->remove(QLatin1String(name))
-#undef DEPRECATED
-#define DEPRECATED(name) settings_ptr->remove(QLatin1String(name))
-
-void OverlaySettings::save() {
-	save(g.qs);
+void PulseAudioSystem::query() {
+	bSourceDone = bSinkDone = bServerDone = false;
+	qhInput.clear();
+	qhOutput.clear();
+	qhEchoMap.clear();
+	qhSpecMap.clear();
+	qhChanMap.clear();
+	qhInput.insert(QString(), tr("Default Input"));
+	qhOutput.insert(QString(), tr("Default Output"));
+	m_pulseAudio.operation_unref(m_pulseAudio.context_get_server_info(pacContext, server_callback, this));
+	m_pulseAudio.operation_unref(m_pulseAudio.context_get_sink_info_list(pacContext, sink_callback, this));
+	m_pulseAudio.operation_unref(m_pulseAudio.context_get_source_info_list(pacContext, source_callback, this));
+	wakeup();
 }
 
-void OverlaySettings::save(QSettings *settings_ptr) {
-	OverlaySettings def;
-
-	settings_ptr->setValue(QLatin1String("version"), QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)));
-	settings_ptr->sync();
-
-#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
-	if (settings_ptr->format() == QSettings::IniFormat)
-#endif
-	{
-		QFile f(settings_ptr->fileName());
-		f.setPermissions(f.permissions()
-						 & ~(QFile::ReadGroup | QFile::WriteGroup | QFile::ExeGroup | QFile::ReadOther
-							 | QFile::WriteOther | QFile::ExeOther));
+void PulseAudioSystem::setVolumes() {
+	// set attenuation state and volumes
+	if (bAttenuating) {
+		// ensure the volume map is empty, otherwise it may be dangerous to change
+		if (qhVolumes.empty()) {
+			// set the new per-application volumes and store the old ones
+			m_pulseAudio.operation_unref(
+				m_pulseAudio.context_get_sink_input_info_list(pacContext, volume_sink_input_list_callback, this));
+		}
+		// clear attenuation state and restore normal volumes
+	} else {
+		iRemainingOperations++;
+		m_pulseAudio.operation_unref(
+			m_pulseAudio.context_get_sink_input_info_list(pacContext, restore_sink_input_list_callback, this));
 	}
-
-	SAVELOAD(bEnable, "enable");
-
-	SAVELOAD(osShow, "show");
-	SAVELOAD(bAlwaysSelf, "alwaysself");
-	SAVELOAD(uiActiveTime, "activetime");
-	SAVELOAD(osSort, "sort");
-	SAVELOAD(fX, "x");
-	SAVELOAD(fY, "y");
-	SAVELOAD(fZoom, "zoom");
-	SAVELOAD(uiColumns, "columns");
-
-	settings_ptr->beginReadArray(QLatin1String("states"));
-	for (int i = 0; i < 4; ++i) {
-		settings_ptr->setArrayIndex(i);
-		SAVELOAD(qcUserName[i], "color");
-		SAVELOAD(fUser[i], "opacity");
-	}
-	settings_ptr->endArray();
-
-	SAVELOAD(qfUserName, "userfont");
-	SAVELOAD(qfChannel, "channelfont");
-	SAVELOAD(qcChannel, "channelcolor");
-	SAVELOAD(qfFps, "fpsfont");
-	SAVELOAD(qcFps, "fpscolor");
-
-	SAVELOAD(fBoxPad, "padding");
-	SAVELOAD(fBoxPenWidth, "penwidth");
-	SAVELOAD(qcBoxPen, "pencolor");
-	SAVELOAD(qcBoxFill, "fillcolor");
-
-	SAVELOAD(bUserName, "usershow");
-	SAVELOAD(bChannel, "channelshow");
-	SAVELOAD(bMutedDeafened, "mutedshow");
-	SAVELOAD(bAvatar, "avatarshow");
-	SAVELOAD(bBox, "boxshow");
-	SAVELOAD(bFps, "fpsshow");
-	SAVELOAD(bTime, "timeshow");
-
-	SAVELOAD(fUserName, "useropacity");
-	SAVELOAD(fChannel, "channelopacity");
-	SAVELOAD(fMutedDeafened, "mutedopacity");
-	SAVELOAD(fAvatar, "avataropacity");
-	SAVELOAD(fFps, "fpsopacity");
-
-	SAVELOAD(qrfUserName, "userrect");
-	SAVELOAD(qrfChannel, "channelrect");
-	SAVELOAD(qrfMutedDeafened, "mutedrect");
-	SAVELOAD(qrfAvatar, "avatarrect");
-	SAVELOAD(qrfFps, "fpsrect");
-	SAVELOAD(qrfTime, "timerect");
-
-	SAVEFLAG(qaUserName, "useralign");
-	SAVEFLAG(qaChannel, "channelalign");
-	SAVEFLAG(qaMutedDeafened, "mutedalign");
-	SAVEFLAG(qaAvatar, "avataralign");
-
-	SAVELOAD(oemOverlayExcludeMode, "mode");
-	settings_ptr->setValue(QLatin1String("launchers"), qslLaunchers);
-	settings_ptr->setValue(QLatin1String("launchersexclude"), qslLaunchersExclude);
-	settings_ptr->setValue(QLatin1String("whitelist"), qslWhitelist);
-	settings_ptr->setValue(QLatin1String("whitelistexclude"), qslWhitelistExclude);
-	settings_ptr->setValue(QLatin1String("paths"), qslPaths);
-	settings_ptr->setValue(QLatin1String("pathsexclude"), qslPathsExclude);
-	settings_ptr->setValue(QLatin1String("blacklist"), qslBlacklist);
-	settings_ptr->setValue(QLatin1String("blacklistexclude"), qslBlacklistExclude);
 }
 
-void Settings::save() {
-	QSettings *settings_ptr = g.qs;
-	Settings def;
+void PulseAudioSystem::contextCallback(pa_context *c) {
+	Q_ASSERT(c == pacContext);
+	switch (m_pulseAudio.context_get_state(c)) {
+		case PA_CONTEXT_READY:
+			bPulseIsGood = true;
+			m_pulseAudio.operation_unref(
+				m_pulseAudio.context_subscribe(pacContext, PA_SUBSCRIPTION_MASK_SOURCE, nullptr, this));
+			m_pulseAudio.operation_unref(
+				m_pulseAudio.context_subscribe(pacContext, PA_SUBSCRIPTION_MASK_SINK, nullptr, this));
+			query();
+			break;
+		case PA_CONTEXT_TERMINATED:
+			qWarning("PulseAudio: Forcibly disconnected from PulseAudio");
+			break;
+		case PA_CONTEXT_FAILED:
+			qWarning("PulseAudio: Connection failure: %s", m_pulseAudio.strerror(m_pulseAudio.context_errno(c)));
+			break;
+		default:
+			return;
+	}
+	qmWait.lock();
+	qwcWait.wakeAll();
+	qmWait.unlock();
+}
 
-	// Config updates
-	SAVELOAD(uiUpdateCounter, "lastupdate");
+PulseAudioInputRegistrar::PulseAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("PulseAudio"), 10) {
+}
 
-	SAVELOAD(qsDatabaseLocation, "databaselocation");
+AudioInput *PulseAudioInputRegistrar::create() {
+	return new PulseAudioInput();
+}
 
-	SAVELOAD(bMute, "audio/mute");
-	SAVELOAD(bDeaf, "audio/deaf");
-	SAVELOAD(atTransmit, "audio/transmit");
-	SAVELOAD(uiDoublePush, "audio/doublepush");
-	SAVELOAD(pttHold, "audio/ptthold");
-	SAVELOAD(bTxAudioCue, "audio/pushclick");
-	SAVELOAD(qsTxAudioCueOn, "audio/pushclickon");
-	SAVELOAD(qsTxAudioCueOff, "audio/pushclickoff");
-	SAVELOAD(iQuality, "audio/quality");
-	SAVELOAD(iMinLoudness, "audio/loudness");
-	SAVELOAD(fVolume, "audio/volume");
-	SAVELOAD(fOtherVolume, "audio/othervolume");
-	SAVELOAD(bAttenuateOthers, "audio/attenuateothers");
-	SAVELOAD(bAttenuateOthersOnTalk, "audio/attenuateothersontalk");
-	SAVELOAD(bAttenuateUsersOnPrioritySpeak, "audio/attenuateusersonpriorityspeak");
-	SAVELOAD(bOnlyAttenuateSameOutput, "audio/onlyattenuatesameoutput");
-	SAVELOAD(bAttenuateLoopbacks, "audio/attenuateloopbacks");
-	SAVELOAD(vsVAD, "audio/vadsource");
-	SAVELOAD(fVADmin, "audio/vadmin");
-	SAVELOAD(fVADmax, "audio/vadmax");
-	SAVELOAD(noiseCancelMode, "audio/noiseCancelMode");
-	SAVELOAD(iSpeexNoiseCancelStrength, "audio/speexNoiseCancelStrength");
-	SAVELOAD(bAllowLowDelay, "audio/allowlowdelay");
-	SAVELOAD(uiAudioInputChannelMask, "audio/inputchannelmask");
-	SAVELOAD(iVoiceHold, "audio/voicehold");
-	SAVELOAD(iOutputDelay, "audio/outputdelay");
+const QList< audioDevice > PulseAudioInputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
 
-	// Idle auto actions
-	SAVELOAD(iIdleTime, "audio/idletime");
-	SAVELOAD(iaeIdleAction, "audio/idleaction");
-	SAVELOAD(bUndoIdleActionUponActivity, "audio/undoidleactionuponactivity");
+	QStringList qlInputDevs = pasys->qhInput.keys();
+	std::sort(qlInputDevs.begin(), qlInputDevs.end());
 
-	SAVELOAD(fAudioMinDistance, "audio/mindistance");
-	SAVELOAD(fAudioMaxDistance, "audio/maxdistance");
-	SAVELOAD(fAudioMaxDistVolume, "audio/maxdistancevolume");
-	SAVELOAD(fAudioBloom, "audio/bloom");
-	SAVELOAD(bEcho, "audio/echo");
-	SAVELOAD(bEchoMulti, "audio/echomulti");
-	SAVELOAD(bExclusiveInput, "audio/exclusiveinput");
-	SAVELOAD(bExclusiveOutput, "audio/exclusiveoutput");
-	SAVELOAD(bPositionalAudio, "audio/positional");
-	SAVELOAD(bPositionalHeadphone, "audio/headphone");
-	SAVELOAD(qsAudioInput, "audio/input");
-	SAVELOAD(qsAudioOutput, "audio/output");
-	SAVELOAD(bWhisperFriends, "audio/whisperfriends");
-	SAVELOAD(bTransmitPosition, "audio/postransmit");
+	if (qlInputDevs.contains(g.s.qsPulseAudioInput)) {
+		qlInputDevs.removeAll(g.s.qsPulseAudioInput);
+		qlInputDevs.prepend(g.s.qsPulseAudioInput);
+	}
 
-	SAVELOAD(iJitterBufferSize, "net/jitterbuffer");
-	SAVELOAD(iFramesPerPacket, "net/framesperpacket");
+	foreach (const QString &dev, qlInputDevs) { qlReturn << audioDevice(pasys->qhInput.value(dev), dev); }
 
-	SAVELOAD(bASIOEnable, "asio/enable");
-	SAVELOAD(qsASIOclass, "asio/class");
-	SAVELOAD(qlASIOmic, "asio/mic");
-	SAVELOAD(qlASIOspeaker, "asio/speaker");
+	return qlReturn;
+}
 
-	SAVELOAD(qsWASAPIInput, "wasapi/input");
-	SAVELOAD(qsWASAPIOutput, "wasapi/output");
-	SAVELOAD(qsWASAPIRole, "wasapi/role");
+void PulseAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsPulseAudioInput = choice.toString();
+}
 
-	SAVELOAD(qsALSAInput, "alsa/input");
-	SAVELOAD(qsALSAOutput, "alsa/output");
+bool PulseAudioInputRegistrar::canEcho(const QString &osys) const {
+	return (osys == name);
+}
 
-	SAVELOAD(qsPulseAudioInput, "pulseaudio/input");
-	SAVELOAD(qsPulseAudioOutput, "pulseaudio/output");
+PulseAudioOutputRegistrar::PulseAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("PulseAudio"), 10) {
+}
 
-	SAVELOAD(qsJackAudioOutput, "jack/output");
-	SAVELOAD(bJackStartServer, "jack/startserver");
-	SAVELOAD(bJackAutoConnect, "jack/autoconnect");
+AudioOutput *PulseAudioOutputRegistrar::create() {
+	return new PulseAudioOutput();
+}
 
-	SAVELOAD(qsOSSInput, "oss/input");
-	SAVELOAD(qsOSSOutput, "oss/output");
+const QList< audioDevice > PulseAudioOutputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
 
-	SAVELOAD(qsCoreAudioInput, "coreaudio/input");
-	SAVELOAD(qsCoreAudioOutput, "coreaudio/output");
+	QStringList qlOutputDevs = pasys->qhOutput.keys();
+	std::sort(qlOutputDevs.begin(), qlOutputDevs.end());
 
-	SAVELOAD(iPortAudioInput, "portaudio/input");
-	SAVELOAD(iPortAudioOutput, "portaudio/output");
+	if (qlOutputDevs.contains(g.s.qsPulseAudioOutput)) {
+		qlOutputDevs.removeAll(g.s.qsPulseAudioOutput);
+		qlOutputDevs.prepend(g.s.qsPulseAudioOutput);
+	}
 
-	SAVELOAD(bTTS, "tts/enable");
-	SAVELOAD(iTTSVolume, "tts/volume");
-	SAVELOAD(iTTSThreshold, "tts/threshold");
-	SAVELOAD(bTTSMessageReadBack, "tts/readback");
-	SAVELOAD(bTTSNoScope, "tts/noscope");
-	SAVELOAD(bTTSNoAuthor, "tts/noauthor");
-	SAVELOAD(qsTTSLanguage, "tts/language");
+	foreach (const QString &dev, qlOutputDevs) { qlReturn << audioDevice(pasys->qhOutput.value(dev), dev); }
 
-	// Network settings
-	SAVELOAD(bTCPCompat, "net/tcponly");
-	SAVELOAD(bQoS, "net/qos");
-	SAVELOAD(bReconnect, "net/reconnect");
-	SAVELOAD(bAutoConnect, "net/autoconnect");
-	SAVELOAD(ptProxyType, "net/proxytype");
-	SAVELOAD(qsProxyHost, "net/proxyhost");
-	SAVELOAD(usProxyPort, "net/proxyport");
-	SAVELOAD(qsProxyUsername, "net/proxyusername");
-	SAVELOAD(qsProxyPassword, "net/proxypassword");
-	DEPRECATED("net/maximagesize");
-	SAVELOAD(iMaxImageWidth, "net/maximagewidth");
-	SAVELOAD(iMaxImageHeight, "net/maximageheight");
-	SAVELOAD(qsServicePrefix, "net/serviceprefix");
-	SAVELOAD(iMaxInFlightTCPPings, "net/maxinflighttcppings");
-	SAVELOAD(iPingIntervalMsec, "net/pingintervalmsec");
-	SAVELOAD(iConnectionTimeoutDurationMsec, "net/connectiontimeoutdurationmsec");
-	SAVELOAD(bUdpForceTcpAddr, "net/udpforcetcpaddr");
+	return qlReturn;
+}
 
-	// Network settings - SSL
-	SAVELOAD(qsSslCiphers, "net/sslciphers");
+void PulseAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsPulseAudioOutput = choice.toString();
+}
 
-	// Privacy settings
-	SAVELOAD(bHideOS, "privacy/hideos");
+bool PulseAudioOutputRegistrar::canMuteOthers() const {
+	return true;
+}
 
-	SAVELOAD(qsLanguage, "ui/language");
-	SAVELOAD(themeName, "ui/theme");
-	SAVELOAD(themeStyleName, "ui/themestyle");
-	SAVELOAD(ceExpand, "ui/expand");
-	SAVELOAD(ceChannelDrag, "ui/drag");
-	SAVELOAD(ceUserDrag, "ui/userdrag");
-	SAVELOAD(aotbAlwaysOnTop, "ui/alwaysontop");
-	SAVELOAD(bAskOnQuit, "ui/askonquit");
-	SAVELOAD(bEnableDeveloperMenu, "ui/developermenu");
-	SAVELOAD(bLockLayout, "ui/locklayout");
-	SAVELOAD(bMinimalView, "ui/minimalview");
-	SAVELOAD(bHideFrame, "ui/hideframe");
-	SAVELOAD(bUserTop, "ui/usertop");
-	SAVELOAD(qbaMainWindowGeometry, "ui/geometry");
-	SAVELOAD(qbaMainWindowState, "ui/state");
-	SAVELOAD(qbaMinimalViewGeometry, "ui/minimalviewgeometry");
-	SAVELOAD(qbaMinimalViewState, "ui/minimalviewstate");
-	SAVELOAD(qbaConfigGeometry, "ui/ConfigGeometry");
-	SAVELOAD(wlWindowLayout, "ui/WindowLayout");
-	SAVELOAD(qbaSplitterState, "ui/splitter");
-	SAVELOAD(qbaHeaderState, "ui/header");
-	SAVELOAD(qsUsername, "ui/username");
-	SAVELOAD(qsLastServer, "ui/server");
-	SAVELOAD(ssFilter, "ui/serverfilter");
-	SAVELOAD(bUpdateCheck, "ui/updatecheck");
-	SAVELOAD(bPluginCheck, "ui/plugincheck");
-	SAVELOAD(bHideInTray, "ui/hidetray");
-	SAVELOAD(bStateInTray, "ui/stateintray");
-	SAVELOAD(bUsage, "ui/usage");
-	SAVELOAD(bShowUserCount, "ui/showusercount");
-	SAVELOAD(bShowVolumeAdjustments, "ui/showVolumeAdjustments");
-	SAVELOAD(bChatBarUseSelection, "ui/chatbaruseselection");
-	SAVELOAD(bFilterHidesEmptyChannels, "ui/filterhidesemptychannels");
-	SAVELOAD(bFilterActive, "ui/filteractive");
-	SAVELOAD(qsImagePath, "ui/imagepath");
-	SAVELOAD(bShowContextMenuInMenuBar, "ui/showcontextmenuinmenubar");
-	SAVELOAD(qbaConnectDialogGeometry, "ui/connect/geometry");
-	SAVELOAD(qbaConnectDialogHeader, "ui/connect/header");
-	SAVELOAD(bShowTransmitModeComboBox, "ui/transmitmodecombobox");
-	SAVELOAD(bHighContrast, "ui/HighContrast");
-	SAVELOAD(iMaxLogBlocks, "ui/MaxLogBlocks");
-	SAVELOAD(bLog24HourClock, "ui/24HourClock");
-	SAVELOAD(iChatMessageMargins, "ui/ChatMessageMargins");
-	SAVELOAD(bDisablePublicList, "ui/disablepubliclist");
+PulseAudioInput::PulseAudioInput() {
+	memset(&pssMic, 0, sizeof(pssMic));
+	memset(&pssEcho, 0, sizeof(pssEcho));
+	bRunning = true;
+	if (pasys)
+		pasys->wakeup_lock();
+}
 
-	// TalkingUI
-	SAVELOAD(qpTalkingUI_Position, "ui/talkingUIPosition");
-	SAVELOAD(bShowTalkingUI, "ui/showTalkingUI");
-	SAVELOAD(bTalkingUI_LocalUserStaysVisible, "ui/talkingUI_LocalUserStaysVisible");
-	SAVELOAD(bTalkingUI_AbbreviateChannelNames, "ui/talkingUI_AbbreviateChannelNames");
-	SAVELOAD(bTalkingUI_AbbreviateCurrentChannel, "ui/talkingUI_AbbreviateCurrentChannel");
-	SAVELOAD(bTalkingUI_ShowLocalListeners, "ui/talkingUI_ShowLocalListeners");
-	SAVELOAD(iTalkingUI_RelativeFontSize, "ui/talkingUI_RelativeFontSize");
-	SAVELOAD(iTalkingUI_SilentUserLifeTime, "ui/talkingUI_SilentUserLifeTime");
-	SAVELOAD(iTalkingUI_ChannelHierarchyDepth, "ui/talkingUI_ChannelHierarchieDepth");
-	SAVELOAD(iTalkingUI_MaxChannelNameLength, "ui/talkingUI_MaxChannelNameLength");
-	SAVELOAD(iTalkingUI_PrefixCharCount, "ui/talkingUI_PrefixCharCount");
-	SAVELOAD(iTalkingUI_PostfixCharCount, "ui/talkingUI_PostfixCharCount");
-	SAVELOAD(qsTalkingUI_ChannelSeparator, "ui/talkingUI_ChannelSeparator");
-	SAVELOAD(qsTalkingUI_AbbreviationReplacement, "ui/talkingUI_AbbreviationReplacement");
+PulseAudioInput::~PulseAudioInput() {
+	bRunning = false;
+	qmMutex.lock();
+	qwcWait.wakeAll();
+	qmMutex.unlock();
+	wait();
+	if (pasys)
+		pasys->wakeup_lock();
+}
 
-	SAVELOAD(manualPlugin_silentUserDisplaytime, "ui/manualPlugin_silentUserDisplaytime");
+void PulseAudioInput::run() {
+	qmMutex.lock();
+	while (bRunning)
+		qwcWait.wait(&qmMutex);
+	qmMutex.unlock();
+}
 
-	// PTT Button window
-	SAVELOAD(bShowPTTButtonWindow, "ui/showpttbuttonwindow");
-	SAVELOAD(qbaPTTButtonWindowGeometry, "ui/pttbuttonwindowgeometry");
+PulseAudioOutput::PulseAudioOutput() {
+	memset(&pss, 0, sizeof(pss));
+	memset(&pcm, 0, sizeof(pcm));
+	bRunning = true;
+	if (pasys)
+		pasys->wakeup_lock();
+}
 
-	// Recording
-	SAVELOAD(qsRecordingPath, "recording/path");
-	SAVELOAD(qsRecordingFile, "recording/file");
-	SAVELOAD(rmRecordingMode, "recording/mode");
-	SAVELOAD(iRecordingFormat, "recording/format");
+PulseAudioOutput::~PulseAudioOutput() {
+	bRunning = false;
+	qmMutex.lock();
+	qwcWait.wakeAll();
+	qmMutex.unlock();
+	wait();
+	if (pasys)
+		pasys->wakeup_lock();
+}
 
-	// Special configuration options not exposed to UI
-	SAVELOAD(bDisableCELT, "audio/disablecelt");
-	SAVELOAD(disableConnectDialogEditing, "ui/disableconnectdialogediting");
-	SAVELOAD(bPingServersDialogViewed, "consent/pingserversdialogviewed");
+void PulseAudioOutput::run() {
+	qmMutex.lock();
+	while (bRunning)
+		qwcWait.wait(&qmMutex);
+	qmMutex.unlock();
+}
 
-	// OverlayPrivateWin
-	SAVELOAD(iOverlayWinHelperRestartCooldownMsec, "overlay_win/helper/restart_cooldown_msec");
-	SAVELOAD(bOverlayWinHelperX86Enable, "overlay_win/helper/x86/enable");
-	SAVELOAD(bOverlayWinHelperX64Enable, "overlay_win/helper/x64/enable");
+PulseAudio::PulseAudio() : m_ok(false) {
+	const QStringList alternatives{ QLatin1String("libpulse.so"), QLatin1String("libpulse.so.0") };
 
-	// LCD
-	SAVELOAD(iLCDUserViewMinColWidth, "lcd/userview/mincolwidth");
-	SAVELOAD(iLCDUserViewSplitterWidth, "lcd/userview/splitterwidth");
-
-	QByteArray qba = CertWizard::exportCert(kpCertificate);
-	settings_ptr->setValue(QLatin1String("net/certificate"), qba);
-
-	SAVELOAD(bShortcutEnable, "shortcut/enable");
-	SAVELOAD(bSuppressMacEventTapWarning, "shortcut/mac/suppresswarning");
-	SAVELOAD(bEnableEvdev, "shortcut/linux/evdev/enable");
-	SAVELOAD(bEnableXInput2, "shortcut/x11/xinput2/enable");
-	SAVELOAD(bEnableGKey, "shortcut/gkey");
-	SAVELOAD(bEnableXboxInput, "shortcut/windows/xbox/enable");
-	SAVELOAD(bEnableWinHooks, "winhooks");
-	SAVELOAD(bDirectInputVerboseLogging, "shortcut/windows/directinput/verboselogging");
-	SAVELOAD(bEnableUIAccess, "shortcut/windows/uiaccess/enable");
-
-	settings_ptr->beginWriteArray(QLatin1String("shortcuts"));
-	int idx = 0;
-	foreach (const Shortcut &s, qlShortcuts) {
-		if (!s.isServerSpecific()) {
-			settings_ptr->setArrayIndex(idx++);
-			settings_ptr->setValue(QLatin1String("index"), s.iIndex);
-			settings_ptr->setValue(QLatin1String("keys"), s.qlButtons);
-			settings_ptr->setValue(QLatin1String("suppress"), s.bSuppress);
-			settings_ptr->setValue(QLatin1String("data"), s.qvData);
+	for (const QString &alternative : alternatives) {
+		m_lib.setFileName(alternative);
+		if (m_lib.load()) {
+			break;
 		}
 	}
-	settings_ptr->endArray();
 
-	settings_ptr->beginWriteArray(QLatin1String("messages"));
-	for (QMap< int, quint32 >::const_iterator it = qmMessages.constBegin(); it != qmMessages.constEnd(); ++it) {
-		settings_ptr->setArrayIndex(it.key());
-		SAVELOAD(qmMessages[it.key()], "log");
+	if (!m_lib.isLoaded()) {
+		return;
 	}
-	settings_ptr->endArray();
 
-	settings_ptr->beginWriteArray(QLatin1String("messagesounds"));
-	for (QMap< int, QString >::const_iterator it = qmMessageSounds.constBegin(); it != qmMessageSounds.constEnd();
-		 ++it) {
-		settings_ptr->setArrayIndex(it.key());
-		SAVELOAD(qmMessageSounds[it.key()], "logsound");
-	}
-	settings_ptr->endArray();
+	RESOLVE(get_library_version);
+	RESOLVE(strerror);
+	RESOLVE(operation_unref);
+	RESOLVE(cvolume_equal);
+	RESOLVE(sw_cvolume_multiply_scalar);
+	RESOLVE(sample_spec_equal);
+	RESOLVE(channel_map_equal);
+	RESOLVE(proplist_new);
+	RESOLVE(proplist_free);
+	RESOLVE(proplist_gets);
+	RESOLVE(proplist_sets);
+	RESOLVE(threaded_mainloop_new);
+	RESOLVE(threaded_mainloop_free);
+	RESOLVE(threaded_mainloop_start);
+	RESOLVE(threaded_mainloop_stop);
+	RESOLVE(threaded_mainloop_lock);
+	RESOLVE(threaded_mainloop_unlock);
+	RESOLVE(threaded_mainloop_get_api);
+	RESOLVE(context_errno);
+	RESOLVE(context_new_with_proplist);
+	RESOLVE(context_unref);
+	RESOLVE(context_connect);
+	RESOLVE(context_disconnect);
+	RESOLVE(context_subscribe);
+	RESOLVE(context_get_state);
+	RESOLVE(context_get_server_info);
+	RESOLVE(context_get_sink_info_by_name);
+	RESOLVE(context_get_sink_info_list);
+	RESOLVE(context_get_sink_input_info_list);
+	RESOLVE(context_get_source_info_list);
+	RESOLVE(context_set_sink_input_volume);
+	RESOLVE(context_set_subscribe_callback);
+	RESOLVE(context_set_state_callback);
+	RESOLVE(stream_new);
+	RESOLVE(stream_unref);
+	RESOLVE(stream_connect_playback);
+	RESOLVE(stream_connect_record);
+	RESOLVE(stream_disconnect);
+	RESOLVE(stream_peek);
+	RESOLVE(stream_write);
+	RESOLVE(stream_drop);
+	RESOLVE(stream_cork);
+	RESOLVE(stream_get_state);
+	RESOLVE(stream_get_context);
+	RESOLVE(stream_get_sample_spec);
+	RESOLVE(stream_get_channel_map);
+	RESOLVE(stream_get_buffer_attr);
+	RESOLVE(stream_set_state_callback);
+	RESOLVE(stream_set_read_callback);
+	RESOLVE(stream_set_write_callback);
+	RESOLVE(ext_stream_restore_read);
+	RESOLVE(ext_stream_restore_write);
 
-	settings_ptr->beginGroup(QLatin1String("lcd/devices"));
-	foreach (const QString &d, qmLCDDevices.keys()) {
-		bool v = qmLCDDevices.value(d);
-		if (!v)
-			settings_ptr->setValue(d, v);
-		else
-			settings_ptr->remove(d);
-	}
-	settings_ptr->endGroup();
+	qDebug("PulseAudio %s from %s", get_library_version(), qPrintable(m_lib.fileName()));
 
-	settings_ptr->beginGroup(QLatin1String("audio/plugins"));
-	foreach (const QString &d, qmPositionalAudioPlugins.keys()) {
-		bool v = qmPositionalAudioPlugins.value(d);
-		if (!v)
-			settings_ptr->setValue(d, v);
-		else
-			settings_ptr->remove(d);
-	}
-	settings_ptr->endGroup();
-
-	settings_ptr->beginGroup(QLatin1String("overlay"));
-	os.save(settings_ptr);
-	settings_ptr->endGroup();
+	m_ok = true;
 }
