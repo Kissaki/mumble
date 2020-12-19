@@ -1,974 +1,550 @@
-# Copyright 2019-2020 The Mumble Developers. All rights reserved.
-# Use of this source code is governed by a BSD-style license
-# that can be found in the LICENSE file at the root of the
-# Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-set(MUMBLE_RC "${CMAKE_CURRENT_BINARY_DIR}/mumble.rc")
-set(MUMBLE_DLL_RC "${CMAKE_CURRENT_BINARY_DIR}/mumble_dll.rc")
-set(MUMBLE_PLIST "${CMAKE_CURRENT_BINARY_DIR}/mumble.plist")
-
-set(MUMBLE_ICON "${CMAKE_SOURCE_DIR}/icons/mumble.ico")
-set(MUMBLE_ICNS "${CMAKE_SOURCE_DIR}/icons/mumble.icns")
-
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mumble.rc.in" "${MUMBLE_RC}")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mumble_dll.rc.in" "${MUMBLE_DLL_RC}")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mumble.plist.in" "${MUMBLE_PLIST}")
-
-include(qt-utils)
-include(install-library)
-
-option(update "Check for updates by default." ON)
-
-option(translations "Include languages other than English." ON)
-
-option(classic-theme "Include the classic theme." ON)
-
-option(bundled-opus "Build the included version of Opus instead of looking for one on the system." ON)
-option(bundled-celt "Build the included version of CELT instead of looking for one on the system." ON)
-option(bundled-speex "Build the included version of Speex instead of looking for one on the system." ON)
-option(rnnoise "Build RNNoise for machine learning noise reduction" ON)
-
-option(manual-plugin "Include the built-in \"manual\" positional audio plugin." ON)
-
-option(qtspeech "Use Qt's text-to-speech system (part of the Qt Speech module) instead of Mumble's own OS-specific text-to-speech implementations." OFF)
-
-option(jackaudio "Build support for JackAudio." ON)
-option(portaudio "Build support for PortAudio" ON)
-
-if(WIN32)
-	option(asio "Build support for ASIO audio input." OFF)
-	option(wasapi "Build support for WASAPI." ON)
-	option(xboxinput "Build support for global shortcuts from Xbox controllers via the XInput DLL." ON)
-	option(gkey "Build support for Logitech G-Keys. Note: This feature does not require any build-time dependencies, and requires Logitech Gaming Software to be installed to have any effect at runtime." ON)
-elseif(UNIX)
-	if(APPLE)
-		option(coreaudio "Build support for CoreAudio." ON)
-	elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
-		option(oss "Build support for OSS." ON)
-	elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-		option(alsa "Build support for ALSA." ON)
-		option(pulseaudio "Build support for PulseAudio." ON)
-		option(speechd "Build support for Speech Dispatcher." ON)
-		option(xinput2 "Build support for XI2" ON)
-	endif()
-endif()
-
-if(NOT APPLE)
-	option(g15 "Include support for the G15 keyboard (and compatible devices)." OFF)
-endif()
-
-if(WIN32 OR APPLE)
-	option(crash-report "Include support for reporting crashes to the Mumble developers." ON)
-endif()
-
-if(MSVC)
-	option(elevation "Set \"uiAccess=true\", required for global shortcuts to work with privileged applications. Requires the client's executable to be signed with a trusted code signing certificate." OFF)
-endif()
-
-find_pkg(Qt5
-	COMPONENTS
-		Concurrent
-		Sql
-		Svg
-		Widgets
-	REQUIRED
-)
-
-set(MUMBLE_SOURCES
-	"main.cpp"
-	"About.cpp"
-	"About.h"
-	"ACLEditor.cpp"
-	"ACLEditor.h"
-	"ACLEditor.ui"
-	"ApplicationPalette.h"
-	"AudioConfigDialog.cpp"
-	"AudioConfigDialog.h"
-	"Audio.cpp"
-	"Audio.h"
-	"AudioInput.cpp"
-	"AudioInput.h"
-	"AudioInput.ui"
-	"AudioOutput.cpp"
-	"AudioOutput.h"
-	"AudioOutputSample.cpp"
-	"AudioOutputSample.h"
-	"AudioOutputSpeech.cpp"
-	"AudioOutputSpeech.h"
-	"AudioOutput.ui"
-	"AudioOutputUser.cpp"
-	"AudioOutputUser.h"
-	"AudioStats.cpp"
-	"AudioStats.h"
-	"AudioStats.ui"
-	"AudioWizard.cpp"
-	"AudioWizard.h"
-	"AudioWizard.ui"
-	"BanEditor.cpp"
-	"BanEditor.h"
-	"BanEditor.ui"
-	"CELTCodec.cpp"
-	"CELTCodec.h"
-	"Cert.cpp"
-	"Cert.h"
-	"Cert.ui"
-	"ClientUser.cpp"
-	"ClientUser.h"
-	"ConfigDialog.cpp"
-	"ConfigDialog.h"
-	"ConfigDialog.ui"
-	"ConfigWidget.cpp"
-	"ConfigWidget.h"
-	"ConnectDialog.cpp"
-	"ConnectDialogEdit.ui"
-	"ConnectDialog.h"
-	"ConnectDialog.ui"
-	"CustomElements.cpp"
-	"CustomElements.h"
-	"Database.cpp"
-	"Database.h"
-	"DeveloperConsole.cpp"
-	"DeveloperConsole.h"
-	"Global.cpp"
-	"Global.h"
-	"GlobalShortcut.cpp"
-	"GlobalShortcut.h"
-	"GlobalShortcutTarget.ui"
-	"GlobalShortcut.ui"
-	"LCD.cpp"
-	"LCD.h"
-	"LCD.ui"
-	"ListenerLocalVolumeDialog.cpp"
-	"Log.cpp"
-	"Log.h"
-	"Log.ui"
-	"LookConfig.cpp"
-	"LookConfig.h"
-	"LookConfig.ui"
-	"MainWindow.cpp"
-	"MainWindow.h"
-	"MainWindow.ui"
-	"Markdown.cpp"
-	"Markdown.h"
-	"Messages.cpp"
-	"MumbleApplication.cpp"
-	"MumbleApplication.h"
-	"NetworkConfig.cpp"
-	"NetworkConfig.h"
-	"NetworkConfig.ui"
-	"OpusCodec.cpp"
-	"OpusCodec.h"
-	"Plugins.cpp"
-	"Plugins.h"
-	"Plugins.ui"
-	"PTTButtonWidget.cpp"
-	"PTTButtonWidget.h"
-	"PTTButtonWidget.ui"
-	"RichTextEditor.cpp"
-	"RichTextEditor.h"
-	"RichTextEditorLink.ui"
-	"RichTextEditor.ui"
-	"Screen.cpp"
-	"Screen.h"
-	"ServerHandler.cpp"
-	"ServerHandler.h"
-	"Settings.cpp"
-	"Settings.h"
-	"SharedMemory.cpp"
-	"SharedMemory.h"
-	"SocketRPC.cpp"
-	"SocketRPC.h"
-	"SvgIcon.cpp"
-	"SvgIcon.h"
-	"TalkingUI.cpp"
-	"TalkingUI.h"
-	"TalkingUIContainer.cpp"
-	"TalkingUIContainer.h"
-	"TalkingUIEntry.cpp"
-	"TalkingUIEntry.h"
-	"TalkingUISelection.cpp"
-	"TalkingUISelection.h"
-	"TextMessage.cpp"
-	"TextMessage.h"
-	"TextMessage.ui"
-	"TextToSpeech.h"
-	"ThemeInfo.cpp"
-	"ThemeInfo.h"
-	"Themes.cpp"
-	"Themes.h"
-	"Tokens.cpp"
-	"Tokens.h"
-	"Tokens.ui"
-	"Usage.cpp"
-	"Usage.h"
-	"UserEdit.cpp"
-	"UserEdit.h"
-	"UserEdit.ui"
-	"UserInformation.cpp"
-	"UserInformation.h"
-	"UserInformation.ui"
-	"UserListModel.cpp"
-	"UserListModel.h"
-	"UserLocalVolumeDialog.cpp"
-	"UserLocalVolumeDialog.h"
-	"UserLocalVolumeDialog.ui"
-	"UserModel.cpp"
-	"UserModel.h"
-	"UserView.cpp"
-	"UserView.h"
-	"VersionCheck.cpp"
-	"VersionCheck.h"
-	"ViewCert.cpp"
-	"ViewCert.h"
-	"VoiceRecorder.cpp"
-	"VoiceRecorderDialog.cpp"
-	"VoiceRecorderDialog.h"
-	"VoiceRecorderDialog.ui"
-	"VoiceRecorder.h"
-	"WebFetch.cpp"
-	"WebFetch.h"
-	"XMLTools.cpp"
-	"XMLTools.h"
-
-	"widgets/MUComboBox.cpp"
-	"widgets/MUComboBox.h"
-
-	"${SHARED_SOURCE_DIR}/ACL.cpp"
-	"${SHARED_SOURCE_DIR}/ACL.h"
-	"${SHARED_SOURCE_DIR}/Channel.cpp"
-	"${SHARED_SOURCE_DIR}/Channel.h"
-	"${SHARED_SOURCE_DIR}/ChannelListener.cpp"
-	"${SHARED_SOURCE_DIR}/ChannelListener.h"
-	"${SHARED_SOURCE_DIR}/Connection.cpp"
-	"${SHARED_SOURCE_DIR}/Connection.h"
-	"${SHARED_SOURCE_DIR}/Group.cpp"
-	"${SHARED_SOURCE_DIR}/Group.h"
-	"${SHARED_SOURCE_DIR}/SignalCurry.h"
-
-	"${3RDPARTY_DIR}/smallft/smallft.cpp"
-
-	"mumble.qrc"
-	"flags/mumble_flags_0.qrc"
-	"${CMAKE_SOURCE_DIR}/themes/MumbleTheme.qrc"
-)
-
-if(static AND WIN32)
-	# On Windows, building a static client means building the main app into a DLL.
-	add_library(mumble SHARED ${MUMBLE_SOURCES})
-	add_compile_definitions(mumble PRIVATE "MUMBLEAPP_DLL")
-
-	set_target_properties(mumble PROPERTIES OUTPUT_NAME "mumble_app")
-	if(MINGW)
-		# Remove "lib" prefix.
-		set_target_properties(mumble PROPERTIES PREFIX "")
-	endif()
-
-	target_sources(mumble PRIVATE "${MUMBLE_DLL_RC}")
-
-	add_subdirectory("${SHARED_SOURCE_DIR}/mumble_exe" "${CMAKE_BINARY_DIR}/mumble_exe")
-else()
-	add_executable(mumble ${MUMBLE_SOURCES})
-
-	if(WIN32)
-		target_sources(mumble
-			PRIVATE
-				"mumble.appcompat.manifest"
-				"${MUMBLE_RC}"
-		)
-
-		if(elevation)
-			set_property(TARGET mumble APPEND_STRING PROPERTY LINK_FLAGS " /MANIFESTUAC:\"level=\'asInvoker\' uiAccess=\'true\'\"")
-		endif()
-	elseif(APPLE)
-		set_target_properties(mumble
-			PROPERTIES
-				OUTPUT_NAME "Mumble"
-				MACOSX_BUNDLE TRUE
-				RESOURCE ${MUMBLE_ICNS}
-				MACOSX_BUNDLE_INFO_PLIST ${MUMBLE_PLIST}
-		)
-	endif()
-endif()
-
-target_compile_definitions(mumble
-	PRIVATE
-		"MUMBLE_LIBRARY_PATH=${MUMBLE_INSTALL_LIBDIR}"
-		"MUMBLE_PLUGIN_PATH=${MUMBLE_INSTALL_PLUGINDIR}"
-)
-
-set_target_properties(mumble
-	PROPERTIES
-		AUTOMOC ON
-		AUTORCC ON
-		AUTOUIC ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
-if(WIN32)
-	install(TARGETS mumble RUNTIME DESTINATION "${MUMBLE_INSTALL_EXECUTABLEDIR}" COMPONENT mumble_client)
-else()
-	if(NOT APPLE)
-		install(TARGETS mumble RUNTIME DESTINATION "${MUMBLE_INSTALL_EXECUTABLEDIR}" COMPONENT mumble_client)
-	else()
-		install(TARGETS mumble BUNDLE DESTINATION "${MUMBLE_INSTALL_EXECUTABLEDIR}" COMPONENT mumble_client)
-	endif()
-
-	# Install Mumble man files
-	install(FILES "${CMAKE_SOURCE_DIR}/man/mumble.1" DESTINATION "${MUMBLE_INSTALL_MANDIR}" COMPONENT doc)
-endif()
-
-target_compile_definitions(mumble
-	PRIVATE
-		"MUMBLE"
-		"USE_OPUS"
-		"QT_RESTRICTED_CAST_FROM_ASCII"
-)
-
-target_include_directories(mumble
-	PRIVATE
-		${CMAKE_CURRENT_SOURCE_DIR} # This is required for includes in current folder to be found by files from the shared directory.
-		"widgets"
-		${SHARED_SOURCE_DIR}
-		"${3RDPARTY_DIR}/smallft"
-)
-
-find_pkg("LibSndFile;sndfile" REQUIRED)
-
-if(static AND TARGET sndfile-static)
-	target_link_libraries(mumble PRIVATE sndfile-static)
-elseif(TARGET sndfile)
-	target_link_libraries(mumble PRIVATE sndfile)
-else()
-	target_link_libraries(mumble PRIVATE ${sndfile_LIBRARIES})
-endif()
-
-target_link_libraries(mumble
-	PRIVATE
-		shared
-		Qt5::Concurrent
-		Qt5::Sql
-		Qt5::Svg
-		Qt5::Widgets
-)
-
-if(static)
-	if(TARGET Qt5::QSQLiteDriverPlugin)
-		include_qt_plugin(mumble PRIVATE "QSQLiteDriverPlugin")
-		target_link_libraries(mumble PRIVATE Qt5::QSQLiteDriverPlugin)
-	endif()
-	if(TARGET Qt5::QSvgIconPlugin)
-		include_qt_plugin(mumble PRIVATE "QSvgIconPlugin")
-		target_link_libraries(mumble PRIVATE Qt5::QSvgIconPlugin)
-	endif()
-	if(TARGET Qt5::QSvgPlugin)
-		include_qt_plugin(mumble PRIVATE "QSvgPlugin")
-		target_link_libraries(mumble PRIVATE Qt5::QSvgPlugin)
-	endif()
-endif()
-
-if(MSVC)
-	target_compile_definitions(mumble PRIVATE "RESTRICT=")
-else()
-	target_compile_definitions(mumble PRIVATE "RESTRICT=__restrict__")
-endif()
-
-if(WIN32)
-	target_sources(mumble PRIVATE
-		"GlobalShortcut_win.cpp"
-		"GlobalShortcut_win.h"
-		"Log_win.cpp"
-		"SharedMemory_win.cpp"
-		"TaskList.cpp"
-		"UserLockFile_win.cpp"
-		"WinGUIDs.cpp"
-		"os_early_win.cpp"
-		"os_win.cpp"
-
-		"${CMAKE_SOURCE_DIR}/overlay/ods.cpp"
-	)
-
-	find_pkg(Boost
-		COMPONENTS
-			system
-			thread
-		REQUIRED
-	)
-
-	if(static AND TARGET Qt5::QWindowsIntegrationPlugin)
-		include_qt_plugin(mumble PRIVATE QWindowsIntegrationPlugin)
-		target_link_libraries(mumble PRIVATE Qt5::QWindowsIntegrationPlugin)
-	endif()
-
-	add_subdirectory("${3RDPARTY_DIR}/xinputcheck-build" "${CMAKE_CURRENT_BINARY_DIR}/xinputcheck")
-
-	# Disable all warnings that the xinputcheck code may emit
-	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/xinputcheck-build")
-
-	target_link_libraries(mumble PRIVATE xinputcheck)
-
-	if(MSVC)
-		target_link_libraries(mumble
-			PRIVATE
-				Boost::dynamic_linking
-				Delayimp.lib
-			)
-		set_property(TARGET mumble APPEND_STRING PROPERTY LINK_FLAGS " /DELAYLOAD:user32.dll /DELAYLOAD:qwave.dll")
-	endif()
-
-	target_link_libraries(mumble
-		PRIVATE
-			Boost::system
-			Boost::thread
-	)
-
-	target_link_libraries(mumble
-		PRIVATE
-			dbghelp.lib
-			dinput8.lib
-			dxguid.lib
-			wintrust.lib
-	)
-else()
-	target_sources(mumble PRIVATE "SharedMemory_unix.cpp")
-
-	if(NOT APPLE)
-		find_pkg(X11 COMPONENTS Xext REQUIRED)
-
-		if(xinput2)
-			find_pkg(X11 COMPONENTS Xi REQUIRED)
-			target_link_libraries(mumble PRIVATE X11::Xi)
-		else()
-			target_compile_definitions(mumble PRIVATE "NO_XINPUT2")
-		endif()
-
-		if(static AND TARGET Qt5::QXcbIntegrationPlugin)
-			include_qt_plugin(mumble PRIVATE QXcbIntegrationPlugin)
-			target_link_libraries(mumble PRIVATE Qt5::QXcbIntegrationPlugin)
-		endif()
-
-		target_sources(mumble
-			PRIVATE
-				"GlobalShortcut_unix.cpp"
-				"GlobalShortcut_unix.h"
-				"Log_unix.cpp"
-				"os_unix.cpp"
-		)
-
-		if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-			find_library(LIB_RT rt)
-			target_link_libraries(mumble PRIVATE ${LIB_RT})
-		endif()
-
-		target_link_libraries(mumble PRIVATE X11::Xext)
-	else()
-		find_library(LIB_APPKIT "AppKit")
-		find_library(LIB_APPLICATIONSERVICES "ApplicationServices")
-		find_library(LIB_CARBON "Carbon")
-		find_library(LIB_SCRIPTINGBRIDGE "ScriptingBridge")
-		find_library(LIB_SECURITY "Security")
-		find_library(LIB_XAR "xar")
-
-		target_sources(mumble
-			PRIVATE
-				"AppNap.h"
-				"AppNap.mm"
-				"GlobalShortcut_macx.h"
-				"GlobalShortcut_macx.mm"
-				"Log_macx.mm"
-				"os_macx.mm"
-		)
-
-		if(static AND TARGET Qt5::QCocoaIntegrationPlugin)
-			include_qt_plugin(mumble PRIVATE QCocoaIntegrationPlugin)
-			target_link_libraries(mumble PRIVATE Qt5::QCocoaIntegrationPlugin)
-		endif()
-
-		target_link_libraries(mumble
-			PRIVATE
-				${LIB_APPKIT}
-				${LIB_APPLICATIONSERVICES}
-				${LIB_CARBON}
-				${LIB_SCRIPTINGBRIDGE}
-				${LIB_SECURITY}
-				${LIB_XAR}
-		)
-	endif()
-endif()
-
-if(bundled-opus)
-	option(OPUS_BUILD_SHARED_LIBRARY "" ON)
-	if(MINGW)
-		option(OPUS_STACK_PROTECTOR "" OFF)
-	endif()
-
-	add_subdirectory("${3RDPARTY_DIR}/opus" "${CMAKE_CURRENT_BINARY_DIR}/opus")
-
-	# Disable all warnings that the Opus code may emit
-	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/opus")
-
-	add_dependencies(mumble opus)
-
-	target_include_directories(mumble PRIVATE "${3RDPARTY_DIR}/opus/include")
-
-	if(tests)
-		set_target_properties(test_opus_decode test_opus_padding PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-	endif()
-
-	if(WIN32)
-		# Shared library on Windows (e.g. ".dll")
-		set_target_properties(opus PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	else()
-		# Shared library on UNIX (e.g. ".so")
-		set_target_properties(opus PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	endif()
-
-	install_library(opus mumble_client)
-else()
-	find_pkg(opus REQUIRED)
-	target_include_directories(mumble PRIVATE ${opus_INCLUDE_DIRS})
-endif()
-
-if(bundled-celt)
-	add_subdirectory("${3RDPARTY_DIR}/celt-0.7.0-build" "${CMAKE_CURRENT_BINARY_DIR}/celt")
-
-	# Disable all warnings that the Celt code may emit
-	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/celt-0.7.0-build")
-
-	# celt_types.h has some logic of checking whether or not it may include
-	# stdint.h or not. In order to avoid this logic to mess up, we provide
-	# it with the hint that it may indeed include stdint.h and be done with it
-	target_compile_definitions(celt
-		PRIVATE
-			HAVE_STDINT_H
-	)
-	# We also set this flag for Mumble as it includes the problematic
-	# header file indirectly at some points
-	target_compile_definitions(mumble
-		PRIVATE
-			HAVE_STDINT_H
-	)
-
-	add_dependencies(mumble celt)
-
-	target_include_directories(mumble PRIVATE "${3RDPARTY_DIR}/celt-0.7.0-src/libcelt")
-
-	if(WIN32)
-		# Shared library on Windows (e.g. ".dll")
-		set_target_properties(celt PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	else()
-		# Shared library on UNIX (e.g. ".so")
-		set_target_properties(celt PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	endif()
-
-	install_library(celt mumble_client)
-else()
-	find_pkg(celt REQUIRED)
-	target_include_directories(mumble PRIVATE ${celt_INCLUDE_DIRS})
-endif()
-
-if(bundled-speex)
-	add_subdirectory("${3RDPARTY_DIR}/speex-build" "${CMAKE_CURRENT_BINARY_DIR}/speex")
-
-	# Disable all warnings that the speex code may emit
-	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/speex-build")
-
-	target_link_libraries(mumble PRIVATE speex)
-
-	if(WIN32)
-		# Shared library on Windows (e.g. ".dll")
-		set_target_properties(speex PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	else()
-		# Shared library on UNIX (e.g. ".so")
-		set_target_properties(speex PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	endif()
-
-	install_library(speex mumble_client)
-else()
-	find_pkg(speex REQUIRED)
-	find_pkg(speexdsp REQUIRED)
-
-	target_link_libraries(mumble
-		PRIVATE
-			${speex_LIBRARIES}
-			${speexdsp_LIBRARIES}
-	)
-endif()
-
-if(rnnoise)
-	add_subdirectory("${3RDPARTY_DIR}/rnnoise-build" "${CMAKE_CURRENT_BINARY_DIR}/rnnoise")
-
-	# Disable all warnings that the RNNoise code may emit
-	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/rnnoise-build")
-
-	target_compile_definitions(mumble PRIVATE "USE_RNNOISE")
-	target_link_libraries(mumble PRIVATE rnnoise)
-
-	if(WIN32)
-		# Shared library on Windows (e.g. ".dll")
-		set_target_properties(rnnoise PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	else()
-		# Shared library on UNIX (e.g. ".so")
-		set_target_properties(rnnoise PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-	endif()
-
-	install_library(rnnoise mumble_client)
-endif()
-
-if(qtspeech)
-	find_pkg(Qt5 COMPONENTS TextToSpeech REQUIRED)
-	target_sources(mumble PRIVATE "TextToSpeech.cpp")
-	target_link_libraries(mumble PRIVATE Qt5::TextToSpeech)
-elseif(WIN32)
-	target_sources(mumble PRIVATE "TextToSpeech_win.cpp")
-	if(MINGW)
-		target_link_libraries(mumble PRIVATE sapi.lib)
-	endif()
-elseif(APPLE)
-	target_sources(mumble PRIVATE "TextToSpeech_macx.mm")
-else()
-	target_sources(mumble PRIVATE "TextToSpeech_unix.cpp")
-
-	if(speechd)
-		find_pkg("speech-dispatcher" REQUIRED)
-
-		target_compile_definitions(mumble
-			PRIVATE
-				"USE_SPEECHD"
-				"USE_SPEECHD_PKGCONFIG"
-		)
-		target_link_libraries(mumble PRIVATE ${speech-dispatcher_LIBRARIES})
-	else()
-		target_compile_definitions(mumble PRIVATE "USE_NO_TTS")
-	endif()
-endif()
-
-if(crash-report)
-	target_sources(mumble
-		PRIVATE
-			"CrashReporter.cpp"
-			"CrashReporter.h"
-	)
-else()
-	target_compile_definitions(mumble PRIVATE "NO_CRASH_REPORT")
-endif()
-
-if(manual-plugin)
-	target_sources(mumble
-		PRIVATE
-			"ManualPlugin.cpp"
-			"ManualPlugin.h"
-			"ManualPlugin.ui"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_MANUAL_PLUGIN")
-endif()
-
-if(NOT update)
-	target_compile_definitions(mumble PRIVATE "NO_UPDATE_CHECK")
-endif()
-
-if(dbus AND NOT WIN32 AND NOT APPLE)
-	find_pkg(Qt5 COMPONENTS DBus REQUIRED)
-
-	target_sources(mumble
-		PRIVATE
-			"DBus.cpp"
-			"DBus.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_DBUS")
-	target_link_libraries(mumble PRIVATE Qt5::DBus)
-endif()
-
-if(translations)
-	set(ts_files
-		"mumble_ar.ts"
-		"mumble_be.ts"
-		"mumble_bg.ts"
-		"mumble_br.ts"
-		"mumble_ca_ES.ts"
-		"mumble_ca.ts"
-		"mumble_cs.ts"
-		"mumble_cy.ts"
-		"mumble_da.ts"
-		"mumble_de.ts"
-		"mumble_el_GR.ts"
-		"mumble_el.ts"
-		"mumble_en_GB.ts"
-		"mumble_en.ts"
-		"mumble_eo.ts"
-		"mumble_es.ts"
-		"mumble_eu.ts"
-		"mumble_fa_IR.ts"
-		"mumble_fi.ts"
-		"mumble_fr.ts"
-		"mumble_gl.ts"
-		"mumble_he.ts"
-		"mumble_hi.ts"
-		"mumble_hu.ts"
-		"mumble_it.ts"
-		"mumble_ja.ts"
-		"mumble_ko.ts"
-		"mumble_lt.ts"
-		"mumble_nb_NO.ts"
-		"mumble_nl_BE.ts"
-		"mumble_nl.ts"
-		"mumble_no.ts"
-		"mumble_pl.ts"
-		"mumble_pt_BR.ts"
-		"mumble_pt_PT.ts"
-		"mumble_ro.ts"
-		"mumble_ru.ts"
-		"mumble_sk.ts"
-		"mumble_sv.ts"
-		"mumble_te.ts"
-		"mumble_th.ts"
-		"mumble_tr.ts"
-		"mumble_uk.ts"
-		"mumble_vi.ts"
-		"mumble_zh_CN.ts"
-		"mumble_zh_HK.ts"
-		"mumble_zh_TW.ts"
-	)
-
-	create_translations_qrc(${CMAKE_CURRENT_SOURCE_DIR} "${ts_files}" "translations.qrc")
-	target_sources(mumble PRIVATE "translations.qrc")
-endif()
-
-if(classic-theme)
-	target_sources(mumble PRIVATE "${CMAKE_SOURCE_DIR}/themes/ClassicTheme.qrc")
-endif()
-
-if(overlay)
-	target_sources(mumble
-		PRIVATE
-			"Overlay.cpp"
-			"Overlay.h"
-			"Overlay.ui"
-			"OverlayClient.cpp"
-			"OverlayClient.h"
-			"OverlayConfig.cpp"
-			"OverlayConfig.h"
-			"OverlayEditor.cpp"
-			"OverlayEditor.h"
-			"OverlayEditor.ui"
-			"OverlayEditorScene.cpp"
-			"OverlayEditorScene.h"
-			"OverlayPositionableItem.cpp"
-			"OverlayPositionableItem.h"
-			"OverlayText.cpp"
-			"OverlayText.h"
-			"OverlayUser.cpp"
-			"OverlayUser.h"
-			"OverlayUserGroup.cpp"
-			"OverlayUserGroup.h"
-			"PathListWidget.cpp"
-			"PathListWidget.h"
-	)
-
-	if(WIN32)
-		target_sources(mumble
-			PRIVATE
-				"Overlay_win.cpp"
-				"Overlay_win.h"
-		)
-	else()
-		if(APPLE)
-			target_sources(mumble PRIVATE "Overlay_macx.mm")
-		else()
-			target_sources(mumble PRIVATE "Overlay_unix.cpp")
-		endif()
-	endif()
-
-	target_compile_definitions(mumble PRIVATE "USE_OVERLAY")
-endif()
-
-if(xboxinput)
-	target_sources(mumble
-		PRIVATE
-			"XboxInput.cpp"
-			"XboxInput.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_XBOXINPUT")
-endif()
-
-if(gkey)
-	target_sources(mumble
-		PRIVATE
-			"GKey.cpp"
-			"GKey.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_GKEY")
-endif()
-
-if(g15)
-	if(WIN32 OR APPLE)
-		target_sources(mumble
-			PRIVATE
-				"G15LCDEngine_helper.cpp"
-				"G15LCDEngine_helper.h"
-	)
-	else()
-		find_library(LIB_G15DAEMON_CLIENT "g15daemon_client")
-		if(LIB_G15DAEMON_CLIENT-NOTFOUND)
-			message(FATAL_ERROR "G15 library not found!")
-		endif()
-
-		target_sources(mumble
-			PRIVATE
-				"G15LCDEngine_unix.cpp"
-				"G15LCDEngine_unix.h"
-		)
-
-		target_compile_definitions(mumble PRIVATE "USE_G15")
-		target_link_libraries(mumble PRIVATE ${LIB_G15DAEMON_CLIENT})
-	endif()
-endif()
-
-if(zeroconf)
-	if(NOT APPLE)
-		find_pkg(avahi-compat-libdns_sd QUIET)
-		if(avahi-compat-libdns_sd_FOUND)
-			target_include_directories(mumble PRIVATE ${avahi-compat-libdns_sd_INCLUDE_DIRS})
-			target_link_libraries(mumble PRIVATE ${avahi-compat-libdns_sd_LIBRARIES})
-		else()
-			find_library(LIB_DNSSD "dnssd")
-			if(${LIB_DNSSD} STREQUAL "LIB_DNSSD-NOTFOUND")
-				message(FATAL_ERROR "DNS-SD library not found!")
-			endif()
-			target_link_libraries(mumble PRIVATE ${LIB_DNSSD})
-		endif()
-	endif()
-
-	target_sources(mumble
-		PRIVATE
-			"Zeroconf.cpp"
-			"Zeroconf.h"
-			# Unlike what the name implies, this 3rdparty helper is not actually related to Bonjour.
-			# It just uses the API provided by mDNSResponder, making it compatible with Avahi too.
-			"${3RDPARTY_DIR}/qqbonjour/BonjourRecord.h"
-			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceBrowser.cpp"
-			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceBrowser.h"
-			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceResolver.cpp"
-			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceResolver.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_ZEROCONF")
-	target_include_directories(mumble PRIVATE "${3RDPARTY_DIR}/qqbonjour")
-endif()
-
-if(alsa)
-	find_pkg(ALSA REQUIRED)
-	target_sources(mumble
-		PRIVATE
-			"ALSAAudio.cpp"
-			"ALSAAudio.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_ALSA")
-	target_link_libraries(mumble PRIVATE ALSA::ALSA)
-endif()
-
-if(asio)
-	if(NOT ASIO_DIR)
-		set(ASIO_DIR "${3RDPARTY_DIR}/asio")
-	endif()
-
-	target_sources(mumble
-		PRIVATE
-			"ASIOInput.cpp"
-			"ASIOInput.h"
-			"ASIOInput.ui"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_ASIO")
-	target_include_directories(mumble
-		PRIVATE SYSTEM
-			"${ASIO_DIR}/common"
-			"${ASIO_DIR}/host"
-			"${ASIO_DIR}/host/pc"
-	)
-endif()
-
-if(coreaudio)
-	find_library(LIB_AUDIOUNIT "AudioUnit")
-	find_library(LIB_COREAUDIO "CoreAudio")
-
-	target_sources(mumble
-		PRIVATE
-			"CoreAudio.cpp"
-			"CoreAudio.h"
-	)
-
-	target_link_libraries(mumble
-		PRIVATE
-			${LIB_AUDIOUNIT}
-			${LIB_COREAUDIO}
-	)
-endif()
-
-if(jackaudio)
-	target_sources(mumble
-		PRIVATE
-			"JackAudio.cpp"
-			"JackAudio.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_JACKAUDIO")
-	target_include_directories(mumble PRIVATE SYSTEM "${3RDPARTY_DIR}/jack")
-endif()
-
-if(oss)
-	target_sources(mumble
-		PRIVATE
-			"OSS.cpp"
-			"OSS.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_OSS")
-	target_include_directories(mumble PRIVATE SYSTEM "/usr/lib/oss/include")
-endif()
-
-if(portaudio)
-	target_sources(mumble
-		PRIVATE
-			"PAAudio.cpp"
-			"PAAudio.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_PORTAUDIO")
-	target_include_directories(mumble PRIVATE SYSTEM "${3RDPARTY_DIR}/portaudio")
-endif()
-
-if(pulseaudio)
-	target_sources(mumble
-		PRIVATE
-			"PulseAudio.cpp"
-			"PulseAudio.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_PULSEAUDIO")
-	target_include_directories(mumble PRIVATE SYSTEM "${3RDPARTY_DIR}/pulseaudio")
-endif()
-
-if(wasapi)
-	target_sources(mumble
-		PRIVATE
-			"WASAPI.cpp"
-			"WASAPI.h"
-			"WASAPINotificationClient.cpp"
-			"WASAPINotificationClient.h"
-	)
-
-	target_compile_definitions(mumble PRIVATE "USE_WASAPI")
-	target_link_libraries(mumble PRIVATE avrt.lib)
-	if(MINGW)
-		target_link_libraries(mumble PRIVATE ksuser.lib)
-	endif()
-
-	if(MSVC)
-		set_property(TARGET mumble APPEND_STRING PROPERTY LINK_FLAGS " /DELAYLOAD:avrt.dll")
-	endif()
-endif()
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+// Ignore old-style casts for the whole file.
+// We can't use push/pop. They were implemented in GCC 4.6,
+// but we still build with GCC 4.2 for the legacy OS X Universal
+// build.
+#if defined(__GNUC__)
+#	pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
+
+#include "Cert.h"
+
+#include "SelfSignedCertificate.h"
+#include "Utils.h"
+
+#include <QtCore/QUrl>
+#include <QtGui/QDesktopServices>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QToolTip>
+
+#include <openssl/evp.h>
+#include <openssl/pkcs12.h>
+#include <openssl/x509.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+#define SSL_STRING(x) QString::fromLatin1(x).toUtf8().data()
+
+CertView::CertView(QWidget *p) : QGroupBox(p) {
+	QGridLayout *grid = new QGridLayout(this);
+	QLabel *l;
+
+	l = new QLabel(tr("Name"));
+	grid->addWidget(l, 0, 0, 1, 1, Qt::AlignLeft);
+
+	qlSubjectName = new QLabel();
+	qlSubjectName->setTextFormat(Qt::PlainText);
+	qlSubjectName->setWordWrap(true);
+	grid->addWidget(qlSubjectName, 0, 1, 1, 1);
+
+	l = new QLabel(tr("Email"));
+	grid->addWidget(l, 1, 0, 1, 1, Qt::AlignLeft);
+
+	qlSubjectEmail = new QLabel();
+	qlSubjectEmail->setTextFormat(Qt::PlainText);
+	qlSubjectEmail->setWordWrap(true);
+	grid->addWidget(qlSubjectEmail, 1, 1, 1, 1);
+
+	l = new QLabel(tr("Issuer"));
+	grid->addWidget(l, 2, 0, 1, 1, Qt::AlignLeft);
+
+	qlIssuerName = new QLabel();
+	qlIssuerName->setTextFormat(Qt::PlainText);
+	qlIssuerName->setWordWrap(true);
+	grid->addWidget(qlIssuerName, 2, 1, 1, 1);
+
+	l = new QLabel(tr("Expiry Date"));
+	grid->addWidget(l, 3, 0, 1, 1, Qt::AlignLeft);
+
+	qlExpiry = new QLabel();
+	qlExpiry->setWordWrap(true);
+	grid->addWidget(qlExpiry, 3, 1, 1, 1);
+
+	grid->setColumnStretch(1, 1);
+}
+
+void CertView::setCert(const QList< QSslCertificate > &cert) {
+	qlCert = cert;
+
+	if (qlCert.isEmpty()) {
+		qlSubjectName->setText(QString());
+		qlSubjectEmail->setText(QString());
+		qlIssuerName->setText(QString());
+		qlExpiry->setText(QString());
+	} else {
+		QSslCertificate qscCert = qlCert.at(0);
+
+		const QStringList &names = qscCert.subjectInfo(QSslCertificate::CommonName);
+		QString name;
+		if (names.count() > 0) {
+			name = names.at(0);
+		}
+
+		QStringList emails = qscCert.subjectAlternativeNames().values(QSsl::EmailEntry);
+
+		QString tmpName = name;
+		tmpName         = tmpName.replace(QLatin1String("\\x"), QLatin1String("%"));
+		tmpName         = QUrl::fromPercentEncoding(tmpName.toLatin1());
+
+		qlSubjectName->setText(tmpName);
+
+		if (emails.count() > 0)
+			qlSubjectEmail->setText(emails.join(QLatin1String("\n")));
+		else
+			qlSubjectEmail->setText(tr("(none)"));
+
+		if (qscCert.expiryDate() <= QDateTime::currentDateTime())
+			qlExpiry->setText(QString::fromLatin1("<font color=\"red\"><b>%1</b></font>")
+								  .arg(qscCert.expiryDate().toString(Qt::SystemLocaleDate).toHtmlEscaped()));
+		else
+			qlExpiry->setText(qscCert.expiryDate().toString(Qt::SystemLocaleDate));
+
+		if (qlCert.count() > 1)
+			qscCert = qlCert.last();
+
+		const QStringList &issuerNames = qscCert.issuerInfo(QSslCertificate::CommonName);
+		QString issuerName;
+		if (issuerNames.count() > 0) {
+			issuerName = issuerNames.at(0);
+		}
+
+		qlIssuerName->setText((issuerName == name) ? tr("Self-signed") : issuerName);
+	}
+}
+
+CertWizard::CertWizard(QWidget *p) : QWizard(p) {
+	setupUi(this);
+
+	cvWelcome->setAccessibleName(tr("Current certificate"));
+	qleImportFile->setAccessibleName(tr("Certificate file to import"));
+	qlePassword->setAccessibleName(tr("Certificate password"));
+	cvImport->setAccessibleName(tr("Certificate to import"));
+	cvCurrent->setAccessibleName(tr("Current certificate"));
+	cvNew->setAccessibleName(tr("New certificate"));
+	qleExportFile->setAccessibleName(tr("File to export certificate to"));
+	cvExport->setAccessibleName(tr("Current certificate"));
+	qleEmail->setAccessibleName(tr("Email address"));
+	qleName->setAccessibleName(tr("Your name"));
+
+	setOption(QWizard::NoCancelButton, false);
+
+	qwpExport->setCommitPage(true);
+	qwpExport->setComplete(false);
+	qlPasswordNotice->setVisible(false);
+}
+
+int CertWizard::nextId() const {
+	switch (currentId()) {
+		case 0: { // Welcome
+			if (qrbQuick->isChecked())
+				return 5;
+			else if (qrbCreate->isChecked())
+				return 1;
+			else if (qrbImport->isChecked())
+				return 2;
+			else if (qrbExport->isChecked())
+				return 3;
+			return -1;
+		}
+		case 2: // Import
+			if (validateCert(kpCurrent))
+				return 4;
+			else
+				return 5;
+		case 4: // Replace
+			if (qrbCreate->isChecked())
+				return 3;
+			if (qrbImport->isChecked())
+				return 5;
+			return -1;
+		case 3: // Export
+			if (qrbCreate->isChecked())
+				return 5;
+			else
+				return -1;
+		case 1: // New
+			if (validateCert(kpCurrent))
+				return 4;
+			else
+				return 3;
+	}
+	return -1;
+}
+
+void CertWizard::initializePage(int id) {
+	if (id == 0) {
+		kpCurrent = kpNew = g.s.kpCertificate;
+
+		if (validateCert(kpCurrent)) {
+			qrbQuick->setEnabled(false);
+			qrbExport->setEnabled(true);
+			cvWelcome->setCert(kpCurrent.first);
+			cvWelcome->setVisible(true);
+		} else {
+			qrbQuick->setEnabled(true);
+			qrbExport->setEnabled(false);
+			cvWelcome->setVisible(false);
+			qrbQuick->setChecked(true);
+		}
+	}
+	if (id == 3) {
+		cvExport->setCert(kpNew.first);
+	}
+	if (id == 4) {
+		cvNew->setCert(kpNew.first);
+		cvCurrent->setCert(kpCurrent.first);
+	}
+	if (id == 2) {
+		on_qleImportFile_textChanged(qleImportFile->text());
+	}
+
+	QWizard::initializePage(id);
+}
+
+bool CertWizard::validateCurrentPage() {
+	if (currentPage() == qwpNew) {
+		QRegExp ereg(QLatin1String("(^$)|((.+)@(.+))"), Qt::CaseInsensitive, QRegExp::RegExp2);
+		if (!ereg.exactMatch(qleEmail->text())) {
+			qlError->setText(tr("Unable to validate email.<br />Enter a valid (or blank) email to continue."));
+			qwpNew->setComplete(false);
+			return false;
+		} else {
+			kpNew = generateNewCert(qleName->text(), qleEmail->text());
+
+			if (!validateCert(kpNew)) {
+				qlError->setText(tr("There was an error generating your certificate.<br />Please try again."));
+				return false;
+			}
+		}
+	}
+	if (currentPage() == qwpExport) {
+		QByteArray qba = exportCert(kpNew);
+		if (qba.isEmpty()) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("Your certificate and key could not be exported to PKCS#12 format. There might be an "
+								  "error in your certificate."),
+							   qleExportFile);
+			return false;
+		}
+		QFile f(qleExportFile->text());
+		if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Unbuffered)) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file could not be opened for writing. Please use another file."), qleExportFile);
+			return false;
+		}
+		if (!f.setPermissions(QFile::ReadOwner | QFile::WriteOwner)) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file's permissions could not be set. No certificate and key has been written. "
+								  "Please use another file."),
+							   qleExportFile);
+			return false;
+		}
+		qint64 written = f.write(qba);
+		f.close();
+		if (written != qba.length()) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file could not be written successfully. Please use another file."),
+							   qleExportFile);
+			return false;
+		}
+	}
+	if (currentPage() == qwpImport) {
+		QFile f(qleImportFile->text());
+		if (!f.open(QIODevice::ReadOnly | QIODevice::Unbuffered)) {
+			QToolTip::showText(qleImportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file could not be opened for reading. Please use another file."), qleImportFile);
+			return false;
+		}
+		QByteArray qba = f.readAll();
+		f.close();
+		if (qba.isEmpty()) {
+			QToolTip::showText(qleImportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file is empty or could not be read. Please use another file."), qleImportFile);
+			return false;
+		}
+		QPair< QList< QSslCertificate >, QSslKey > imp = importCert(qba, qlePassword->text());
+		if (!validateCert(imp)) {
+			QToolTip::showText(qleImportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file did not contain a valid certificate and key. Please use another file."),
+							   qleImportFile);
+			return false;
+		}
+		kpNew = imp;
+	}
+	if (currentPage() == qwpFinish) {
+		g.s.kpCertificate = kpNew;
+	}
+	return QWizard::validateCurrentPage();
+}
+
+void CertWizard::on_qleEmail_textChanged(const QString &) {
+	qwpNew->setComplete(true);
+}
+
+void CertWizard::on_qpbExportFile_clicked() {
+	QString fname =
+		QFileDialog::getSaveFileName(this, tr("Select file to export certificate to"), qleExportFile->text(),
+									 QLatin1String("PKCS12 (*.p12 *.pfx *.pkcs12);;All (*)"));
+	if (!fname.isNull()) {
+		QFileInfo fi(fname);
+		if (fi.suffix().isEmpty())
+			fname += QLatin1String(".p12");
+		qleExportFile->setText(QDir::toNativeSeparators(fname));
+	}
+}
+
+void CertWizard::on_qleExportFile_textChanged(const QString &text) {
+	if (text.isEmpty()) {
+		qwpExport->setComplete(false);
+		return;
+	}
+
+	QString fname = QDir::fromNativeSeparators(text);
+
+	QFile f(fname);
+
+	QFileInfo fi(f);
+	if (fi.exists()) {
+		if (fi.isWritable()) {
+			qwpExport->setComplete(f.open(QIODevice::WriteOnly | QIODevice::Append));
+			return;
+		}
+	} else {
+		if (f.open(QIODevice::WriteOnly)) {
+			if (f.remove()) {
+				qwpExport->setComplete(true);
+				return;
+			}
+		}
+	}
+	qwpExport->setComplete(false);
+}
+
+void CertWizard::on_qpbImportFile_clicked() {
+	QString fname =
+		QFileDialog::getOpenFileName(this, tr("Select file to import certificate from"), qleImportFile->text(),
+									 QLatin1String("PKCS12 (*.p12 *.pfx *.pkcs12);;All (*)"));
+	if (!fname.isNull()) {
+		qleImportFile->setText(QDir::toNativeSeparators(fname));
+	}
+}
+
+void CertWizard::on_qleImportFile_textChanged(const QString &text) {
+	if (text.isEmpty()) {
+		qlePassword->clear();
+		qlePassword->setEnabled(false);
+		qlPassword->setEnabled(false);
+		qlPasswordNotice->clear();
+		qlPasswordNotice->setVisible(false);
+		qwpImport->setComplete(false);
+		return;
+	}
+
+	QString fname = QDir::fromNativeSeparators(text);
+
+	QFile f(fname);
+	if (f.open(QIODevice::ReadOnly)) {
+		QByteArray qba                                 = f.readAll();
+		QPair< QList< QSslCertificate >, QSslKey > imp = importCert(qba, qlePassword->text());
+		if (validateCert(imp)) {
+			qlePassword->setEnabled(false);
+			qlPassword->setEnabled(false);
+			qlPasswordNotice->clear();
+			qlPasswordNotice->setVisible(false);
+			cvImport->setCert(imp.first);
+			qwpImport->setComplete(true);
+			return;
+		} else {
+			qlePassword->setEnabled(true);
+			qlPassword->setEnabled(true);
+			qlPasswordNotice->setText(tr("Unable to import. Missing password or incompatible file type."));
+			qlPasswordNotice->setVisible(true);
+		}
+	} else {
+		qlePassword->clear();
+		qlePassword->setEnabled(false);
+		qlPassword->setEnabled(false);
+		qlPasswordNotice->clear();
+		qlPasswordNotice->setVisible(false);
+	}
+	cvImport->setCert(QList< QSslCertificate >());
+	qwpImport->setComplete(false);
+}
+
+void CertWizard::on_qlePassword_textChanged(const QString &) {
+	on_qleImportFile_textChanged(qleImportFile->text());
+}
+
+void CertWizard::on_qlIntroText_linkActivated(const QString &url) {
+	QDesktopServices::openUrl(QUrl(url));
+}
+
+bool CertWizard::validateCert(const Settings::KeyPair &kp) {
+	bool valid = !kp.second.isNull() && !kp.first.isEmpty();
+	foreach (const QSslCertificate &cert, kp.first)
+		valid = valid && !cert.isNull();
+	return valid;
+}
+
+Settings::KeyPair CertWizard::generateNewCert(QString qsname, const QString &qsemail) {
+	QSslCertificate qscCert;
+	QSslKey qskKey;
+
+	// Ignore return value.
+	// The method sets qscCert and qskKey to null values if it fails.
+	SelfSignedCertificate::generateMumbleCertificate(qsname, qsemail, qscCert, qskKey);
+
+	QList< QSslCertificate > qlCert;
+	qlCert << qscCert;
+
+	return Settings::KeyPair(qlCert, qskKey);
+}
+
+Settings::KeyPair CertWizard::importCert(QByteArray data, const QString &pw) {
+	X509 *x509            = nullptr;
+	EVP_PKEY *pkey        = nullptr;
+	PKCS12 *pkcs          = nullptr;
+	BIO *mem              = nullptr;
+	STACK_OF(X509) *certs = nullptr;
+	Settings::KeyPair kp;
+	int ret = 0;
+
+	mem = BIO_new_mem_buf(data.data(), data.size());
+	Q_UNUSED(BIO_set_close(mem, BIO_NOCLOSE));
+	pkcs = d2i_PKCS12_bio(mem, nullptr);
+	if (pkcs) {
+		ret = PKCS12_parse(pkcs, nullptr, &pkey, &x509, &certs);
+		if (pkcs && !pkey && !x509 && !pw.isEmpty()) {
+			if (certs) {
+				if (ret)
+					sk_X509_free(certs);
+				certs = nullptr;
+			}
+			ret = PKCS12_parse(pkcs, pw.toUtf8().constData(), &pkey, &x509, &certs);
+		}
+		if (pkey && x509 && X509_check_private_key(x509, pkey)) {
+			unsigned char *dptr;
+			QByteArray key, crt;
+
+			key.resize(i2d_PrivateKey(pkey, nullptr));
+			dptr = reinterpret_cast< unsigned char * >(key.data());
+			i2d_PrivateKey(pkey, &dptr);
+
+			crt.resize(i2d_X509(x509, nullptr));
+			dptr = reinterpret_cast< unsigned char * >(crt.data());
+			i2d_X509(x509, &dptr);
+
+			QSslCertificate qscCert = QSslCertificate(crt, QSsl::Der);
+			QSslKey qskKey          = QSslKey(key, QSsl::Rsa, QSsl::Der);
+
+			QList< QSslCertificate > qlCerts;
+			qlCerts << qscCert;
+
+			if (certs) {
+				for (int i = 0; i < sk_X509_num(certs); ++i) {
+					X509 *c = sk_X509_value(certs, i);
+
+					crt.resize(i2d_X509(c, nullptr));
+					dptr = reinterpret_cast< unsigned char * >(crt.data());
+					i2d_X509(c, &dptr);
+
+					QSslCertificate cert = QSslCertificate(crt, QSsl::Der);
+					qlCerts << cert;
+				}
+			}
+			bool valid = !qskKey.isNull();
+			foreach (const QSslCertificate &cert, qlCerts)
+				valid = valid && !cert.isNull();
+			if (valid)
+				kp = Settings::KeyPair(qlCerts, qskKey);
+		}
+	}
+
+	if (ret) {
+		if (pkey)
+			EVP_PKEY_free(pkey);
+		if (x509)
+			X509_free(x509);
+		if (certs)
+			sk_X509_free(certs);
+	}
+	if (pkcs)
+		PKCS12_free(pkcs);
+	if (mem)
+		BIO_free(mem);
+
+	return kp;
+}
+
+QByteArray CertWizard::exportCert(const Settings::KeyPair &kp) {
+	X509 *x509            = nullptr;
+	EVP_PKEY *pkey        = nullptr;
+	PKCS12 *pkcs          = nullptr;
+	BIO *mem              = nullptr;
+	STACK_OF(X509) *certs = sk_X509_new_null();
+	const unsigned char *p;
+	char *data = nullptr;
+
+	if (kp.first.isEmpty())
+		return QByteArray();
+
+	QByteArray crt = kp.first.at(0).toDer();
+	QByteArray key = kp.second.toDer();
+	QByteArray qba;
+
+	p    = reinterpret_cast< const unsigned char * >(key.constData());
+	pkey = d2i_AutoPrivateKey(nullptr, &p, key.length());
+
+	if (pkey) {
+		p    = reinterpret_cast< const unsigned char * >(crt.constData());
+		x509 = d2i_X509(nullptr, &p, crt.length());
+
+		if (x509 && X509_check_private_key(x509, pkey)) {
+			X509_keyid_set1(x509, nullptr, 0);
+			X509_alias_set1(x509, nullptr, 0);
+
+
+			QList< QSslCertificate > qlCerts = kp.first;
+			qlCerts.removeFirst();
+
+			foreach (const QSslCertificate &cert, qlCerts) {
+				X509 *c = nullptr;
+				crt     = cert.toDer();
+				p       = reinterpret_cast< const unsigned char * >(crt.constData());
+
+				c = d2i_X509(nullptr, &p, crt.length());
+				if (c)
+					sk_X509_push(certs, c);
+			}
+
+			pkcs = PKCS12_create(SSL_STRING(""), SSL_STRING("Mumble Identity"), pkey, x509, certs, -1, -1, 0, 0, 0);
+			if (pkcs) {
+				long size;
+				mem = BIO_new(BIO_s_mem());
+				i2d_PKCS12_bio(mem, pkcs);
+				Q_UNUSED(BIO_flush(mem));
+				size = BIO_get_mem_data(mem, &data);
+				qba  = QByteArray(data, static_cast< int >(size));
+			}
+		}
+	}
+
+	if (pkey)
+		EVP_PKEY_free(pkey);
+	if (x509)
+		X509_free(x509);
+	if (pkcs)
+		PKCS12_free(pkcs);
+	if (mem)
+		BIO_free(mem);
+	if (certs)
+		sk_X509_free(certs);
+
+	return qba;
+}
