@@ -3,1075 +3,1848 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ACLEditor.h"
+#include "ConnectDialog.h"
 
-#include "ACL.h"
+#ifdef USE_ZEROCONF
+#	include "Zeroconf.h"
+#endif
+
 #include "Channel.h"
-#include "ClientUser.h"
 #include "Database.h"
-#include "Log.h"
 #include "ServerHandler.h"
-#include "User.h"
+#include "ServerResolver.h"
+#include "Utils.h"
+#include "WebFetch.h"
 
-#if QT_VERSION >= 0x050000
-#	include <QtWidgets/QMessageBox>
-#else
-#	include <QtGui/QMessageBox>
+#include <QtCore/QMimeData>
+#include <QtCore/QUrlQuery>
+#include <QtCore/QtEndian>
+#include <QtGui/QClipboard>
+#include <QtGui/QDesktopServices>
+#include <QtGui/QPainter>
+#include <QtNetwork/QUdpSocket>
+#include <QtWidgets/QInputDialog>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QShortcut>
+#include <QtXml/QDomDocument>
+
+#include <boost/accumulators/statistics/extended_p_square.hpp>
+#include <boost/array.hpp>
+
+#ifdef Q_OS_WIN
+#	include <shlobj.h>
+#endif
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+#	include <QRandomGenerator>
 #endif
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-ACLGroup::ACLGroup(const QString &name) : Group(nullptr, name) {
-	bInherited = false;
+QMap< QString, QIcon > ServerItem::qmIcons;
+QList< PublicInfo > ConnectDialog::qlPublicServers;
+QString ConnectDialog::qsUserCountry, ConnectDialog::qsUserCountryCode, ConnectDialog::qsUserContinentCode;
+Timer ConnectDialog::tPublicServers;
+
+
+PingStats::PingStats() {
+	init();
 }
 
-ACLEditor::ACLEditor(int channelparentid, QWidget *p) : QDialog(p) {
-	// Simple constructor for add channel menu
-	bAddChannelMode = true;
-	iChannel        = channelparentid;
-
-	setupUi(this);
-
-	qwChannel->setAccessibleName(tr("Properties"));
-	rteChannelDescription->setAccessibleName(tr("Description"));
-	qleChannelPassword->setAccessibleName(tr("Channel password"));
-	qsbChannelPosition->setAccessibleName(tr("Position"));
-	qsbChannelMaxUsers->setAccessibleName(tr("Maximum users"));
-	qleChannelName->setAccessibleName(tr("Channel name"));
-	qcbGroupList->setAccessibleName(tr("List of groups"));
-	qlwGroupAdd->setAccessibleName(tr("Inherited group members"));
-	qlwGroupRemove->setAccessibleName(tr("Foreign group members"));
-	qlwGroupInherit->setAccessibleName(tr("Inherited channel members"));
-	qcbGroupAdd->setAccessibleName(tr("Add members to group"));
-	qcbGroupRemove->setAccessibleName(tr("Remove member from group"));
-	qlwACLs->setAccessibleName(tr("List of ACL entries"));
-	qcbACLGroup->setAccessibleName(tr("Group this entry applies to"));
-	qcbACLUser->setAccessibleName(tr("User this entry applies to"));
-
-	qsbChannelPosition->setRange(INT_MIN, INT_MAX);
-
-	setWindowTitle(tr("Mumble - Add channel"));
-	qtwTab->removeTab(2);
-	qtwTab->removeTab(1);
-
-	// Until I come around implementing it hide the password fields
-	qleChannelPassword->hide();
-	qlChannelPassword->hide();
-
-	if (g.sh->uiVersion >= 0x010300) {
-		qsbChannelMaxUsers->setRange(0, INT_MAX);
-		qsbChannelMaxUsers->setValue(0);
-		qsbChannelMaxUsers->setSpecialValueText(tr("Default server value"));
-	} else {
-		qlChannelMaxUsers->hide();
-		qsbChannelMaxUsers->hide();
-	}
-
-	qlChannelID->hide();
-
-	qleChannelName->setFocus();
-
-	pcaPassword = nullptr;
-	adjustSize();
+PingStats::~PingStats() {
+	delete asQuantile;
 }
 
-ACLEditor::ACLEditor(int channelid, const MumbleProto::ACL &mea, QWidget *p) : QDialog(p) {
-	QLabel *l;
+void PingStats::init() {
+	boost::array< double, 3 > probs = { { 0.75, 0.80, 0.95 } };
 
-	bAddChannelMode = false;
+	asQuantile  = new asQuantileType(boost::accumulators::tag::extended_p_square::probabilities = probs);
+	dPing       = 0.0;
+	uiPing      = 0;
+	uiPingSort  = 0;
+	uiUsers     = 0;
+	uiMaxUsers  = 0;
+	uiBandwidth = 0;
+	uiSent      = 0;
+	uiRecv      = 0;
+	uiVersion   = 0;
+}
 
-	iChannel          = channelid;
-	Channel *pChannel = Channel::get(iChannel);
-	if (!pChannel) {
-		g.l->log(Log::Warning, tr("Failed: Invalid channel"));
-		QDialog::reject();
-		return;
+void PingStats::reset() {
+	delete asQuantile;
+	init();
+}
+
+ServerViewDelegate::ServerViewDelegate(QObject *p) : QStyledItemDelegate(p) {
+}
+
+ServerViewDelegate::~ServerViewDelegate() {
+}
+
+void ServerViewDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const {
+	// Allow a ServerItem's BackgroundRole to override the current theme's default color.
+	QVariant bg = index.data(Qt::BackgroundRole);
+	if (bg.isValid()) {
+		painter->fillRect(option.rect, bg.value< QBrush >());
 	}
 
-	msg = mea;
+	QStyledItemDelegate::paint(painter, option, index);
+}
 
-	setupUi(this);
+ServerView::ServerView(QWidget *p) : QTreeWidget(p) {
+	siFavorite = new ServerItem(tr("Favorite"), ServerItem::FavoriteType);
+	addTopLevelItem(siFavorite);
+	siFavorite->setExpanded(true);
+	siFavorite->setHidden(true);
 
-	qwChannel->setAccessibleName(tr("Properties"));
-	rteChannelDescription->setAccessibleName(tr("Description"));
-	qleChannelPassword->setAccessibleName(tr("Channel password"));
-	qsbChannelPosition->setAccessibleName(tr("Position"));
-	qsbChannelMaxUsers->setAccessibleName(tr("Maximum users"));
-	qleChannelName->setAccessibleName(tr("Channel name"));
-	qcbGroupList->setAccessibleName(tr("List of groups"));
-	qlwGroupAdd->setAccessibleName(tr("Inherited group members"));
-	qlwGroupRemove->setAccessibleName(tr("Foreign group members"));
-	qlwGroupInherit->setAccessibleName(tr("Inherited channel members"));
-	qcbGroupAdd->setAccessibleName(tr("Add members to group"));
-	qcbGroupRemove->setAccessibleName(tr("Remove member from group"));
-	qlwACLs->setAccessibleName(tr("List of ACL entries"));
-	qcbACLGroup->setAccessibleName(tr("Group this entry applies to"));
-	qcbACLUser->setAccessibleName(tr("User this entry applies to"));
+#ifdef USE_ZEROCONF
+	siLAN = new ServerItem(tr("LAN"), ServerItem::LANType);
+	addTopLevelItem(siLAN);
+	siLAN->setExpanded(true);
+	siLAN->setHidden(true);
+#else
+	siLAN         = nullptr;
+#endif
 
-	qcbChannelTemporary->hide();
+	if (!g.s.bDisablePublicList) {
+		siPublic = new ServerItem(tr("Public Internet"), ServerItem::PublicType);
+		siPublic->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
+		addTopLevelItem(siPublic);
 
-	iId = mea.channel_id();
-	setWindowTitle(tr("Mumble - Edit %1").arg(Channel::get(iId)->qsName));
-
-	qlChannelID->setText(tr("ID: %1").arg(iId));
-
-	qleChannelName->setText(pChannel->qsName);
-	if (channelid == 0)
-		qleChannelName->setEnabled(false);
-
-	rteChannelDescription->setText(pChannel->qsDesc);
-
-	qsbChannelPosition->setRange(INT_MIN, INT_MAX);
-	qsbChannelPosition->setValue(pChannel->iPosition);
-
-	if (g.sh->uiVersion >= 0x010300) {
-		qsbChannelMaxUsers->setRange(0, INT_MAX);
-		qsbChannelMaxUsers->setValue(pChannel->uiMaxUsers);
-		qsbChannelMaxUsers->setSpecialValueText(tr("Default server value"));
+		siPublic->setExpanded(false);
 	} else {
-		qlChannelMaxUsers->hide();
-		qsbChannelMaxUsers->hide();
+		qWarning() << "Public list disabled";
+
+		siPublic = nullptr;
+	}
+}
+
+ServerView::~ServerView() {
+	delete siFavorite;
+	delete siLAN;
+	delete siPublic;
+}
+
+QMimeData *ServerView::mimeData(const QList< QTreeWidgetItem * > mimeitems) const {
+	if (mimeitems.isEmpty())
+		return nullptr;
+
+	ServerItem *si = static_cast< ServerItem * >(mimeitems.first());
+	return si->toMimeData();
+}
+
+QStringList ServerView::mimeTypes() const {
+	QStringList qsl;
+	qsl << QStringList(QLatin1String("text/uri-list"));
+	qsl << QStringList(QLatin1String("text/plain"));
+	return qsl;
+}
+
+Qt::DropActions ServerView::supportedDropActions() const {
+	return Qt::CopyAction | Qt::LinkAction;
+}
+
+/* Extract and append (2), (3) etc to the end of a servers name if it is cloned. */
+void ServerView::fixupName(ServerItem *si) {
+	QString name = si->qsName;
+
+	int tag = 1;
+
+	QRegExp tmatch(QLatin1String("(.+)\\((\\d+)\\)"));
+	tmatch.setMinimal(true);
+	if (tmatch.exactMatch(name)) {
+		name = tmatch.capturedTexts().at(1).trimmed();
+		tag  = tmatch.capturedTexts().at(2).toInt();
 	}
 
-	QGridLayout *grid = new QGridLayout(qgbACLpermissions);
-
-	l = new QLabel(tr("Deny"), qgbACLpermissions);
-	grid->addWidget(l, 0, 1);
-	l = new QLabel(tr("Allow"), qgbACLpermissions);
-	grid->addWidget(l, 0, 2);
-
-	int idx = 1;
-	for (int i = 0; i < ((iId == 0) ? 30 : 16); ++i) {
-		ChanACL::Perm perm = static_cast< ChanACL::Perm >(1 << i);
-		QString name       = ChanACL::permName(perm);
-
-		if (!name.isEmpty()) {
-			// If the server's version is less than 1.4.0 then it won't support the new permission to reset a
-			// comment/avatar. Skipping this iteration of the loop prevents checkboxes for it being added to the UI.
-			if ((g.sh->uiVersion < 0x010400) && (perm == ChanACL::ResetUserContent))
-				continue;
-
-			QCheckBox *qcb;
-			l = new QLabel(name, qgbACLpermissions);
-			grid->addWidget(l, idx, 0);
-			qcb = new QCheckBox(qgbACLpermissions);
-			qcb->setToolTip(tr("Deny %1").arg(name));
-			qcb->setWhatsThis(
-				tr("This revokes the %1 privilege. If a privilege is both allowed and denied, it is denied.<br />%2")
-					.arg(name)
-					.arg(ChanACL::whatsThis(perm)));
-			connect(qcb, SIGNAL(clicked(bool)), this, SLOT(ACLPermissions_clicked()));
-			grid->addWidget(qcb, idx, 1);
-
-			qlACLDeny << qcb;
-
-			qcb = new QCheckBox(qgbACLpermissions);
-			qcb->setToolTip(tr("Allow %1").arg(name));
-			qcb->setWhatsThis(
-				tr("This grants the %1 privilege. If a privilege is both allowed and denied, it is denied.<br />%2")
-					.arg(name)
-					.arg(ChanACL::whatsThis(perm)));
-			connect(qcb, SIGNAL(clicked(bool)), this, SLOT(ACLPermissions_clicked()));
-			grid->addWidget(qcb, idx, 2);
-
-			qlACLAllow << qcb;
-
-			qlPerms << perm;
-
-			++idx;
-		}
-	}
-	QSpacerItem *si = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
-	grid->addItem(si, idx, 0);
-
-	connect(qcbGroupAdd->lineEdit(), SIGNAL(returnPressed()), qpbGroupAddAdd, SLOT(animateClick()));
-	connect(qcbGroupRemove->lineEdit(), SIGNAL(returnPressed()), qpbGroupRemoveAdd, SLOT(animateClick()));
-
-	foreach (User *u, ClientUser::c_qmUsers) {
-		if (u->iId >= 0) {
-			qhNameCache.insert(u->iId, u->qsName);
-			qhIDCache.insert(u->qsName.toLower(), u->iId);
-		}
-	}
-
-	ChanACL *def = new ChanACL(nullptr);
-
-	def->bApplyHere = true;
-	def->bApplySubs = true;
-	def->bInherited = true;
-	def->iUserId    = -1;
-	def->qsGroup    = QLatin1String("all");
-	def->pAllow =
-		ChanACL::Traverse | ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage | ChanACL::Listen;
-	def->pDeny = (~def->pAllow) & ChanACL::All;
-
-	qlACLs << def;
-
-	for (int i = 0; i < mea.acls_size(); ++i) {
-		const MumbleProto::ACL_ChanACL &as = mea.acls(i);
-
-		ChanACL *acl    = new ChanACL(nullptr);
-		acl->bApplyHere = as.apply_here();
-		acl->bApplySubs = as.apply_subs();
-		acl->bInherited = as.inherited();
-		acl->iUserId    = -1;
-		if (as.has_user_id())
-			acl->iUserId = as.user_id();
+	bool found;
+	QString cmpname;
+	do {
+		found = false;
+		if (tag > 1)
+			cmpname = name + QString::fromLatin1(" (%1)").arg(tag);
 		else
-			acl->qsGroup = u8(as.group());
-		acl->pAllow = static_cast< ChanACL::Permissions >(as.grant());
-		acl->pDeny  = static_cast< ChanACL::Permissions >(as.deny());
+			cmpname = name;
 
-		qlACLs << acl;
+		foreach (ServerItem *f, siFavorite->qlChildren)
+			if (f->qsName == cmpname)
+				found = true;
+
+		++tag;
+	} while (found);
+
+	si->qsName = cmpname;
+}
+
+bool ServerView::dropMimeData(QTreeWidgetItem *, int, const QMimeData *mime, Qt::DropAction) {
+	ServerItem *si = ServerItem::fromMimeData(mime);
+	if (!si)
+		return false;
+
+	fixupName(si);
+
+	qobject_cast< ConnectDialog * >(parent())->qlItems << si;
+	siFavorite->addServerItem(si);
+
+	qobject_cast< ConnectDialog * >(parent())->startDns(si);
+
+	setCurrentItem(si);
+
+	return true;
+}
+
+void ServerItem::init() {
+	// Without this, columncount is wrong.
+	setData(0, Qt::DisplayRole, QVariant());
+	setData(1, Qt::DisplayRole, QVariant());
+	setData(2, Qt::DisplayRole, QVariant());
+	emitDataChanged();
+}
+
+ServerItem::ServerItem(const FavoriteServer &fs) : QTreeWidgetItem(QTreeWidgetItem::UserType) {
+	siParent = nullptr;
+	bParent  = false;
+
+	itType = FavoriteType;
+	qsName = fs.qsName;
+	usPort = fs.usPort;
+
+	qsUsername = fs.qsUsername;
+	qsPassword = fs.qsPassword;
+
+	qsUrl = fs.qsUrl;
+
+	bCA = false;
+#ifdef USE_ZEROCONF
+	if (fs.qsHostname.startsWith(QLatin1Char('@'))) {
+		zeroconfHost   = fs.qsHostname.mid(1);
+		zeroconfRecord = BonjourRecord(zeroconfHost, QLatin1String("_mumble._tcp."), QLatin1String("local."));
+	} else {
+		qsHostname = fs.qsHostname;
+	}
+#else
+	qsHostname    = fs.qsHostname;
+#endif
+	init();
+}
+
+ServerItem::ServerItem(const PublicInfo &pi) : QTreeWidgetItem(QTreeWidgetItem::UserType) {
+	siParent        = nullptr;
+	bParent         = false;
+	itType          = PublicType;
+	qsName          = pi.qsName;
+	qsHostname      = pi.qsIp;
+	usPort          = pi.usPort;
+	qsUrl           = pi.quUrl.toString();
+	qsCountry       = pi.qsCountry;
+	qsCountryCode   = pi.qsCountryCode;
+	qsContinentCode = pi.qsContinentCode;
+	bCA             = pi.bCA;
+
+	init();
+}
+
+ServerItem::ServerItem(const QString &name, const QString &host, unsigned short port, const QString &username,
+					   const QString &password)
+	: QTreeWidgetItem(QTreeWidgetItem::UserType) {
+	siParent   = nullptr;
+	bParent    = false;
+	itType     = FavoriteType;
+	qsName     = name;
+	usPort     = port;
+	qsUsername = username;
+	qsPassword = password;
+
+	bCA = false;
+#ifdef USE_ZEROCONF
+	if (host.startsWith(QLatin1Char('@'))) {
+		zeroconfHost   = host.mid(1);
+		zeroconfRecord = BonjourRecord(zeroconfHost, QLatin1String("_mumble._tcp."), QLatin1String("local."));
+	} else {
+		qsHostname = host;
+	}
+#else
+	qsHostname    = host;
+#endif
+	init();
+}
+
+#ifdef USE_ZEROCONF
+ServerItem::ServerItem(const BonjourRecord &br) : QTreeWidgetItem(QTreeWidgetItem::UserType) {
+	siParent       = nullptr;
+	bParent        = false;
+	itType         = LANType;
+	qsName         = br.serviceName;
+	zeroconfHost   = qsName;
+	zeroconfRecord = br;
+	usPort         = 0;
+	bCA            = false;
+
+	init();
+}
+#endif
+
+ServerItem::ServerItem(const QString &name, ItemType itype) {
+	siParent = nullptr;
+	bParent  = true;
+	qsName   = name;
+	itType   = itype;
+	setFlags(flags() & ~Qt::ItemIsDragEnabled);
+	bCA = false;
+
+	init();
+}
+
+ServerItem::ServerItem(const ServerItem *si) {
+	siParent = nullptr;
+	bParent  = false;
+	itType   = FavoriteType;
+
+	qsName          = si->qsName;
+	qsHostname      = si->qsHostname;
+	usPort          = si->usPort;
+	qsUsername      = si->qsUsername;
+	qsPassword      = si->qsPassword;
+	qsCountry       = si->qsCountry;
+	qsCountryCode   = si->qsCountryCode;
+	qsContinentCode = si->qsContinentCode;
+	qsUrl           = si->qsUrl;
+#ifdef USE_ZEROCONF
+	zeroconfHost   = si->zeroconfHost;
+	zeroconfRecord = si->zeroconfRecord;
+#endif
+	qlAddresses = si->qlAddresses;
+	bCA         = si->bCA;
+
+	uiVersion   = si->uiVersion;
+	uiPing      = si->uiPing;
+	uiPingSort  = si->uiPing;
+	uiUsers     = si->uiUsers;
+	uiMaxUsers  = si->uiMaxUsers;
+	uiBandwidth = si->uiBandwidth;
+	uiSent      = si->uiSent;
+	dPing       = si->dPing;
+	*asQuantile = *si->asQuantile;
+}
+
+ServerItem::~ServerItem() {
+	if (siParent) {
+		siParent->qlChildren.removeAll(this);
+		if (siParent->bParent && siParent->qlChildren.isEmpty())
+			siParent->setHidden(true);
 	}
 
-	for (int i = 0; i < mea.groups_size(); ++i) {
-		const MumbleProto::ACL_ChanGroup &gs = mea.groups(i);
+	// This is just for cleanup when exiting the dialog, it won't stop pending DNS for the children.
+	foreach (ServerItem *si, qlChildren)
+		delete si;
+}
 
-		ACLGroup *gp     = new ACLGroup(u8(gs.name()));
-		gp->bInherit     = gs.inherit();
-		gp->bInherited   = gs.inherited();
-		gp->bInheritable = gs.inheritable();
-		for (int j = 0; j < gs.add_size(); ++j)
-			gp->qsAdd.insert(gs.add(j));
-		for (int j = 0; j < gs.remove_size(); ++j)
-			gp->qsRemove.insert(gs.remove(j));
-		for (int j = 0; j < gs.inherited_members_size(); ++j)
-			gp->qsTemporary.insert(gs.inherited_members(j));
+ServerItem *ServerItem::fromMimeData(const QMimeData *mime, bool default_name, QWidget *p, bool convertHttpUrls) {
+	if (mime->hasFormat(QLatin1String("OriginatedInMumble")))
+		return nullptr;
 
-		qlGroups << gp;
+	QUrl url;
+	if (mime->hasUrls() && !mime->urls().isEmpty())
+		url = mime->urls().at(0);
+	else if (mime->hasText())
+		url = QUrl::fromEncoded(mime->text().toUtf8());
+
+	QString qsFile = url.toLocalFile();
+	if (!qsFile.isEmpty()) {
+		QFile f(qsFile);
+		// Make sure we don't accidently read something big the user
+		// happened to have in his clipboard. We only want to look
+		// at small link files.
+		if (f.open(QIODevice::ReadOnly) && f.size() < 10240) {
+			QByteArray qba = f.readAll();
+			f.close();
+
+			url = QUrl::fromEncoded(qba, QUrl::StrictMode);
+			if (!url.isValid()) {
+				// Windows internet shortcut files (.url) are an ini with an URL value
+				QSettings qs(qsFile, QSettings::IniFormat);
+				url =
+					QUrl::fromEncoded(qs.value(QLatin1String("InternetShortcut/URL")).toByteArray(), QUrl::StrictMode);
+			}
+		}
 	}
 
-	iUnknown = -2;
-
-	numInheritACL = -1;
-
-	bInheritACL = mea.inherit_acls();
-	qcbACLInherit->setChecked(bInheritACL);
-
-	foreach (ChanACL *acl, qlACLs) {
-		if (acl->bInherited)
-			numInheritACL++;
+	if (default_name) {
+		QUrlQuery query(url);
+		if (!query.hasQueryItem(QLatin1String("title"))) {
+			query.addQueryItem(QLatin1String("title"), url.host());
+		}
 	}
 
-	refill(GroupAdd);
-	refill(GroupRemove);
-	refill(GroupInherit);
-	refill(ACLList);
-	refillGroupNames();
+	if (!url.isValid()) {
+		return nullptr;
+	}
 
-	ACLEnableCheck();
-	groupEnableCheck();
+	// An URL from text without a scheme will have the hostname text
+	// in the QUrl scheme and no hostname. We do not want to use that.
+	if (url.host().isEmpty()) {
+		return nullptr;
+	}
 
-	updatePasswordField();
+	// Some communication programs automatically create http links from domains.
+	// When a user sends another user a domain to connect to, and http is added wrongly,
+	// we do our best to remove it again.
+	if (convertHttpUrls && (url.scheme() == QLatin1String("http") || url.scheme() == QLatin1String("https"))) {
+		url.setScheme(QLatin1String("mumble"));
+	}
 
-	qleChannelName->setFocus();
+	return fromUrl(url, p);
+}
+
+ServerItem *ServerItem::fromUrl(QUrl url, QWidget *p) {
+	if (!url.isValid() || (url.scheme() != QLatin1String("mumble"))) {
+		return nullptr;
+	}
+
+	QUrlQuery query(url);
+
+	if (url.userName().isEmpty()) {
+		if (g.s.qsUsername.isEmpty()) {
+			bool ok;
+			QString defUserName =
+				QInputDialog::getText(p, ConnectDialog::tr("Adding host %1").arg(url.host()),
+									  ConnectDialog::tr("Enter username"), QLineEdit::Normal, g.s.qsUsername, &ok)
+					.trimmed();
+			if (!ok)
+				return nullptr;
+			if (defUserName.isEmpty())
+				return nullptr;
+			g.s.qsUsername = defUserName;
+		}
+		url.setUserName(g.s.qsUsername);
+	}
+
+	ServerItem *si =
+		new ServerItem(query.queryItemValue(QLatin1String("title")), url.host(),
+					   static_cast< unsigned short >(url.port(DEFAULT_MUMBLE_PORT)), url.userName(), url.password());
+
+	if (query.hasQueryItem(QLatin1String("url")))
+		si->qsUrl = query.queryItemValue(QLatin1String("url"));
+
+	return si;
+}
+
+QVariant ServerItem::data(int column, int role) const {
+	if (bParent) {
+		if (column == 0) {
+			switch (role) {
+				case Qt::DisplayRole:
+					return qsName;
+				case Qt::DecorationRole:
+					if (itType == FavoriteType)
+						return loadIcon(QLatin1String("skin:emblems/emblem-favorite.svg"));
+					else if (itType == LANType)
+						return loadIcon(QLatin1String("skin:places/network-workgroup.svg"));
+					else
+						return loadIcon(QLatin1String("skin:categories/applications-internet.svg"));
+			}
+		}
+	} else {
+		if (role == Qt::DecorationRole && column == 0) {
+			QString flag;
+			if (!qsCountryCode.isEmpty()) {
+				flag = QString::fromLatin1(":/flags/%1.svg").arg(qsCountryCode);
+				if (!QFileInfo(flag).exists()) {
+					flag = QLatin1String("skin:categories/applications-internet.svg");
+				}
+			} else {
+				flag = QLatin1String("skin:categories/applications-internet.svg");
+			}
+			return loadIcon(flag);
+		}
+		if (role == Qt::DisplayRole) {
+			switch (column) {
+				case 0:
+					return qsName;
+				case 1:
+					return (dPing > 0.0) ? QString::number(uiPing) : QVariant();
+				case 2:
+					return uiUsers ? QString::fromLatin1("%1/%2 ").arg(uiUsers).arg(uiMaxUsers) : QVariant();
+			}
+		} else if (role == Qt::ToolTipRole) {
+			QStringList qsl;
+			foreach (const ServerAddress &addr, qlAddresses) {
+				const QString qsAddress = addr.host.toString() + QLatin1String(":")
+										  + QString::number(static_cast< unsigned long >(addr.port));
+				qsl << qsAddress.toHtmlEscaped();
+			}
+
+			double ploss = 100.0;
+
+			if (uiSent > 0)
+				ploss = (uiSent - qMin(uiRecv, uiSent)) * 100. / uiSent;
+
+			QString qs;
+			qs += QLatin1String("<table>")
+				  + QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+						.arg(ConnectDialog::tr("Servername"), qsName.toHtmlEscaped())
+				  + QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+						.arg(ConnectDialog::tr("Hostname"), qsHostname.toHtmlEscaped());
+#ifdef USE_ZEROCONF
+			if (!zeroconfHost.isEmpty())
+				qs += QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+						  .arg(ConnectDialog::tr("Bonjour name"), zeroconfHost.toHtmlEscaped());
+#endif
+			qs += QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+					  .arg(ConnectDialog::tr("Port"))
+					  .arg(usPort)
+				  + QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+						.arg(ConnectDialog::tr("Addresses"), qsl.join(QLatin1String(", ")));
+
+			if (!qsUrl.isEmpty())
+				qs += QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+						  .arg(ConnectDialog::tr("Website"), qsUrl.toHtmlEscaped());
+
+			if (uiSent > 0) {
+				qs += QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+						  .arg(ConnectDialog::tr("Packet loss"),
+							   QString::fromLatin1("%1% (%2/%3)").arg(ploss, 0, 'f', 1).arg(uiRecv).arg(uiSent));
+				if (uiRecv > 0) {
+					qs += QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+							  .arg(ConnectDialog::tr("Ping (80%)"),
+								   ConnectDialog::tr("%1 ms").arg(
+									   boost::accumulators::extended_p_square(*asQuantile)[1] / 1000., 0, 'f', 2))
+						  + QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+								.arg(ConnectDialog::tr("Ping (95%)"),
+									 ConnectDialog::tr("%1 ms").arg(
+										 boost::accumulators::extended_p_square(*asQuantile)[2] / 1000., 0, 'f', 2))
+						  + QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+								.arg(ConnectDialog::tr("Bandwidth"),
+									 ConnectDialog::tr("%1 kbit/s").arg(uiBandwidth / 1000))
+						  + QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+								.arg(ConnectDialog::tr("Users"),
+									 QString::fromLatin1("%1/%2").arg(uiUsers).arg(uiMaxUsers))
+						  + QString::fromLatin1("<tr><th align=left>%1</th><td>%2</td></tr>")
+								.arg(ConnectDialog::tr("Version"))
+								.arg(MumbleVersion::toString(uiVersion));
+				}
+			}
+			qs += QLatin1String("</table>");
+			return qs;
+		} else if (role == Qt::BackgroundRole) {
+			if (bCA) {
+				QColor qc(Qt::green);
+				qc.setAlpha(32);
+				return qc;
+			}
+		}
+	}
+	return QTreeWidgetItem::data(column, role);
+}
+
+void ServerItem::addServerItem(ServerItem *childitem) {
+	Q_ASSERT(!childitem->siParent);
+
+	childitem->siParent = this;
+	qlChildren.append(childitem);
+	addChild(childitem);
+	// Public servers must initially be hidden for the search to work properly
+	// They will be set to visible later on
+	if (childitem->itType == PublicType) {
+		childitem->setHidden(true);
+	}
+
+	if (bParent && (itType != PublicType) && isHidden()) {
+		setHidden(false);
+	}
+}
+
+void ServerItem::setDatas(double elapsed, quint32 users, quint32 maxusers) {
+	if (elapsed == 0.0) {
+		emitDataChanged();
+		return;
+	}
+
+	(*asQuantile)(static_cast< double >(elapsed));
+	dPing = boost::accumulators::extended_p_square(*asQuantile)[0];
+	if (dPing == 0.0)
+		dPing = elapsed;
+
+	quint32 ping = static_cast< quint32 >(lround(dPing / 1000.));
+	uiRecv       = static_cast< quint32 >(boost::accumulators::count(*asQuantile));
+
+	bool changed = (ping != uiPing) || (users != uiUsers) || (maxusers != uiMaxUsers);
+
+	uiUsers    = users;
+	uiMaxUsers = maxusers;
+	uiPing     = ping;
+
+	double grace = qMax(5000., 50. * uiPingSort);
+	double diff  = fabs(1000. * uiPingSort - dPing);
+
+	if ((uiPingSort == 0) || ((uiSent >= 10) && (diff >= grace)))
+		uiPingSort = ping;
+
+	if (changed)
+		emitDataChanged();
+}
+
+FavoriteServer ServerItem::toFavoriteServer() const {
+	FavoriteServer fs;
+	fs.qsName = qsName;
+#ifdef USE_ZEROCONF
+	if (!zeroconfHost.isEmpty())
+		fs.qsHostname = QLatin1Char('@') + zeroconfHost;
+	else
+		fs.qsHostname = qsHostname;
+#else
+	fs.qsHostname = qsHostname;
+#endif
+	fs.usPort     = usPort;
+	fs.qsUsername = qsUsername;
+	fs.qsPassword = qsPassword;
+	fs.qsUrl      = qsUrl;
+	return fs;
+}
+
+/**
+ * This function turns a ServerItem object into a QMimeData object holding a URL to the server.
+ */
+QMimeData *ServerItem::toMimeData() const {
+	QMimeData *mime = ServerItem::toMimeData(qsName, qsHostname, usPort);
+
+	if (itType == FavoriteType)
+		mime->setData(QLatin1String("OriginatedInMumble"), QByteArray());
+
+	return mime;
+}
+
+/**
+ * This function creates a QMimeData object containing a URL to the server at host and port. name is passed in the
+ * query string as "title", which is used for adding a server to favorites. channel may be omitted, but if specified it
+ * should be in the format of "/path/to/channel".
+ */
+QMimeData *ServerItem::toMimeData(const QString &name, const QString &host, unsigned short port,
+								  const QString &channel) {
+	QUrl url;
+	url.setScheme(QLatin1String("mumble"));
+	url.setHost(host);
+	if (port != DEFAULT_MUMBLE_PORT)
+		url.setPort(port);
+	url.setPath(channel);
+
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("title"), name);
+	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
+	url.setQuery(query);
+
+	QString qs = QLatin1String(url.toEncoded());
+
+	QMimeData *mime = new QMimeData;
+
+#ifdef Q_OS_WIN
+	QString contents = QString::fromLatin1("[InternetShortcut]\r\nURL=%1\r\n").arg(qs);
+	QString urlname  = QString::fromLatin1("%1.url").arg(name);
+
+	FILEGROUPDESCRIPTORA fgda;
+	ZeroMemory(&fgda, sizeof(fgda));
+	fgda.cItems              = 1;
+	fgda.fgd[0].dwFlags      = FD_LINKUI | FD_FILESIZE;
+	fgda.fgd[0].nFileSizeLow = contents.length();
+	strcpy_s(fgda.fgd[0].cFileName, MAX_PATH, urlname.toLocal8Bit().constData());
+	mime->setData(QLatin1String("FileGroupDescriptor"),
+				  QByteArray(reinterpret_cast< const char * >(&fgda), sizeof(fgda)));
+
+	FILEGROUPDESCRIPTORW fgdw;
+	ZeroMemory(&fgdw, sizeof(fgdw));
+	fgdw.cItems              = 1;
+	fgdw.fgd[0].dwFlags      = FD_LINKUI | FD_FILESIZE;
+	fgdw.fgd[0].nFileSizeLow = contents.length();
+	wcscpy_s(fgdw.fgd[0].cFileName, MAX_PATH, urlname.toStdWString().c_str());
+	mime->setData(QLatin1String("FileGroupDescriptorW"),
+				  QByteArray(reinterpret_cast< const char * >(&fgdw), sizeof(fgdw)));
+
+	mime->setData(QString::fromWCharArray(CFSTR_FILECONTENTS), contents.toLocal8Bit());
+
+	DWORD context[4];
+	context[0] = 0;
+	context[1] = 1;
+	context[2] = 0;
+	context[3] = 0;
+	mime->setData(QLatin1String("DragContext"),
+				  QByteArray(reinterpret_cast< const char * >(&context[0]), sizeof(context)));
+
+	DWORD dropaction;
+	dropaction = DROPEFFECT_LINK;
+	mime->setData(QString::fromWCharArray(CFSTR_PREFERREDDROPEFFECT),
+				  QByteArray(reinterpret_cast< const char * >(&dropaction), sizeof(dropaction)));
+#endif
+	QList< QUrl > urls;
+	urls << url;
+	mime->setUrls(urls);
+
+	mime->setText(qs);
+	mime->setHtml(QString::fromLatin1("<a href=\"%1\">%2</a>").arg(qs).arg(name.toHtmlEscaped()));
+
+	return mime;
+}
+
+bool ServerItem::operator<(const QTreeWidgetItem &o) const {
+	const ServerItem &other = static_cast< const ServerItem & >(o);
+	const QTreeWidget *w    = treeWidget();
+
+	const int column = w ? w->sortColumn() : 0;
+
+	if (itType != other.itType) {
+		const bool inverse = w ? (w->header()->sortIndicatorOrder() == Qt::DescendingOrder) : false;
+		bool less;
+
+		if (itType == FavoriteType)
+			less = true;
+		else if ((itType == LANType) && (other.itType == PublicType))
+			less = true;
+		else
+			less = false;
+		return less ^ inverse;
+	}
+
+	if (bParent) {
+		const bool inverse = w ? (w->header()->sortIndicatorOrder() == Qt::DescendingOrder) : false;
+		return (qsName < other.qsName) ^ inverse;
+	}
+
+	if (column == 0) {
+		QString a = qsName.toLower();
+		QString b = other.qsName.toLower();
+
+		QRegExp re(QLatin1String("[^0-9a-z]"));
+		a.remove(re);
+		b.remove(re);
+		return a < b;
+	} else if (column == 1) {
+		quint32 a = uiPingSort ? uiPingSort : UINT_MAX;
+		quint32 b = other.uiPingSort ? other.uiPingSort : UINT_MAX;
+		return a < b;
+	} else if (column == 2) {
+		return uiUsers < other.uiUsers;
+	}
+	return false;
+}
+
+QIcon ServerItem::loadIcon(const QString &name) {
+	if (!qmIcons.contains(name))
+		qmIcons.insert(name, QIcon(name));
+	return qmIcons.value(name);
+}
+
+ConnectDialogEdit::ConnectDialogEdit(QWidget *p, const QString &name, const QString &host, const QString &user,
+									 unsigned short port, const QString &password)
+	: QDialog(p) {
+	setupUi(this);
+	init();
+
+	bCustomLabel = !name.simplified().isEmpty();
+
+	qleName->setText(name);
+	qleServer->setText(host);
+	qleUsername->setText(user);
+	qlePort->setText(QString::number(port));
+	qlePassword->setText(password);
+
+	validate();
+}
+
+ConnectDialogEdit::ConnectDialogEdit(QWidget *parent) : QDialog(parent) {
+	setupUi(this);
+	setWindowTitle(tr("Add Server"));
+	init();
+
+	if (!updateFromClipboard()) {
+		// If connected to a server assume the user wants to add it
+		if (g.sh && g.sh->isRunning()) {
+			QString host, name, user, pw;
+			unsigned short port = DEFAULT_MUMBLE_PORT;
+
+			g.sh->getConnectionInfo(host, port, user, pw);
+			Channel *c = Channel::get(0);
+			if (c && c->qsName != QLatin1String("Root")) {
+				name = c->qsName;
+			}
+
+			showNotice(tr("You are currently connected to a server.\nDo you want to fill the dialog with the "
+						  "connection data of this server?\nHost: %1 Port: %2")
+						   .arg(host)
+						   .arg(port));
+			m_si = new ServerItem(name, host, port, user, pw);
+		}
+	}
+	qleUsername->setText(g.s.qsUsername);
+}
+
+void ConnectDialogEdit::init() {
+	m_si         = nullptr;
+	usPort       = 0;
+	bOk          = true;
+	bCustomLabel = false;
+
+	qwInlineNotice->hide();
+
+	qlePort->setValidator(new QIntValidator(1, 65535, qlePort));
+	qlePort->setText(QString::number(DEFAULT_MUMBLE_PORT));
+	qlePassword->setEchoMode(QLineEdit::Password);
+
+	connect(qleName, SIGNAL(textChanged(const QString &)), this, SLOT(validate()));
+	connect(qleServer, SIGNAL(textChanged(const QString &)), this, SLOT(validate()));
+	connect(qlePort, SIGNAL(textChanged(const QString &)), this, SLOT(validate()));
+	connect(qleUsername, SIGNAL(textChanged(const QString &)), this, SLOT(validate()));
+	connect(qlePassword, SIGNAL(textChanged(const QString &)), this, SLOT(validate()));
+
+	validate();
+}
+
+ConnectDialogEdit::~ConnectDialogEdit() {
+	delete m_si;
+}
+
+void ConnectDialogEdit::showNotice(const QString &text) {
+	QLabel *label = qwInlineNotice->findChild< QLabel * >(QLatin1String("qlPasteNotice"));
+	Q_ASSERT(label);
+	label->setText(text);
+	qwInlineNotice->show();
 	adjustSize();
 }
 
-ACLEditor::~ACLEditor() {
-	foreach (ChanACL *acl, qlACLs) { delete acl; }
-	foreach (ACLGroup *gp, qlGroups) { delete gp; }
-}
-
-void ACLEditor::showEvent(QShowEvent *evt) {
-	ACLEnableCheck();
-	QDialog::showEvent(evt);
-}
-
-void ACLEditor::accept() {
-	Channel *pChannel = Channel::get(iChannel);
-	if (!pChannel) {
-		// Channel gone while editing
-		g.l->log(Log::Warning, tr("Failed: Invalid channel"));
-		QDialog::reject();
-		return;
-	}
-
-	if (qleChannelName->text().isEmpty()) {
-		// Empty channel name
-		QMessageBox::warning(this, QLatin1String("Mumble"), tr("Channel must have a name"), QMessageBox::Ok);
-		qleChannelName->setFocus();
-		return;
-	}
-
-	// Update channel state
-	if (bAddChannelMode) {
-		g.sh->createChannel(iChannel, qleChannelName->text(), rteChannelDescription->text(),
-							qsbChannelPosition->value(), qcbChannelTemporary->isChecked(), qsbChannelMaxUsers->value());
+bool ConnectDialogEdit::updateFromClipboard() {
+	delete m_si;
+	m_si = ServerItem::fromMimeData(QApplication::clipboard()->mimeData(), false, nullptr, true);
+	if (m_si) {
+		showNotice(
+			tr("You have an URL in your clipboard.\nDo you want to fill the dialog with this data?\nHost: %1 Port: %2")
+				.arg(m_si->qsHostname)
+				.arg(m_si->usPort));
+		return true;
 	} else {
-		bool needs_update = false;
-
-		updatePasswordACL();
-
-		MumbleProto::ChannelState mpcs;
-		mpcs.set_channel_id(pChannel->iId);
-		if (pChannel->qsName != qleChannelName->text()) {
-			mpcs.set_name(u8(qleChannelName->text()));
-			needs_update = true;
-		}
-		if (rteChannelDescription->isModified() && (pChannel->qsDesc != rteChannelDescription->text())) {
-			const QString &descriptionText = rteChannelDescription->text();
-			mpcs.set_description(u8(descriptionText));
-			needs_update = true;
-			g.db->setBlob(sha1(descriptionText), descriptionText.toUtf8());
-		}
-		if (pChannel->iPosition != qsbChannelPosition->value()) {
-			mpcs.set_position(qsbChannelPosition->value());
-			needs_update = true;
-		}
-		if (pChannel->uiMaxUsers != static_cast< unsigned int >(qsbChannelMaxUsers->value())) {
-			mpcs.set_max_users(qsbChannelMaxUsers->value());
-			needs_update = true;
-		}
-		if (needs_update)
-			g.sh->sendMessage(mpcs);
-
-		// Update ACL
-		msg.set_inherit_acls(bInheritACL);
-		msg.clear_acls();
-		msg.clear_groups();
-
-		foreach (ChanACL *acl, qlACLs) {
-			if (acl->bInherited || (acl->iUserId < -1))
-				continue;
-			MumbleProto::ACL_ChanACL *mpa = msg.add_acls();
-			mpa->set_apply_here(acl->bApplyHere);
-			mpa->set_apply_subs(acl->bApplySubs);
-			if (acl->iUserId != -1)
-				mpa->set_user_id(acl->iUserId);
-			else
-				mpa->set_group(u8(acl->qsGroup));
-			mpa->set_grant(acl->pAllow);
-			mpa->set_deny(acl->pDeny);
-		}
-
-		foreach (ACLGroup *gp, qlGroups) {
-			if (gp->bInherited && gp->bInherit && gp->bInheritable && (gp->qsAdd.count() == 0)
-				&& (gp->qsRemove.count() == 0))
-				continue;
-			MumbleProto::ACL_ChanGroup *mpg = msg.add_groups();
-			mpg->set_name(u8(gp->qsName));
-			mpg->set_inherit(gp->bInherit);
-			mpg->set_inheritable(gp->bInheritable);
-			foreach (int pid, gp->qsAdd)
-				if (pid >= 0)
-					mpg->add_add(pid);
-			foreach (int pid, gp->qsRemove)
-				if (pid >= 0)
-					mpg->add_remove(pid);
-		}
-		g.sh->sendMessage(msg);
+		qwInlineNotice->hide();
+		adjustSize();
+		return false;
 	}
+}
+
+void ConnectDialogEdit::on_qbFill_clicked() {
+	Q_ASSERT(m_si);
+
+	qwInlineNotice->hide();
+	adjustSize();
+
+	qleName->setText(m_si->qsName);
+	qleServer->setText(m_si->qsHostname);
+	qleUsername->setText(m_si->qsUsername);
+	qlePort->setText(QString::number(m_si->usPort));
+	qlePassword->setText(m_si->qsPassword);
+
+	delete m_si;
+	m_si = nullptr;
+}
+
+void ConnectDialogEdit::on_qbDiscard_clicked() {
+	qwInlineNotice->hide();
+	adjustSize();
+}
+
+void ConnectDialogEdit::on_qleName_textEdited(const QString &name) {
+	if (bCustomLabel) {
+		// If empty, then reset to automatic label.
+		// NOTE(nik@jnstw.us): You may be tempted to set qleName to qleServer, but that results in the odd
+		// UI behavior that clearing the field doesn't clear it; it'll immediately equal qleServer. Instead,
+		// leave it empty and let it update the next time qleServer updates. Code in accept will default it
+		// to qleServer if it isn't updated beforehand.
+		if (name.simplified().isEmpty()) {
+			bCustomLabel = false;
+		}
+	} else {
+		// If manually edited, set to Custom
+		bCustomLabel = true;
+	}
+}
+
+void ConnectDialogEdit::on_qleServer_textEdited(const QString &server) {
+	// If using automatic label, update it
+	if (!bCustomLabel) {
+		qleName->setText(server);
+	}
+}
+
+void ConnectDialogEdit::validate() {
+	qsName     = qleName->text().simplified();
+	qsHostname = qleServer->text().simplified();
+	usPort     = qlePort->text().toUShort();
+	qsUsername = qleUsername->text().simplified();
+	qsPassword = qlePassword->text();
+
+	// For bonjour hosts disable the port field as it's auto-detected
+	qlePort->setDisabled(!qsHostname.isEmpty() && qsHostname.startsWith(QLatin1Char('@')));
+
+	// For SuperUser show password edit
+	if (qsUsername.toLower() == QLatin1String("superuser")) {
+		qliPassword->setVisible(true);
+		qlePassword->setVisible(true);
+		qcbShowPassword->setVisible(true);
+		adjustSize();
+	} else if (qsPassword.isEmpty()) {
+		qliPassword->setVisible(false);
+		qlePassword->setVisible(false);
+		qcbShowPassword->setVisible(false);
+		adjustSize();
+	}
+
+	bOk = !qsHostname.isEmpty() && !qsUsername.isEmpty() && usPort;
+	qdbbButtonBox->button(QDialogButtonBox::Ok)->setEnabled(bOk);
+}
+
+void ConnectDialogEdit::accept() {
+	validate();
+	if (bOk) {
+		QString server = qleServer->text().simplified();
+
+		// If the user accidentally added a schema or path part, drop it now.
+		// We can't do so during editing as that is quite jarring.
+		const int schemaPos = server.indexOf(QLatin1String("://"));
+		if (schemaPos != -1) {
+			server.remove(0, schemaPos + 3);
+		}
+
+		const int pathPos = server.indexOf(QLatin1Char('/'));
+		if (pathPos != -1) {
+			server.resize(pathPos);
+		}
+
+		qleServer->setText(server);
+
+		if (qleName->text().simplified().isEmpty() || !bCustomLabel) {
+			qleName->setText(server);
+		}
+
+		QDialog::accept();
+	}
+}
+
+void ConnectDialogEdit::on_qcbShowPassword_toggled(bool checked) {
+	qlePassword->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+}
+
+ConnectDialog::ConnectDialog(QWidget *p, bool autoconnect) : QDialog(p), bAutoConnect(autoconnect) {
+	setupUi(this);
+	qtwServers->setAccessibleName(tr("Server list"));
+#ifdef Q_OS_MAC
+	setWindowModality(Qt::WindowModal);
+#endif
+	bPublicInit = false;
+
+	siAutoConnect = nullptr;
+
+	bAllowPing       = g.s.ptProxyType == Settings::NoProxy;
+	bAllowHostLookup = g.s.ptProxyType == Settings::NoProxy;
+	bAllowZeroconf   = g.s.ptProxyType == Settings::NoProxy;
+	bAllowFilters    = g.s.ptProxyType == Settings::NoProxy;
+
+	if (tPublicServers.elapsed() >= 60 * 24 * 1000000ULL) {
+		qlPublicServers.clear();
+	}
+
+	qdbbButtonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
+	qdbbButtonBox->button(QDialogButtonBox::Ok)->setText(tr("&Connect"));
+
+	QPushButton *qpbAdd = new QPushButton(tr("&Add New..."), this);
+	qpbAdd->setDefault(false);
+	qpbAdd->setAutoDefault(false);
+	connect(qpbAdd, SIGNAL(clicked()), qaFavoriteAddNew, SIGNAL(triggered()));
+	qdbbButtonBox->addButton(qpbAdd, QDialogButtonBox::ActionRole);
+
+
+	qpbEdit = new QPushButton(tr("&Edit..."), this);
+	qpbEdit->setEnabled(false);
+	qpbEdit->setDefault(false);
+	qpbEdit->setAutoDefault(false);
+	connect(qpbEdit, SIGNAL(clicked()), qaFavoriteEdit, SIGNAL(triggered()));
+	qdbbButtonBox->addButton(qpbEdit, QDialogButtonBox::ActionRole);
+
+	qpbAdd->setHidden(g.s.disableConnectDialogEditing);
+	qpbEdit->setHidden(g.s.disableConnectDialogEditing);
+
+	qtwServers->setItemDelegate(new ServerViewDelegate());
+
+	if (!g.s.bDisablePublicList) {
+		const QIcon qiFlag = ServerItem::loadIcon(QLatin1String("skin:categories/applications-internet.svg"));
+		// Add continents and 'Unknown' to the location combobox
+		qcbSearchLocation->addItem(qiFlag, tr("All"), QLatin1String("all"));
+		qcbSearchLocation->addItem(qiFlag, tr("Africa"), QLatin1String("af"));
+		qcbSearchLocation->addItem(qiFlag, tr("Asia"), QLatin1String("as"));
+		qcbSearchLocation->addItem(qiFlag, tr("Europe"), QLatin1String("eu"));
+		qcbSearchLocation->addItem(qiFlag, tr("North America"), QLatin1String("na"));
+		qcbSearchLocation->addItem(qiFlag, tr("Oceania"), QLatin1String("oc"));
+		qcbSearchLocation->addItem(qiFlag, tr("South America"), QLatin1String("sa"));
+		qcbSearchLocation->addItem(qiFlag, tr("Unknown"), QLatin1String(""));
+		addCountriesToSearchLocation();
+	}
+	qgbSearch->setVisible(false);
+
+	// Hide ping and user count if we are not allowed to ping.
+	if (!bAllowPing) {
+		qtwServers->setColumnCount(1);
+	}
+
+	qtwServers->sortItems(1, Qt::AscendingOrder);
+
+	qtwServers->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+	if (qtwServers->columnCount() >= 2) {
+		qtwServers->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+	}
+	if (qtwServers->columnCount() >= 3) {
+		qtwServers->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+	}
+
+	connect(qtwServers->header(), SIGNAL(sortIndicatorChanged(int, Qt::SortOrder)), this,
+			SLOT(OnSortChanged(int, Qt::SortOrder)));
+
+	if (bAllowFilters) {
+		switch (g.s.ssFilter) {
+			case Settings::ShowPopulated:
+				qcbFilter->setCurrentText(tr("Show Populated"));
+				break;
+			case Settings::ShowAll:
+				qcbFilter->setCurrentText(tr("Show All"));
+				break;
+			default:
+				qcbFilter->setCurrentText(tr("Show Reachable"));
+				break;
+		}
+	} else {
+		qcbFilter->setEnabled(false);
+	}
+
+	qmPopup = new QMenu(this);
+
+	QList< QTreeWidgetItem * > ql;
+	QList< FavoriteServer > favorites = g.db->getFavorites();
+
+	foreach (const FavoriteServer &fs, favorites) {
+		ServerItem *si = new ServerItem(fs);
+		qlItems << si;
+		startDns(si);
+		qtwServers->siFavorite->addServerItem(si);
+	}
+#ifdef USE_ZEROCONF
+	if (bAllowZeroconf && g.zeroconf && g.zeroconf->isOk()) {
+		connect(g.zeroconf, &Zeroconf::recordsChanged, this, &ConnectDialog::onUpdateLanList);
+		connect(g.zeroconf, &Zeroconf::recordResolved, this, &ConnectDialog::onResolved);
+		connect(g.zeroconf, &Zeroconf::resolveError, this, &ConnectDialog::onLanResolveError);
+		onUpdateLanList(g.zeroconf->currentRecords());
+
+		g.zeroconf->startBrowser(QLatin1String("_mumble._tcp"));
+	}
+#endif
+	qtPingTick = new QTimer(this);
+	connect(qtPingTick, SIGNAL(timeout()), this, SLOT(timeTick()));
+
+	qusSocket4 = new QUdpSocket(this);
+	qusSocket6 = new QUdpSocket(this);
+	bIPv4      = qusSocket4->bind(QHostAddress(QHostAddress::Any), 0);
+	bIPv6      = qusSocket6->bind(QHostAddress(QHostAddress::AnyIPv6), 0);
+	connect(qusSocket4, SIGNAL(readyRead()), this, SLOT(udpReply()));
+	connect(qusSocket6, SIGNAL(readyRead()), this, SLOT(udpReply()));
+
+	if (qtwServers->siFavorite->isHidden() && (!qtwServers->siLAN || qtwServers->siLAN->isHidden())
+		&& qtwServers->siPublic) {
+		qtwServers->siPublic->setExpanded(true);
+	}
+
+	iPingIndex = -1;
+	qtPingTick->start(50);
+
+	new QShortcut(QKeySequence(QKeySequence::Copy), this, SLOT(on_qaFavoriteCopy_triggered()));
+	new QShortcut(QKeySequence(QKeySequence::Paste), this, SLOT(on_qaFavoritePaste_triggered()));
+
+	qtwServers->setCurrentItem(nullptr);
+	bLastFound = false;
+
+	qmPingCache = g.db->getPingCache();
+
+	if (!g.s.qbaConnectDialogGeometry.isEmpty())
+		restoreGeometry(g.s.qbaConnectDialogGeometry);
+	if (!g.s.qbaConnectDialogHeader.isEmpty())
+		qtwServers->header()->restoreState(g.s.qbaConnectDialogHeader);
+}
+
+ConnectDialog::~ConnectDialog() {
+#ifdef USE_ZEROCONF
+	if (bAllowZeroconf && g.zeroconf && g.zeroconf->isOk()) {
+		g.zeroconf->stopBrowser();
+		g.zeroconf->cleanupResolvers();
+	}
+#endif
+	ServerItem::qmIcons.clear();
+
+	QList< FavoriteServer > ql;
+	qmPingCache.clear();
+
+	foreach (ServerItem *si, qlItems) {
+		if (si->uiPing)
+			qmPingCache.insert(UnresolvedServerAddress(si->qsHostname, si->usPort), si->uiPing);
+
+		if (si->itType != ServerItem::FavoriteType)
+			continue;
+		ql << si->toFavoriteServer();
+	}
+	g.db->setFavorites(ql);
+	g.db->setPingCache(qmPingCache);
+
+	g.s.qbaConnectDialogHeader   = qtwServers->header()->saveState();
+	g.s.qbaConnectDialogGeometry = saveGeometry();
+}
+
+void ConnectDialog::accept() {
+	ServerItem *si = static_cast< ServerItem * >(qtwServers->currentItem());
+	if (!si || (bAllowHostLookup && si->qlAddresses.isEmpty()) || si->qsHostname.isEmpty()) {
+		qWarning() << "Invalid server";
+		return;
+	}
+
+	qsPassword = si->qsPassword;
+	qsServer   = si->qsHostname;
+	usPort     = si->usPort;
+
+	if (si->qsUsername.isEmpty()) {
+		bool ok;
+		QString defUserName = QInputDialog::getText(this, tr("Connecting to %1").arg(si->qsName), tr("Enter username"),
+													QLineEdit::Normal, g.s.qsUsername, &ok)
+								  .trimmed();
+		if (!ok)
+			return;
+		g.s.qsUsername = si->qsUsername = defUserName;
+	}
+
+	qsUsername = si->qsUsername;
+
+	g.s.qsLastServer = si->qsName;
+
 	QDialog::accept();
 }
 
+void ConnectDialog::OnSortChanged(int logicalIndex, Qt::SortOrder) {
+	if (logicalIndex != 2) {
+		return;
+	}
 
-const QString ACLEditor::userName(int pid) {
-	if (qhNameCache.contains(pid))
-		return qhNameCache.value(pid);
-	else
-		return QString::fromLatin1("#%1").arg(pid);
-}
-
-int ACLEditor::id(const QString &uname) {
-	QString name = uname.toLower();
-	if (qhIDCache.contains(name)) {
-		return qhIDCache.value(name);
-	} else {
-		if (!qhNameWait.contains(name)) {
-			MumbleProto::QueryUsers mpuq;
-			mpuq.add_names(u8(name));
-			g.sh->sendMessage(mpuq);
-
-			iUnknown--;
-			qhNameWait.insert(name, iUnknown);
-			qhNameCache.insert(iUnknown, name);
+	foreach (ServerItem *si, qlItems) {
+		if (si->uiPing && (si->uiPing != si->uiPingSort)) {
+			si->uiPingSort = si->uiPing;
+			si->setDatas();
 		}
-		return qhNameWait.value(name);
 	}
 }
 
-void ACLEditor::returnQuery(const MumbleProto::QueryUsers &mqu) {
-	if (mqu.names_size() != mqu.ids_size())
+void ConnectDialog::on_qaFavoriteAdd_triggered() {
+	ServerItem *si = static_cast< ServerItem * >(qtwServers->currentItem());
+	if (!si || (si->itType == ServerItem::FavoriteType))
 		return;
 
-	for (int i = 0; i < mqu.names_size(); ++i) {
-		int pid       = mqu.ids(i);
-		QString name  = u8(mqu.names(i));
-		QString lname = name.toLower();
-		qhIDCache.insert(lname, pid);
-		qhNameCache.insert(pid, name);
+	si = new ServerItem(si);
+	qtwServers->fixupName(si);
+	qlItems << si;
+	qtwServers->siFavorite->addServerItem(si);
+	qtwServers->setCurrentItem(si);
+	startDns(si);
+}
 
-		if (qhNameWait.contains(lname)) {
-			int tid = qhNameWait.take(lname);
+void ConnectDialog::on_qaFavoriteAddNew_triggered() {
+	ConnectDialogEdit *cde = new ConnectDialogEdit(this);
 
-			foreach (ChanACL *acl, qlACLs)
-				if (acl->iUserId == tid)
-					acl->iUserId = pid;
-			foreach (ACLGroup *gp, qlGroups) {
-				if (gp->qsAdd.remove(tid))
-					gp->qsAdd.insert(pid);
-				if (gp->qsRemove.remove(tid))
-					gp->qsRemove.insert(pid);
+	if (cde->exec() == QDialog::Accepted) {
+		ServerItem *si = new ServerItem(cde->qsName, cde->qsHostname, cde->usPort, cde->qsUsername, cde->qsPassword);
+		qlItems << si;
+		qtwServers->siFavorite->addServerItem(si);
+		qtwServers->setCurrentItem(si);
+		startDns(si);
+	}
+	delete cde;
+}
+
+void ConnectDialog::on_qaFavoriteEdit_triggered() {
+	ServerItem *si = static_cast< ServerItem * >(qtwServers->currentItem());
+	if (!si || (si->itType != ServerItem::FavoriteType))
+		return;
+
+	QString host;
+#ifdef USE_ZEROCONF
+	if (!si->zeroconfHost.isEmpty())
+		host = QLatin1Char('@') + si->zeroconfHost;
+	else
+		host = si->qsHostname;
+#else
+	host          = si->qsHostname;
+#endif
+	ConnectDialogEdit *cde = new ConnectDialogEdit(this, si->qsName, host, si->qsUsername, si->usPort, si->qsPassword);
+
+	if (cde->exec() == QDialog::Accepted) {
+		si->qsName     = cde->qsName;
+		si->qsUsername = cde->qsUsername;
+		si->qsPassword = cde->qsPassword;
+		if ((cde->qsHostname != host) || (cde->usPort != si->usPort)) {
+			stopDns(si);
+
+			si->qlAddresses.clear();
+			si->reset();
+
+			si->usPort = cde->usPort;
+#ifdef USE_ZEROCONF
+			if (cde->qsHostname.startsWith(QLatin1Char('@'))) {
+				si->qsHostname   = QString();
+				si->zeroconfHost = cde->qsHostname.mid(1);
+				si->zeroconfRecord =
+					BonjourRecord(si->zeroconfHost, QLatin1String("_mumble._tcp."), QLatin1String("local."));
+			} else {
+				si->qsHostname     = cde->qsHostname;
+				si->zeroconfHost   = QString();
+				si->zeroconfRecord = BonjourRecord();
 			}
-			qhNameCache.remove(tid);
+#else
+            si->qsHostname = cde->qsHostname;
+#endif
+			startDns(si);
 		}
+		si->setDatas();
 	}
-	refillGroupInherit();
-	refillGroupRemove();
-	refillGroupAdd();
-	refillComboBoxes();
-	refillACL();
+	delete cde;
 }
 
-void ACLEditor::refill(WaitID wid) {
-	switch (wid) {
-		case ACLList:
-			refillACL();
-			break;
-		case GroupInherit:
-			refillGroupInherit();
-			break;
-		case GroupRemove:
-			refillGroupRemove();
-			break;
-		case GroupAdd:
-			refillGroupAdd();
-			break;
-	}
-}
-
-void ACLEditor::refillComboBoxes() {
-	QList< QComboBox * > ql;
-	ql << qcbGroupAdd;
-	ql << qcbGroupRemove;
-	ql << qcbACLUser;
-
-	QStringList names = qhNameCache.values();
-	names.sort();
-
-	foreach (QComboBox *qcb, ql) {
-		qcb->clear();
-		qcb->addItems(names);
-		qcb->clearEditText();
-	}
-}
-
-void ACLEditor::refillACL() {
-	int idx              = qlwACLs->currentRow();
-	bool previousinherit = bInheritACL;
-	bInheritACL          = qcbACLInherit->isChecked();
-
-	qlwACLs->clear();
-
-	bool first = true;
-
-	foreach (ChanACL *acl, qlACLs) {
-		if (first)
-			first = false;
-		else if (!bInheritACL && acl->bInherited)
-			continue;
-		QString text;
-		if (acl->iUserId == -1)
-			text = QString::fromLatin1("@%1").arg(acl->qsGroup);
-		else
-			text = userName(acl->iUserId);
-		QListWidgetItem *item = new QListWidgetItem(text, qlwACLs);
-		if (acl->bInherited) {
-			QFont f = item->font();
-			f.setItalic(true);
-			item->setFont(f);
-		}
-	}
-	if (bInheritACL && !previousinherit && (idx != 0))
-		idx += numInheritACL;
-	if (!bInheritACL && previousinherit)
-		idx -= numInheritACL;
-
-	qlwACLs->setCurrentRow(idx);
-}
-
-void ACLEditor::refillGroupNames() {
-	QString text = qcbGroupList->currentText().toLower();
-	QStringList qsl;
-
-	foreach (ACLGroup *gp, qlGroups) { qsl << gp->qsName; }
-	qsl.sort();
-
-	qcbGroupList->clear();
-
-	foreach (QString name, qsl) { qcbGroupList->addItem(name); }
-
-	int wantindex = qcbGroupList->findText(text, Qt::MatchFixedString);
-	qcbGroupList->setCurrentIndex(wantindex);
-}
-
-ACLGroup *ACLEditor::currentGroup() {
-	QString group = qcbGroupList->currentText();
-
-	foreach (ACLGroup *gp, qlGroups)
-		if (gp->qsName == group)
-			return gp;
-
-	group = group.toLower();
-
-	foreach (ACLGroup *gp, qlGroups)
-		if (gp->qsName == group)
-			return gp;
-
-	return nullptr;
-}
-
-ChanACL *ACLEditor::currentACL() {
-	int idx = qlwACLs->currentRow();
-	if (idx < 0)
-		return nullptr;
-
-	if (idx && !bInheritACL)
-		idx += numInheritACL;
-	return qlACLs[idx];
-}
-
-void ACLEditor::fillWidgetFromSet(QListWidget *qlw, const QSet< int > &qs) {
-	qlw->clear();
-
-	QList< idname > ql;
-	foreach (int pid, qs) { ql << idname(userName(pid), pid); }
-	std::stable_sort(ql.begin(), ql.end());
-	foreach (idname i, ql) {
-		QListWidgetItem *qlwi = new QListWidgetItem(i.first, qlw);
-		qlwi->setData(Qt::UserRole, i.second);
-		if (i.second < 0) {
-			QFont f = qlwi->font();
-			f.setItalic(true);
-			qlwi->setFont(f);
-		}
-	}
-}
-
-void ACLEditor::refillGroupAdd() {
-	ACLGroup *gp = currentGroup();
-
-	if (!gp)
+void ConnectDialog::on_qaFavoriteRemove_triggered() {
+	ServerItem *si = static_cast< ServerItem * >(qtwServers->currentItem());
+	if (!si || (si->itType != ServerItem::FavoriteType))
 		return;
 
-	fillWidgetFromSet(qlwGroupAdd, gp->qsAdd);
+	stopDns(si);
+	qlItems.removeAll(si);
+	delete si;
 }
 
-void ACLEditor::refillGroupRemove() {
-	ACLGroup *gp = currentGroup();
-	if (!gp)
+void ConnectDialog::on_qaFavoriteCopy_triggered() {
+	ServerItem *si = static_cast< ServerItem * >(qtwServers->currentItem());
+	if (!si)
 		return;
 
-	fillWidgetFromSet(qlwGroupRemove, gp->qsRemove);
+	QApplication::clipboard()->setMimeData(si->toMimeData());
 }
 
-void ACLEditor::refillGroupInherit() {
-	ACLGroup *gp = currentGroup();
-
-	if (!gp)
+void ConnectDialog::on_qaFavoritePaste_triggered() {
+	ServerItem *si = ServerItem::fromMimeData(QApplication::clipboard()->mimeData());
+	if (!si)
 		return;
 
-	fillWidgetFromSet(qlwGroupInherit, gp->qsTemporary);
+	qlItems << si;
+	qtwServers->siFavorite->addServerItem(si);
+	qtwServers->setCurrentItem(si);
+	startDns(si);
 }
 
-void ACLEditor::groupEnableCheck() {
-	ACLGroup *gp = currentGroup();
+void ConnectDialog::on_qaUrl_triggered() {
+	ServerItem *si = static_cast< ServerItem * >(qtwServers->currentItem());
+	if (!si || si->qsUrl.isEmpty())
+		return;
 
-	bool enabled;
-	if (!gp)
-		enabled = false;
-	else
-		enabled = gp->bInherit;
-
-	qlwGroupRemove->setEnabled(enabled);
-	qlwGroupInherit->setEnabled(enabled);
-	qcbGroupRemove->setEnabled(enabled);
-	qpbGroupRemoveAdd->setEnabled(enabled);
-	qpbGroupRemoveRemove->setEnabled(enabled);
-	qpbGroupInheritRemove->setEnabled(enabled);
-
-	enabled = gp;
-	qlwGroupAdd->setEnabled(enabled);
-	qcbGroupAdd->setEnabled(enabled);
-	qpbGroupAddAdd->setEnabled(enabled);
-	qpbGroupAddRemove->setEnabled(enabled);
-	qcbGroupInherit->setEnabled(enabled);
-	qcbGroupInheritable->setEnabled(enabled);
-
-	if (gp) {
-		qcbGroupInherit->setChecked(gp->bInherit);
-		qcbGroupInheritable->setChecked(gp->bInheritable);
-		qcbGroupInherited->setChecked(gp->bInherited);
-	}
+	QDesktopServices::openUrl(QUrl(si->qsUrl));
 }
 
-void ACLEditor::ACLEnableCheck() {
-	ChanACL *as = currentACL();
+void ConnectDialog::on_qtwServers_customContextMenuRequested(const QPoint &mpos) {
+	ServerItem *si = static_cast< ServerItem * >(qtwServers->itemAt(mpos));
+	qmPopup->clear();
 
-	bool enabled;
-	if (!as)
-		enabled = false;
-	else
-		enabled = !as->bInherited;
-
-	qpbACLRemove->setEnabled(enabled);
-	qpbACLUp->setEnabled(enabled);
-	qpbACLDown->setEnabled(enabled);
-	qcbACLApplyHere->setEnabled(enabled);
-	qcbACLApplySubs->setEnabled(enabled);
-	qcbACLGroup->setEnabled(enabled);
-	qcbACLUser->setEnabled(enabled);
-
-	for (int idx = 0; idx < qlACLAllow.count(); idx++) {
-		// Only enable other checkboxes if writeacl isn't set
-		bool enablethis = enabled
-						  && (qlPerms[idx] == ChanACL::Write || !(as && (as->pAllow & ChanACL::Write))
-							  || qlPerms[idx] == ChanACL::Speak);
-		qlACLAllow[idx]->setEnabled(enablethis);
-		qlACLDeny[idx]->setEnabled(enablethis);
+	if (si && si->bParent) {
+		si = nullptr;
 	}
 
-	if (as) {
-		qcbACLApplyHere->setChecked(as->bApplyHere);
-		qcbACLApplySubs->setChecked(as->bApplySubs);
-
-		for (int idx = 0; idx < qlACLAllow.count(); idx++) {
-			ChanACL::Perm p = qlPerms[idx];
-			qlACLAllow[idx]->setChecked(as->pAllow & p);
-			qlACLDeny[idx]->setChecked(as->pDeny & p);
+	if (si) {
+		if (!g.s.disableConnectDialogEditing) {
+			if (si->itType == ServerItem::FavoriteType) {
+				qmPopup->addAction(qaFavoriteEdit);
+				qmPopup->addAction(qaFavoriteRemove);
+			} else {
+				qmPopup->addAction(qaFavoriteAdd);
+			}
 		}
 
-		qcbACLGroup->clear();
-		qcbACLGroup->addItem(QString());
-		qcbACLGroup->addItem(QLatin1String("all"));
-		qcbACLGroup->addItem(QLatin1String("auth"));
-		qcbACLGroup->addItem(QLatin1String("in"));
-		qcbACLGroup->addItem(QLatin1String("sub"));
-		qcbACLGroup->addItem(QLatin1String("out"));
-		qcbACLGroup->addItem(QLatin1String("~in"));
-		qcbACLGroup->addItem(QLatin1String("~sub"));
-		qcbACLGroup->addItem(QLatin1String("~out"));
-
-		foreach (ACLGroup *gs, qlGroups)
-			qcbACLGroup->addItem(gs->qsName);
-
-		if (as->iUserId == -1) {
-			qcbACLUser->clearEditText();
-			qcbACLGroup->addItem(as->qsGroup);
-			qcbACLGroup->setCurrentIndex(qcbACLGroup->findText(as->qsGroup, Qt::MatchExactly));
-		} else {
-			qcbACLUser->setEditText(userName(as->iUserId));
+		if (!si->qsUrl.isEmpty()) {
+			qmPopup->addAction(qaUrl);
 		}
 	}
-	foreach (QAbstractButton *b, qdbbButtons->buttons()) {
-		QPushButton *qpb = qobject_cast< QPushButton * >(b);
-		if (qpb) {
-			qpb->setAutoDefault(false);
-			qpb->setDefault(false);
+
+	qmPopup->popup(qtwServers->viewport()->mapToGlobal(mpos), nullptr);
+}
+
+void ConnectDialog::on_qtwServers_itemDoubleClicked(QTreeWidgetItem *item, int) {
+	qtwServers->setCurrentItem(item);
+	accept();
+}
+
+void ConnectDialog::on_qtwServers_currentItemChanged(QTreeWidgetItem *item, QTreeWidgetItem *) {
+	ServerItem *si = static_cast< ServerItem * >(item);
+
+	if (si->siParent == qtwServers->siFavorite) {
+		qpbEdit->setEnabled(true);
+	} else {
+		qpbEdit->setEnabled(false);
+	}
+
+	bool bOk = !si->qlAddresses.isEmpty();
+	if (!bAllowHostLookup) {
+		bOk = true;
+	}
+	qdbbButtonBox->button(QDialogButtonBox::Ok)->setEnabled(bOk);
+
+	bLastFound = true;
+}
+
+void ConnectDialog::on_qtwServers_itemExpanded(QTreeWidgetItem *item) {
+	if (qtwServers->siPublic && item == qtwServers->siPublic) {
+		if (!g.s.bPingServersDialogViewed) {
+			// Ask the user for consent to ping the servers. If the user does
+			// not give consent, disable the public server list and return.
+			int result = QMessageBox::question(
+				this, tr("Consent to the transmission of private data"),
+				tr("<p>To measure the latency (ping) of public servers and determine the number of active users, "
+				   "your IP address must be transmitted to each public server.</p>"
+				   "<p>Do you consent to the transmission of your IP address? If you answer no, the public server "
+				   "list will be deactivated. However, you can reactivate it at any time in the network settings.</p>"),
+				QMessageBox::Yes | QMessageBox::No);
+			g.s.bPingServersDialogViewed = true;
+			if (result == QMessageBox::No) {
+				g.s.bDisablePublicList = true;
+				item->setExpanded(false);
+				item->setHidden(true);
+				return;
+			}
+		}
+		qgbSearch->setVisible(true);
+		initList();
+		fillList();
+	}
+
+	ServerItem *p = static_cast< ServerItem * >(item);
+
+	foreach (ServerItem *si, p->qlChildren) { startDns(si); }
+}
+
+void ConnectDialog::on_qtwServers_itemCollapsed(QTreeWidgetItem *item) {
+	if (qtwServers->siPublic && item == qtwServers->siPublic) {
+		qgbSearch->setVisible(false);
+	}
+}
+
+void ConnectDialog::initList() {
+	if (bPublicInit || (qlPublicServers.count() > 0))
+		return;
+
+	bPublicInit = true;
+
+	QUrl url;
+	url.setPath(QLatin1String("/v1/list"));
+
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("version"), QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)));
+	url.setQuery(query);
+
+	WebFetch::fetch(QLatin1String("publist"), url, this, SLOT(fetched(QByteArray, QUrl, QMap< QString, QString >)));
+}
+
+#ifdef USE_ZEROCONF
+void ConnectDialog::onResolved(const BonjourRecord record, const QString host, const uint16_t port) {
+	qlBonjourActive.removeAll(record);
+	foreach (ServerItem *si, qlItems) {
+		if (si->zeroconfRecord == record) {
+			unsigned short usport = static_cast< unsigned short >(port);
+			if ((host != si->qsHostname) || (usport != si->usPort)) {
+				stopDns(si);
+				si->usPort     = static_cast< unsigned short >(port);
+				si->qsHostname = host;
+				startDns(si);
+			}
 		}
 	}
 }
 
-void ACLEditor::on_qtwTab_currentChanged(int index) {
-	if (index == 0) {
-		// Switched to property tab, update password field
-		updatePasswordField();
-	} else if (index == 2) {
-		// Switched to ACL tab, update ACL list
-		updatePasswordACL();
-		refillACL();
-	}
-}
+void ConnectDialog::onUpdateLanList(const QList< BonjourRecord > &list) {
+	QSet< ServerItem * > items;
+#	if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+	QSet< ServerItem * > old =
+		QSet< ServerItem * >(qtwServers->siLAN->qlChildren.begin(), qtwServers->siLAN->qlChildren.end());
+#	else
+	// In Qt 5.14 QList::toSet() has been deprecated as there exists a dedicated constructor of QSet for this now
+	QSet< ServerItem * > old = qtwServers->siLAN->qlChildren.toSet();
+#	endif
 
-void ACLEditor::updatePasswordField() {
-	// Search for an ACL that represents the current password
-	pcaPassword = nullptr;
-	foreach (ChanACL *acl, qlACLs) {
-		if (acl->isPassword()) {
-			pcaPassword = acl;
+	foreach (const BonjourRecord &record, list) {
+		bool found = false;
+		foreach (ServerItem *si, old) {
+			if (si->zeroconfRecord == record) {
+				items.insert(si);
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			ServerItem *si = new ServerItem(record);
+			qlItems << si;
+			g.zeroconf->startResolver(record);
+			startDns(si);
+			qtwServers->siLAN->addServerItem(si);
 		}
 	}
-	if (pcaPassword)
-		qleChannelPassword->setText(pcaPassword->qsGroup.mid(1));
-	else
-		qleChannelPassword->clear();
+	QSet< ServerItem * > remove = old.subtract(items);
+	foreach (ServerItem *si, remove) {
+		stopDns(si);
+		qlItems.removeAll(si);
+		delete si;
+	}
 }
 
-void ACLEditor::updatePasswordACL() {
-	if (qleChannelPassword->text().isEmpty()) {
-		// Remove the password if we had one to begin with
-		if (pcaPassword && qlACLs.removeOne(pcaPassword)) {
-			delete pcaPassword;
+void ConnectDialog::onLanResolveError(const BonjourRecord record) {
+	qlBonjourActive.removeAll(record);
+}
+#endif
 
-			// Search and remove the @all deny ACL
-			ChanACL *denyall = nullptr;
-			foreach (ChanACL *acl, qlACLs) {
-				if (acl->qsGroup == QLatin1String("all") && acl->bInherited == false && acl->bApplyHere == true
-					&& acl->pAllow == ChanACL::None
-					&& (acl->pDeny
-							== (ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								| ChanACL::LinkChannel)
-						|| // Backwards compat with old behaviour that didn't deny traverse
-						acl->pDeny
-							== (ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								| ChanACL::LinkChannel | ChanACL::Traverse))) {
-					denyall = acl;
+void ConnectDialog::fillList() {
+	QList< QTreeWidgetItem * > ql;
+	QList< QTreeWidgetItem * > qlNew;
+
+	foreach (const PublicInfo &pi, qlPublicServers) {
+		bool found = false;
+		foreach (ServerItem *si, qlItems) {
+			if ((pi.qsIp == si->qsHostname) && (pi.usPort == si->usPort)) {
+				si->qsCountry       = pi.qsCountry;
+				si->qsCountryCode   = pi.qsCountryCode;
+				si->qsContinentCode = pi.qsContinentCode;
+				si->qsUrl           = pi.quUrl.toString();
+				si->bCA             = pi.bCA;
+				si->setDatas();
+
+				if (si->itType == ServerItem::PublicType)
+					found = true;
+			}
+		}
+		if (!found)
+			ql << new ServerItem(pi);
+	}
+
+	while (!ql.isEmpty()) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+		ServerItem *si = static_cast< ServerItem * >(ql.takeAt(QRandomGenerator::global()->generate() % ql.count()));
+#else
+		// Qt 5.10 introduces the QRandomGenerator class and in Qt 5.15 qrand got deprecated in its favor
+		ServerItem *si = static_cast< ServerItem * >(ql.takeAt(qrand() % ql.count()));
+#endif
+		qlNew << si;
+		qlItems << si;
+	}
+
+	foreach (QTreeWidgetItem *qtwi, qlNew) {
+		ServerItem *si = static_cast< ServerItem * >(qtwi);
+		qtwServers->siPublic->addServerItem(si);
+		filterServer(si);
+		startDns(si);
+	}
+}
+
+void ConnectDialog::timeTick() {
+	if (!bLastFound && !g.s.qsLastServer.isEmpty()) {
+		QList< QTreeWidgetItem * > items =
+			qtwServers->findItems(g.s.qsLastServer, Qt::MatchExactly | Qt::MatchRecursive);
+		if (!items.isEmpty()) {
+			bLastFound = true;
+			qtwServers->setCurrentItem(items.at(0));
+			if (g.s.bAutoConnect && bAutoConnect) {
+				siAutoConnect = static_cast< ServerItem * >(items.at(0));
+				if (!siAutoConnect->qlAddresses.isEmpty()) {
+					accept();
+					return;
+				} else if (!bAllowHostLookup) {
+					accept();
+					return;
 				}
 			}
-			if (denyall) {
-				qlACLs.removeOne(denyall);
-				delete denyall;
-			}
 		}
-	} else {
-		// Add or Update
-		if (!pcaPassword || !qlACLs.contains(pcaPassword)) {
-			pcaPassword             = new ChanACL(nullptr);
-			pcaPassword->bApplyHere = true;
-			pcaPassword->bApplySubs = false;
-			pcaPassword->bInherited = false;
-			pcaPassword->pAllow     = ChanACL::None;
-			pcaPassword->pDeny      = ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								 | ChanACL::LinkChannel | ChanACL::Traverse;
-			pcaPassword->qsGroup = QLatin1String("all");
-			qlACLs << pcaPassword;
+	}
 
-			pcaPassword             = new ChanACL(nullptr);
-			pcaPassword->bApplyHere = true;
-			pcaPassword->bApplySubs = false;
-			pcaPassword->bInherited = false;
-			pcaPassword->pAllow     = ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								  | ChanACL::LinkChannel | ChanACL::Traverse;
-			pcaPassword->pDeny   = ChanACL::None;
-			pcaPassword->qsGroup = QString(QLatin1String("#%1")).arg(qleChannelPassword->text());
-			qlACLs << pcaPassword;
+	if (bAllowHostLookup) {
+		// Start DNS Lookup of first unknown hostname
+		foreach (const UnresolvedServerAddress &unresolved, qlDNSLookup) {
+			if (qsDNSActive.contains(unresolved)) {
+				continue;
+			}
+
+			qlDNSLookup.removeAll(unresolved);
+			qlDNSLookup.append(unresolved);
+
+			qsDNSActive.insert(unresolved);
+			ServerResolver *sr = new ServerResolver();
+			QObject::connect(sr, SIGNAL(resolved()), this, SLOT(lookedUp()));
+			sr->resolve(unresolved.hostname, unresolved.port);
+			break;
+		}
+	}
+
+	ServerItem *current = static_cast< ServerItem * >(qtwServers->currentItem());
+	ServerItem *hover =
+		static_cast< ServerItem * >(qtwServers->itemAt(qtwServers->viewport()->mapFromGlobal(QCursor::pos())));
+
+	ServerItem *si = nullptr;
+
+	if (tCurrent.elapsed() >= 1000000ULL)
+		si = current;
+	if (!si && (tHover.elapsed() >= 1000000ULL))
+		si = hover;
+
+	if (si) {
+		QString hostname    = si->qsHostname.toLower();
+		unsigned short port = si->usPort;
+		UnresolvedServerAddress unresolved(hostname, port);
+
+		if (si->qlAddresses.isEmpty()) {
+			if (!hostname.isEmpty()) {
+				qlDNSLookup.removeAll(unresolved);
+				qlDNSLookup.prepend(unresolved);
+			}
+			si = nullptr;
+		}
+	}
+
+	if (!si) {
+		if (qlItems.isEmpty())
+			return;
+
+		bool expanded;
+
+		do {
+			++iPingIndex;
+			if (iPingIndex >= qlItems.count()) {
+				if (tRestart.isElapsed(1000000ULL))
+					iPingIndex = 0;
+				else
+					return;
+			}
+			si = qlItems.at(iPingIndex);
+
+			ServerItem *p = si->siParent;
+			expanded      = true;
+			while (p && expanded) {
+				expanded = expanded && p->isExpanded();
+				p        = p->siParent;
+			}
+		} while (si->qlAddresses.isEmpty() || !expanded);
+	}
+
+	if (si == current)
+		tCurrent.restart();
+	if (si == hover)
+		tHover.restart();
+
+	foreach (const ServerAddress &addr, si->qlAddresses) { sendPing(addr.host.toAddress(), addr.port); }
+}
+
+void ConnectDialog::filterPublicServerList() const {
+	if (!g.s.bDisablePublicList) {
+		foreach (ServerItem *const si, qtwServers->siPublic->qlChildren) { filterServer(si); }
+	}
+}
+
+void ConnectDialog::filterServer(ServerItem *const si) const {
+	if (!si->qsName.contains(qsSearchServername, Qt::CaseInsensitive)) {
+		si->setHidden(true);
+		return;
+	}
+	if (qsSearchLocation != QLatin1String("all")) {
+		if (qsSearchLocation != si->qsCountry && qsSearchLocation != si->qsContinentCode) {
+			si->setHidden(true);
+			return;
+		}
+	}
+	if (g.s.ssFilter == Settings::ShowReachable && si->dPing == 0.0) {
+		si->setHidden(true);
+		return;
+	} else if (g.s.ssFilter == Settings::ShowPopulated && si->uiUsers == 0) {
+		si->setHidden(true);
+		return;
+	}
+	si->setHidden(false);
+}
+
+void ConnectDialog::addCountriesToSearchLocation() const {
+	QMap< QString, QString > qmCountries;
+
+	foreach (const PublicInfo &pi, qlPublicServers) {
+		if (pi.qsCountry != tr("Unknown") && !qmCountries.contains(pi.qsCountry)) {
+			qmCountries.insert(pi.qsCountry, pi.qsCountryCode);
+		}
+	}
+
+	foreach (auto location, qmCountries.keys()) {
+		// Set Icon, Text and Data
+		qcbSearchLocation->addItem(
+			ServerItem::loadIcon(QString::fromLatin1(":/flags/%1.svg").arg(qmCountries.value(location))), location,
+			location);
+	}
+}
+
+void ConnectDialog::startDns(ServerItem *si) {
+	if (!bAllowHostLookup) {
+		return;
+	}
+
+	QString hostname    = si->qsHostname.toLower();
+	unsigned short port = si->usPort;
+	UnresolvedServerAddress unresolved(hostname, port);
+
+	if (si->qlAddresses.isEmpty()) {
+		// Determine if qsHostname is an IP address
+		// or a hostname. If it is an IP address, we
+		// can treat it as resolved as-is.
+		QHostAddress qha(si->qsHostname);
+		bool hostnameIsIPAddress = !qha.isNull();
+		if (hostnameIsIPAddress) {
+			si->qlAddresses.append(ServerAddress(HostAddress(qha), port));
 		} else {
-			pcaPassword->qsGroup = QString(QLatin1String("#%1")).arg(qleChannelPassword->text());
+			si->qlAddresses = qhDNSCache.value(unresolved);
 		}
 	}
-}
 
-void ACLEditor::on_qlwACLs_currentRowChanged() {
-	ACLEnableCheck();
-}
+	if (qtwServers->currentItem() == si)
+		qdbbButtonBox->button(QDialogButtonBox::Ok)->setEnabled(!si->qlAddresses.isEmpty());
 
-void ACLEditor::on_qpbACLAdd_clicked() {
-	ChanACL *as    = new ChanACL(nullptr);
-	as->bApplyHere = true;
-	as->bApplySubs = true;
-	as->bInherited = false;
-	as->qsGroup    = QLatin1String("all");
-	as->iUserId    = -1;
-	as->pAllow     = ChanACL::None;
-	as->pDeny      = ChanACL::None;
-	qlACLs << as;
-	refillACL();
-	qlwACLs->setCurrentRow(qlwACLs->count() - 1);
-}
-
-void ACLEditor::on_qpbACLRemove_clicked() {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
+	if (!si->qlAddresses.isEmpty()) {
+		foreach (const ServerAddress &addr, si->qlAddresses) { qhPings[addr].insert(si); }
 		return;
-
-	qlACLs.removeAll(as);
-	delete as;
-	refillACL();
-}
-
-void ACLEditor::on_qpbACLUp_clicked() {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
+	}
+#ifdef USE_ZEROCONF
+	if (bAllowZeroconf && si->qsHostname.isEmpty() && !si->zeroconfRecord.serviceName.isEmpty()) {
+		if (!qlBonjourActive.contains(si->zeroconfRecord)) {
+			g.zeroconf->startResolver(si->zeroconfRecord);
+			qlBonjourActive.append(si->zeroconfRecord);
+		}
 		return;
-
-	int idx = qlACLs.indexOf(as);
-	if (idx <= numInheritACL + 1)
-		return;
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
-	qlACLs.swapItemsAt(idx - 1, idx);
-#else
-	qlACLs.swap(idx - 1, idx);
+	}
 #endif
-	qlwACLs->setCurrentRow(qlwACLs->currentRow() - 1);
-	refillACL();
-}
-
-void ACLEditor::on_qpbACLDown_clicked() {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	int idx = qlACLs.indexOf(as) + 1;
-	if (idx >= qlACLs.count())
-		return;
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
-	qlACLs.swapItemsAt(idx - 1, idx);
-#else
-	qlACLs.swap(idx - 1, idx);
-#endif
-	qlwACLs->setCurrentRow(qlwACLs->currentRow() + 1);
-	refillACL();
-}
-
-void ACLEditor::on_qcbACLInherit_clicked(bool) {
-	refillACL();
-}
-
-void ACLEditor::on_qcbACLApplyHere_clicked(bool checked) {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	as->bApplyHere = checked;
-}
-
-void ACLEditor::on_qcbACLApplySubs_clicked(bool checked) {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	as->bApplySubs = checked;
-}
-
-void ACLEditor::on_qcbACLGroup_activated(const QString &text) {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	as->iUserId = -1;
-
-	if (text.isEmpty()) {
-		qcbACLGroup->setCurrentIndex(1);
-		as->qsGroup = QLatin1String("all");
-	} else {
-		qcbACLUser->clearEditText();
-		as->qsGroup = text;
+	if (!qhDNSWait.contains(unresolved)) {
+		if (si->itType == ServerItem::PublicType)
+			qlDNSLookup.append(unresolved);
+		else
+			qlDNSLookup.prepend(unresolved);
 	}
-	refillACL();
+	qhDNSWait[unresolved].insert(si);
 }
 
-void ACLEditor::on_qcbACLUser_activated() {
-	QString text = qcbACLUser->currentText();
-
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
+void ConnectDialog::stopDns(ServerItem *si) {
+	if (!bAllowHostLookup) {
 		return;
-
-	if (text.isEmpty()) {
-		as->iUserId = -1;
-		if (qcbACLGroup->currentIndex() == 0) {
-			qcbACLGroup->setCurrentIndex(1);
-			as->qsGroup = QLatin1String("all");
-		}
-		refillACL();
-	} else {
-		qcbACLGroup->setCurrentIndex(0);
-		as->iUserId = id(text);
-		refillACL();
 	}
-}
 
-void ACLEditor::ACLPermissions_clicked() {
-	QCheckBox *source = qobject_cast< QCheckBox * >(sender());
-
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	int allowed = 0;
-	int denied  = 0;
-
-	bool enabled       = true;
-	bool modifiedEnter = false;
-	for (int idx = 0; idx < qlACLAllow.count(); idx++) {
-		ChanACL::Perm p = qlPerms[idx];
-		if (qlACLAllow[idx]->isChecked() && qlACLDeny[idx]->isChecked()) {
-			if (source == qlACLAllow[idx])
-				qlACLDeny[idx]->setChecked(false);
-			else
-				qlACLAllow[idx]->setChecked(false);
-		}
-
-		if (p == ChanACL::Enter && (source == qlACLAllow[idx] || source == qlACLDeny[idx])) {
-			// Unchecking a checkbox is not counted as modifying the Enter privilege
-			// in this context
-			modifiedEnter = source->isChecked();
-		}
-
-		if (p == ChanACL::Listen && modifiedEnter) {
-			// If Enter privileges are granted, also grant Listen privilege
-			// and vice versa.
-			// This is to make sure that people don't accidentally forget to
-			// modify the Listen permission when they modify the enter permission.
-			// Especially in the case of denying enter, this could potentially lead
-			// to confusion if people were still able to listen to a channel they can't
-			// enter.
-			// However the user still can allow/deny the Listen permission manually after
-			// having changed the enter permission.
-			if (denied & ChanACL::Enter) {
-				qlACLAllow[idx]->setChecked(false);
-				qlACLDeny[idx]->setChecked(true);
-			} else {
-				qlACLAllow[idx]->setChecked(true);
-				qlACLDeny[idx]->setChecked(false);
+	foreach (const ServerAddress &addr, si->qlAddresses) {
+		if (qhPings.contains(addr)) {
+			qhPings[addr].remove(si);
+			if (qhPings[addr].isEmpty()) {
+				qhPings.remove(addr);
+				qhPingRand.remove(addr);
 			}
 		}
-
-		qlACLAllow[idx]->setEnabled(enabled || p == ChanACL::Speak);
-		qlACLDeny[idx]->setEnabled(enabled || p == ChanACL::Speak);
-
-		if (p == ChanACL::Write && qlACLAllow[idx]->isChecked())
-			enabled = false;
-
-		if (qlACLAllow[idx]->isChecked())
-			allowed |= p;
-		if (qlACLDeny[idx]->isChecked())
-			denied |= p;
 	}
 
-	as->pAllow = static_cast< ChanACL::Permissions >(allowed);
-	as->pDeny  = static_cast< ChanACL::Permissions >(denied);
+	QString hostname    = si->qsHostname.toLower();
+	unsigned short port = si->usPort;
+	UnresolvedServerAddress unresolved(hostname, port);
+
+	if (qhDNSWait.contains(unresolved)) {
+		qhDNSWait[unresolved].remove(si);
+		if (qhDNSWait[unresolved].isEmpty()) {
+			qhDNSWait.remove(unresolved);
+			qlDNSLookup.removeAll(unresolved);
+		}
+	}
 }
 
-void ACLEditor::on_qcbGroupList_activated(const QString &text) {
-	ACLGroup *gs = currentGroup();
-	if (text.isEmpty())
+void ConnectDialog::lookedUp() {
+	ServerResolver *sr = qobject_cast< ServerResolver * >(QObject::sender());
+	sr->deleteLater();
+
+	QString hostname    = sr->hostname().toLower();
+	unsigned short port = sr->port();
+	UnresolvedServerAddress unresolved(hostname, port);
+
+	qsDNSActive.remove(unresolved);
+
+	// An error occurred, or no records were found.
+	if (sr->records().size() == 0) {
 		return;
-	if (!gs) {
-		QString name     = text.toLower();
-		gs               = new ACLGroup(name);
-		gs->bInherited   = false;
-		gs->bInherit     = true;
-		gs->bInheritable = true;
-		gs->qsName       = name;
-		qlGroups << gs;
 	}
 
-	refillGroupNames();
-	refillGroupAdd();
-	refillGroupRemove();
-	refillGroupInherit();
-	groupEnableCheck();
-	qpbGroupAdd->setEnabled(false);
+	QSet< ServerAddress > qs;
+	foreach (ServerResolverRecord record, sr->records()) {
+		foreach (const HostAddress &ha, record.addresses()) { qs.insert(ServerAddress(ha, record.port())); }
+	}
+
+	QSet< ServerItem * > waiting = qhDNSWait[unresolved];
+	foreach (ServerItem *si, waiting) {
+		foreach (const ServerAddress &addr, qs) { qhPings[addr].insert(si); }
+
+		si->qlAddresses = qs.values();
+	}
+
+	qlDNSLookup.removeAll(unresolved);
+	qhDNSCache.insert(unresolved, qs.values());
+	qhDNSWait.remove(unresolved);
+
+	foreach (ServerItem *si, waiting) {
+		if (si == qtwServers->currentItem()) {
+			on_qtwServers_currentItemChanged(si, si);
+			if (si == siAutoConnect)
+				accept();
+		}
+	}
+
+	if (bAllowPing) {
+		foreach (const ServerAddress &addr, qs) { sendPing(addr.host.toAddress(), addr.port); }
+	}
 }
 
-void ACLEditor::on_qcbGroupList_editTextChanged(const QString &text) {
-	qpbGroupAdd->setEnabled(!text.isEmpty());
-}
+void ConnectDialog::sendPing(const QHostAddress &host, unsigned short port) {
+	char blob[16];
 
-void ACLEditor::on_qpbGroupAdd_clicked() {
-	on_qcbGroupList_activated(qcbGroupList->currentText());
-}
+	ServerAddress addr(HostAddress(host), port);
 
-void ACLEditor::on_qpbGroupRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	if (gs->bInherited) {
-		gs->bInheritable = true;
-		gs->bInherit     = true;
-		gs->qsAdd.clear();
-		gs->qsRemove.clear();
+	quint64 uiRand;
+	if (qhPingRand.contains(addr)) {
+		uiRand = qhPingRand.value(addr);
 	} else {
-		qlGroups.removeAll(gs);
-		delete gs;
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+		uiRand = QRandomGenerator::global()->generate64() << 32;
+#else
+		// Qt 5.10 introduces the QRandomGenerator class and in Qt 5.15 qrand got deprecated in its favor
+		uiRand = (static_cast< quint64 >(qrand()) << 32) | static_cast< quint64 >(qrand());
+#endif
+		qhPingRand.insert(addr, uiRand);
 	}
-	refillGroupNames();
-	refillGroupAdd();
-	refillGroupRemove();
-	refillGroupInherit();
-	groupEnableCheck();
+
+	memset(blob, 0, sizeof(blob));
+	*reinterpret_cast< quint64 * >(blob + 8) = tPing.elapsed() ^ uiRand;
+
+	if (bIPv4 && host.protocol() == QAbstractSocket::IPv4Protocol)
+		qusSocket4->writeDatagram(blob + 4, 12, host, port);
+	else if (bIPv6 && host.protocol() == QAbstractSocket::IPv6Protocol)
+		qusSocket6->writeDatagram(blob + 4, 12, host, port);
+	else
+		return;
+
+	const QSet< ServerItem * > &qs = qhPings.value(addr);
+
+	foreach (ServerItem *si, qs)
+		++si->uiSent;
 }
 
-void ACLEditor::on_qcbGroupInherit_clicked(bool checked) {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
+void ConnectDialog::udpReply() {
+	QUdpSocket *sock = qobject_cast< QUdpSocket * >(sender());
 
-	gs->bInherit = checked;
-	groupEnableCheck();
+	while (sock->hasPendingDatagrams()) {
+		char blob[64];
+
+		QHostAddress host;
+		unsigned short port;
+
+		qint64 len = sock->readDatagram(blob + 4, 24, &host, &port);
+		if (len == 24) {
+			if (host.scopeId() == QLatin1String("0"))
+				host.setScopeId(QLatin1String(""));
+
+			ServerAddress address(HostAddress(host), port);
+
+			if (qhPings.contains(address)) {
+				quint32 *ping = reinterpret_cast< quint32 * >(blob + 4);
+				quint64 *ts   = reinterpret_cast< quint64 * >(blob + 8);
+
+				quint64 elapsed = tPing.elapsed() - (*ts ^ qhPingRand.value(address));
+
+				foreach (ServerItem *si, qhPings.value(address)) {
+					si->uiVersion    = qFromBigEndian(ping[0]);
+					quint32 users    = qFromBigEndian(ping[3]);
+					quint32 maxusers = qFromBigEndian(ping[4]);
+					si->uiBandwidth  = qFromBigEndian(ping[5]);
+
+					if (!si->uiPingSort)
+						si->uiPingSort = qmPingCache.value(UnresolvedServerAddress(si->qsHostname, si->usPort));
+
+					si->setDatas(static_cast< double >(elapsed), users, maxusers);
+					if (si->itType == ServerItem::PublicType) {
+						filterServer(si);
+					}
+				}
+			}
+		}
+	}
 }
 
-void ACLEditor::on_qcbGroupInheritable_clicked(bool checked) {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
+void ConnectDialog::fetched(QByteArray xmlData, QUrl, QMap< QString, QString > headers) {
+	if (xmlData.isNull()) {
+		QMessageBox::warning(this, QLatin1String("Mumble"), tr("Failed to fetch server list"), QMessageBox::Ok);
 		return;
+	}
 
-	gs->bInheritable = checked;
+	QDomDocument doc;
+	doc.setContent(xmlData);
+
+	qlPublicServers.clear();
+	qsUserCountry       = headers.value(QLatin1String("Geo-Country"));
+	qsUserCountryCode   = headers.value(QLatin1String("Geo-Country-Code")).toLower();
+	qsUserContinentCode = headers.value(QLatin1String("Geo-Continent-Code")).toLower();
+
+	QDomElement root = doc.documentElement();
+	QDomNode n       = root.firstChild();
+	while (!n.isNull()) {
+		QDomElement e = n.toElement();
+		if (!e.isNull()) {
+			if (e.tagName() == QLatin1String("server")) {
+				PublicInfo pi;
+				pi.qsName          = e.attribute(QLatin1String("name"));
+				pi.quUrl           = e.attribute(QLatin1String("url"));
+				pi.qsIp            = e.attribute(QLatin1String("ip"));
+				pi.usPort          = e.attribute(QLatin1String("port")).toUShort();
+				pi.qsCountry       = e.attribute(QLatin1String("country"), tr("Unknown"));
+				pi.qsCountryCode   = e.attribute(QLatin1String("country_code")).toLower();
+				pi.qsContinentCode = e.attribute(QLatin1String("continent_code")).toLower();
+				pi.bCA             = e.attribute(QLatin1String("ca")).toInt() ? true : false;
+
+				qlPublicServers << pi;
+			}
+		}
+		n = n.nextSibling();
+	}
+	addCountriesToSearchLocation();
+	tPublicServers.restart();
+
+	fillList();
 }
 
-void ACLEditor::on_qpbGroupAddAdd_clicked() {
-	ACLGroup *gs = currentGroup();
-	QString text = qcbGroupAdd->currentText();
-
-	if (!gs)
-		return;
-
-	if (text.isEmpty())
-		return;
-
-	gs->qsAdd << id(text);
-	refillGroupAdd();
-	qcbGroupAdd->clearEditText();
+void ConnectDialog::on_qleSearchServername_textChanged(const QString &searchServername) {
+	qsSearchServername = searchServername;
+	filterPublicServerList();
 }
 
-void ACLEditor::on_qpbGroupAddRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	QListWidgetItem *item = qlwGroupAdd->currentItem();
-	if (!item)
-		return;
-
-	gs->qsAdd.remove(item->data(Qt::UserRole).toInt());
-	refillGroupAdd();
-	qcbGroupRemove->clearEditText();
+void ConnectDialog::on_qcbSearchLocation_currentIndexChanged(int searchLocationIndex) {
+	qsSearchLocation = qcbSearchLocation->itemData(searchLocationIndex).toString();
+	filterPublicServerList();
 }
 
-void ACLEditor::on_qpbGroupRemoveAdd_clicked() {
-	QString text = qcbGroupRemove->currentText();
+void ConnectDialog::on_qcbFilter_currentIndexChanged(int filterIndex) {
+	const QString filter = qcbFilter->itemText(filterIndex);
+	if (filter == tr("Show All")) {
+		g.s.ssFilter = Settings::ShowAll;
+	} else if (filter == tr("Show Reachable")) {
+		g.s.ssFilter = Settings::ShowReachable;
+	} else if (filter == tr("Show Populated")) {
+		g.s.ssFilter = Settings::ShowPopulated;
+	}
 
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	if (text.isEmpty())
-		return;
-
-	gs->qsRemove << id(text);
-	refillGroupRemove();
-}
-
-void ACLEditor::on_qpbGroupRemoveRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	QListWidgetItem *item = qlwGroupRemove->currentItem();
-	if (!item)
-		return;
-
-	gs->qsRemove.remove(item->data(Qt::UserRole).toInt());
-	refillGroupRemove();
-}
-
-void ACLEditor::on_qpbGroupInheritRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	QListWidgetItem *item = qlwGroupInherit->currentItem();
-	if (!item)
-		return;
-
-	gs->qsRemove.insert(item->data(Qt::UserRole).toInt());
-	refillGroupRemove();
+	filterPublicServerList();
 }
