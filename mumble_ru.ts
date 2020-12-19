@@ -1,133 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>RichTextEditor</class>
- <widget class="QTabWidget" name="RichTextEditor">
+ <class>qwPTTButtonWidget</class>
+ <widget class="QWidget" name="qwPTTButtonWidget">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>700</width>
-    <height>518</height>
+    <width>100</width>
+    <height>100</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string notr="true">TabWidget</string>
+   <string>Mumble PTT</string>
   </property>
-  <property name="tabPosition">
-   <enum>QTabWidget::South</enum>
-  </property>
-  <property name="currentIndex">
-   <number>0</number>
-  </property>
-  <widget class="QWidget" name="qwRich">
-   <attribute name="title">
-    <string>Display</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout_2">
-    <item>
-     <widget class="QToolBar" name="qtbToolBar"/>
-    </item>
-    <item>
-     <widget class="RichTextHtmlEdit" name="qteRichText">
-      <property name="autoFormatting">
-       <set>QTextEdit::AutoAll</set>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QWidget" name="qwPlain">
-   <attribute name="title">
-    <string>Source Text</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <widget class="QPlainTextEdit" name="qptePlainText"/>
-    </item>
-   </layout>
-  </widget>
-  <action name="qaBold">
-   <property name="checkable">
-    <bool>true</bool>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="margin">
+    <number>0</number>
    </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-bold.svg</normaloff>skin:actions/format-text-bold.svg</iconset>
-   </property>
-   <property name="text">
-    <string>&amp;Bold</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+B</string>
-   </property>
-  </action>
-  <action name="qaItalic">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-italic.svg</normaloff>skin:actions/format-text-italic.svg</iconset>
-   </property>
-   <property name="text">
-    <string>&amp;Italic</string>
-   </property>
-   <property name="toolTip">
-    <string>Italic</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+I</string>
-   </property>
-  </action>
-  <action name="qaUnderline">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-underline.svg</normaloff>skin:actions/format-text-underline.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Underline</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+U</string>
-   </property>
-  </action>
-  <action name="qaColor">
-   <property name="text">
-    <string>Color</string>
-   </property>
-  </action>
-  <action name="qaLink">
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:mimetypes/text-html.svg</normaloff>skin:mimetypes/text-html.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Insert Link</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+L</string>
-   </property>
-  </action>
-  <action name="qaImage">
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:mimetypes/image-x-generic.svg</normaloff>skin:mimetypes/image-x-generic.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Insert Image</string>
-   </property>
-  </action>
+   <item>
+    <widget class="QPushButton" name="qpbPushToTalk">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="text">
+      <string>Push to talk</string>
+     </property>
+     <property name="default">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>RichTextHtmlEdit</class>
-   <extends>QTextEdit</extends>
-   <header>RichTextEditor.h</header>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>
