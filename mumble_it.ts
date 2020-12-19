@@ -1,133 +1,91 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>RichTextEditor</class>
- <widget class="QTabWidget" name="RichTextEditor">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>700</width>
-    <height>518</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string notr="true">TabWidget</string>
-  </property>
-  <property name="tabPosition">
-   <enum>QTabWidget::South</enum>
-  </property>
-  <property name="currentIndex">
-   <number>0</number>
-  </property>
-  <widget class="QWidget" name="qwRich">
-   <attribute name="title">
-    <string>Display</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout_2">
-    <item>
-     <widget class="QToolBar" name="qtbToolBar"/>
-    </item>
-    <item>
-     <widget class="RichTextHtmlEdit" name="qteRichText">
-      <property name="autoFormatting">
-       <set>QTextEdit::AutoAll</set>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QWidget" name="qwPlain">
-   <attribute name="title">
-    <string>Source Text</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <widget class="QPlainTextEdit" name="qptePlainText"/>
-    </item>
-   </layout>
-  </widget>
-  <action name="qaBold">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-bold.svg</normaloff>skin:actions/format-text-bold.svg</iconset>
-   </property>
-   <property name="text">
-    <string>&amp;Bold</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+B</string>
-   </property>
-  </action>
-  <action name="qaItalic">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-italic.svg</normaloff>skin:actions/format-text-italic.svg</iconset>
-   </property>
-   <property name="text">
-    <string>&amp;Italic</string>
-   </property>
-   <property name="toolTip">
-    <string>Italic</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+I</string>
-   </property>
-  </action>
-  <action name="qaUnderline">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-underline.svg</normaloff>skin:actions/format-text-underline.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Underline</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+U</string>
-   </property>
-  </action>
-  <action name="qaColor">
-   <property name="text">
-    <string>Color</string>
-   </property>
-  </action>
-  <action name="qaLink">
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:mimetypes/text-html.svg</normaloff>skin:mimetypes/text-html.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Insert Link</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+L</string>
-   </property>
-  </action>
-  <action name="qaImage">
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:mimetypes/image-x-generic.svg</normaloff>skin:mimetypes/image-x-generic.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Insert Image</string>
-   </property>
-  </action>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>RichTextHtmlEdit</class>
-   <extends>QTextEdit</extends>
-   <header>RichTextEditor.h</header>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#ifndef MUMBLE_MUMBLE_PLUGINS_H_
+#define MUMBLE_MUMBLE_PLUGINS_H_
+
+#include "ConfigDialog.h"
+
+#include "ui_Plugins.h"
+
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
+
+#include <QtCore/QMutex>
+#include <QtCore/QObject>
+#include <QtCore/QReadWriteLock>
+#include <QtCore/QUrl>
+
+struct PluginInfo;
+
+class PluginConfig : public ConfigWidget, public Ui::PluginConfig {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PluginConfig)
+protected:
+	void refillPluginList();
+	PluginInfo *pluginForItem(QTreeWidgetItem *) const;
+
+public:
+	/// The unique name of this ConfigWidget
+	static const QString name;
+	PluginConfig(Settings &st);
+	virtual QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	virtual QIcon icon() const Q_DECL_OVERRIDE;
+public slots:
+	void save() const Q_DECL_OVERRIDE;
+	void load(const Settings &r) Q_DECL_OVERRIDE;
+	void on_qpbConfig_clicked();
+	void on_qpbAbout_clicked();
+	void on_qpbReload_clicked();
+	void on_qtwPlugins_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
+};
+
+struct PluginFetchMeta;
+
+class Plugins : public QObject {
+	friend class PluginConfig;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Plugins)
+protected:
+	QReadWriteLock qrwlPlugins;
+	QMutex qmPluginStrings;
+	QList< PluginInfo * > qlPlugins;
+	PluginInfo *locked;
+	PluginInfo *prevlocked;
+	void clearPlugins();
+	int iPluginTry;
+	QMap< QString, PluginFetchMeta > qmPluginFetchMeta;
+	QString qsSystemPlugins;
+	QString qsUserPlugins;
+#ifdef Q_OS_WIN
+	HANDLE hToken;
+	TOKEN_PRIVILEGES tpPrevious;
+	DWORD cbPrevious;
+#endif
+public:
+	std::string ssContext, ssContextSent;
+	std::wstring swsIdentity, swsIdentitySent;
+	bool bValid;
+	bool bUnlink;
+	float fPosition[3], fFront[3], fTop[3];
+	float fCameraPosition[3], fCameraFront[3], fCameraTop[3];
+
+	Plugins(QObject *p = nullptr);
+	~Plugins() Q_DECL_OVERRIDE;
+public slots:
+	void on_Timer_timeout();
+	void rescanPlugins();
+	bool fetch();
+	void checkUpdates();
+	void fetchedUpdatePAPlugins(QByteArray, QUrl);
+	void fetchedPAPluginDL(QByteArray, QUrl);
+};
+
+#endif
