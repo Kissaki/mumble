@@ -3,463 +3,459 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_SETTINGS_H_
-#define MUMBLE_MUMBLE_SETTINGS_H_
-
-#include <QtCore/QList>
-#include <QtCore/QPair>
-#include <QtCore/QRectF>
-#include <QtCore/QSettings>
-#include <QtCore/QStringList>
-#include <QtCore/QVariant>
-#include <QtGui/QColor>
-#include <QtGui/QFont>
-#include <QtNetwork/QSslCertificate>
-#include <QtNetwork/QSslKey>
-
-// Global helper classes to spread variables around across threads
-// especially helpful to initialize things like the stored
-// preference for audio transmission, since the GUI elements
-// will be created long before the AudioInput object, and the
-// latter lives in a separate thread and so cannot touch the
-// GUI.
-
-struct Shortcut {
-	int iIndex;
-	QList< QVariant > qlButtons;
-	QVariant qvData;
-	bool bSuppress;
-	bool operator<(const Shortcut &) const;
-	bool isServerSpecific() const;
-	bool operator==(const Shortcut &) const;
-};
-
-struct ShortcutTarget {
-	bool bCurrentSelection;
-	bool bUsers;
-	QStringList qlUsers;
-	QList< unsigned int > qlSessions;
-	int iChannel;
-	QString qsGroup;
-	bool bLinks;
-	bool bChildren;
-	bool bForceCenter;
-	ShortcutTarget();
-	bool isServerSpecific() const;
-	bool operator<(const ShortcutTarget &) const;
-	bool operator==(const ShortcutTarget &) const;
-};
-
-quint32 qHash(const ShortcutTarget &);
-quint32 qHash(const QList< ShortcutTarget > &);
-
-QDataStream &operator<<(QDataStream &, const ShortcutTarget &);
-QDataStream &operator>>(QDataStream &, ShortcutTarget &);
-Q_DECLARE_METATYPE(ShortcutTarget)
-
-struct OverlaySettings {
-	enum OverlayPresets { AvatarAndName, LargeSquareAvatar };
-
-	enum OverlayShow { Talking, Active, HomeChannel, LinkedChannels };
-
-	enum OverlaySort { Alphabetical, LastStateChange };
-
-	enum OverlayExclusionMode { LauncherFilterExclusionMode, WhitelistExclusionMode, BlacklistExclusionMode };
-
-	bool bEnable;
-
-	QString qsStyle;
-
-	OverlayShow osShow;
-	bool bAlwaysSelf;
-	int uiActiveTime; // Time in seconds for a user to stay active after talking
-	OverlaySort osSort;
-
-	float fX;
-	float fY;
-
-	qreal fZoom;
-	unsigned int uiColumns;
-
-	QColor qcUserName[5];
-	QFont qfUserName;
-
-	QColor qcChannel;
-	QFont qfChannel;
-
-	QColor qcFps;
-	QFont qfFps;
-
-	qreal fBoxPad;
-	qreal fBoxPenWidth;
-	QColor qcBoxPen;
-	QColor qcBoxFill;
-
-	bool bUserName;
-	bool bChannel;
-	bool bMutedDeafened;
-	bool bAvatar;
-	bool bBox;
-	bool bFps;
-	bool bTime;
-
-	qreal fUserName;
-	qreal fChannel;
-	qreal fMutedDeafened;
-	qreal fAvatar;
-	qreal fUser[5];
-	qreal fFps;
-
-	QRectF qrfUserName;
-	QRectF qrfChannel;
-	QRectF qrfMutedDeafened;
-	QRectF qrfAvatar;
-	QRectF qrfFps;
-	QRectF qrfTime;
-
-	Qt::Alignment qaUserName;
-	Qt::Alignment qaChannel;
-	Qt::Alignment qaMutedDeafened;
-	Qt::Alignment qaAvatar;
-
-	OverlayExclusionMode oemOverlayExcludeMode;
-	QStringList qslLaunchers;
-	QStringList qslLaunchersExclude;
-	QStringList qslWhitelist;
-	QStringList qslWhitelistExclude;
-	QStringList qslPaths;
-	QStringList qslPathsExclude;
-	QStringList qslBlacklist;
-	QStringList qslBlacklistExclude;
-
-	OverlaySettings();
-	void setPreset(const OverlayPresets preset = AvatarAndName);
-
-	void load();
-	void load(QSettings *);
-	void save();
-	void save(QSettings *);
-};
-
-struct Settings {
-	enum AudioTransmit { Continuous, VAD, PushToTalk };
-	enum VADSource { Amplitude, SignalToNoise };
-	enum LoopMode { None, Local, Server };
-	enum ChannelExpand { NoChannels, ChannelsWithUsers, AllChannels };
-	enum ChannelDrag { Ask, DoNothing, Move };
-	enum ServerShow { ShowPopulated, ShowReachable, ShowAll };
-	enum TalkState { Passive, Talking, Whispering, Shouting, MutedTalking };
-	enum IdleAction { Nothing, Deafen, Mute };
-	enum NoiseCancel { NoiseCancelOff, NoiseCancelSpeex, NoiseCancelRNN, NoiseCancelBoth };
-	typedef QPair< QList< QSslCertificate >, QSslKey > KeyPair;
-
-	AudioTransmit atTransmit;
-	quint64 uiDoublePush;
-	quint64 pttHold;
-
-	bool bTxAudioCue;
-	static const QString cqsDefaultPushClickOn;
-	static const QString cqsDefaultPushClickOff;
-	QString qsTxAudioCueOn;
-	QString qsTxAudioCueOff;
-
-	bool bTransmitPosition;
-	bool bMute, bDeaf;
-	bool bTTS;
-	bool bUserTop;
-	bool bWhisperFriends;
-	bool bTTSMessageReadBack;
-	bool bTTSNoScope;
-	bool bTTSNoAuthor;
-	int iTTSVolume, iTTSThreshold;
-	/// The Text-to-Speech language to use. This setting overrides
-	/// the default language for the Text-to-Speech engine, which
-	/// is usually inferred from the current locale.
-	///
-	/// The language is expected to be in BCP47 form.
-	///
-	/// The setting is currently only supported by the speech-dispatcher
-	/// backend.
-	QString qsTTSLanguage;
-	int iQuality, iMinLoudness, iVoiceHold, iJitterBufferSize;
-	bool bAllowLowDelay;
-	NoiseCancel noiseCancelMode;
-	int iSpeexNoiseCancelStrength;
-	quint64 uiAudioInputChannelMask;
-
-	// Idle auto actions
-	unsigned int iIdleTime;
-	IdleAction iaeIdleAction;
-	bool bUndoIdleActionUponActivity;
-
-	VADSource vsVAD;
-	float fVADmin, fVADmax;
-	int iFramesPerPacket;
-	QString qsAudioInput, qsAudioOutput;
-	float fVolume;
-	float fOtherVolume;
-	bool bAttenuateOthersOnTalk;
-	bool bAttenuateOthers;
-	bool bAttenuateUsersOnPrioritySpeak;
-	bool bOnlyAttenuateSameOutput;
-	bool bAttenuateLoopbacks;
-	int iOutputDelay;
-
-	QString qsALSAInput, qsALSAOutput;
-	QString qsPulseAudioInput, qsPulseAudioOutput;
-	QString qsJackClientName, qsJackAudioOutput;
-	bool bJackStartServer, bJackAutoConnect;
-	QString qsOSSInput, qsOSSOutput;
-	int iPortAudioInput, iPortAudioOutput;
-
-	bool bASIOEnable;
-	QString qsASIOclass;
-	QList< QVariant > qlASIOmic;
-	QList< QVariant > qlASIOspeaker;
-
-	QString qsCoreAudioInput, qsCoreAudioOutput;
-
-	QString qsWASAPIInput, qsWASAPIOutput;
-	/// qsWASAPIRole is configured via 'wasapi/role'.
-	/// It is a string explaining Mumble's purpose for opening
-	/// the audio device. This can be used to force Windows
-	/// to not treat Mumble as a communications program
-	/// (the default).
-	///
-	/// The default is "communications". When this is set,
-	/// Windows treats Mumble as a telephony app, including
-	/// potential audio ducking.
-	///
-	/// Other values include:
-	///
-	///   "console", which should be used for games, system
-	///              notification sounds, and voice commands.
-	///
-	///   "multimedia", which should be used for music, movies,
-	///                 narration, and live music recording.
-	///
-	/// This is practically a direct mapping of the ERole enum
-	/// from Windows: https://msdn.microsoft.com/en-us/library/windows/desktop/dd370842
-	QString qsWASAPIRole;
-
-	bool bExclusiveInput, bExclusiveOutput;
-	bool bEcho;
-	bool bEchoMulti;
-	bool bPositionalAudio;
-	bool bPositionalHeadphone;
-	float fAudioMinDistance, fAudioMaxDistance, fAudioMaxDistVolume, fAudioBloom;
-	QMap< QString, bool > qmPositionalAudioPlugins;
-
-	OverlaySettings os;
-
-	int iOverlayWinHelperRestartCooldownMsec;
-	bool bOverlayWinHelperX86Enable;
-	bool bOverlayWinHelperX64Enable;
-
-	int iLCDUserViewMinColWidth;
-	int iLCDUserViewSplitterWidth;
-	QMap< QString, bool > qmLCDDevices;
-
-	bool bShortcutEnable;
-	bool bSuppressMacEventTapWarning;
-	bool bEnableEvdev;
-	bool bEnableXInput2;
-	bool bEnableGKey;
-	bool bEnableXboxInput;
-	bool bEnableWinHooks;
-	/// Enable verbose logging in GlobalShortcutWin's DirectInput backend.
-	bool bDirectInputVerboseLogging;
-	/// Enable use of UIAccess (Windows's UI automation feature). This allows
-	/// Mumble greater access to global shortcuts.
-	bool bEnableUIAccess;
-	QList< Shortcut > qlShortcuts;
-
-	enum MessageLog {
-		LogNone      = 0x00,
-		LogConsole   = 0x01,
-		LogTTS       = 0x02,
-		LogBalloon   = 0x04,
-		LogSoundfile = 0x08,
-		LogHighlight = 0x10
-	};
-	int iMaxLogBlocks;
-	bool bLog24HourClock;
-	int iChatMessageMargins;
-
-	static const QPoint UNSPECIFIED_POSITION;
-	QPoint qpTalkingUI_Position;
-	bool bShowTalkingUI;
-	bool bTalkingUI_LocalUserStaysVisible;
-	bool bTalkingUI_AbbreviateChannelNames;
-	bool bTalkingUI_AbbreviateCurrentChannel;
-	bool bTalkingUI_ShowLocalListeners;
-	/// relative font size in %
-	int iTalkingUI_RelativeFontSize;
-	int iTalkingUI_SilentUserLifeTime;
-	int iTalkingUI_ChannelHierarchyDepth;
-	int iTalkingUI_MaxChannelNameLength;
-	int iTalkingUI_PrefixCharCount;
-	int iTalkingUI_PostfixCharCount;
-	QString qsTalkingUI_ChannelSeparator;
-	QString qsTalkingUI_AbbreviationReplacement;
-
-	int manualPlugin_silentUserDisplaytime;
-
-	QMap< int, QString > qmMessageSounds;
-	QMap< int, quint32 > qmMessages;
-
-	QString qsLanguage;
-
-	/// Name of the theme to use. @see Themes
-	QString themeName;
-	/// Name of the style to use from theme. @see Themes
-	QString themeStyleName;
-
-	QByteArray qbaMainWindowGeometry, qbaMainWindowState, qbaMinimalViewGeometry, qbaMinimalViewState, qbaSplitterState,
-		qbaHeaderState;
-	QByteArray qbaConfigGeometry;
-	enum WindowLayout { LayoutClassic, LayoutStacked, LayoutHybrid, LayoutCustom };
-	WindowLayout wlWindowLayout;
-	ChannelExpand ceExpand;
-	ChannelDrag ceChannelDrag;
-	ChannelDrag ceUserDrag;
-	bool bMinimalView;
-	bool bHideFrame;
-	enum AlwaysOnTopBehaviour { OnTopNever, OnTopAlways, OnTopInMinimal, OnTopInNormal };
-	AlwaysOnTopBehaviour aotbAlwaysOnTop;
-	bool bAskOnQuit;
-	bool bEnableDeveloperMenu;
-	bool bLockLayout;
-	bool bHideInTray;
-	bool bStateInTray;
-	bool bUsage;
-	bool bShowUserCount;
-	bool bShowVolumeAdjustments;
-	bool bChatBarUseSelection;
-	bool bFilterHidesEmptyChannels;
-	bool bFilterActive;
-	QByteArray qbaConnectDialogHeader, qbaConnectDialogGeometry;
-	bool bShowContextMenuInMenuBar;
-
-	QString qsUsername;
-	QString qsLastServer;
-	ServerShow ssFilter;
-
-	QString qsImagePath;
-
-	bool bUpdateCheck;
-	bool bPluginCheck;
-
-	// PTT Button window
-	bool bShowPTTButtonWindow;
-	QByteArray qbaPTTButtonWindowGeometry;
-
-	// Network settings
-	enum ProxyType { NoProxy, HttpProxy, Socks5Proxy };
-	bool bTCPCompat;
-	bool bReconnect;
-	bool bAutoConnect;
-	bool bQoS;
-	/// Disables the "Public Internet" section in the connect dialog if set.
-	bool bDisablePublicList;
-	ProxyType ptProxyType;
-	QString qsProxyHost, qsProxyUsername, qsProxyPassword;
-	unsigned short usProxyPort;
-
-	/// The ping interval in milliseconds. The Mumble client
-	/// will regularly send TCP and UDP pings to the remote
-	/// server. This setting specifies the time (in milliseconds)
-	/// between each ping message.
-	int iPingIntervalMsec;
-
-	/// The connection timeout duration in milliseconds.
-	/// If a connection is not fully established to the
-	/// server within this duration, the client will
-	/// forcefully disconnect.
-	int iConnectionTimeoutDurationMsec;
-
-	/// bUdpForceTcpAddr forces Mumble to bind its UDP
-	/// socket to the same address as its TCP
-	/// connection is using.
-	bool bUdpForceTcpAddr;
-
-	/// iMaxInFlightTCPPings specifies the maximum
-	/// number of ping messages that the client has
-	/// sent, but not yet recieved a response for
-	/// from the server. This value is checked when
-	/// the client sends its next ping message. If
-	/// the maximum is reached, the connection will
-	/// be closed.
-	/// If this setting is assigned a value of 0 or
-	/// a negative number, the TCP ping check is
-	/// disabled.
-	int iMaxInFlightTCPPings;
-
-	/// The service prefix that the WebFetch class will use
-	/// when it constructs its fully-qualified URL. If this
-	/// is empty, no prefix is used.
-	///
-	/// When the WebFetch class receives a HTTP response which
-	/// includes the header "Use-Service-Prefix", this setting
-	/// is updated to reflect the received service prefix.
-	///
-	/// For more information, see the documentation for WebFetch::fetch().
-	QString qsServicePrefix;
-
-	// Network settings - SSL
-	QString qsSslCiphers;
-
-	// Privacy settings
-	bool bHideOS;
-
-	int iMaxImageWidth;
-	int iMaxImageHeight;
-	KeyPair kpCertificate;
-	bool bSuppressIdentity;
-
-	bool bShowTransmitModeComboBox;
-
-	// Accessibility
-	bool bHighContrast;
-
-	// Recording
-	QString qsRecordingPath;
-	QString qsRecordingFile;
-	enum RecordingMode { RecordingMixdown, RecordingMultichannel };
-	RecordingMode rmRecordingMode;
-	int iRecordingFormat;
-
-	// Special configuration options not exposed to UI
-
-	/// Codec kill-switch
-	bool bDisableCELT;
-
-	/// Removes the add and edit options in the connect dialog if set.
-	bool disableConnectDialogEditing;
-
-	/// Asks the user for consent to ping servers in the public server list if not set.
-	bool bPingServersDialogViewed;
-
-	// Config updates
-	unsigned int uiUpdateCounter;
-
-	/// Path to SQLite-DB
-	QString qsDatabaseLocation;
-
-	// Nonsaved
-	LoopMode lmLoopMode;
-	float dPacketLoss;
-	float dMaxPacketDelay;
-	/// If true settings in this structure require a client restart to apply fully
-	bool requireRestartToApply;
-
-	bool doEcho() const;
-	bool doPositionalAudio() const;
-
-	Settings();
-	void load();
-	void load(QSettings *);
-	void save();
-};
-
+#include "RichTextEditor.h"
+
+#include "Log.h"
+#include "MainWindow.h"
+#include "XMLTools.h"
+
+#include <QtCore/QMimeData>
+#include <QtGui/QImageReader>
+#include <QtGui/QPainter>
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QToolTip>
+
+#ifdef Q_OS_WIN
+#	include <shlobj.h>
 #endif
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+RichTextHtmlEdit::RichTextHtmlEdit(QWidget *p) : QTextEdit(p) {
+	m_document = new LogDocument(this);
+	m_document->setDefaultStyleSheet(qApp->styleSheet());
+	setDocument(m_document);
+}
+
+/* On nix, some programs send utf8, some send wchar_t. Some zeroterminate once, some twice, some not at all.
+ */
+
+static QString decodeMimeString(const QByteArray &src) {
+	if (src.isEmpty())
+		return QString();
+
+	if ((src.length() >= 4) && ((src.length() % sizeof(ushort)) == 0)) {
+		const ushort *ptr = reinterpret_cast< const ushort * >(src.constData());
+		int len           = static_cast< int >(src.length() / sizeof(ushort));
+		if ((ptr[0] > 0) && (ptr[0] < 0x7f) && (ptr[1] > 0) && (ptr[1] < 0x7f)) {
+			while (len && (ptr[len - 1] == 0))
+				--len;
+			return QString::fromUtf16(ptr, len);
+		}
+	}
+
+	if ((sizeof(wchar_t) != sizeof(ushort)) && (src.length() >= static_cast< int >(sizeof(wchar_t)))
+		&& ((src.length() % sizeof(wchar_t)) == 0)) {
+		const wchar_t *ptr = reinterpret_cast< const wchar_t * >(src.constData());
+		int len            = static_cast< int >(src.length() / sizeof(wchar_t));
+		if (*ptr < 0x7f) {
+			while (len && (ptr[len - 1] == 0))
+				--len;
+			return QString::fromWCharArray(ptr, len);
+		}
+	}
+	const char *ptr = src.constData();
+	int len         = src.length();
+	while (len && (ptr[len - 1] == 0))
+		--len;
+	return QString::fromUtf8(ptr, len);
+}
+
+/* Try really hard to properly decode Mime into something sane.
+ */
+
+void RichTextHtmlEdit::insertFromMimeData(const QMimeData *source) {
+	QString uri;
+	QString title;
+	QRegExp newline(QLatin1String("[\\r\\n]"));
+
+#ifndef QT_NO_DEBUG
+	qWarning() << "RichTextHtmlEdit::insertFromMimeData" << source->formats();
+#endif
+
+	if (source->hasImage()) {
+		QImage img   = qvariant_cast< QImage >(source->imageData());
+		QString html = Log::imageToImg(img);
+		if (!html.isEmpty())
+			insertHtml(html);
+		return;
+	}
+
+	QString mozurl = decodeMimeString(source->data(QLatin1String("text/x-moz-url")));
+	if (!mozurl.isEmpty()) {
+		QStringList lines = mozurl.split(newline);
+		qWarning() << mozurl << lines;
+		if (lines.count() >= 2) {
+			uri   = lines.at(0);
+			title = lines.at(1);
+		}
+	}
+
+	if (uri.isEmpty())
+		uri = decodeMimeString(source->data(QLatin1String("text/x-moz-url-data")));
+	if (title.isEmpty())
+		title = decodeMimeString(source->data(QLatin1String("text/x-moz-url-desc")));
+
+	if (uri.isEmpty()) {
+		QStringList urls;
+#ifdef Q_OS_WIN
+		urls = decodeMimeString(
+				   source->data(QLatin1String("application/x-qt-windows-mime;value=\"UniformResourceLocatorW\"")))
+				   .split(newline);
+		if (urls.isEmpty())
+#endif
+			urls = decodeMimeString(source->data(QLatin1String("text/uri-list"))).split(newline);
+		if (!urls.isEmpty())
+			uri = urls.at(0).trimmed();
+	}
+
+	if (uri.isEmpty()) {
+		QUrl url(source->text(), QUrl::StrictMode);
+		if (url.isValid() && !url.isRelative()) {
+			uri = url.toString();
+		}
+	}
+
+#ifdef Q_OS_WIN
+	if (title.isEmpty()
+		&& source->hasFormat(QLatin1String("application/x-qt-windows-mime;value=\"FileGroupDescriptorW\""))) {
+		QByteArray qba = source->data(QLatin1String("application/x-qt-windows-mime;value=\"FileGroupDescriptorW\""));
+		if (qba.length() == sizeof(FILEGROUPDESCRIPTORW)) {
+			const FILEGROUPDESCRIPTORW *ptr = reinterpret_cast< const FILEGROUPDESCRIPTORW * >(qba.constData());
+			title                           = QString::fromWCharArray(ptr->fgd[0].cFileName);
+			if (title.endsWith(QLatin1String(".url"), Qt::CaseInsensitive))
+				title = title.left(title.length() - 4);
+		}
+	}
+#endif
+
+	if (!uri.isEmpty()) {
+		if (title.isEmpty())
+			title = uri;
+
+		uri   = uri.toHtmlEscaped();
+		title = title.toHtmlEscaped();
+
+		insertHtml(QString::fromLatin1("<a href=\"%1\">%2</a>").arg(uri, title));
+		return;
+	}
+
+	QString html = decodeMimeString(source->data(QLatin1String("text/html")));
+	if (!html.isEmpty()) {
+		insertHtml(html);
+		return;
+	}
+
+	QTextEdit::insertFromMimeData(source);
+}
+
+RichTextEditorLink::RichTextEditorLink(const QString &txt, QWidget *p) : QDialog(p) {
+	setupUi(this);
+
+	if (!txt.isEmpty()) {
+		qleText->setText(txt);
+	}
+}
+
+QString RichTextEditorLink::text() const {
+	QUrl url(qleUrl->text(), QUrl::StrictMode);
+	QString txt = qleText->text();
+
+	txt = txt.toHtmlEscaped();
+
+	if (url.isValid() && !url.isRelative() && !txt.isEmpty()) {
+		return QString::fromLatin1("<a href=\"%1\">%2</a>").arg(url.toString(), txt);
+	}
+
+	return QString();
+}
+
+RichTextEditor::RichTextEditor(QWidget *p) : QTabWidget(p) {
+	bChanged  = false;
+	bModified = false;
+	bReadOnly = false;
+
+	setupUi(this);
+
+	qtbToolBar->addAction(qaBold);
+	qtbToolBar->addAction(qaItalic);
+	qtbToolBar->addAction(qaUnderline);
+	qtbToolBar->addAction(qaColor);
+	qtbToolBar->addSeparator();
+	qtbToolBar->addAction(qaLink);
+	qtbToolBar->addAction(qaImage);
+
+	connect(this, SIGNAL(currentChanged(int)), this, SLOT(onCurrentChanged(int)));
+	updateActions();
+
+	qteRichText->setFocus();
+
+	qteRichText->installEventFilter(this);
+	qptePlainText->installEventFilter(this);
+}
+
+bool RichTextEditor::isModified() const {
+	return bModified;
+}
+
+void RichTextEditor::on_qaBold_triggered(bool on) {
+	qteRichText->setFontWeight(on ? QFont::Bold : QFont::Normal);
+}
+
+void RichTextEditor::on_qaItalic_triggered(bool on) {
+	qteRichText->setFontItalic(on);
+}
+
+void RichTextEditor::on_qaUnderline_triggered(bool on) {
+	qteRichText->setFontUnderline(on);
+}
+
+void RichTextEditor::on_qaColor_triggered() {
+	QColor c = QColorDialog::getColor();
+	if (c.isValid())
+		qteRichText->setTextColor(c);
+}
+
+void RichTextEditor::on_qaLink_triggered() {
+	QTextCursor qtc          = qteRichText->textCursor();
+	RichTextEditorLink *rtel = new RichTextEditorLink(qtc.selectedText(), this);
+	if (rtel->exec() == QDialog::Accepted) {
+		QString html = rtel->text();
+		if (!html.isEmpty())
+			qteRichText->insertHtml(html);
+	}
+	delete rtel;
+}
+
+void RichTextEditor::on_qaImage_triggered() {
+	QPair< QByteArray, QImage > choice = g.mw->openImageFile();
+
+	QByteArray &qba = choice.first;
+
+	if (qba.isEmpty())
+		return;
+
+	if ((g.uiImageLength > 0) && (static_cast< unsigned int >(qba.length()) > g.uiImageLength)) {
+		QMessageBox::warning(this, tr("Failed to load image"),
+							 tr("Image file too large to embed in document. Please use images smaller than %1 kB.")
+								 .arg(g.uiImageLength / 1024));
+		return;
+	}
+
+	QBuffer qb(&qba);
+	qb.open(QIODevice::ReadOnly);
+
+	QByteArray format = QImageReader::imageFormat(&qb);
+	qb.close();
+
+	qteRichText->insertHtml(Log::imageToImg(format, qba));
+}
+
+void RichTextEditor::onCurrentChanged(int index) {
+	if (!bChanged)
+		return;
+
+	if (index == 1)
+		richToPlain();
+	else
+		qteRichText->setHtml(qptePlainText->toPlainText());
+
+	bChanged = false;
+}
+
+void RichTextEditor::on_qptePlainText_textChanged() {
+	bModified = true;
+	bChanged  = true;
+}
+
+void RichTextEditor::on_qteRichText_textChanged() {
+	bModified = true;
+	bChanged  = true;
+	updateActions();
+
+	if (!g.uiMessageLength)
+		return;
+
+	richToPlain();
+
+	const QString &plainText = qptePlainText->toPlainText();
+
+	bool over = true;
+
+	unsigned int imagelength = plainText.length();
+
+
+	if (g.uiMessageLength && imagelength <= g.uiMessageLength) {
+		over = false;
+	} else if (g.uiImageLength && imagelength > g.uiImageLength) {
+		over = true;
+	} else {
+		QString qsOut;
+		QXmlStreamReader qxsr(QString::fromLatin1("<document>%1</document>").arg(plainText));
+		QXmlStreamWriter qxsw(&qsOut);
+		while (!qxsr.atEnd()) {
+			switch (qxsr.readNext()) {
+				case QXmlStreamReader::Invalid:
+					return;
+				case QXmlStreamReader::StartElement: {
+					if (qxsr.name() == QLatin1String("img")) {
+						QXmlStreamAttributes attr = qxsr.attributes();
+
+						qxsw.writeStartElement(qxsr.namespaceUri().toString(), qxsr.name().toString());
+						foreach (const QXmlStreamAttribute &a, qxsr.attributes())
+							if (a.name() != QLatin1String("src"))
+								qxsw.writeAttribute(a);
+					} else {
+						qxsw.writeCurrentToken(qxsr);
+					}
+				} break;
+				default:
+					qxsw.writeCurrentToken(qxsr);
+					break;
+			}
+		}
+		over = (static_cast< unsigned int >(qsOut.length()) > g.uiMessageLength);
+	}
+
+
+	QString tooltip = tr("Message is too long.");
+
+	if (!over) {
+		if (QToolTip::text() == tooltip)
+			QToolTip::hideText();
+	} else {
+		QPoint p       = QCursor::pos();
+		const QRect &r = qteRichText->rect();
+		if (!r.contains(qteRichText->mapFromGlobal(p)))
+			p = qteRichText->mapToGlobal(r.center());
+		QToolTip::showText(p, tooltip, qteRichText);
+	}
+}
+
+void RichTextEditor::on_qteRichText_cursorPositionChanged() {
+	updateActions();
+}
+
+void RichTextEditor::on_qteRichText_currentCharFormatChanged() {
+	updateActions();
+}
+
+void RichTextEditor::updateColor(const QColor &col) {
+	if (col == qcColor)
+		return;
+	qcColor = col;
+
+	QRect r(0, 0, 24, 24);
+
+	QPixmap qpm(r.size());
+	QPainter qp(&qpm);
+	qp.fillRect(r, col);
+	qp.setPen(col.darker());
+	qp.drawRect(r.adjusted(0, 0, -1, -1));
+
+	qaColor->setIcon(qpm);
+}
+
+void RichTextEditor::updateActions() {
+	qaBold->setChecked(qteRichText->fontWeight() == QFont::Bold);
+	qaItalic->setChecked(qteRichText->fontItalic());
+	qaUnderline->setChecked(qteRichText->fontUnderline());
+	updateColor(qteRichText->textColor());
+}
+
+void RichTextEditor::richToPlain() {
+	QXmlStreamReader reader(qteRichText->toHtml());
+
+	QString qsOutput;
+	QXmlStreamWriter writer(&qsOutput);
+
+	int paragraphs = 0;
+
+	QMap< QString, QString > def;
+
+	def.insert(QLatin1String("margin-top"), QLatin1String("0px"));
+	def.insert(QLatin1String("margin-bottom"), QLatin1String("0px"));
+	def.insert(QLatin1String("margin-left"), QLatin1String("0px"));
+	def.insert(QLatin1String("margin-right"), QLatin1String("0px"));
+	def.insert(QLatin1String("-qt-block-indent"), QLatin1String("0"));
+	def.insert(QLatin1String("text-indent"), QLatin1String("0px"));
+
+	XMLTools::recurseParse(reader, writer, paragraphs, def);
+
+	qsOutput = qsOutput.trimmed();
+
+	bool changed;
+	do {
+		// Make sure the XML has a root element (would be invalid XML otherwise)
+		// The "unduplicate" element will be dropped by XMLTools::unduplciateTags
+		qsOutput = QString::fromLatin1("<unduplicate>%1</unduplicate>").arg(qsOutput);
+
+		QXmlStreamReader r(qsOutput);
+		qsOutput = QString();
+		QXmlStreamWriter w(&qsOutput);
+		changed  = XMLTools::unduplicateTags(r, w);
+		qsOutput = qsOutput.trimmed();
+	} while (changed);
+
+	qptePlainText->setPlainText(qsOutput);
+}
+
+void RichTextEditor::setText(const QString &txt, bool readonly) {
+	qtbToolBar->setEnabled(!readonly && g.bAllowHTML);
+	qtbToolBar->setVisible(!readonly && g.bAllowHTML);
+	qptePlainText->setReadOnly(readonly || !g.bAllowHTML);
+	qteRichText->setReadOnly(readonly);
+
+	qteRichText->setHtml(txt);
+	qptePlainText->setPlainText(txt);
+
+	bChanged  = false;
+	bModified = false;
+	bReadOnly = readonly;
+}
+
+QString RichTextEditor::text() {
+	if (bChanged) {
+		if (currentIndex() == 0)
+			richToPlain();
+		else
+			qteRichText->setHtml(qptePlainText->toPlainText());
+	}
+
+	bChanged = false;
+	return qptePlainText->toPlainText();
+}
+
+bool RichTextEditor::eventFilter(QObject *obj, QEvent *evt) {
+	if (obj != qptePlainText && obj != qteRichText)
+		return false;
+	if (evt->type() == QEvent::KeyPress) {
+		QKeyEvent *keyEvent = static_cast< QKeyEvent * >(evt);
+		if (((keyEvent->key() == Qt::Key_Enter) || (keyEvent->key() == Qt::Key_Return))
+			&& (keyEvent->modifiers() == Qt::ControlModifier)) {
+			emit accept();
+			return true;
+		}
+	}
+	return false;
+}
+
+bool RichTextImage::isValidImage(const QByteArray &ba, QByteArray &fmt) {
+	QBuffer qb;
+	qb.setData(ba);
+	if (!qb.open(QIODevice::ReadOnly)) {
+		return false;
+	}
+
+	QByteArray detectedFormat = QImageReader::imageFormat(&qb).toLower();
+	if (detectedFormat == QByteArray("png") || detectedFormat == QByteArray("jpg")
+		|| detectedFormat == QByteArray("jpeg") || detectedFormat == QByteArray("gif")) {
+		fmt = detectedFormat;
+		return true;
+	}
+
+	return false;
+}
