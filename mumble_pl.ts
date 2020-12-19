@@ -1,1077 +1,880 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "ACLEditor.h"
-
-#include "ACL.h"
-#include "Channel.h"
-#include "ClientUser.h"
-#include "Database.h"
-#include "Log.h"
-#include "ServerHandler.h"
-#include "User.h"
-
-#if QT_VERSION >= 0x050000
-#	include <QtWidgets/QMessageBox>
-#else
-#	include <QtGui/QMessageBox>
-#endif
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-ACLGroup::ACLGroup(const QString &name) : Group(nullptr, name) {
-	bInherited = false;
-}
-
-ACLEditor::ACLEditor(int channelparentid, QWidget *p) : QDialog(p) {
-	// Simple constructor for add channel menu
-	bAddChannelMode = true;
-	iChannel        = channelparentid;
-
-	setupUi(this);
-
-	qwChannel->setAccessibleName(tr("Properties"));
-	rteChannelDescription->setAccessibleName(tr("Description"));
-	qleChannelPassword->setAccessibleName(tr("Channel password"));
-	qsbChannelPosition->setAccessibleName(tr("Position"));
-	qsbChannelMaxUsers->setAccessibleName(tr("Maximum users"));
-	qleChannelName->setAccessibleName(tr("Channel name"));
-	qcbGroupList->setAccessibleName(tr("List of groups"));
-	qlwGroupAdd->setAccessibleName(tr("Inherited group members"));
-	qlwGroupRemove->setAccessibleName(tr("Foreign group members"));
-	qlwGroupInherit->setAccessibleName(tr("Inherited channel members"));
-	qcbGroupAdd->setAccessibleName(tr("Add members to group"));
-	qcbGroupRemove->setAccessibleName(tr("Remove member from group"));
-	qlwACLs->setAccessibleName(tr("List of ACL entries"));
-	qcbACLGroup->setAccessibleName(tr("Group this entry applies to"));
-	qcbACLUser->setAccessibleName(tr("User this entry applies to"));
-
-	qsbChannelPosition->setRange(INT_MIN, INT_MAX);
-
-	setWindowTitle(tr("Mumble - Add channel"));
-	qtwTab->removeTab(2);
-	qtwTab->removeTab(1);
-
-	// Until I come around implementing it hide the password fields
-	qleChannelPassword->hide();
-	qlChannelPassword->hide();
-
-	if (g.sh->uiVersion >= 0x010300) {
-		qsbChannelMaxUsers->setRange(0, INT_MAX);
-		qsbChannelMaxUsers->setValue(0);
-		qsbChannelMaxUsers->setSpecialValueText(tr("Default server value"));
-	} else {
-		qlChannelMaxUsers->hide();
-		qsbChannelMaxUsers->hide();
-	}
-
-	qlChannelID->hide();
-
-	qleChannelName->setFocus();
-
-	pcaPassword = nullptr;
-	adjustSize();
-}
-
-ACLEditor::ACLEditor(int channelid, const MumbleProto::ACL &mea, QWidget *p) : QDialog(p) {
-	QLabel *l;
-
-	bAddChannelMode = false;
-
-	iChannel          = channelid;
-	Channel *pChannel = Channel::get(iChannel);
-	if (!pChannel) {
-		g.l->log(Log::Warning, tr("Failed: Invalid channel"));
-		QDialog::reject();
-		return;
-	}
-
-	msg = mea;
-
-	setupUi(this);
-
-	qwChannel->setAccessibleName(tr("Properties"));
-	rteChannelDescription->setAccessibleName(tr("Description"));
-	qleChannelPassword->setAccessibleName(tr("Channel password"));
-	qsbChannelPosition->setAccessibleName(tr("Position"));
-	qsbChannelMaxUsers->setAccessibleName(tr("Maximum users"));
-	qleChannelName->setAccessibleName(tr("Channel name"));
-	qcbGroupList->setAccessibleName(tr("List of groups"));
-	qlwGroupAdd->setAccessibleName(tr("Inherited group members"));
-	qlwGroupRemove->setAccessibleName(tr("Foreign group members"));
-	qlwGroupInherit->setAccessibleName(tr("Inherited channel members"));
-	qcbGroupAdd->setAccessibleName(tr("Add members to group"));
-	qcbGroupRemove->setAccessibleName(tr("Remove member from group"));
-	qlwACLs->setAccessibleName(tr("List of ACL entries"));
-	qcbACLGroup->setAccessibleName(tr("Group this entry applies to"));
-	qcbACLUser->setAccessibleName(tr("User this entry applies to"));
-
-	qcbChannelTemporary->hide();
-
-	iId = mea.channel_id();
-	setWindowTitle(tr("Mumble - Edit %1").arg(Channel::get(iId)->qsName));
-
-	qlChannelID->setText(tr("ID: %1").arg(iId));
-
-	qleChannelName->setText(pChannel->qsName);
-	if (channelid == 0)
-		qleChannelName->setEnabled(false);
-
-	rteChannelDescription->setText(pChannel->qsDesc);
-
-	qsbChannelPosition->setRange(INT_MIN, INT_MAX);
-	qsbChannelPosition->setValue(pChannel->iPosition);
-
-	if (g.sh->uiVersion >= 0x010300) {
-		qsbChannelMaxUsers->setRange(0, INT_MAX);
-		qsbChannelMaxUsers->setValue(pChannel->uiMaxUsers);
-		qsbChannelMaxUsers->setSpecialValueText(tr("Default server value"));
-	} else {
-		qlChannelMaxUsers->hide();
-		qsbChannelMaxUsers->hide();
-	}
-
-	QGridLayout *grid = new QGridLayout(qgbACLpermissions);
-
-	l = new QLabel(tr("Deny"), qgbACLpermissions);
-	grid->addWidget(l, 0, 1);
-	l = new QLabel(tr("Allow"), qgbACLpermissions);
-	grid->addWidget(l, 0, 2);
-
-	int idx = 1;
-	for (int i = 0; i < ((iId == 0) ? 30 : 16); ++i) {
-		ChanACL::Perm perm = static_cast< ChanACL::Perm >(1 << i);
-		QString name       = ChanACL::permName(perm);
-
-		if (!name.isEmpty()) {
-			// If the server's version is less than 1.4.0 then it won't support the new permission to reset a
-			// comment/avatar. Skipping this iteration of the loop prevents checkboxes for it being added to the UI.
-			if ((g.sh->uiVersion < 0x010400) && (perm == ChanACL::ResetUserContent))
-				continue;
-
-			QCheckBox *qcb;
-			l = new QLabel(name, qgbACLpermissions);
-			grid->addWidget(l, idx, 0);
-			qcb = new QCheckBox(qgbACLpermissions);
-			qcb->setToolTip(tr("Deny %1").arg(name));
-			qcb->setWhatsThis(
-				tr("This revokes the %1 privilege. If a privilege is both allowed and denied, it is denied.<br />%2")
-					.arg(name)
-					.arg(ChanACL::whatsThis(perm)));
-			connect(qcb, SIGNAL(clicked(bool)), this, SLOT(ACLPermissions_clicked()));
-			grid->addWidget(qcb, idx, 1);
-
-			qlACLDeny << qcb;
-
-			qcb = new QCheckBox(qgbACLpermissions);
-			qcb->setToolTip(tr("Allow %1").arg(name));
-			qcb->setWhatsThis(
-				tr("This grants the %1 privilege. If a privilege is both allowed and denied, it is denied.<br />%2")
-					.arg(name)
-					.arg(ChanACL::whatsThis(perm)));
-			connect(qcb, SIGNAL(clicked(bool)), this, SLOT(ACLPermissions_clicked()));
-			grid->addWidget(qcb, idx, 2);
-
-			qlACLAllow << qcb;
-
-			qlPerms << perm;
-
-			++idx;
-		}
-	}
-	QSpacerItem *si = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
-	grid->addItem(si, idx, 0);
-
-	connect(qcbGroupAdd->lineEdit(), SIGNAL(returnPressed()), qpbGroupAddAdd, SLOT(animateClick()));
-	connect(qcbGroupRemove->lineEdit(), SIGNAL(returnPressed()), qpbGroupRemoveAdd, SLOT(animateClick()));
-
-	foreach (User *u, ClientUser::c_qmUsers) {
-		if (u->iId >= 0) {
-			qhNameCache.insert(u->iId, u->qsName);
-			qhIDCache.insert(u->qsName.toLower(), u->iId);
-		}
-	}
-
-	ChanACL *def = new ChanACL(nullptr);
-
-	def->bApplyHere = true;
-	def->bApplySubs = true;
-	def->bInherited = true;
-	def->iUserId    = -1;
-	def->qsGroup    = QLatin1String("all");
-	def->pAllow =
-		ChanACL::Traverse | ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage | ChanACL::Listen;
-	def->pDeny = (~def->pAllow) & ChanACL::All;
-
-	qlACLs << def;
-
-	for (int i = 0; i < mea.acls_size(); ++i) {
-		const MumbleProto::ACL_ChanACL &as = mea.acls(i);
-
-		ChanACL *acl    = new ChanACL(nullptr);
-		acl->bApplyHere = as.apply_here();
-		acl->bApplySubs = as.apply_subs();
-		acl->bInherited = as.inherited();
-		acl->iUserId    = -1;
-		if (as.has_user_id())
-			acl->iUserId = as.user_id();
-		else
-			acl->qsGroup = u8(as.group());
-		acl->pAllow = static_cast< ChanACL::Permissions >(as.grant());
-		acl->pDeny  = static_cast< ChanACL::Permissions >(as.deny());
-
-		qlACLs << acl;
-	}
-
-	for (int i = 0; i < mea.groups_size(); ++i) {
-		const MumbleProto::ACL_ChanGroup &gs = mea.groups(i);
-
-		ACLGroup *gp     = new ACLGroup(u8(gs.name()));
-		gp->bInherit     = gs.inherit();
-		gp->bInherited   = gs.inherited();
-		gp->bInheritable = gs.inheritable();
-		for (int j = 0; j < gs.add_size(); ++j)
-			gp->qsAdd.insert(gs.add(j));
-		for (int j = 0; j < gs.remove_size(); ++j)
-			gp->qsRemove.insert(gs.remove(j));
-		for (int j = 0; j < gs.inherited_members_size(); ++j)
-			gp->qsTemporary.insert(gs.inherited_members(j));
-
-		qlGroups << gp;
-	}
-
-	iUnknown = -2;
-
-	numInheritACL = -1;
-
-	bInheritACL = mea.inherit_acls();
-	qcbACLInherit->setChecked(bInheritACL);
-
-	foreach (ChanACL *acl, qlACLs) {
-		if (acl->bInherited)
-			numInheritACL++;
-	}
-
-	refill(GroupAdd);
-	refill(GroupRemove);
-	refill(GroupInherit);
-	refill(ACLList);
-	refillGroupNames();
-
-	ACLEnableCheck();
-	groupEnableCheck();
-
-	updatePasswordField();
-
-	qleChannelName->setFocus();
-	adjustSize();
-}
-
-ACLEditor::~ACLEditor() {
-	foreach (ChanACL *acl, qlACLs) { delete acl; }
-	foreach (ACLGroup *gp, qlGroups) { delete gp; }
-}
-
-void ACLEditor::showEvent(QShowEvent *evt) {
-	ACLEnableCheck();
-	QDialog::showEvent(evt);
-}
-
-void ACLEditor::accept() {
-	Channel *pChannel = Channel::get(iChannel);
-	if (!pChannel) {
-		// Channel gone while editing
-		g.l->log(Log::Warning, tr("Failed: Invalid channel"));
-		QDialog::reject();
-		return;
-	}
-
-	if (qleChannelName->text().isEmpty()) {
-		// Empty channel name
-		QMessageBox::warning(this, QLatin1String("Mumble"), tr("Channel must have a name"), QMessageBox::Ok);
-		qleChannelName->setFocus();
-		return;
-	}
-
-	// Update channel state
-	if (bAddChannelMode) {
-		g.sh->createChannel(iChannel, qleChannelName->text(), rteChannelDescription->text(),
-							qsbChannelPosition->value(), qcbChannelTemporary->isChecked(), qsbChannelMaxUsers->value());
-	} else {
-		bool needs_update = false;
-
-		updatePasswordACL();
-
-		MumbleProto::ChannelState mpcs;
-		mpcs.set_channel_id(pChannel->iId);
-		if (pChannel->qsName != qleChannelName->text()) {
-			mpcs.set_name(u8(qleChannelName->text()));
-			needs_update = true;
-		}
-		if (rteChannelDescription->isModified() && (pChannel->qsDesc != rteChannelDescription->text())) {
-			const QString &descriptionText = rteChannelDescription->text();
-			mpcs.set_description(u8(descriptionText));
-			needs_update = true;
-			g.db->setBlob(sha1(descriptionText), descriptionText.toUtf8());
-		}
-		if (pChannel->iPosition != qsbChannelPosition->value()) {
-			mpcs.set_position(qsbChannelPosition->value());
-			needs_update = true;
-		}
-		if (pChannel->uiMaxUsers != static_cast< unsigned int >(qsbChannelMaxUsers->value())) {
-			mpcs.set_max_users(qsbChannelMaxUsers->value());
-			needs_update = true;
-		}
-		if (needs_update)
-			g.sh->sendMessage(mpcs);
-
-		// Update ACL
-		msg.set_inherit_acls(bInheritACL);
-		msg.clear_acls();
-		msg.clear_groups();
-
-		foreach (ChanACL *acl, qlACLs) {
-			if (acl->bInherited || (acl->iUserId < -1))
-				continue;
-			MumbleProto::ACL_ChanACL *mpa = msg.add_acls();
-			mpa->set_apply_here(acl->bApplyHere);
-			mpa->set_apply_subs(acl->bApplySubs);
-			if (acl->iUserId != -1)
-				mpa->set_user_id(acl->iUserId);
-			else
-				mpa->set_group(u8(acl->qsGroup));
-			mpa->set_grant(acl->pAllow);
-			mpa->set_deny(acl->pDeny);
-		}
-
-		foreach (ACLGroup *gp, qlGroups) {
-			if (gp->bInherited && gp->bInherit && gp->bInheritable && (gp->qsAdd.count() == 0)
-				&& (gp->qsRemove.count() == 0))
-				continue;
-			MumbleProto::ACL_ChanGroup *mpg = msg.add_groups();
-			mpg->set_name(u8(gp->qsName));
-			mpg->set_inherit(gp->bInherit);
-			mpg->set_inheritable(gp->bInheritable);
-			foreach (int pid, gp->qsAdd)
-				if (pid >= 0)
-					mpg->add_add(pid);
-			foreach (int pid, gp->qsRemove)
-				if (pid >= 0)
-					mpg->add_remove(pid);
-		}
-		g.sh->sendMessage(msg);
-	}
-	QDialog::accept();
-}
-
-
-const QString ACLEditor::userName(int pid) {
-	if (qhNameCache.contains(pid))
-		return qhNameCache.value(pid);
-	else
-		return QString::fromLatin1("#%1").arg(pid);
-}
-
-int ACLEditor::id(const QString &uname) {
-	QString name = uname.toLower();
-	if (qhIDCache.contains(name)) {
-		return qhIDCache.value(name);
-	} else {
-		if (!qhNameWait.contains(name)) {
-			MumbleProto::QueryUsers mpuq;
-			mpuq.add_names(u8(name));
-			g.sh->sendMessage(mpuq);
-
-			iUnknown--;
-			qhNameWait.insert(name, iUnknown);
-			qhNameCache.insert(iUnknown, name);
-		}
-		return qhNameWait.value(name);
-	}
-}
-
-void ACLEditor::returnQuery(const MumbleProto::QueryUsers &mqu) {
-	if (mqu.names_size() != mqu.ids_size())
-		return;
-
-	for (int i = 0; i < mqu.names_size(); ++i) {
-		int pid       = mqu.ids(i);
-		QString name  = u8(mqu.names(i));
-		QString lname = name.toLower();
-		qhIDCache.insert(lname, pid);
-		qhNameCache.insert(pid, name);
-
-		if (qhNameWait.contains(lname)) {
-			int tid = qhNameWait.take(lname);
-
-			foreach (ChanACL *acl, qlACLs)
-				if (acl->iUserId == tid)
-					acl->iUserId = pid;
-			foreach (ACLGroup *gp, qlGroups) {
-				if (gp->qsAdd.remove(tid))
-					gp->qsAdd.insert(pid);
-				if (gp->qsRemove.remove(tid))
-					gp->qsRemove.insert(pid);
-			}
-			qhNameCache.remove(tid);
-		}
-	}
-	refillGroupInherit();
-	refillGroupRemove();
-	refillGroupAdd();
-	refillComboBoxes();
-	refillACL();
-}
-
-void ACLEditor::refill(WaitID wid) {
-	switch (wid) {
-		case ACLList:
-			refillACL();
-			break;
-		case GroupInherit:
-			refillGroupInherit();
-			break;
-		case GroupRemove:
-			refillGroupRemove();
-			break;
-		case GroupAdd:
-			refillGroupAdd();
-			break;
-	}
-}
-
-void ACLEditor::refillComboBoxes() {
-	QList< QComboBox * > ql;
-	ql << qcbGroupAdd;
-	ql << qcbGroupRemove;
-	ql << qcbACLUser;
-
-	QStringList names = qhNameCache.values();
-	names.sort();
-
-	foreach (QComboBox *qcb, ql) {
-		qcb->clear();
-		qcb->addItems(names);
-		qcb->clearEditText();
-	}
-}
-
-void ACLEditor::refillACL() {
-	int idx              = qlwACLs->currentRow();
-	bool previousinherit = bInheritACL;
-	bInheritACL          = qcbACLInherit->isChecked();
-
-	qlwACLs->clear();
-
-	bool first = true;
-
-	foreach (ChanACL *acl, qlACLs) {
-		if (first)
-			first = false;
-		else if (!bInheritACL && acl->bInherited)
-			continue;
-		QString text;
-		if (acl->iUserId == -1)
-			text = QString::fromLatin1("@%1").arg(acl->qsGroup);
-		else
-			text = userName(acl->iUserId);
-		QListWidgetItem *item = new QListWidgetItem(text, qlwACLs);
-		if (acl->bInherited) {
-			QFont f = item->font();
-			f.setItalic(true);
-			item->setFont(f);
-		}
-	}
-	if (bInheritACL && !previousinherit && (idx != 0))
-		idx += numInheritACL;
-	if (!bInheritACL && previousinherit)
-		idx -= numInheritACL;
-
-	qlwACLs->setCurrentRow(idx);
-}
-
-void ACLEditor::refillGroupNames() {
-	QString text = qcbGroupList->currentText().toLower();
-	QStringList qsl;
-
-	foreach (ACLGroup *gp, qlGroups) { qsl << gp->qsName; }
-	qsl.sort();
-
-	qcbGroupList->clear();
-
-	foreach (QString name, qsl) { qcbGroupList->addItem(name); }
-
-	int wantindex = qcbGroupList->findText(text, Qt::MatchFixedString);
-	qcbGroupList->setCurrentIndex(wantindex);
-}
-
-ACLGroup *ACLEditor::currentGroup() {
-	QString group = qcbGroupList->currentText();
-
-	foreach (ACLGroup *gp, qlGroups)
-		if (gp->qsName == group)
-			return gp;
-
-	group = group.toLower();
-
-	foreach (ACLGroup *gp, qlGroups)
-		if (gp->qsName == group)
-			return gp;
-
-	return nullptr;
-}
-
-ChanACL *ACLEditor::currentACL() {
-	int idx = qlwACLs->currentRow();
-	if (idx < 0)
-		return nullptr;
-
-	if (idx && !bInheritACL)
-		idx += numInheritACL;
-	return qlACLs[idx];
-}
-
-void ACLEditor::fillWidgetFromSet(QListWidget *qlw, const QSet< int > &qs) {
-	qlw->clear();
-
-	QList< idname > ql;
-	foreach (int pid, qs) { ql << idname(userName(pid), pid); }
-	std::stable_sort(ql.begin(), ql.end());
-	foreach (idname i, ql) {
-		QListWidgetItem *qlwi = new QListWidgetItem(i.first, qlw);
-		qlwi->setData(Qt::UserRole, i.second);
-		if (i.second < 0) {
-			QFont f = qlwi->font();
-			f.setItalic(true);
-			qlwi->setFont(f);
-		}
-	}
-}
-
-void ACLEditor::refillGroupAdd() {
-	ACLGroup *gp = currentGroup();
-
-	if (!gp)
-		return;
-
-	fillWidgetFromSet(qlwGroupAdd, gp->qsAdd);
-}
-
-void ACLEditor::refillGroupRemove() {
-	ACLGroup *gp = currentGroup();
-	if (!gp)
-		return;
-
-	fillWidgetFromSet(qlwGroupRemove, gp->qsRemove);
-}
-
-void ACLEditor::refillGroupInherit() {
-	ACLGroup *gp = currentGroup();
-
-	if (!gp)
-		return;
-
-	fillWidgetFromSet(qlwGroupInherit, gp->qsTemporary);
-}
-
-void ACLEditor::groupEnableCheck() {
-	ACLGroup *gp = currentGroup();
-
-	bool enabled;
-	if (!gp)
-		enabled = false;
-	else
-		enabled = gp->bInherit;
-
-	qlwGroupRemove->setEnabled(enabled);
-	qlwGroupInherit->setEnabled(enabled);
-	qcbGroupRemove->setEnabled(enabled);
-	qpbGroupRemoveAdd->setEnabled(enabled);
-	qpbGroupRemoveRemove->setEnabled(enabled);
-	qpbGroupInheritRemove->setEnabled(enabled);
-
-	enabled = gp;
-	qlwGroupAdd->setEnabled(enabled);
-	qcbGroupAdd->setEnabled(enabled);
-	qpbGroupAddAdd->setEnabled(enabled);
-	qpbGroupAddRemove->setEnabled(enabled);
-	qcbGroupInherit->setEnabled(enabled);
-	qcbGroupInheritable->setEnabled(enabled);
-
-	if (gp) {
-		qcbGroupInherit->setChecked(gp->bInherit);
-		qcbGroupInheritable->setChecked(gp->bInheritable);
-		qcbGroupInherited->setChecked(gp->bInherited);
-	}
-}
-
-void ACLEditor::ACLEnableCheck() {
-	ChanACL *as = currentACL();
-
-	bool enabled;
-	if (!as)
-		enabled = false;
-	else
-		enabled = !as->bInherited;
-
-	qpbACLRemove->setEnabled(enabled);
-	qpbACLUp->setEnabled(enabled);
-	qpbACLDown->setEnabled(enabled);
-	qcbACLApplyHere->setEnabled(enabled);
-	qcbACLApplySubs->setEnabled(enabled);
-	qcbACLGroup->setEnabled(enabled);
-	qcbACLUser->setEnabled(enabled);
-
-	for (int idx = 0; idx < qlACLAllow.count(); idx++) {
-		// Only enable other checkboxes if writeacl isn't set
-		bool enablethis = enabled
-						  && (qlPerms[idx] == ChanACL::Write || !(as && (as->pAllow & ChanACL::Write))
-							  || qlPerms[idx] == ChanACL::Speak);
-		qlACLAllow[idx]->setEnabled(enablethis);
-		qlACLDeny[idx]->setEnabled(enablethis);
-	}
-
-	if (as) {
-		qcbACLApplyHere->setChecked(as->bApplyHere);
-		qcbACLApplySubs->setChecked(as->bApplySubs);
-
-		for (int idx = 0; idx < qlACLAllow.count(); idx++) {
-			ChanACL::Perm p = qlPerms[idx];
-			qlACLAllow[idx]->setChecked(as->pAllow & p);
-			qlACLDeny[idx]->setChecked(as->pDeny & p);
-		}
-
-		qcbACLGroup->clear();
-		qcbACLGroup->addItem(QString());
-		qcbACLGroup->addItem(QLatin1String("all"));
-		qcbACLGroup->addItem(QLatin1String("auth"));
-		qcbACLGroup->addItem(QLatin1String("in"));
-		qcbACLGroup->addItem(QLatin1String("sub"));
-		qcbACLGroup->addItem(QLatin1String("out"));
-		qcbACLGroup->addItem(QLatin1String("~in"));
-		qcbACLGroup->addItem(QLatin1String("~sub"));
-		qcbACLGroup->addItem(QLatin1String("~out"));
-
-		foreach (ACLGroup *gs, qlGroups)
-			qcbACLGroup->addItem(gs->qsName);
-
-		if (as->iUserId == -1) {
-			qcbACLUser->clearEditText();
-			qcbACLGroup->addItem(as->qsGroup);
-			qcbACLGroup->setCurrentIndex(qcbACLGroup->findText(as->qsGroup, Qt::MatchExactly));
-		} else {
-			qcbACLUser->setEditText(userName(as->iUserId));
-		}
-	}
-	foreach (QAbstractButton *b, qdbbButtons->buttons()) {
-		QPushButton *qpb = qobject_cast< QPushButton * >(b);
-		if (qpb) {
-			qpb->setAutoDefault(false);
-			qpb->setDefault(false);
-		}
-	}
-}
-
-void ACLEditor::on_qtwTab_currentChanged(int index) {
-	if (index == 0) {
-		// Switched to property tab, update password field
-		updatePasswordField();
-	} else if (index == 2) {
-		// Switched to ACL tab, update ACL list
-		updatePasswordACL();
-		refillACL();
-	}
-}
-
-void ACLEditor::updatePasswordField() {
-	// Search for an ACL that represents the current password
-	pcaPassword = nullptr;
-	foreach (ChanACL *acl, qlACLs) {
-		if (acl->isPassword()) {
-			pcaPassword = acl;
-		}
-	}
-	if (pcaPassword)
-		qleChannelPassword->setText(pcaPassword->qsGroup.mid(1));
-	else
-		qleChannelPassword->clear();
-}
-
-void ACLEditor::updatePasswordACL() {
-	if (qleChannelPassword->text().isEmpty()) {
-		// Remove the password if we had one to begin with
-		if (pcaPassword && qlACLs.removeOne(pcaPassword)) {
-			delete pcaPassword;
-
-			// Search and remove the @all deny ACL
-			ChanACL *denyall = nullptr;
-			foreach (ChanACL *acl, qlACLs) {
-				if (acl->qsGroup == QLatin1String("all") && acl->bInherited == false && acl->bApplyHere == true
-					&& acl->pAllow == ChanACL::None
-					&& (acl->pDeny
-							== (ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								| ChanACL::LinkChannel)
-						|| // Backwards compat with old behaviour that didn't deny traverse
-						acl->pDeny
-							== (ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								| ChanACL::LinkChannel | ChanACL::Traverse))) {
-					denyall = acl;
-				}
-			}
-			if (denyall) {
-				qlACLs.removeOne(denyall);
-				delete denyall;
-			}
-		}
-	} else {
-		// Add or Update
-		if (!pcaPassword || !qlACLs.contains(pcaPassword)) {
-			pcaPassword             = new ChanACL(nullptr);
-			pcaPassword->bApplyHere = true;
-			pcaPassword->bApplySubs = false;
-			pcaPassword->bInherited = false;
-			pcaPassword->pAllow     = ChanACL::None;
-			pcaPassword->pDeny      = ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								 | ChanACL::LinkChannel | ChanACL::Traverse;
-			pcaPassword->qsGroup = QLatin1String("all");
-			qlACLs << pcaPassword;
-
-			pcaPassword             = new ChanACL(nullptr);
-			pcaPassword->bApplyHere = true;
-			pcaPassword->bApplySubs = false;
-			pcaPassword->bInherited = false;
-			pcaPassword->pAllow     = ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
-								  | ChanACL::LinkChannel | ChanACL::Traverse;
-			pcaPassword->pDeny   = ChanACL::None;
-			pcaPassword->qsGroup = QString(QLatin1String("#%1")).arg(qleChannelPassword->text());
-			qlACLs << pcaPassword;
-		} else {
-			pcaPassword->qsGroup = QString(QLatin1String("#%1")).arg(qleChannelPassword->text());
-		}
-	}
-}
-
-void ACLEditor::on_qlwACLs_currentRowChanged() {
-	ACLEnableCheck();
-}
-
-void ACLEditor::on_qpbACLAdd_clicked() {
-	ChanACL *as    = new ChanACL(nullptr);
-	as->bApplyHere = true;
-	as->bApplySubs = true;
-	as->bInherited = false;
-	as->qsGroup    = QLatin1String("all");
-	as->iUserId    = -1;
-	as->pAllow     = ChanACL::None;
-	as->pDeny      = ChanACL::None;
-	qlACLs << as;
-	refillACL();
-	qlwACLs->setCurrentRow(qlwACLs->count() - 1);
-}
-
-void ACLEditor::on_qpbACLRemove_clicked() {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	qlACLs.removeAll(as);
-	delete as;
-	refillACL();
-}
-
-void ACLEditor::on_qpbACLUp_clicked() {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	int idx = qlACLs.indexOf(as);
-	if (idx <= numInheritACL + 1)
-		return;
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
-	qlACLs.swapItemsAt(idx - 1, idx);
-#else
-	qlACLs.swap(idx - 1, idx);
-#endif
-	qlwACLs->setCurrentRow(qlwACLs->currentRow() - 1);
-	refillACL();
-}
-
-void ACLEditor::on_qpbACLDown_clicked() {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	int idx = qlACLs.indexOf(as) + 1;
-	if (idx >= qlACLs.count())
-		return;
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
-	qlACLs.swapItemsAt(idx - 1, idx);
-#else
-	qlACLs.swap(idx - 1, idx);
-#endif
-	qlwACLs->setCurrentRow(qlwACLs->currentRow() + 1);
-	refillACL();
-}
-
-void ACLEditor::on_qcbACLInherit_clicked(bool) {
-	refillACL();
-}
-
-void ACLEditor::on_qcbACLApplyHere_clicked(bool checked) {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	as->bApplyHere = checked;
-}
-
-void ACLEditor::on_qcbACLApplySubs_clicked(bool checked) {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	as->bApplySubs = checked;
-}
-
-void ACLEditor::on_qcbACLGroup_activated(const QString &text) {
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	as->iUserId = -1;
-
-	if (text.isEmpty()) {
-		qcbACLGroup->setCurrentIndex(1);
-		as->qsGroup = QLatin1String("all");
-	} else {
-		qcbACLUser->clearEditText();
-		as->qsGroup = text;
-	}
-	refillACL();
-}
-
-void ACLEditor::on_qcbACLUser_activated() {
-	QString text = qcbACLUser->currentText();
-
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	if (text.isEmpty()) {
-		as->iUserId = -1;
-		if (qcbACLGroup->currentIndex() == 0) {
-			qcbACLGroup->setCurrentIndex(1);
-			as->qsGroup = QLatin1String("all");
-		}
-		refillACL();
-	} else {
-		qcbACLGroup->setCurrentIndex(0);
-		as->iUserId = id(text);
-		refillACL();
-	}
-}
-
-void ACLEditor::ACLPermissions_clicked() {
-	QCheckBox *source = qobject_cast< QCheckBox * >(sender());
-
-	ChanACL *as = currentACL();
-	if (!as || as->bInherited)
-		return;
-
-	int allowed = 0;
-	int denied  = 0;
-
-	bool enabled       = true;
-	bool modifiedEnter = false;
-	for (int idx = 0; idx < qlACLAllow.count(); idx++) {
-		ChanACL::Perm p = qlPerms[idx];
-		if (qlACLAllow[idx]->isChecked() && qlACLDeny[idx]->isChecked()) {
-			if (source == qlACLAllow[idx])
-				qlACLDeny[idx]->setChecked(false);
-			else
-				qlACLAllow[idx]->setChecked(false);
-		}
-
-		if (p == ChanACL::Enter && (source == qlACLAllow[idx] || source == qlACLDeny[idx])) {
-			// Unchecking a checkbox is not counted as modifying the Enter privilege
-			// in this context
-			modifiedEnter = source->isChecked();
-		}
-
-		if (p == ChanACL::Listen && modifiedEnter) {
-			// If Enter privileges are granted, also grant Listen privilege
-			// and vice versa.
-			// This is to make sure that people don't accidentally forget to
-			// modify the Listen permission when they modify the enter permission.
-			// Especially in the case of denying enter, this could potentially lead
-			// to confusion if people were still able to listen to a channel they can't
-			// enter.
-			// However the user still can allow/deny the Listen permission manually after
-			// having changed the enter permission.
-			if (denied & ChanACL::Enter) {
-				qlACLAllow[idx]->setChecked(false);
-				qlACLDeny[idx]->setChecked(true);
-			} else {
-				qlACLAllow[idx]->setChecked(true);
-				qlACLDeny[idx]->setChecked(false);
-			}
-		}
-
-		qlACLAllow[idx]->setEnabled(enabled || p == ChanACL::Speak);
-		qlACLDeny[idx]->setEnabled(enabled || p == ChanACL::Speak);
-
-		if (p == ChanACL::Write && qlACLAllow[idx]->isChecked())
-			enabled = false;
-
-		if (qlACLAllow[idx]->isChecked())
-			allowed |= p;
-		if (qlACLDeny[idx]->isChecked())
-			denied |= p;
-	}
-
-	as->pAllow = static_cast< ChanACL::Permissions >(allowed);
-	as->pDeny  = static_cast< ChanACL::Permissions >(denied);
-}
-
-void ACLEditor::on_qcbGroupList_activated(const QString &text) {
-	ACLGroup *gs = currentGroup();
-	if (text.isEmpty())
-		return;
-	if (!gs) {
-		QString name     = text.toLower();
-		gs               = new ACLGroup(name);
-		gs->bInherited   = false;
-		gs->bInherit     = true;
-		gs->bInheritable = true;
-		gs->qsName       = name;
-		qlGroups << gs;
-	}
-
-	refillGroupNames();
-	refillGroupAdd();
-	refillGroupRemove();
-	refillGroupInherit();
-	groupEnableCheck();
-	qpbGroupAdd->setEnabled(false);
-}
-
-void ACLEditor::on_qcbGroupList_editTextChanged(const QString &text) {
-	qpbGroupAdd->setEnabled(!text.isEmpty());
-}
-
-void ACLEditor::on_qpbGroupAdd_clicked() {
-	on_qcbGroupList_activated(qcbGroupList->currentText());
-}
-
-void ACLEditor::on_qpbGroupRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	if (gs->bInherited) {
-		gs->bInheritable = true;
-		gs->bInherit     = true;
-		gs->qsAdd.clear();
-		gs->qsRemove.clear();
-	} else {
-		qlGroups.removeAll(gs);
-		delete gs;
-	}
-	refillGroupNames();
-	refillGroupAdd();
-	refillGroupRemove();
-	refillGroupInherit();
-	groupEnableCheck();
-}
-
-void ACLEditor::on_qcbGroupInherit_clicked(bool checked) {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	gs->bInherit = checked;
-	groupEnableCheck();
-}
-
-void ACLEditor::on_qcbGroupInheritable_clicked(bool checked) {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	gs->bInheritable = checked;
-}
-
-void ACLEditor::on_qpbGroupAddAdd_clicked() {
-	ACLGroup *gs = currentGroup();
-	QString text = qcbGroupAdd->currentText();
-
-	if (!gs)
-		return;
-
-	if (text.isEmpty())
-		return;
-
-	gs->qsAdd << id(text);
-	refillGroupAdd();
-	qcbGroupAdd->clearEditText();
-}
-
-void ACLEditor::on_qpbGroupAddRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	QListWidgetItem *item = qlwGroupAdd->currentItem();
-	if (!item)
-		return;
-
-	gs->qsAdd.remove(item->data(Qt::UserRole).toInt());
-	refillGroupAdd();
-	qcbGroupRemove->clearEditText();
-}
-
-void ACLEditor::on_qpbGroupRemoveAdd_clicked() {
-	QString text = qcbGroupRemove->currentText();
-
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	if (text.isEmpty())
-		return;
-
-	gs->qsRemove << id(text);
-	refillGroupRemove();
-}
-
-void ACLEditor::on_qpbGroupRemoveRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	QListWidgetItem *item = qlwGroupRemove->currentItem();
-	if (!item)
-		return;
-
-	gs->qsRemove.remove(item->data(Qt::UserRole).toInt());
-	refillGroupRemove();
-}
-
-void ACLEditor::on_qpbGroupInheritRemove_clicked() {
-	ACLGroup *gs = currentGroup();
-	if (!gs)
-		return;
-
-	QListWidgetItem *item = qlwGroupInherit->currentItem();
-	if (!item)
-		return;
-
-	gs->qsRemove.insert(item->data(Qt::UserRole).toInt());
-	refillGroupRemove();
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ACLEditor</class>
+ <widget class="QDialog" name="ACLEditor">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>881</width>
+    <height>503</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <layout class="QVBoxLayout">
+   <item>
+    <widget class="QTabWidget" name="qtwTab">
+     <property name="currentIndex">
+      <number>1</number>
+     </property>
+     <widget class="QWidget" name="qwChannel">
+      <attribute name="title">
+       <string>&amp;Properties</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout">
+       <property name="fieldGrowthPolicy">
+        <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+       </property>
+       <item row="6" column="0">
+        <widget class="QLabel" name="qlChannelPassword">
+         <property name="text">
+          <string>Password</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QLineEdit" name="qleChannelPassword">
+         <property name="toolTip">
+          <string>Enter the channel password here.</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;Password&lt;/b&gt;&lt;br /&gt;This field allows you to easily set and change the password of a channel. It uses Mumble's access tokens feature in the background. Use ACLs and groups if you need more fine grained and powerful access control.</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QLabel" name="qlChannelPosition">
+         <property name="text">
+          <string>Position</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <widget class="QSpinBox" name="qsbChannelPosition">
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>This is the sort order for the channel.</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;Position&lt;/b&gt;&lt;br/&gt;
+This value enables you to change the way Mumble arranges the channels in the tree. A channel with a higher &lt;i&gt;Position&lt;/i&gt; value will always be placed below one with a lower value and the other way around. If the &lt;i&gt;Position&lt;/i&gt; value of two channels is equal they will get sorted alphabetically by their name.</string>
+         </property>
+         <property name="maximum">
+          <number>99</number>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
+        <widget class="QLabel" name="qlChannelMaxUsers">
+         <property name="text">
+          <string>Maximum Users</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="1">
+        <widget class="QSpinBox" name="qsbChannelMaxUsers">
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Maximum number of users allowed in the channel</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;Maximum Users&lt;/b&gt;&lt;br /&gt;
+This value allows you to set the maximum number of users allowed in the channel. If the value is above zero, only that number of users will be allowed to enter the channel. If the value is zero, the maximum number of users in the channel is given by the server's default limit.</string>
+         </property>
+        </widget>
+       </item>
+       <item row="10" column="1">
+        <widget class="QCheckBox" name="qcbChannelTemporary">
+         <property name="toolTip">
+          <string>Check to create a temporary channel.</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;Temporary&lt;/b&gt;&lt;br /&gt;
+When checked the channel created will be marked as temporary. This means when the last player leaves it the channel will be automatically deleted by the server.</string>
+         </property>
+         <property name="text">
+          <string>Temporary</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <layout class="QHBoxLayout" name="qwChannelProperties">
+         <item>
+          <widget class="QLineEdit" name="qleChannelName">
+           <property name="toolTip">
+            <string>Enter the channel name here.</string>
+           </property>
+           <property name="whatsThis">
+            <string>&lt;b&gt;Name&lt;/b&gt;&lt;br /&gt;Enter the channel name in this field. The name has to comply with the restriction imposed by the server you are connected to.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="qlChannelID">
+           <property name="toolTip">
+            <string>ID of the channel.</string>
+           </property>
+           <property name="text">
+            <string notr="true">ChannelID</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="qlChannelName">
+         <property name="text">
+          <string>Name</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="RichTextEditor" name="rteChannelDescription" native="true">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>1</verstretch>
+          </sizepolicy>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="qlChannelDescription">
+         <property name="text">
+          <string>Description</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="qwGroups">
+      <attribute name="title">
+       <string>&amp;Groups</string>
+      </attribute>
+      <layout class="QVBoxLayout">
+       <item>
+        <widget class="QGroupBox" name="qgbGroups">
+         <property name="title">
+          <string>Group</string>
+         </property>
+         <layout class="QHBoxLayout">
+          <item>
+           <widget class="MUComboBox" name="qcbGroupList">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>300</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="sizeIncrement">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>List of groups</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;Group&lt;/b&gt;&lt;br /&gt;
+These are all the groups currently defined for the channel. To create a new group, just type in the name and press enter.</string>
+            </property>
+            <property name="editable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="qpbGroupAdd">
+            <property name="toolTip">
+             <string>Add new group</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;Add&lt;/b&gt;&lt;br/&gt;
+Add a new group.</string>
+            </property>
+            <property name="text">
+             <string>Add</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="qpbGroupRemove">
+            <property name="toolTip">
+             <string>Remove selected group</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;Remove&lt;/b&gt;&lt;br /&gt;This removes the currently selected group. If the group was inherited, it will not be removed from the list, but all local information about the group will be cleared.</string>
+            </property>
+            <property name="text">
+             <string>Remove</string>
+            </property>
+            <property name="autoDefault">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="qcbGroupInherit">
+            <property name="toolTip">
+             <string>Inherit group members from parent</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;Inherit&lt;/b&gt;&lt;br /&gt;This inherits all the members in the group from the parent, if the group is marked as &lt;i&gt;Inheritable&lt;/i&gt; in the parent channel.</string>
+            </property>
+            <property name="text">
+             <string>Inherit</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="qcbGroupInheritable">
+            <property name="toolTip">
+             <string>Make group inheritable to sub-channels</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;Inheritable&lt;/b&gt;&lt;br /&gt;This makes this group inheritable to sub-channels. If the group is non-inheritable, sub-channels are still free to create a new group with the same name.</string>
+            </property>
+            <property name="text">
+             <string>Inheritable</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="qcbGroupInherited">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="toolTip">
+             <string>Group was inherited from parent channel</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;Inherited&lt;/b&gt;&lt;br /&gt;This indicates that the group was inherited from the parent channel. You cannot edit this flag, it's just for information.</string>
+            </property>
+            <property name="text">
+             <string>Inherited</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>0</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="qgbGroupMembers">
+         <property name="title">
+          <string>Members</string>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_3">
+          <item>
+           <widget class="QWidget" name="qwMembersContainer" native="true">
+            <layout class="QGridLayout" name="gridLayout">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item row="1" column="0" colspan="2">
+              <widget class="QListWidget" name="qlwGroupAdd">
+               <property name="toolTip">
+                <string>Contains the list of members added to the group by this channel.</string>
+               </property>
+               <property name="whatsThis">
+                <string>&lt;b&gt;Members&lt;/b&gt;&lt;br /&gt;
+This list contains all members that were added to the group by the current channel. Be aware that this does not include members inherited by higher levels of the channel tree. These can be found in the &lt;i&gt;Inherited members&lt;/i&gt; list. To prevent this list to be inherited by lower level channels uncheck &lt;i&gt;Inheritable&lt;/i&gt; or manually add the members to the &lt;i&gt;Excluded members&lt;/i&gt; list.</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="MUComboBox" name="qcbGroupAdd">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="toolTip">
+                <string>Add member to group</string>
+               </property>
+               <property name="whatsThis">
+                <string>Type in the name of a user you wish to add to the group and click Add.</string>
+               </property>
+               <property name="editable">
+                <bool>true</bool>
+               </property>
+               <property name="insertPolicy">
+                <enum>QComboBox::NoInsert</enum>
+               </property>
+               <property name="sizeAdjustPolicy">
+                <enum>QComboBox::AdjustToContents</enum>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QPushButton" name="qpbGroupAddAdd">
+               <property name="text">
+                <string>Add</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="qliGroupAdd">
+               <property name="text">
+                <string>Members</string>
+               </property>
+               <property name="buddy">
+                <cstring>qlwGroupAdd</cstring>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QPushButton" name="qpbGroupAddRemove">
+               <property name="text">
+                <string>Remove</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QWidget" name="qwExcludedMembersContainer" native="true">
+            <layout class="QGridLayout" name="gridLayout_2">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item row="1" column="0" colspan="2">
+              <widget class="QListWidget" name="qlwGroupRemove">
+               <property name="toolTip">
+                <string>Contains a list of members whose group membership will not be inherited from the parent channel.</string>
+               </property>
+               <property name="whatsThis">
+                <string>&lt;b&gt;Excluded members&lt;/b&gt;&lt;br /&gt;
+Contains a list of members whose group membership will not be inherited from the parent channel.</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="MUComboBox" name="qcbGroupRemove">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="toolTip">
+                <string>Remove member from group</string>
+               </property>
+               <property name="whatsThis">
+                <string>Type in the name of a user you wish to remove from the group and click Add.</string>
+               </property>
+               <property name="editable">
+                <bool>true</bool>
+               </property>
+               <property name="insertPolicy">
+                <enum>QComboBox::NoInsert</enum>
+               </property>
+               <property name="sizeAdjustPolicy">
+                <enum>QComboBox::AdjustToContents</enum>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QPushButton" name="qpbGroupRemoveAdd">
+               <property name="text">
+                <string>Add</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QPushButton" name="qpbGroupRemoveRemove">
+               <property name="text">
+                <string>Remove</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="qliGroupRemove">
+               <property name="text">
+                <string>Excluded members</string>
+               </property>
+               <property name="buddy">
+                <cstring>qlwGroupRemove</cstring>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QWidget" name="qwInheritedMembersContainer" native="true">
+            <layout class="QGridLayout" name="gridLayout_3">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item row="0" column="0">
+              <widget class="QLabel" name="qliGroupInherit">
+               <property name="text">
+                <string>Inherited members</string>
+               </property>
+               <property name="buddy">
+                <cstring>qlwGroupInherit</cstring>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QListWidget" name="qlwGroupInherit">
+               <property name="toolTip">
+                <string>Contains the list of members inherited by other channels.</string>
+               </property>
+               <property name="whatsThis">
+                <string>&lt;b&gt;Inherited members&lt;/b&gt;&lt;br /&gt;
+Contains the list of members inherited by the current channel. Uncheck &lt;i&gt;Inherit&lt;/i&gt; to prevent inheritance from higher level channels.</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QPushButton" name="qpbGroupInheritRemove">
+               <property name="text">
+                <string>Exclude</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="qwACL">
+      <attribute name="title">
+       <string>&amp;ACL</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <layout class="QVBoxLayout" name="qlVerticalACL">
+         <item>
+          <widget class="QGroupBox" name="qgbACLs">
+           <property name="title">
+            <string>Active ACLs</string>
+           </property>
+           <layout class="QGridLayout">
+            <item row="0" column="0" rowspan="2" colspan="5">
+             <widget class="QListWidget" name="qlwACLs">
+              <property name="toolTip">
+               <string>List of entries</string>
+              </property>
+              <property name="whatsThis">
+               <string>This shows all the entries active on this channel. Entries inherited from parent channels will be shown in italics.&lt;br /&gt;ACLs are evaluated top to bottom, meaning priority increases as you move down the list.</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QCheckBox" name="qcbACLInherit">
+              <property name="toolTip">
+               <string>Inherit ACL of parent?</string>
+              </property>
+              <property name="whatsThis">
+               <string>This sets whether or not the ACL up the chain of parent channels are applied to this object. Only those entries that are marked in the parent as &quot;Apply to sub-channels&quot; will be inherited.</string>
+              </property>
+              <property name="text">
+               <string>Inherit ACLs</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QPushButton" name="qpbACLUp">
+              <property name="toolTip">
+               <string>Move entry up</string>
+              </property>
+              <property name="whatsThis">
+               <string>This moves the entry up in the list. As entries are evaluated in order, this may change the effective permissions of users. You cannot move an entry above an inherited entry, if you really need that you'll have to duplicate the inherited entry.</string>
+              </property>
+              <property name="text">
+               <string>&amp;Up</string>
+              </property>
+              <property name="autoDefault">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="2">
+             <widget class="QPushButton" name="qpbACLDown">
+              <property name="toolTip">
+               <string>Move entry down</string>
+              </property>
+              <property name="whatsThis">
+               <string>This moves the entry down in the list. As entries are evaluated in order, this may change the effective permissions of users.</string>
+              </property>
+              <property name="text">
+               <string>&amp;Down</string>
+              </property>
+              <property name="autoDefault">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="3">
+             <widget class="QPushButton" name="qpbACLAdd">
+              <property name="toolTip">
+               <string>Add new entry</string>
+              </property>
+              <property name="whatsThis">
+               <string>This adds a new entry, initially set with no permissions and applying to all.</string>
+              </property>
+              <property name="text">
+               <string>&amp;Add</string>
+              </property>
+              <property name="autoDefault">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="4">
+             <widget class="QPushButton" name="qpbACLRemove">
+              <property name="toolTip">
+               <string>Remove entry</string>
+              </property>
+              <property name="whatsThis">
+               <string>This removes the currently selected entry.</string>
+              </property>
+              <property name="text">
+               <string>&amp;Remove</string>
+              </property>
+              <property name="autoDefault">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="qgbACLapply">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="title">
+            <string>Context</string>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
+            <item>
+             <widget class="QCheckBox" name="qcbACLApplySubs">
+              <property name="toolTip">
+               <string>Entry should apply to sub-channels.</string>
+              </property>
+              <property name="whatsThis">
+               <string>This makes the entry apply to sub-channels of this channel.</string>
+              </property>
+              <property name="text">
+               <string>Applies to sub-channels</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="qcbACLApplyHere">
+              <property name="toolTip">
+               <string>Entry should apply to this channel.</string>
+              </property>
+              <property name="whatsThis">
+               <string>This makes the entry apply to this channel.</string>
+              </property>
+              <property name="text">
+               <string>Applies to this channel</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="qgbACLugroup">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="title">
+            <string>User/Group</string>
+           </property>
+           <layout class="QGridLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="qliACLGroup">
+              <property name="text">
+               <string>Group</string>
+              </property>
+              <property name="buddy">
+               <cstring>qcbACLGroup</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="MUComboBox" name="qcbACLGroup">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Group this entry applies to</string>
+              </property>
+              <property name="whatsThis">
+               <string>This controls which group of users this entry applies to.&lt;br /&gt;Note that the group is evaluated in the context of the channel the entry is used in. For example, the default ACL on the Root channel gives &lt;i&gt;Write&lt;/i&gt; permission to the &lt;i&gt;admin&lt;/i&gt; group. This entry, if inherited by a channel, will give a user write privileges if he belongs to the &lt;i&gt;admin&lt;/i&gt; group in that channel, even if he doesn't belong to the &lt;i&gt;admin&lt;/i&gt; group in the channel where the ACL originated.&lt;br /&gt;If a group name starts with '!', its membership is negated, and if it starts with '~', it is evaluated in the channel the ACL was defined in, rather than the channel the ACL is active in.&lt;br /&gt;If a group name starts with '#', it is interpreted as an access token. Users must have entered whatever follows the '#' in their list of access tokens to match. This can be used for very simple password access to channels for non-authenticated users.&lt;br /&gt;If a group name starts with '$', it will only match users whose certificate hash matches what follows the '$'.&lt;br /&gt;A few special predefined groups are:&lt;br /&gt;&lt;b&gt;all&lt;/b&gt; - Everyone will match.&lt;br /&gt;&lt;b&gt;auth&lt;/b&gt; - All authenticated users will match.&lt;br /&gt;&lt;b&gt;sub,a,b,c&lt;/b&gt; - User currently in a sub-channel minimum &lt;i&gt;a&lt;/i&gt; common parents, and between &lt;i&gt;b&lt;/i&gt; and &lt;i&gt;c&lt;/i&gt; channels down the chain. See the website for more extensive documentation on this one.&lt;br /&gt;&lt;b&gt;in&lt;/b&gt; - Users currently in the channel will match (convenience for '&lt;i&gt;sub,0,0,0&lt;/i&gt;').&lt;br /&gt;&lt;b&gt;out&lt;/b&gt; - Users outside the channel will match (convenience for '&lt;i&gt;!sub,0,0,0&lt;/i&gt;').&lt;br /&gt;Note that an entry applies to either a user or a group, not both.</string>
+              </property>
+              <property name="editable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="qliACLUser">
+              <property name="text">
+               <string>User ID</string>
+              </property>
+              <property name="buddy">
+               <cstring>qcbACLUser</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="MUComboBox" name="qcbACLUser">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>User this entry applies to</string>
+              </property>
+              <property name="whatsThis">
+               <string>This controls which user this entry applies to. Just type in the user name and hit enter to query the server for a match.</string>
+              </property>
+              <property name="editable">
+               <bool>true</bool>
+              </property>
+              <property name="sizeAdjustPolicy">
+               <enum>QComboBox::AdjustToContents</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="qgbACLpermissions">
+         <property name="title">
+          <string>Permissions</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="qdbbButtons">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>RichTextEditor</class>
+   <extends>QWidget</extends>
+   <header>RichTextEditor.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>MUComboBox</class>
+   <extends>QComboBox</extends>
+   <header>widgets/MUComboBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <tabstops>
+  <tabstop>qleChannelPassword</tabstop>
+  <tabstop>qsbChannelPosition</tabstop>
+  <tabstop>qsbChannelMaxUsers</tabstop>
+  <tabstop>qcbChannelTemporary</tabstop>
+  <tabstop>qcbGroupList</tabstop>
+  <tabstop>qpbGroupAdd</tabstop>
+  <tabstop>qpbGroupRemove</tabstop>
+  <tabstop>qcbGroupInherit</tabstop>
+  <tabstop>qcbGroupInheritable</tabstop>
+  <tabstop>qcbGroupInherited</tabstop>
+  <tabstop>qlwGroupAdd</tabstop>
+  <tabstop>qcbGroupAdd</tabstop>
+  <tabstop>qpbGroupAddAdd</tabstop>
+  <tabstop>qpbGroupAddRemove</tabstop>
+  <tabstop>qlwGroupRemove</tabstop>
+  <tabstop>qcbGroupRemove</tabstop>
+  <tabstop>qpbGroupRemoveAdd</tabstop>
+  <tabstop>qpbGroupRemoveRemove</tabstop>
+  <tabstop>qlwGroupInherit</tabstop>
+  <tabstop>qpbGroupInheritRemove</tabstop>
+  <tabstop>qlwACLs</tabstop>
+  <tabstop>qcbACLInherit</tabstop>
+  <tabstop>qpbACLUp</tabstop>
+  <tabstop>qpbACLDown</tabstop>
+  <tabstop>qpbACLAdd</tabstop>
+  <tabstop>qpbACLRemove</tabstop>
+  <tabstop>qcbACLApplySubs</tabstop>
+  <tabstop>qcbACLApplyHere</tabstop>
+  <tabstop>qcbACLGroup</tabstop>
+  <tabstop>qcbACLUser</tabstop>
+  <tabstop>qdbbButtons</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>qdbbButtons</sender>
+   <signal>accepted()</signal>
+   <receiver>ACLEditor</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>236</x>
+     <y>499</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qdbbButtons</sender>
+   <signal>rejected()</signal>
+   <receiver>ACLEditor</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>304</x>
+     <y>499</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qlwGroupInherit</sender>
+   <signal>doubleClicked(QModelIndex)</signal>
+   <receiver>qpbGroupInheritRemove</receiver>
+   <slot>animateClick()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>476</x>
+     <y>316</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>574</x>
+     <y>445</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qleChannelName</sender>
+   <signal>returnPressed()</signal>
+   <receiver>ACLEditor</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>331</x>
+     <y>50</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>303</x>
+     <y>254</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qleChannelPassword</sender>
+   <signal>returnPressed()</signal>
+   <receiver>ACLEditor</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>331</x>
+     <y>274</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>303</x>
+     <y>254</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
