@@ -3,184 +3,76 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "MainWindow.h"
+#ifndef MUMBLE_MUMBLE_ZEROCONF_H_
+#define MUMBLE_MUMBLE_ZEROCONF_H_
 
-#include "WASAPINotificationClient.h"
+#include "BonjourServiceBrowser.h"
+#include "BonjourServiceResolver.h"
 
-#include <QtCore/QMutexLocker>
-#include <boost/thread/once.hpp>
+#include <memory>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#ifdef Q_OS_WIN64
+#	include <windns.h>
+#endif
 
-HRESULT STDMETHODCALLTYPE WASAPINotificationClient::OnDefaultDeviceChanged(EDataFlow flow, ERole role,
-																		   LPCWSTR pwstrDefaultDevice) {
-	const QString device = QString::fromWCharArray(pwstrDefaultDevice);
+class Zeroconf : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Zeroconf)
+protected:
+#ifdef Q_OS_WIN64
+	struct Resolver {
+		Zeroconf *m_zeroconf;
+		BonjourRecord m_record;
+		DNS_SERVICE_CANCEL m_cancel;
 
-	qWarning() << "WASAPINotificationClient: Default device changed flow=" << flow << "role=" << role << "device"
-			   << device;
+		bool operator==(const Resolver &other) const { return m_record == other.m_record; }
 
-	QMutexLocker lock(&listsMutex);
-	if (!usedDefaultDevices.empty() && role == eCommunications) {
-		restartAudio();
-	}
-	return S_OK;
-}
+		Resolver(Zeroconf *zeroconf, const BonjourRecord &record) : m_zeroconf(zeroconf), m_record(record){};
+	};
+#endif
+	bool m_ok;
+	QList< BonjourRecord > m_records;
+	std::unique_ptr< BonjourServiceBrowser > m_helperBrowser;
+	std::unique_ptr< BonjourServiceResolver > m_helperResolver;
+#ifdef Q_OS_WIN64
+	QList< Resolver > m_resolvers;
+	std::unique_ptr< DNS_SERVICE_CANCEL > m_cancelBrowser;
 
-HRESULT STDMETHODCALLTYPE WASAPINotificationClient::OnPropertyValueChanged(LPCWSTR pwstrDeviceId,
-																		   const PROPERTYKEY key) {
-	const QString device = QString::fromWCharArray(pwstrDeviceId);
+	bool stopResolver(Resolver &resolver);
 
-	const bool formatChanged        = (key == PKEY_AudioEngine_DeviceFormat);
-	const bool channelConfigChanged = (key == PKEY_AudioEndpoint_PhysicalSpeakers);
+	static void WINAPI callbackBrowseComplete(const DWORD status, void *context, DNS_RECORD *records);
+	static void WINAPI callbackResolveComplete(const DWORD status, void *context, DNS_SERVICE_INSTANCE *instance);
+#endif
+	void resetHelperBrowser();
+	void resetHelperResolver();
 
-	QMutexLocker lock(&listsMutex);
-	if ((formatChanged || channelConfigChanged) && usedDevices.contains(device)) {
-		qWarning() << "WASAPINotificationClient: Property changed device=" << device
-				   << "formatChanged=" << formatChanged << "channelConfigChanged=" << channelConfigChanged;
+	void helperBrowserRecordsChanged(const QList< BonjourRecord > &records);
+	void helperResolverRecordResolved(const BonjourRecord record, const QString hostname, const int port);
+	void helperBrowserError(const DNSServiceErrorType error) const;
+	void helperResolverError(const BonjourRecord record, const DNSServiceErrorType error);
 
-		restartAudio();
-	}
-	return S_OK;
-}
-
-HRESULT STDMETHODCALLTYPE WASAPINotificationClient::OnDeviceAdded(LPCWSTR pwstrDeviceId) {
-	const QString device = QString::fromWCharArray(pwstrDeviceId);
-	qWarning() << "WASAPINotificationClient: Device added=" << device;
-	return S_OK;
-}
-HRESULT STDMETHODCALLTYPE WASAPINotificationClient::OnDeviceRemoved(LPCWSTR pwstrDeviceId) {
-	const QString device = QString::fromWCharArray(pwstrDeviceId);
-	qWarning() << "WASAPINotificationClient: Device removed=" << device;
-	return S_OK;
-}
-
-HRESULT STDMETHODCALLTYPE WASAPINotificationClient::OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState) {
-	const QString device = QString::fromWCharArray(pwstrDeviceId);
-
-	qWarning() << "WASAPINotificationClient: Device state changed newState=" << dwNewState << "device=" << device;
-
-	return S_OK;
-}
-
-HRESULT STDMETHODCALLTYPE WASAPINotificationClient::QueryInterface(REFIID riid, VOID **ppvInterface) {
-	if (IID_IUnknown == riid) {
-		*ppvInterface = (IUnknown *) this;
-		AddRef();
-	} else if (__uuidof(IMMNotificationClient) == riid) {
-		*ppvInterface = (IMMNotificationClient *) this;
-		AddRef();
-	} else {
-		*ppvInterface = nullptr;
-		return E_NOINTERFACE;
-	}
-	return S_OK;
-}
-
-ULONG STDMETHODCALLTYPE WASAPINotificationClient::AddRef() {
-	return InterlockedIncrement(&_cRef);
-}
-
-ULONG STDMETHODCALLTYPE WASAPINotificationClient::Release() {
-	// We hold a ref to ourselves all the time (static singleton) so no
-	// need to clean ourselves up or anything.
-	ULONG ulRef = InterlockedDecrement(&_cRef);
-	Q_ASSERT(ulRef > 0);
-	return ulRef;
-}
-
-void WASAPINotificationClient::enlistDefaultDeviceAsUsed(LPCWSTR pwstrDefaultDevice) {
-	const QString device = QString::fromWCharArray(pwstrDefaultDevice);
-	QMutexLocker lock(&listsMutex);
-	if (!usedDefaultDevices.contains(device)) {
-		usedDefaultDevices.append(device);
-		_enlistDeviceAsUsed(device);
-	}
-}
-
-void WASAPINotificationClient::enlistDeviceAsUsed(LPCWSTR pwstrDevice) {
-	const QString device = QString::fromWCharArray(pwstrDevice);
-	QMutexLocker lock(&listsMutex);
-	_enlistDeviceAsUsed(device);
-}
-
-void WASAPINotificationClient::_enlistDeviceAsUsed(const QString &device) {
-	if (!usedDevices.contains(device)) {
-		usedDevices.append(device);
-	}
-}
-
-void WASAPINotificationClient::enlistDeviceAsUsed(const QString &device) {
-	QMutexLocker lock(&listsMutex);
-	_enlistDeviceAsUsed(device);
-}
-
-void WASAPINotificationClient::unlistDevice(LPCWSTR pwstrDevice) {
-	const QString device = QString::fromWCharArray(pwstrDevice);
-	QMutexLocker lock(&listsMutex);
-	usedDevices.removeOne(device);
-	usedDefaultDevices.removeOne(device);
-}
-
-void WASAPINotificationClient::clearUsedDefaultDeviceList() {
-	QMutexLocker lock(&listsMutex);
-	usedDefaultDevices.clear();
-}
-
-void WASAPINotificationClient::_clearUsedDeviceLists() {
-	usedDefaultDevices.clear();
-	usedDevices.clear();
-}
-
-void WASAPINotificationClient::clearUsedDeviceLists() {
-	QMutexLocker lock(&listsMutex);
-	_clearUsedDeviceLists();
-}
-
-void WASAPINotificationClient::doGetOnce() {
-	(void) WASAPINotificationClient::doGet();
-}
-
-WASAPINotificationClient &WASAPINotificationClient::doGet() {
-	static WASAPINotificationClient instance;
-	return instance;
-}
-
-static boost::once_flag notification_client_init_once = BOOST_ONCE_INIT;
-
-WASAPINotificationClient &WASAPINotificationClient::get() {
-	// Hacky way of making sure we get a thread-safe yet lazy initialization of the static.
-	boost::call_once(&WASAPINotificationClient::doGetOnce, notification_client_init_once);
-	return doGet();
-}
-
-WASAPINotificationClient::WASAPINotificationClient() : QObject(), pEnumerator(0), listsMutex() {
-	AddRef(); // Static singleton, always has a self-reference
-
-	HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
-								  reinterpret_cast< void ** >(&pEnumerator));
-	if (!pEnumerator || FAILED(hr)) {
-		if (pEnumerator) {
-			pEnumerator->Release();
-			pEnumerator = 0;
-		}
-		qWarning() << "WASAPINotificationClient: Failed to create enumerator, will not receive notifications";
-		return;
+public:
+	inline bool isOk() const { return m_ok; }
+	inline QList< BonjourRecord > currentRecords() const {
+		return m_helperBrowser ? m_helperBrowser->currentRecords() : m_records;
 	}
 
-	g.mw->connect(this, SIGNAL(doResetAudio()), SLOT(onResetAudio()), Qt::QueuedConnection);
+	bool startBrowser(const QString &serviceType);
+	bool stopBrowser();
 
-	pEnumerator->RegisterEndpointNotificationCallback(this);
-}
+	bool startResolver(const BonjourRecord &record);
+#ifdef Q_OS_WIN64
+	bool stopResolver(const BonjourRecord &record);
+#endif
+	bool cleanupResolvers();
 
-WASAPINotificationClient::~WASAPINotificationClient() {
-	if (pEnumerator)
-		pEnumerator->Release();
-}
+	Zeroconf();
+	~Zeroconf();
+signals:
+	void recordsChanged(const QList< BonjourRecord > &records);
+	void recordResolved(const BonjourRecord record, const QString hostname, const uint16_t port);
+	void resolveError(const BonjourRecord record);
+};
 
-void WASAPINotificationClient::restartAudio() {
-	qWarning("WASAPINotificationClient: Triggering audio reset");
-	_clearUsedDeviceLists();
-	emit doResetAudio();
-}
+#endif
