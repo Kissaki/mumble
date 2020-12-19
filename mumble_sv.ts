@@ -1,51 +1,42 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_GLOBALSHORTCUT_MACX_H_
-#define MUMBLE_MUMBLE_GLOBALSHORTCUT_MACX_H_
+#ifndef MUMBLE_MUMBLE_LISTENERVOLUME_H_
+#define MUMBLE_MUMBLE_LISTENERVOLUME_H_
 
-#include <QtCore/QObject>
-#include <stdlib.h>
+#include "ui_UserLocalVolumeDialog.h"
 
-#include <ApplicationServices/ApplicationServices.h>
+class ClientUser;
+class Channel;
 
-#include "Global.h"
-#include "GlobalShortcut.h"
-
-class GlobalShortcutMac : public GlobalShortcutEngine {
+/// The dialog to configure the local volume adjustment for a "listener proxy". Therefore
+/// this dialog can be used to tune the volume of audio streams one receivs via the listening
+/// feature.
+/// It actually uses the same UI frontend as UserLocalVolumeDialog as it only needs backend
+/// changes.
+class ListenerLocalVolumeDialog : public QDialog, private Ui::UserLocalVolumeDialog {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(GlobalShortcutMac)
-public:
-	GlobalShortcutMac();
-	~GlobalShortcutMac() Q_DECL_OVERRIDE;
-	QString buttonName(const QVariant &) Q_DECL_OVERRIDE;
-	void dumpEventTaps();
-	void needRemap() Q_DECL_OVERRIDE;
-	bool handleModButton(CGEventFlags newmask);
-	bool canSuppress() Q_DECL_OVERRIDE;
-
-	void setEnabled(bool) Q_DECL_OVERRIDE;
-	bool enabled() Q_DECL_OVERRIDE;
-	bool canDisable() Q_DECL_OVERRIDE;
-
-public slots:
-	void forwardEvent(void *evt);
+	Q_DISABLE_COPY(ListenerLocalVolumeDialog);
 
 protected:
-	CFRunLoopRef loop;
-	CFMachPortRef port;
-	CGEventFlags modmask;
-	UCKeyboardLayout *kbdLayout;
+	/// The user belonging to the listener proxy this dialog has been invoked on
+	ClientUser *m_user;
+	/// The channel of the listener proxy this dialog has been invoked on
+	Channel *m_channel;
+	/// The volume adjustment that was set before this dialog opened
+	float m_initialAdjustemt;
 
-	void run() Q_DECL_OVERRIDE;
+public slots:
+	void on_qsUserLocalVolume_valueChanged(int value);
+	void on_qsbUserLocalVolume_valueChanged(int value);
+	void on_qbbUserLocalVolume_clicked(QAbstractButton *b);
+	void reject();
 
-	static CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *udata);
-	QString translateMouseButton(const unsigned int keycode) const;
-	QString translateModifierKey(const unsigned int keycode) const;
-	QString translateKeyName(const unsigned int keycode) const;
+public:
+	ListenerLocalVolumeDialog(ClientUser *user, Channel *channel, QWidget *parent = nullptr);
 };
 
 #endif
