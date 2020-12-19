@@ -5,93 +5,83 @@
 
 #include "SharedMemory.h"
 
-#include "win.h"
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include <QtCore/QDebug>
+#include <QDebug>
 
 struct SharedMemory2Private {
-	HANDLE hMemory;
+	int iShmemFD;
 };
 
 SharedMemory2::SharedMemory2(QObject *p, unsigned int minsize, const QString &memname) : QObject(p) {
 	a_ucData = nullptr;
 
-	d          = new SharedMemory2Private();
-	d->hMemory = nullptr;
+	d           = new SharedMemory2Private();
+	d->iShmemFD = -1;
+
+	int prot = PROT_READ;
 
 	if (memname.isEmpty()) {
-		// Create a new segment
-
+		prot |= PROT_WRITE;
 		for (int i = 0; i < 100; ++i) {
-			qsName     = QString::fromLatin1("Local\\MumbleOverlayMemory%1").arg(++uiIndex);
-			d->hMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, minsize,
-											qsName.toStdWString().c_str());
-			if (d->hMemory && GetLastError() != ERROR_ALREADY_EXISTS) {
-				break;
+			qsName      = QString::fromLatin1("/MumbleOverlayMemory%1").arg(++uiIndex);
+			d->iShmemFD = shm_open(qsName.toUtf8().constData(), O_RDWR | O_CREAT | O_EXCL, 0600);
+			if (d->iShmemFD != -1) {
+				if (ftruncate(d->iShmemFD, minsize) == 0) {
+					break;
+				} else {
+					close(d->iShmemFD);
+					d->iShmemFD = -1;
+					shm_unlink(qsName.toUtf8().constData());
+				}
 			}
-
-			if (d->hMemory)
-				CloseHandle(d->hMemory);
-			d->hMemory = nullptr;
 		}
 	} else {
-		// Open existing segment
-
-		qsName     = memname;
-		d->hMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, minsize,
-										qsName.toStdWString().c_str());
-		qWarning("%p %lx", d->hMemory, GetLastError());
-		if (GetLastError() != ERROR_ALREADY_EXISTS) {
-			qWarning() << "SharedMemory2: Memory doesn't exist" << qsName;
-			if (d->hMemory) {
-				CloseHandle(d->hMemory);
-				d->hMemory = nullptr;
-			}
-		}
+		qsName      = memname;
+		d->iShmemFD = shm_open(qsName.toUtf8().constData(), O_RDONLY, 0600);
 	}
-
-	if (!d->hMemory) {
-		qWarning() << "SharedMemory2: CreateFileMapping failed for" << qsName;
+	if (d->iShmemFD == -1) {
+		qWarning() << "SharedMemory2: Failed to open shared memory segment" << qsName;
+		return;
+	}
+	struct stat buf;
+	fstat(d->iShmemFD, &buf);
+	unsigned int memsize = static_cast< unsigned int >(buf.st_size);
+	if (memsize < minsize) {
+		qWarning() << "SharedMemory2: Segment too small" << memsize << minsize;
+	} else if (memsize > std::numeric_limits< unsigned int >::max()) {
+		qWarning() << "SharedMemory2: Segment too big" << memsize;
 	} else {
-		a_ucData = reinterpret_cast< unsigned char * >(MapViewOfFile(d->hMemory, FILE_MAP_ALL_ACCESS, 0, 0, 0));
-
-		if (!a_ucData) {
-			qWarning() << "SharedMemory2: Failed to map memory" << qsName;
-		} else {
-			MEMORY_BASIC_INFORMATION mbi;
-			memset(&mbi, 0, sizeof(mbi));
-			if ((VirtualQuery(a_ucData, &mbi, sizeof(mbi)) == 0) || (mbi.RegionSize < minsize)) {
-				qWarning() << "SharedMemory2: Memory too small" << qsName << mbi.RegionSize;
-			} else {
-				uiSize = mbi.RegionSize;
-				return;
-			}
+		a_ucData = reinterpret_cast< unsigned char * >(mmap(nullptr, minsize, prot, MAP_SHARED, d->iShmemFD, 0));
+		if (a_ucData != reinterpret_cast< unsigned char * >(-1)) {
+			uiSize = memsize;
+			return;
 		}
-	}
-
-	if (a_ucData) {
-		UnmapViewOfFile(a_ucData);
+		qWarning() << "SharedMemory2: Failed to map shared memory segment" << qsName;
 		a_ucData = nullptr;
 	}
-	if (d->hMemory) {
-		CloseHandle(d->hMemory);
-		d->hMemory = nullptr;
-	}
+
+	close(d->iShmemFD);
+	d->iShmemFD = -1;
+	shm_unlink(qsName.toUtf8().constData());
 }
 
 SharedMemory2::~SharedMemory2() {
-	if (a_ucData)
-		UnmapViewOfFile(a_ucData);
-	if (d->hMemory)
-		CloseHandle(d->hMemory);
-
-	delete d;
+	systemRelease();
+	if (a_ucData) {
+		munmap(a_ucData, uiSize);
+		a_ucData = nullptr;
+	}
 }
 
 void SharedMemory2::systemRelease() {
-	// This doesn't really do anything on Win32, since it has delete-on-close semantics anyway
-	if (d->hMemory) {
-		CloseHandle(d->hMemory);
-		d->hMemory = nullptr;
+	if (d->iShmemFD != -1) {
+		close(d->iShmemFD);
+		d->iShmemFD = -1;
+		shm_unlink(qsName.toUtf8().constData());
 	}
 }
