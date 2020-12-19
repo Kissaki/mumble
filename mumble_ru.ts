@@ -3,70 +3,130 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "CELTCodec.h"
+#ifndef MUMBLE_MUMBLE_AUDIOOUTPUT_H_
+#define MUMBLE_MUMBLE_AUDIOOUTPUT_H_
+
+#include <QtCore/QObject>
+#include <QtCore/QThread>
+#include <boost/shared_ptr.hpp>
+
+#ifdef USE_MANUAL_PLUGIN
+#	include "ManualPlugin.h"
+#endif
+
+// AudioOutput depends on User being valid. This means it's important
+// to removeBuffer from here BEFORE MainWindow gets any UserLeft
+// messages. Any decendant user should feel free to remove unused
+// AudioOutputUser objects; it's better to recreate them than
+// having them use resources while unused.
+
+#ifndef SPEAKER_FRONT_LEFT
+#	define SPEAKER_FRONT_LEFT 0x1
+#	define SPEAKER_FRONT_RIGHT 0x2
+#	define SPEAKER_FRONT_CENTER 0x4
+#	define SPEAKER_LOW_FREQUENCY 0x8
+#	define SPEAKER_BACK_LEFT 0x10
+#	define SPEAKER_BACK_RIGHT 0x20
+#	define SPEAKER_FRONT_LEFT_OF_CENTER 0x40
+#	define SPEAKER_FRONT_RIGHT_OF_CENTER 0x80
+#	define SPEAKER_BACK_CENTER 0x100
+#	define SPEAKER_SIDE_LEFT 0x200
+#	define SPEAKER_SIDE_RIGHT 0x400
+#	define SPEAKER_TOP_CENTER 0x800
+#	define SPEAKER_TOP_FRONT_LEFT 0x1000
+#	define SPEAKER_TOP_FRONT_CENTER 0x2000
+#	define SPEAKER_TOP_FRONT_RIGHT 0x4000
+#	define SPEAKER_TOP_BACK_LEFT 0x8000
+#	define SPEAKER_TOP_BACK_CENTER 0x10000
+#	define SPEAKER_TOP_BACK_RIGHT 0x20000
+#endif
 
 #include "Audio.h"
-#include "Version.h"
+#include "Message.h"
 
-CELTCodec::CELTCodec(const QString &version) {
-	bValid            = true;
-	cmMode            = nullptr;
-	qsVersion         = version;
-	iBitstreamVersion = INT_MIN;
+class AudioOutput;
+class ClientUser;
+class AudioOutputUser;
+class AudioOutputSample;
 
-	this->celt_encoder_destroy = ::celt_encoder_destroy;
-	this->celt_encoder_ctl     = ::celt_encoder_ctl;
+typedef boost::shared_ptr< AudioOutput > AudioOutputPtr;
 
-	this->celt_decoder_destroy = ::celt_decoder_destroy;
-	this->celt_decoder_ctl     = ::celt_decoder_ctl;
-}
+class AudioOutputRegistrar {
+private:
+	Q_DISABLE_COPY(AudioOutputRegistrar)
+public:
+	static QMap< QString, AudioOutputRegistrar * > *qmNew;
+	static QString current;
+	static AudioOutputPtr newFromChoice(QString choice = QString());
 
-CELTCodec::~CELTCodec() {
-	if (cmMode)
-		::celt_mode_destroy(const_cast< CELTMode * >(cmMode));
-}
+	const QString name;
+	int priority;
 
-bool CELTCodec::isValid() const {
-	return bValid;
-}
+	AudioOutputRegistrar(const QString &n, int priority = 0);
+	virtual ~AudioOutputRegistrar();
+	virtual AudioOutput *create()                              = 0;
+	virtual const QList< audioDevice > getDeviceChoices()      = 0;
+	virtual void setDeviceChoice(const QVariant &, Settings &) = 0;
+	virtual bool canMuteOthers() const;
+	virtual bool usesOutputDelay() const;
+	virtual bool canExclusive() const;
+};
 
-int CELTCodec::bitstreamVersion() const {
-	if (cmMode && iBitstreamVersion == INT_MIN)
-		::celt_mode_info(cmMode, CELT_GET_BITSTREAM_VERSION, reinterpret_cast< celt_int32 * >(&iBitstreamVersion));
+class AudioOutput : public QThread {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioOutput)
+private:
+	/// Speaker positional vector
+	float *fSpeakers         = nullptr;
+	float *fSpeakerVolume    = nullptr;
+	bool *bSpeakerPositional = nullptr;
+	/// Used when panning stereo stream w.r.t. each speaker.
+	float *fStereoPanningFactor = nullptr;
 
-	return iBitstreamVersion;
-}
+protected:
+	enum { SampleShort, SampleFloat } eSampleFormat = SampleFloat;
+	volatile bool bRunning                          = true;
+	unsigned int iFrameSize                         = SAMPLE_RATE / 100;
+	volatile unsigned int iMixerFreq                = 0;
+	unsigned int iChannels                          = 0;
+	unsigned int iSampleSize                        = 0;
+	unsigned int iBufferSize                        = 0;
+	QReadWriteLock qrwlOutputs;
+	QMultiHash< const ClientUser *, AudioOutputUser * > qmOutputs;
 
-QString CELTCodec::version() const {
-	return qsVersion;
-}
+#ifdef USE_MANUAL_PLUGIN
+	QHash< unsigned int, Position2D > positions;
+#endif
 
-void CELTCodec::report() const {
-	qWarning("CELT bitstream %08x from internal CELT with SBCELT decoding", bitstreamVersion());
-}
+	virtual void removeBuffer(AudioOutputUser *);
+	void initializeMixer(const unsigned int *chanmasks, bool forceheadphone = false);
+	bool mix(void *output, unsigned int frameCount);
 
-CELTCodecSBCELT::CELTCodecSBCELT() : CELTCodec(QLatin1String("0.7.0")) {
-	if (bValid) {
-		cmMode       = ::celt_mode_create(SAMPLE_RATE, SAMPLE_RATE / 100, nullptr);
-		cmSBCELTMode = ::sbcelt_mode_create(SAMPLE_RATE, SAMPLE_RATE / 100, nullptr);
+public:
+	void wipe();
 
-		this->celt_decoder_destroy = ::sbcelt_decoder_destroy;
-		this->celt_decoder_ctl     = ::sbcelt_decoder_ctl;
-	}
-}
+	/// Construct an AudioOutput.
+	///
+	/// This constructor is only ever called by Audio::startOutput(), and is guaranteed
+	/// to be called on the application's main thread.
+	AudioOutput(){};
 
-CELTEncoder *CELTCodecSBCELT::encoderCreate() {
-	return ::celt_encoder_create(cmMode, 1, nullptr);
-}
+	/// Destroy an AudioOutput.
+	///
+	/// This destructor is only ever called by Audio::stopOutput() and Audio::stop(),
+	/// and is guaranteed to be called on the application's main thread.
+	~AudioOutput() Q_DECL_OVERRIDE;
 
-CELTDecoder *CELTCodecSBCELT::decoderCreate() {
-	return ::sbcelt_decoder_create(cmSBCELTMode, 1, nullptr);
-}
+	void addFrameToBuffer(ClientUser *, const QByteArray &, unsigned int iSeq, MessageHandler::UDPMessageType type);
+	void removeBuffer(const ClientUser *);
+	AudioOutputSample *playSample(const QString &filename, bool loop = false);
+	void run() Q_DECL_OVERRIDE = 0;
+	virtual bool isAlive() const;
+	const float *getSpeakerPos(unsigned int &nspeakers);
+	static float calcGain(float dotproduct, float distance);
+	unsigned int getMixerFreq() const;
+	void setBufferSize(unsigned int bufferSize);
+};
 
-int CELTCodecSBCELT::encode(CELTEncoder *st, const celt_int16 *pcm, unsigned char *compressed, int nbCompressedBytes) {
-	return ::celt_encode(st, pcm, nullptr, compressed, nbCompressedBytes);
-}
-
-int CELTCodecSBCELT::decode_float(CELTDecoder *st, const unsigned char *data, int len, float *pcm) {
-	return ::sbcelt_decode_float(st, data, len, pcm);
-}
+#endif
