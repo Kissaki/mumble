@@ -3,100 +3,166 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OVERLAYCONFIG_H_
-#define MUMBLE_MUMBLE_OVERLAYCONFIG_H_
+#include "OverlayEditor.h"
 
-#include "ConfigWidget.h"
+#include "Channel.h"
+#include "Database.h"
+#include "MainWindow.h"
+#include "Message.h"
+#include "NetworkConfig.h"
+#include "OverlayClient.h"
 #include "OverlayText.h"
+#include "ServerHandler.h"
+#include "User.h"
+#include "Utils.h"
+#include "GlobalShortcut.h"
 
-#include "ui_Overlay.h"
+#include <QtWidgets/QGraphicsProxyWidget>
 
-class OverlayUserGroup;
-struct OverlayAppInfo;
-class OverlayPositionableItem;
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-class OverlayConfig : public ConfigWidget, public Ui::OverlayConfig {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(OverlayConfig)
+OverlayEditor::OverlayEditor(QWidget *p, QGraphicsItem *qgi, OverlaySettings *osptr)
+	: QDialog(p), qgiPromote(qgi), oes(g.s.os) {
+	setupUi(this);
+	qsZoom->setAccessibleName(tr("Zoom level"));
+	os = osptr ? osptr : &g.s.os;
 
-	void initDisplay();
-	void initDisplayFps();
-	void initDisplayClock();
-	void refreshFpsDemo();
-	void refreshFpsLive();
-	void refreshTimeLive();
-	void addWhitelistPath(const QString &path);
+	connect(qdbbBox->button(QDialogButtonBox::Apply), SIGNAL(clicked()), this, SLOT(apply()));
+	connect(qdbbBox->button(QDialogButtonBox::Reset), SIGNAL(clicked()), this, SLOT(reset()));
 
-protected:
-	QPixmap qpScreen;
-	QGraphicsPixmapItem *qgpiScreen;
-	QGraphicsScene qgs;
-	QGraphicsScene qgsFpsPreview;
-	BasepointPixmap bpFpsDemo;
-	BasepointPixmap bpTimeDemo;
-	QGraphicsPixmapItem *qgpiFpsDemo;
-	OverlayPositionableItem *qgpiFpsLive;
-	OverlayPositionableItem *qgpiTimeLive;
-	OverlayUserGroup *oug;
-	QGraphicsTextItem *qgtiInstructions;
+	QGraphicsProxyWidget *qgpw = graphicsProxyWidget();
+	if (qgpw) {
+		qgpw->setFlag(QGraphicsItem::ItemIgnoresParentOpacity);
+		if (g.ocIntercept) {
+			qgpw->setPos(iroundf(static_cast< float >(g.ocIntercept->uiWidth) / 16.0f + 0.5f),
+						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) / 16.0f + 0.5f));
+			qgpw->resize(iroundf(static_cast< float >(g.ocIntercept->uiWidth) * 14.0f / 16.0f + 0.5f),
+						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) * 14.0f / 16.0f + 0.5f));
+		}
+	}
 
-	float fViewScale;
+	qgvView->setScene(&oes);
 
-	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
+	reset();
+}
 
-	bool supportsInstallableOverlay();
-	bool isInstalled();
-	bool needsUpgrade();
-	bool installFiles();
-	bool uninstallFiles();
-	bool supportsCertificates();
-	bool installerIsValid();
-	void showCertificates();
+OverlayEditor::~OverlayEditor() {
+	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.9f);
+	if (qgiPromote)
+		qgiPromote->setZValue(-1.0f);
+}
 
-	void updateOverlayExclusionModeState();
-protected slots:
-	void on_qpbInstall_clicked();
-	void on_qpbUninstall_clicked();
+void OverlayEditor::enterEvent(QEvent *e) {
+	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.9f);
 
-	void on_qcbOverlayExclusionMode_currentIndexChanged(int);
+	qgpw = graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(1.0f);
 
-	void on_qlwLaunchers_itemSelectionChanged();
-	void on_qpbLaunchersAdd_clicked();
-	void on_qpbLaunchersRemove_clicked();
+	if (qgiPromote)
+		qgiPromote->setZValue(-1.0f);
 
-	void on_qlwWhitelist_itemSelectionChanged();
-	void on_qpbWhitelistAdd_clicked();
-	void on_qpbWhitelistRemove_clicked();
+	QDialog::enterEvent(e);
+}
 
-	void on_qlwPaths_itemSelectionChanged();
-	void on_qpbPathsAdd_clicked();
-	void on_qpbPathsRemove_clicked();
+void OverlayEditor::leaveEvent(QEvent *e) {
+	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.3f);
 
-	void on_qlwBlacklist_itemSelectionChanged();
-	void on_qpbBlacklistAdd_clicked();
-	void on_qpbBlacklistRemove_clicked();
+	qgpw = graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.3f);
 
-	void on_qcbEnable_stateChanged(int);
-	void on_qcbShowFps_stateChanged(int);
-	void on_qcbShowTime_stateChanged(int);
-	void on_qpbFpsFont_clicked();
-	void on_qpbFpsColor_clicked();
-	void on_qpbLoadPreset_clicked();
-	void on_qpbSavePreset_clicked();
-	void resizeScene(bool force = false);
+	if (qgiPromote)
+		qgiPromote->setZValue(1.0f);
 
-public:
-	/// The uniqe name of this ConfigWidget
-	static const QString name;
-	OverlayConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	virtual const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-};
+	QDialog::leaveEvent(e);
+}
 
-#endif
+void OverlayEditor::reset() {
+	oes.os = *os;
+	oes.resync();
+
+	qcbAvatar->setChecked(oes.os.bAvatar);
+	qcbUser->setChecked(oes.os.bUserName);
+	qcbChannel->setChecked(oes.os.bChannel);
+	qcbMutedDeafened->setChecked(oes.os.bMutedDeafened);
+	qcbBox->setChecked(oes.os.bBox);
+}
+
+void OverlayEditor::apply() {
+	*os = oes.os;
+	emit applySettings();
+}
+
+void OverlayEditor::accept() {
+	apply();
+	QDialog::accept();
+}
+
+void OverlayEditor::on_qrbPassive_clicked() {
+	oes.tsColor = Settings::Passive;
+	oes.resync();
+}
+
+void OverlayEditor::on_qrbTalking_clicked() {
+	oes.tsColor = Settings::Talking;
+	oes.resync();
+}
+
+void OverlayEditor::on_qrbWhisper_clicked() {
+	oes.tsColor = Settings::Whispering;
+	oes.resync();
+}
+
+void OverlayEditor::on_qrbShout_clicked() {
+	oes.tsColor = Settings::Shouting;
+	oes.resync();
+}
+
+void OverlayEditor::on_qcbAvatar_clicked() {
+	oes.os.bAvatar = qcbAvatar->isChecked();
+	if (!oes.os.bAvatar && !oes.os.bUserName) {
+		qcbUser->setChecked(true);
+		oes.os.bUserName = true;
+		oes.updateUserName();
+	}
+	oes.updateAvatar();
+}
+
+void OverlayEditor::on_qcbUser_clicked() {
+	oes.os.bUserName = qcbUser->isChecked();
+	if (!oes.os.bAvatar && !oes.os.bUserName) {
+		qcbAvatar->setChecked(true);
+		oes.os.bAvatar = true;
+		oes.updateAvatar();
+	}
+	oes.updateUserName();
+}
+
+void OverlayEditor::on_qcbChannel_clicked() {
+	oes.os.bChannel = qcbChannel->isChecked();
+	oes.updateChannel();
+}
+
+void OverlayEditor::on_qcbMutedDeafened_clicked() {
+	oes.os.bMutedDeafened = qcbMutedDeafened->isChecked();
+	oes.updateMuted();
+}
+
+void OverlayEditor::on_qcbBox_clicked() {
+	oes.os.bBox = qcbBox->isChecked();
+	oes.moveBox();
+}
+
+void OverlayEditor::on_qsZoom_valueChanged(int zoom) {
+	oes.uiZoom = zoom;
+	oes.resync();
+}
