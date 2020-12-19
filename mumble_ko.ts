@@ -3,87 +3,149 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_THEMEINFO_H_
-#define MUMBLE_MUMBLE_THEMEINFO_H_
+#include "Themes.h"
+#include "MainWindow.h"
+#include "MumbleApplication.h"
 
-#include <QMetaType>
-#include <QtCore/QFileInfo>
-#include <QtCore/QMap>
-#include <QtCore/QString>
-#ifndef Q_MOC_RUN
-#	include <boost/optional.hpp>
-#endif
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-class QSettings;
-class QDir;
+boost::optional< ThemeInfo::StyleInfo > Themes::getConfiguredStyle(const Settings &settings) {
+	if (settings.themeName.isEmpty() && settings.themeStyleName.isEmpty()) {
+		return boost::none;
+	}
 
-class ThemeInfo;
-typedef QMap< QString, ThemeInfo > ThemeMap;
+	const ThemeMap themes            = getThemes();
+	ThemeMap::const_iterator themeIt = themes.find(settings.themeName);
+	if (themeIt == themes.end()) {
+		qWarning() << "Could not find configured theme" << settings.themeName;
+		return boost::none;
+	}
 
-/// Description of a Mumble theme with multiple styles
-class ThemeInfo {
-public:
-	/// A specific style of a Mumble theme
-	///
-	/// Multiple styles can for example be used to differentiate light/dark
-	/// variants of a theme.
-	///
-	/// A single style can refer to multiple run-time platform specific qss
-	/// theme files.
-	class StyleInfo {
-	public:
-		/// Name of the theme containing this style
-		QString themeName;
-		/// Name for the style
-		QString name;
+	ThemeInfo::StylesMap::const_iterator styleIt = themeIt->styles.find(settings.themeStyleName);
+	if (styleIt == themeIt->styles.end()) {
+		qWarning() << "Configured theme" << settings.themeName << "does not have configured style"
+				   << settings.themeStyleName;
+		return boost::none;
+	}
 
-		/// @return Returns platform specific qss or defaultQss if none available
-		QFileInfo getPlatformQss() const;
+	return *styleIt;
+}
 
-		/// Default QSS file for the style
-		QFileInfo defaultQss;
-		/// Platform specific QSS files available
-		QMap< QString, QFileInfo > qssFiles;
-	};
+void Themes::setConfiguredStyle(Settings &settings, boost::optional< ThemeInfo::StyleInfo > style, bool &outChanged) {
+	if (style) {
+		if (settings.themeName != style->themeName || settings.themeStyleName != style->name) {
+			settings.themeName      = style->themeName;
+			settings.themeStyleName = style->name;
+			outChanged              = true;
+		}
+	} else {
+		if (!settings.themeName.isEmpty() || !settings.themeStyleName.isEmpty()) {
+			settings.themeName = settings.themeStyleName = QString();
+			outChanged                                   = true;
+		}
+	}
+}
 
-	typedef QMap< QString, StyleInfo > StylesMap;
+void Themes::applyFallback() {
+	qWarning() << "Applying fallback style sheet";
 
-	/// Takes stock of all mumble themes in the given folders.
-	///
-	/// If a theme with the same name is available in multiple directories
-	/// only the last occurance will be returned.
-	///
-	/// @param themesDirectories List of directories to search for theme directories.
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectories(const QVector< QDir > &themesDirectories);
+	QStringList skinPaths;
+	skinPaths << QLatin1String(":/themes/Mumble");
+	QString defaultTheme = getDefaultStylesheet();
+	setTheme(defaultTheme, skinPaths);
+}
 
-	/// Takes stock of all mumble themes in the given folder
-	///
-	/// Uses loadThemeInfoFromDirectory on each directory in the folder
-	/// to find themes. Themes with the same names will override each other.
-	///
-	/// @param themesDirectory Directory to scan for theme directories
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectory(const QDir &themesDirectory);
+bool Themes::applyConfigured() {
+	boost::optional< ThemeInfo::StyleInfo > style = Themes::getConfiguredStyle(g.s);
+	if (!style) {
+		return false;
+	}
 
-	/// Loads the theme description from a given directory
-	///
-	/// @param themeDirectory
-	/// @return Theme if description was correctly loaded. boost::none if not.
-	static boost::optional< ThemeInfo > load(const QDir &themeDirectory);
+	const QFileInfo qssFile(style->getPlatformQss());
 
-	/// @return Style with given name or default
-	StyleInfo getStyle(QString name_) const;
+	qWarning() << "Theme:" << style->themeName;
+	qWarning() << "Style:" << style->name;
+	qWarning() << "--> qss:" << qssFile.absoluteFilePath();
 
-	/// Ideally unique theme name. A theme with identical name can override.
-	QString name;
-	/// Style name to style mapping.
-	StylesMap styles;
-	/// Default style
-	QString defaultStyle;
-};
+	QFile file(qssFile.absoluteFilePath());
+	if (!file.open(QFile::ReadOnly)) {
+		qWarning() << "Failed to open theme stylesheet:" << file.errorString();
+		return false;
+	}
 
-Q_DECLARE_METATYPE(ThemeInfo);
-Q_DECLARE_METATYPE(ThemeInfo::StyleInfo);
+	QStringList skinPaths;
+	skinPaths << qssFile.path();
+	skinPaths << QLatin1String(":/themes/Mumble"); // Some skins might want to fall-back on our built-in resources
 
-#endif // MUMBLE_MUMBLE_THEMEINFO_H_
+	QString themeQss = QString::fromUtf8(file.readAll());
+	setTheme(themeQss, skinPaths);
+	return true;
+}
+
+void Themes::setTheme(QString &themeQss, QStringList &skinPaths) {
+	QDir::setSearchPaths(QLatin1String("skin"), skinPaths);
+
+	QString userStylesheetFn = userStylesheetPath();
+	QString userStylesheetContent;
+	if (readStylesheet(userStylesheetFn, userStylesheetContent)) {
+		qWarning("Themes: allowing user stylesheet at '%s' to override the stylesheet", qPrintable(userStylesheetFn));
+	}
+
+	qApp->setStyleSheet(themeQss + QLatin1String("\n") + userStylesheetContent);
+}
+
+bool Themes::apply() {
+	const bool result = applyConfigured();
+	if (!result) {
+		applyFallback();
+	}
+
+	if (g.mw) {
+		g.mw->qteLog->document()->setDefaultStyleSheet(qApp->styleSheet());
+	}
+	return result;
+}
+
+ThemeMap Themes::getThemes() {
+	return ThemeInfo::scanDirectories(getSearchDirectories());
+}
+
+QDir Themes::getUserThemesDirectory() {
+	return QDir(g.qdBasePath.absolutePath() + QLatin1String("/Themes"));
+}
+
+QVector< QDir > Themes::getSearchDirectories() {
+	QVector< QDir > themeSearchDirectories;
+
+	// Built-in themes contained in the binary have the lowest priority
+	themeSearchDirectories << QDir(QLatin1String(":themes"));
+	// Next come themes found in the applications Themes directory
+	themeSearchDirectories << QDir(MumbleApplication::instance()->applicationVersionRootPath()
+								   + QLatin1String("/Themes"));
+	// Highest priorty have themes located in the user directory
+	themeSearchDirectories << getUserThemesDirectory();
+
+	return themeSearchDirectories;
+}
+
+QString Themes::userStylesheetPath() {
+	return g.qdBasePath.absolutePath() + QLatin1String("/user.qss");
+}
+
+bool Themes::readStylesheet(const QString &stylesheetFn, QString &stylesheetContent) {
+	QFile file(stylesheetFn);
+	if (!file.open(QFile::ReadOnly)) {
+		stylesheetContent = QString();
+		return false;
+	}
+
+	stylesheetContent = QString::fromUtf8(file.readAll());
+	return true;
+}
+
+QString Themes::getDefaultStylesheet() {
+	return QLatin1String(".log-channel{text-decoration:none;}.log-user{text-decoration:none;}p{margin:0;}#qwMacWarning,"
+						 "#qwInlineNotice{background-color:#FFFEDC;border-radius:5px;border:1px solid #B5B59E;}");
+}
