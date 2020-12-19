@@ -1,61 +1,39 @@
-// Copyright 2019-2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Screen.h"
+#include "SvgIcon.h"
 
-#include "MumbleApplication.h"
+#include <QPainter>
+#include <QSvgRenderer>
 
-#include <QScreen>
-#include <QWidget>
-#include <QWindow>
+void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
+	QSvgRenderer svg(fn);
 
-QWindow *Screen::windowFromWidget(const QWidget &widget) {
-	QWindow *window = widget.windowHandle();
-	if (window) {
-		return window;
+	QList< QSize > commonSizes;
+	commonSizes << QSize(8, 8);
+	commonSizes << QSize(16, 16);
+	commonSizes << QSize(22, 22); // Plasma notification area size
+	commonSizes << QSize(24, 24);
+	commonSizes << QSize(32, 32);
+	commonSizes << QSize(44, 44); // Plasma notification area size @x2
+	commonSizes << QSize(48, 48);
+	commonSizes << QSize(64, 64);
+	commonSizes << QSize(96, 96);
+	commonSizes << QSize(128, 128);
+	commonSizes << QSize(256, 256);
+
+	foreach (QSize size, commonSizes) {
+		QPixmap pm(size);
+		pm.fill(Qt::transparent);
+
+		QPainter p(&pm);
+		p.setRenderHint(QPainter::Antialiasing);
+		p.setRenderHint(QPainter::TextAntialiasing);
+		p.setRenderHint(QPainter::SmoothPixmapTransform);
+		svg.render(&p);
+
+		icon.addPixmap(pm);
 	}
-
-	const QWidget *parent = widget.nativeParentWidget();
-	if (parent) {
-		return parent->windowHandle();
-	}
-
-	return nullptr;
-}
-
-QScreen *Screen::screenFromWidget(const QWidget &widget) {
-	const QWindow *window = windowFromWidget(widget);
-	if (window && window->screen()) {
-		return window->screen();
-	}
-
-	return qApp->primaryScreen();
-}
-
-QScreen *Screen::screenAt(const QPoint &point) {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-	return qApp->screenAt(point);
-#else
-	// Adapted from qguiapplication.cpp (Qt)
-	QVarLengthArray< const QScreen *, 8 > visitedScreens;
-
-	for (const QScreen *screen : qApp->screens()) {
-		if (visitedScreens.contains(screen)) {
-			continue;
-		}
-
-		// The virtual siblings include the screen itself, so iterate directly
-		for (QScreen *sibling : screen->virtualSiblings()) {
-			if (sibling->geometry().contains(point)) {
-				return sibling;
-			}
-
-			visitedScreens.append(sibling);
-		}
-	}
-
-	return nullptr;
-#endif
 }
