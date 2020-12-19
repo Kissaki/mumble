@@ -3,36 +3,67 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_XMLTOOLS_H_
-#define MUMBLE_MUMBLE_XMLTOOLS_H_
+#include "XboxInput.h"
 
-#include <QMap>
-#include <QObject>
-#include <QXmlStreamReader>
-#include <QXmlStreamWriter>
+#include <QtCore/QStringList>
 
-class XMLTools : public QObject {
-	Q_OBJECT
-public:
-	/* Recursively parse and output XHTML.
-	 * This will drop <head>, <html> etc, take the contents of <body> and strip out unnecesarry styles.
-	 * It will also change <span style=""> into matching <b>, <i> or <u>.
-	 */
-	static void recurseParse(QXmlStreamReader &reader, QXmlStreamWriter &writer, int &paragraphs,
-							 const QMap< QString, QString > &opstyle, const int close = 0, bool ignore = true);
+const QUuid XboxInput::s_XboxInputGuid = QUuid(QString::fromLatin1("ca3937e3-640c-4d9e-9ef3-903f8b4fbcab"));
 
-	/* Iterate XML and remove close-followed-by-open.
-	 * For example, make "<b>bold with </b><b><i>italic</i></b>" into
-	 * "<b>bold with <i>italic</i></b>"
-	 *
-	 * If the input XML is or may not be valid, a "unduplicate" tag can be used as a root element,
-	 * which will be dropped and not written to writer.
-	 *
-	 * Input XML has to be valid XML.
-	 *
-	 * Works on b, i, u, and a elements.
-	 */
-	static bool unduplicateTags(QXmlStreamReader &reader, QXmlStreamWriter &writer);
-};
+XboxInput::XboxInput()
+	: GetState(nullptr), m_getStateFunc(nullptr), m_getStateExFunc(nullptr), m_xinputlib(nullptr), m_valid(false) {
+	// Load the most suitable XInput DLL available.
+	//
+	// We prefer 1_4 and 1_3 over the others because they provide
+	// XInputGetStateEx(), which allows us to query the state of
+	// the guide button.
+	//
+	// See https://msdn.microsoft.com/en-us/library/windows/desktop/hh405051(v=vs.85).aspx
+	// for more information.
+	QStringList alternatives;
+	alternatives << QLatin1String("XInput1_4.dll");
+	alternatives << QLatin1String("xinput1_3.dll");
+	alternatives << QLatin1String("XInput9_1_0.dll");
+	alternatives << QLatin1String("xinput1_2.dll");
+	alternatives << QLatin1String("xinput1_1.dll");
 
-#endif // XMLTOOLS_H
+	foreach (const QString &lib, alternatives) {
+		m_xinputlib = LoadLibraryW(reinterpret_cast< const wchar_t * >(lib.utf16()));
+		if (m_xinputlib) {
+			qWarning("XboxInput: using XInput DLL '%s'", qPrintable(lib));
+			m_valid = true;
+			break;
+		}
+	}
+
+	if (!m_valid) {
+		qWarning("XboxInput: no valid XInput DLL was found on the system.");
+		return;
+	}
+
+	m_getStateFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, "XInputGetState"));
+	// Undocumented XInputGetStateEx -- ordinal 100. It is available in XInput 1.3 and greater.
+	// It provides access to the state of the guide button.
+	// For reference, see SDL's XInput support: http://www.libsdl.org/tmp/SDL/src/core/windows/SDL_xinput.c
+	m_getStateExFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, (char *) 100));
+
+	if (m_getStateExFunc) {
+		GetState = m_getStateExFunc;
+		qWarning("XboxInput: using XInputGetStateEx() as querying function.");
+	} else if (m_getStateFunc) {
+		GetState = m_getStateFunc;
+		qWarning("XboxInput: using XInputGetState() as querying function.");
+	} else {
+		m_valid = false;
+		qWarning("XboxInput: no valid querying function found.");
+	}
+}
+
+XboxInput::~XboxInput() {
+	if (m_xinputlib) {
+		FreeLibrary(m_xinputlib);
+	}
+}
+
+bool XboxInput::isValid() const {
+	return m_valid;
+}
