@@ -3,41 +3,93 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "MumbleApplication.h"
+// See scripts/generate-ApplicationPalette-class.py
 
-#include <Foundation/Foundation.h>
+% (warning) s
+#ifndef APPLICATIONPALETTE_H
+#define APPLICATIONPALETTE_H
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-static bool appNapSuppressed = false;
+#include <QTimer>
+#include <QWidget>
+#ifndef Q_MOC_RUN
+#	include <boost/optional.hpp>
 #endif
+#include <QApplication>
+#include <QDebug>
 
-void MUSuppressAppNap(bool suppress) {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-	NSProcessInfo *processInfo = [NSProcessInfo processInfo];
-	if (![processInfo respondsToSelector:@selector(disableAutomaticTermination:)]) {
-		return;
+	///
+	/// Class enabling theming of QApplication::palette from stylesheets.
+	///
+	/// QPalette cannot be styled which creates issues as not all
+	/// GUI elements in Qt can be styled. This class works around
+	/// that by offering a QPROPERTY for each color role and group
+	/// combination in QPalette. As you can set custom QPROPERTYs
+	/// from stylesheet this allows the user to set all relevant
+	/// palette brushes from the stylesheet.
+	///
+	/// Due to restrictions on allowed property names as well as a
+	/// mandatory prefix the attributes are exposed as lower cased:
+	/// "qproperty-<role>_<group>".
+	///
+	/// So a group of QPalette::Active and QPalette::Text role
+	/// would be styled by:
+	///
+	/// ApplicationPalette {
+	///     qproperty-text_active: #ff0000; /* Set color for active group */
+	/// }
+	///
+	/// See http://qt-project.org/doc/qt-4.8/qpalette.html#ColorGroup-enum
+	/// for the available groups and roles.
+	///
+	/// You can also use the shorthand "qproperty-<role>" to set all groups
+	/// to the same brush.
+	///
+	/// The class will automatically pick up style changes on itself
+	/// and update the application palette accordingly. To use the class
+	/// simply instantiate it before setting the theme and keep it around
+	/// till the application terminates.
+	///
+	class ApplicationPalette : public QWidget {
+	Q_OBJECT
+		% (properties) s public : explicit ApplicationPalette(QWidget *p = 0)
+		: QWidget(p),
+	m_originalPalette(QApplication::palette()){
+		// Empty
 	}
 
-	if (suppress == appNapSuppressed) {
-		qWarning("AppNap: attempt to set AppNap suppression state to %s while already in that state.", suppress ? "true" : "false");
-		return;
+		% (getterssetters) s
+
+		private slots : void updateApplicationPalette() {
+		qWarning() << "Updating application palette";
+
+		QPalette newPalette = m_originalPalette; // Do not re-use potentially already styled palette. Might not pick up
+												 // system style changes though.
+
+		% (paletteupdates) s
+
+				QApplication::setPalette(newPalette);
+		resetAllProperties();
 	}
 
-	QString translatedReason = QApplication::tr("Mumble is currently connected to a server");
-	NSString *reason = const_cast<NSString *>(reinterpret_cast<const NSString *>(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar *>(translatedReason.unicode()), translatedReason.length())));
+	void resetAllProperties() { % (propertyresets) s }
 
-	if (suppress) {
-		[[NSProcessInfo processInfo] disableAutomaticTermination:reason];
-		qWarning("AppNap: suppressed with reason: '%s'", qPrintable(translatedReason));
-	} else {
-		[[NSProcessInfo processInfo] enableAutomaticTermination:reason];
-		qWarning("AppNap: re-enabled, was suppressed with reason: '%s'", qPrintable(translatedReason));
+protected:
+	bool event(QEvent *e) Q_DECL_OVERRIDE {
+		bool result = QWidget::event(e);
+
+		if (e->type() == QEvent::StyleChange) {
+			// Update global palette. Have to defer it
+			// as property updates are also signals.
+			QTimer::singleShot(0, this, SLOT(updateApplicationPalette()));
+		}
+
+		return result;
 	}
 
-	appNapSuppressed = suppress;
+private:
+	const QPalette m_originalPalette;
 
-	[reason release];
-#else
-	Q_UNUSED(suppress);
-#endif
-}
+	% (variables) s
+};
+
+#endif // APPLICATIONPALETTE_H
