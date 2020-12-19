@@ -1,336 +1,290 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_MAINWINDOW_H_
-#define MUMBLE_MUMBLE_MAINWINDOW_H_
-
-#include <QtCore/QPointer>
-#include <QtCore/QtGlobal>
-#include <QtNetwork/QAbstractSocket>
-#include <QtWidgets/QMainWindow>
-#include <QtWidgets/QSystemTrayIcon>
-
-#include "CustomElements.h"
-#include "MUComboBox.h"
-#include "Message.h"
-#include "Mumble.pb.h"
-#include "Usage.h"
-#include "UserLocalVolumeDialog.h"
-
-#include "ui_MainWindow.h"
-
-#define MB_QEVENT (QEvent::User + 939)
-#define OU_QEVENT (QEvent::User + 940)
-
-class ACLEditor;
-class BanEditor;
-class UserEdit;
-class ServerHandler;
-class GlobalShortcut;
-class TextToSpeech;
-class UserModel;
-class Tokens;
-class Channel;
-class UserInformation;
-class VoiceRecorderDialog;
-class PTTButtonWidget;
-
-struct ShortcutTarget;
-
-class MessageBoxEvent : public QEvent {
-public:
-	QString msg;
-	MessageBoxEvent(QString msg);
-};
-
-class OpenURLEvent : public QEvent {
-public:
-	QUrl url;
-	OpenURLEvent(QUrl url);
-};
-
-class MainWindow : public QMainWindow, public MessageHandler, public Ui::MainWindow {
-	friend class UserModel;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(MainWindow)
-public:
-	UserModel *pmModel;
-	QSystemTrayIcon *qstiIcon;
-	QMenu *qmUser;
-	QMenu *qmChannel;
-	QMenu *qmListener;
-	QMenu *qmDeveloper;
-	QMenu *qmTray;
-	QIcon qiIcon, qiIconMutePushToMute, qiIconMuteSelf, qiIconMuteServer, qiIconDeafSelf, qiIconDeafServer,
-		qiIconMuteSuppressed;
-	QIcon qiTalkingOn, qiTalkingWhisper, qiTalkingShout, qiTalkingOff;
-	QMap< unsigned int, UserLocalVolumeDialog * > qmUserVolTracker;
-
-	/// "Action" for when there are no actions available
-	QAction *qaEmpty;
-
-	GlobalShortcut *gsPushTalk, *gsResetAudio, *gsMuteSelf, *gsDeafSelf;
-	GlobalShortcut *gsUnlink, *gsPushMute, *gsJoinChannel;
-#ifdef USE_OVERLAY
-	GlobalShortcut *gsToggleOverlay;
-#endif
-	GlobalShortcut *gsMinimal, *gsVolumeUp, *gsVolumeDown, *gsWhisper, *gsLinkChannel;
-	GlobalShortcut *gsCycleTransmitMode, *gsToggleMainWindowVisibility, *gsTransmitModePushToTalk, *gsTransmitModeContinuous, *gsTransmitModeVAD;
-	GlobalShortcut *gsSendTextMessage, *gsSendClipboardTextMessage;
-	DockTitleBar *dtbLogDockTitle, *dtbChatDockTitle;
-
-	ACLEditor *aclEdit;
-	BanEditor *banEdit;
-	UserEdit *userEdit;
-	Tokens *tokenEdit;
-
-	VoiceRecorderDialog *voiceRecorderDialog;
-
-	MumbleProto::Reject_RejectType rtLast;
-	bool bRetryServer;
-	QString qsDesiredChannel;
-
-	bool bSuppressAskOnQuit;
-	/// Restart the client after shutdown
-	bool restartOnQuit;
-	bool bAutoUnmute;
-
-	/// Contains the cursor whose position is immediately before the image to
-	/// save when activating the "Save Image As..." context menu item.
-	QTextCursor qtcSaveImageCursor;
-
-	QPointer< Channel > cContextChannel;
-	QPointer< ClientUser > cuContextUser;
-
-	QPoint qpContextPosition;
-
-	void recheckTTS();
-	void msgBox(QString msg);
-	void setOnTop(bool top);
-	void setShowDockTitleBars(bool doShow);
-	void updateTrayIcon();
-	void updateUserModel();
-	void focusNextMainWidget();
-	QPair< QByteArray, QImage > openImageFile();
-
-	void updateChatBar();
-	void openTextMessageDialog(ClientUser *p);
-	void openUserLocalVolumeDialog(ClientUser *p);
-
-#ifdef Q_OS_WIN
-	bool nativeEvent(const QByteArray &eventType, void *message, long *result) Q_DECL_OVERRIDE;
-	unsigned int uiNewHardware;
-#endif
-protected:
-	Usage uUsage;
-	QTimer *qtReconnect;
-
-	QList< QAction * > qlServerActions;
-	QList< QAction * > qlChannelActions;
-	QList< QAction * > qlUserActions;
-
-	QHash< ShortcutTarget, int > qmCurrentTargets;
-	/// A map that contains information about the currently active
-	/// shout/whisper targets. The mapping is between a List of
-	/// ShortcutTargets that are all triggered together and the
-	/// target ID for this specific combination of ShortcutTargets.
-	/// The target ID is what the server uses to identify this specific
-	/// set of ShortcutTargets.
-	QHash< QList< ShortcutTarget >, int > qmTargets;
-	/// This is a map between all target IDs the client will ever use
-	/// and a helper-number (see iTargetCounter).
-	QMap< int, int > qmTargetUse;
-	Channel *mapChannel(int idx) const;
-	/// This is a pure helper number whose job is to always be increased
-	/// if a new VoiceTarget is needed. It will be used as the helper
-	/// number in qmTargetUse.
-	int iTargetCounter;
-	QMap< unsigned int, UserInformation * > qmUserInformations;
-
-	PTTButtonWidget *qwPTTButtonWidget;
-
-	MUComboBox *qcbTransmitMode;
-	QAction *qaTransmitMode;
-	QAction *qaTransmitModeSeparator;
-
-	void createActions();
-	void setupGui();
-	void updateWindowTitle();
-	/// updateToolbar updates the state of the toolbar depending on the current
-	/// window layout setting.
-	/// If the window layout setting is 'custom', the toolbar is made movable. If the
-	/// window layout is not 'custom', the toolbar is locked in place at the top of
-	/// the MainWindow.
-	void updateToolbar();
-	void customEvent(QEvent *evt) Q_DECL_OVERRIDE;
-	void findDesiredChannel();
-	void setupView(bool toggle_minimize = true);
-	void closeEvent(QCloseEvent *e) Q_DECL_OVERRIDE;
-	void hideEvent(QHideEvent *e) Q_DECL_OVERRIDE;
-	void showEvent(QShowEvent *e) Q_DECL_OVERRIDE;
-	void changeEvent(QEvent *e) Q_DECL_OVERRIDE;
-	void keyPressEvent(QKeyEvent *e) Q_DECL_OVERRIDE;
-
-	QMenu *createPopupMenu() Q_DECL_OVERRIDE;
-
-	bool handleSpecialContextMenu(const QUrl &url, const QPoint &pos_, bool focus = false);
-	Channel *getContextMenuChannel();
-	ClientUser *getContextMenuUser();
-
-public slots:
-	void on_qmServer_aboutToShow();
-	void on_qaServerConnect_triggered(bool autoconnect = false);
-	void on_qaServerDisconnect_triggered();
-	void on_qaServerBanList_triggered();
-	void on_qaServerUserList_triggered();
-	void on_qaServerInformation_triggered();
-	void on_qaServerTexture_triggered();
-	void on_qaServerTextureRemove_triggered();
-	void on_qaServerTokens_triggered();
-	void on_qmSelf_aboutToShow();
-	void on_qaSelfComment_triggered();
-	void on_qaSelfRegister_triggered();
-	void qcbTransmitMode_activated(int index);
-	void updateTransmitModeComboBox();
-	void qmUser_aboutToShow();
-	void qmListener_aboutToShow();
-	void on_qaUserCommentReset_triggered();
-	void on_qaUserTextureReset_triggered();
-	void on_qaUserCommentView_triggered();
-	void on_qaUserKick_triggered();
-	void on_qaUserBan_triggered();
-	void on_qaUserMute_triggered();
-	void on_qaUserDeaf_triggered();
-	void on_qaSelfPrioritySpeaker_triggered();
-	void on_qaUserPrioritySpeaker_triggered();
-	void on_qaUserLocalIgnore_triggered();
-	void on_qaUserLocalIgnoreTTS_triggered();
-	void on_qaUserLocalMute_triggered();
-	void on_qaUserLocalVolume_triggered();
-	void on_qaUserTextMessage_triggered();
-	void on_qaUserRegister_triggered();
-	void on_qaUserInformation_triggered();
-	void on_qaUserFriendAdd_triggered();
-	void on_qaUserFriendRemove_triggered();
-	void on_qaUserFriendUpdate_triggered();
-	void qmChannel_aboutToShow();
-	void on_qaChannelJoin_triggered();
-	void on_qaUserJoin_triggered();
-	void on_qaChannelListen_triggered();
-	void on_qaChannelAdd_triggered();
-	void on_qaChannelRemove_triggered();
-	void on_qaChannelACL_triggered();
-	void on_qaChannelLink_triggered();
-	void on_qaChannelUnlink_triggered();
-	void on_qaChannelUnlinkAll_triggered();
-	void on_qaChannelSendMessage_triggered();
-	void on_qaChannelFilter_triggered();
-	void on_qaChannelCopyURL_triggered();
-	void on_qaListenerLocalVolume_triggered();
-	void on_qaAudioReset_triggered();
-	void on_qaAudioMute_triggered();
-	void on_qaAudioDeaf_triggered();
-	void on_qaRecording_triggered();
-	void on_qaAudioTTS_triggered();
-	void on_qaAudioUnlink_triggered();
-	void on_qaAudioStats_triggered();
-	void on_qaConfigDialog_triggered();
-	void on_qaConfigHideFrame_triggered();
-	void on_qmConfig_aboutToShow();
-	void on_qaConfigMinimal_triggered();
-	void on_qaConfigCert_triggered();
-	void on_qaAudioWizard_triggered();
-	void on_qaDeveloperConsole_triggered();
-	void on_qaHelpWhatsThis_triggered();
-	void on_qaHelpAbout_triggered();
-	void on_qaHelpAboutQt_triggered();
-	void on_qaHelpVersionCheck_triggered();
-	void on_qaQuit_triggered();
-	void on_qaHide_triggered();
-	void on_qteChat_tabPressed();
-	void on_qteChat_backtabPressed();
-	void on_qteChat_ctrlSpacePressed();
-	void on_qtvUsers_customContextMenuRequested(const QPoint &mpos, bool usePositionForGettingContext = true);
-	void on_qteLog_customContextMenuRequested(const QPoint &pos);
-	void on_qteLog_anchorClicked(const QUrl &);
-	void on_qteLog_highlighted(const QUrl &link);
-	void on_PushToTalk_triggered(bool, QVariant);
-	void on_PushToMute_triggered(bool, QVariant);
-	void on_VolumeUp_triggered(bool, QVariant);
-	void on_VolumeDown_triggered(bool, QVariant);
-	void on_gsMuteSelf_down(QVariant);
-	void on_gsDeafSelf_down(QVariant);
-	void on_gsWhisper_triggered(bool, QVariant);
-	void addTarget(ShortcutTarget *);
-	void removeTarget(ShortcutTarget *);
-	void on_gsCycleTransmitMode_triggered(bool, QVariant);
-	void on_gsToggleMainWindowVisibility_triggered(bool, QVariant);
-	void on_gsTransmitModePushToTalk_triggered(bool, QVariant);
-	void on_gsTransmitModeContinuous_triggered(bool, QVariant);
-	void on_gsTransmitModeVAD_triggered(bool, QVariant);
-	void on_gsSendTextMessage_triggered(bool, QVariant);
-	void on_gsSendClipboardTextMessage_triggered(bool, QVariant);
-	void on_Reconnect_timeout();
-	void on_Icon_activated(QSystemTrayIcon::ActivationReason);
-	void on_qaTalkingUIToggle_triggered();
-	void voiceRecorderDialog_finished(int);
-	void qtvUserCurrentChanged(const QModelIndex &, const QModelIndex &);
-	void serverConnected();
-	void serverDisconnected(QAbstractSocket::SocketError, QString reason);
-	void resolverError(QAbstractSocket::SocketError, QString reason);
-	void viewCertificate(bool);
-	void openUrl(const QUrl &url);
-	void context_triggered();
-	void updateTarget();
-	void updateMenuPermissions();
-	/// Handles state changes like talking mode changes and mute/unmute
-	/// or priority speaker flag changes for the gui user
-	void userStateChanged();
-	void destroyUserInformation();
-	void trayAboutToShow();
-	void sendChatbarMessage(QString msg);
-	void sendChatbarText(QString msg);
-	void pttReleased();
-	void whisperReleased(QVariant scdata);
-	void onResetAudio();
-	void showRaiseWindow();
-	void on_qaFilterToggle_triggered();
-	/// Opens a save dialog for the image referenced by qtcSaveImageCursor.
-	void saveImageAs();
-	/// Returns the path to the user's image directory, optionally with a
-	/// filename included.
-	QString getImagePath(QString filename = QString()) const;
-	/// Updates the user's image directory to the given path (any included
-	/// filename is discarded).
-	void updateImagePath(QString filepath) const;
-signals:
-	/// Signal emitted when the server and the client have finished
-	/// synchronizing (after a new connection).
-	void serverSynchronized();
-	/// Signal emitted whenever a user adds a new ChannelListener
-	void userAddedChannelListener(ClientUser *user, Channel *channel);
-	/// Signal emitted whenever a user removes a ChannelListener
-	void userRemovedChannelListener(ClientUser *user, Channel *channel);
-
-public:
-	MainWindow(QWidget *parent);
-	~MainWindow() Q_DECL_OVERRIDE;
-
-	// From msgHandler. Implementation in Messages.cpp
-#define MUMBLE_MH_MSG(x) void msg##x(const MumbleProto::x &);
-	MUMBLE_MH_ALL
-#undef MUMBLE_MH_MSG
-	void removeContextAction(const MumbleProto::ContextActionModify &msg);
-	/// Logs a message that an action could not be saved permanently because
-	/// the user has no certificate and can't be reliably identified.
-	///
-	/// @param actionName  The name of the action that has been executed.
-	/// @param p  The user on which the action was performed.
-	void logChangeNotPermanent(const QString &actionName, ClientUser *const p) const;
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ConnectDialogEdit</class>
+ <widget class="QDialog" name="ConnectDialogEdit">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>430</width>
+    <height>356</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>430</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Edit Server</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="1" column="0" colspan="2">
+    <widget class="QWidget" name="qwInlineNotice" native="true">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QLabel" name="qlPasteNotice">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <horstretch>4</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QWidget" name="qwActions" native="true">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <layout class="QVBoxLayout" name="qlActions">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QPushButton" name="qbFill">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>&amp;Fill</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="qbDiscard">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>&amp;Ignore</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="qliServer">
+     <property name="text">
+      <string>A&amp;ddress</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleServer</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <widget class="QLineEdit" name="qleServer">
+     <property name="toolTip">
+      <string>Internet address of the server.</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Address&lt;/b&gt;&lt;br/&gt;
+Internet address of the server. This can be a normal hostname, an IPv4/IPv6 address or a Bonjour service identifier. Bonjour service identifiers have to be prefixed with a '@' to be recognized by Mumble.</string>
+     </property>
+     <property name="placeholderText">
+      <string>127.0.0.1</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="qliPort">
+     <property name="text">
+      <string>&amp;Port</string>
+     </property>
+     <property name="buddy">
+      <cstring>qlePort</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QLineEdit" name="qlePort">
+     <property name="toolTip">
+      <string>Port on which the server is listening</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Port&lt;/b&gt;&lt;br/&gt;
+Port on which the server is listening. If the server is identified by a Bonjour service identifier this field will be ignored.</string>
+     </property>
+     <property name="placeholderText">
+      <string>64738</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="qliUsername">
+     <property name="text">
+      <string>&amp;Username</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleUsername</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="qliPassword">
+     <property name="text">
+      <string>Password</string>
+     </property>
+     <property name="buddy">
+      <cstring>qlePassword</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="QLineEdit" name="qleUsername">
+     <property name="toolTip">
+      <string>Username to send to the server</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Username&lt;/b&gt;&lt;br/&gt;
+Username to send to the server. Be aware that the server can impose restrictions on how a username might look like. Also your username could already be taken by another user.</string>
+     </property>
+     <property name="placeholderText">
+      <string>Your username</string>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="1">
+    <widget class="QDialogButtonBox" name="qdbbButtonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="1">
+    <widget class="QLineEdit" name="qlePassword">
+     <property name="toolTip">
+      <string>Password to send to the server</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Password&lt;/b&gt;&lt;br/&gt;
+Password to be sent to the server on connect. This password is needed when connecting as &lt;i&gt;SuperUser&lt;/i&gt; or to a server using password authentication. If not entered here the password will be queried on connect.</string>
+     </property>
+     <property name="placeholderText">
+      <string>Your password</string>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QCheckBox" name="qcbShowPassword">
+     <property name="toolTip">
+      <string/>
+     </property>
+     <property name="text">
+      <string>Show password</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0">
+    <widget class="QLabel" name="qliName">
+     <property name="text">
+      <string>Label</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleName</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QLineEdit" name="qleName">
+     <property name="toolTip">
+      <string>Name of the server</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Label&lt;/b&gt;&lt;br/&gt;
+Label of the server. This is what the server will be named like in your server list and can be chosen freely.</string>
+     </property>
+     <property name="placeholderText">
+      <string>Local server label</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>qleServer</tabstop>
+  <tabstop>qlePort</tabstop>
+  <tabstop>qleUsername</tabstop>
+  <tabstop>qlePassword</tabstop>
+  <tabstop>qleName</tabstop>
+  <tabstop>qcbShowPassword</tabstop>
+  <tabstop>qdbbButtonBox</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>qdbbButtonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>ConnectDialogEdit</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>175</x>
+     <y>231</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>50</x>
+     <y>198</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qdbbButtonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>ConnectDialogEdit</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>254</x>
+     <y>231</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>224</x>
+     <y>268</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
