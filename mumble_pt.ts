@@ -3,69 +3,69 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
-#define MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
+#ifndef MUMBLE_MUMBLE_WASAPI_H_
+#define MUMBLE_MUMBLE_WASAPI_H_
 
-#include <QtCore/QMutex>
+#include "AudioInput.h"
+#include "AudioOutput.h"
+
+#include "win.h"
+
 #include <QtCore/QObject>
+#include <QtCore/QUuid>
+
+#include <audioclient.h>
+#include <avrt.h>
+#include <functiondiscoverykeys.h>
+#include <ksmedia.h>
 #include <mmdeviceapi.h>
+#include <mmreg.h>
+#include <strsafe.h>
+#ifdef _INC_FUNCTIONDISCOVERYKEYS
+#	undef _INC_FUNCTIONDISCOVERYKEYS
+#endif
+#include <audiopolicy.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propidl.h>
 
-/**
- * @brief Singleton for acting on WASAPINotification events for given devices.
- */
-class WASAPINotificationClient : public QObject, public IMMNotificationClient {
-	Q_OBJECT
-public:
-	/* IMMNotificationClient interface */
-	HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDevice);
-	HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key);
-	HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId);
-	HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId);
-	HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState);
-	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface);
-	ULONG STDMETHODCALLTYPE AddRef();
-	ULONG STDMETHODCALLTYPE Release();
-
-	/* Enlist/Unlist functionality */
-	void enlistDefaultDeviceAsUsed(LPCWSTR pwstrDefaultDevice);
-
-	void enlistDeviceAsUsed(LPCWSTR pwstrDevice);
-	void enlistDeviceAsUsed(const QString &device);
-
-	void unlistDevice(LPCWSTR pwstrDevice);
-
-	void clearUsedDefaultDeviceList();
-	void clearUsedDeviceLists();
-
-	/**
-	 * @return Singleton instance reference.
-	 */
-	static WASAPINotificationClient &get();
-
+class WASAPISystem : public QObject {
 private:
-	WASAPINotificationClient();
-	~WASAPINotificationClient() Q_DECL_OVERRIDE;
-
-	WASAPINotificationClient(const WASAPINotificationClient &);
-	WASAPINotificationClient &operator=(const WASAPINotificationClient &);
-
-	static WASAPINotificationClient &doGet();
-	static void doGetOnce();
-
-	void restartAudio();
-
-	/* _fu = Non locking versions */
-	void _clearUsedDeviceLists();
-	void _enlistDeviceAsUsed(const QString &device);
-
-	QStringList usedDefaultDevices;
-	QStringList usedDevices;
-	IMMDeviceEnumerator *pEnumerator;
-	LONG _cRef;
-	QMutex listsMutex;
-
-signals:
-	void doResetAudio();
+	Q_OBJECT
+	Q_DISABLE_COPY(WASAPISystem)
+public:
+	static const QHash< QString, QString > getDevices(EDataFlow dataflow);
+	static const QHash< QString, QString > getInputDevices();
+	static const QHash< QString, QString > getOutputDevices();
+	static const QList< audioDevice > mapToDevice(const QHash< QString, QString > &, const QString &);
 };
 
-#endif // WASAPINOTIFICATIONCLIENT_H_
+class WASAPIInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(WASAPIInput)
+public:
+	WASAPIInput();
+	~WASAPIInput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
+class WASAPIOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(WASAPIOutput)
+
+	bool setVolumeForSessionControl(IAudioSessionControl *control, const DWORD mumblePID, QSet< QUuid > &seen);
+	bool setVolumeForSessionControl2(IAudioSessionControl2 *control2, const DWORD mumblePID, QSet< QUuid > &seen);
+
+protected:
+	typedef QPair< float, float > VolumePair;
+	QMap< ISimpleAudioVolume *, VolumePair > qmVolumes;
+	void setVolumes(IMMDevice *, bool talking);
+
+public:
+	WASAPIOutput();
+	~WASAPIOutput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
+#endif
