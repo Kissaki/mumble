@@ -1,78 +1,283 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LogConfig</class>
+ <widget class="QWidget" name="LogConfig">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>554</width>
+    <height>414</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Messages</string>
+  </property>
+  <layout class="QVBoxLayout">
+   <item>
+    <widget class="QTreeWidget" name="qtwMessages">
+     <property name="alternatingRowColors">
+      <bool>true</bool>
+     </property>
+     <property name="selectionMode">
+      <enum>QAbstractItemView::SingleSelection</enum>
+     </property>
+     <property name="rootIsDecorated">
+      <bool>false</bool>
+     </property>
+     <property name="uniformRowHeights">
+      <bool>true</bool>
+     </property>
+     <property name="itemsExpandable">
+      <bool>false</bool>
+     </property>
+     <column>
+      <property name="text">
+       <string>Message</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Console</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Notification</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Highlight</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Text-To-Speech</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Soundfile</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Path</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbTTS">
+     <property name="title">
+      <string>Text To Speech</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qlVolume">
+        <property name="text">
+         <string>Volume</string>
+        </property>
+        <property name="buddy">
+         <cstring>qsVolume</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="3">
+       <widget class="QSlider" name="qsVolume">
+        <property name="toolTip">
+         <string>Volume of Text-To-Speech Engine</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</string>
+        </property>
+        <property name="maximum">
+         <number>100</number>
+        </property>
+        <property name="singleStep">
+         <number>5</number>
+        </property>
+        <property name="pageStep">
+         <number>20</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="tickPosition">
+         <enum>QSlider::TicksBelow</enum>
+        </property>
+        <property name="tickInterval">
+         <number>5</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="qlThreshold">
+        <property name="text">
+         <string>Length threshold</string>
+        </property>
+        <property name="buddy">
+         <cstring>qsbThreshold</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="qsbThreshold">
+        <property name="toolTip">
+         <string>Message length threshold for Text-To-Speech Engine</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</string>
+        </property>
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::PlusMinus</enum>
+        </property>
+        <property name="suffix">
+         <string> Characters</string>
+        </property>
+        <property name="maximum">
+         <number>5000</number>
+        </property>
+        <property name="singleStep">
+         <number>10</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QCheckBox" name="qcbReadBackOwn">
+        <property name="toolTip">
+         <string>If enabled text messages you send will be read back to you with TTS</string>
+        </property>
+        <property name="text">
+         <string>Read back own messages</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="qcbNoScope">
+        <property name="toolTip">
+         <string>If enabled, TTS will not dictate the message scope.</string>
+        </property>
+        <property name="text">
+         <string>Omit Message Scope</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QCheckBox" name="qcbNoAuthor">
+        <property name="toolTip">
+         <string>If enabled, TTS will not dictate the message author.</string>
+        </property>
+        <property name="text">
+         <string>Omit Message Author</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbWhisper">
+     <property name="title">
+      <string>Whisper</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QCheckBox" name="qcbWhisperFriends">
+        <property name="toolTip">
+         <string>If checked you will only hear whispers from users you added to your friend list.</string>
+        </property>
+        <property name="text">
+         <string>Only accept whispers from friends</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbMaxBlocks">
+     <property name="title">
+      <string>Chat Log</string>
+     </property>
+     <layout class="QGridLayout" name="_2">
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="qcb24HourClock">
+        <property name="toolTip">
+         <string>If checked the time at the beginning of a message will be displayed in the 24-hour format.
 
-#include "Log.h"
-#include "MainWindow.h"
-#include "Settings.h"
-
-#ifdef USE_DBUS
-#	include <QtDBus/QDBusInterface>
-#endif
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-void Log::postNotification(MsgType mt, const QString &plain) {
-	// Message notification with balloon tooltips
-	QString qsIcon;
-	switch (mt) {
-		case DebugInfo:
-		case CriticalError:
-			qsIcon = QLatin1String("gtk-dialog-error");
-			break;
-		case Warning:
-			qsIcon = QLatin1String("gtk-dialog-warning");
-			break;
-		case TextMessage:
-			qsIcon = QLatin1String("gtk-edit");
-			break;
-		default:
-			qsIcon = QLatin1String("gtk-dialog-info");
-			break;
-	}
-
-#ifdef USE_DBUS
-	QDBusMessage response;
-	QVariantMap hints;
-	hints.insert(QLatin1String("desktop-entry"), QLatin1String("mumble"));
-
-	{
-		QDBusInterface kde(QLatin1String("org.kde.VisualNotifications"), QLatin1String("/VisualNotifications"),
-						   QLatin1String("org.kde.VisualNotifications"));
-		if (kde.isValid()) {
-			QList< QVariant > args;
-			args.append(QLatin1String("mumble"));
-			args.append(uiLastId);
-			args.append(QString());
-			args.append(QLatin1String("mumble"));
-			args.append(msgName(mt));
-			args.append(plain);
-			args.append(QStringList());
-			args.append(hints);
-			args.append(5000);
-
-			response = kde.callWithArgumentList(QDBus::AutoDetect, QLatin1String("Notify"), args);
-		}
-	}
-
-	if (response.type() != QDBusMessage::ReplyMessage || response.arguments().at(0).toUInt() == 0) {
-		QDBusInterface gnome(QLatin1String("org.freedesktop.Notifications"),
-							 QLatin1String("/org/freedesktop/Notifications"),
-							 QLatin1String("org.freedesktop.Notifications"));
-		if (gnome.isValid())
-			response = gnome.call(QLatin1String("Notify"), QLatin1String("Mumble"), uiLastId, qsIcon, msgName(mt),
-								  plain, QStringList(), hints, -1);
-	}
-
-	if (response.type() == QDBusMessage::ReplyMessage && response.arguments().count() == 1) {
-		uiLastId = response.arguments().at(0).toUInt();
-	} else {
-#else
-	if (true) {
-#endif
-		postQtNotification(mt, plain);
-	}
-}
+The setting only applies for new messages, the already shown ones will retain the previous time format.</string>
+        </property>
+        <property name="text">
+         <string>Use 24-hour clock</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="qsbMaxBlocks">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::PlusMinus</enum>
+        </property>
+        <property name="specialValueText">
+         <string>Unlimited</string>
+        </property>
+        <property name="suffix">
+         <string> Lines</string>
+        </property>
+        <property name="maximum">
+         <number>1000000</number>
+        </property>
+        <property name="singleStep">
+         <number>100</number>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="qlMaxBlocks">
+        <property name="text">
+         <string>Maximum chat length</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>8</width>
+          <height>16</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="qlChatMessageMargins">
+        <property name="toolTip">
+         <string>How far individual messages are spaced out from one another.</string>
+        </property>
+        <property name="text">
+         <string>Message margins</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="qsbChatMessageMargins">
+        <property name="toolTip">
+         <string>How far individual messages are spaced out from one another.</string>
+        </property>
+        <property name="frame">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
