@@ -1,809 +1,467 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>LookConfig</class>
- <widget class="QWidget" name="LookConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>728</width>
-    <height>1148</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string notr="true">Form</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout_4">
-   <item row="4" column="1">
-    <widget class="QGroupBox" name="groupBox">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Talking UI</string>
-     </property>
-     <property name="flat">
-      <bool>false</bool>
-     </property>
-     <property name="checkable">
-      <bool>false</bool>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_5">
-      <property name="horizontalSpacing">
-       <number>6</number>
-      </property>
-      <item row="7" column="0">
-       <widget class="QLabel" name="qlChannelHierarchyDepth">
-        <property name="toolTip">
-         <string>The names of how many parent channels should be included in the channel's name when displaying it in the TalkingUI?</string>
-        </property>
-        <property name="text">
-         <string>Channel hierarchy depth</string>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="1">
-       <widget class="QSpinBox" name="qsbChannelHierarchyDepth">
-        <property name="toolTip">
-         <string>The names of how many parent channels should be included in the channel's name when displaying it in the TalkingUI?</string>
-        </property>
-       </widget>
-      </item>
-      <item row="14" column="1">
-       <widget class="QLineEdit" name="qleAbbreviationReplacement">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>String that gets used instead of the cut-out part of an abbreviated name.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="13" column="0">
-       <widget class="QLabel" name="qlChannelSeparator">
-        <property name="toolTip">
-         <string>String to separate a channel name from its parent's.</string>
-        </property>
-        <property name="text">
-         <string>Channel separator</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QSpinBox" name="qsbRelFontSize">
-        <property name="toolTip">
-         <string>Relative font size to use in the Talking UI in percent.</string>
-        </property>
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>500</number>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QCheckBox" name="qcbLocalUserVisible">
-        <property name="toolTip">
-         <string>If this is checked, the local user (yourself) will always be visible in the TalkingUI (regardless of talking state).</string>
-        </property>
-        <property name="text">
-         <string>Always keep local user visible</string>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="1">
-       <widget class="QSpinBox" name="qsbMaxNameLength">
-        <property name="toolTip">
-         <string>The preferred maximum length of a channel (hierarchy) name in the Talking UI. Note that this is not a hard limit though.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="0">
-       <widget class="QLabel" name="qlPrefixCharCount">
-        <property name="toolTip">
-         <string>How many characters from the original name to display at the beginning of an abbreviated name.</string>
-        </property>
-        <property name="text">
-         <string>Abbreviated prefix characters</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
-       <widget class="QSpinBox" name="qsbSilentUserLifetime">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>A user that is silent for the given amount of seconds will be removed from the Talkin UI.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="11" column="1">
-       <widget class="QSpinBox" name="qsbPostfixCharCount">
-        <property name="toolTip">
-         <string>How many characters from the original name to display at the end of an abbreviated name.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="0">
-       <widget class="QLabel" name="qlMaxNameLength">
-        <property name="toolTip">
-         <string>The preferred maximum length of a channel (hierarchy) name in the Talking UI. Note that this is not a hard limit though.</string>
-        </property>
-        <property name="text">
-         <string>Max. channel name length</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbAbbreviateCurrentChannel">
-        <property name="toolTip">
-         <string>Whether to also allow abbreviating the current channel of a user (instead of only its parent channels).</string>
-        </property>
-        <property name="text">
-         <string>Abbreviate current channel name</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="qlSilentUserLifetime">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>A user that is silent for the given amount of seconds will be removed from the Talkin UI.</string>
-        </property>
-        <property name="text">
-         <string>Remove silent user after</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbAbbreviateChannelNames">
-        <property name="toolTip">
-         <string>Whether the channel (hierarchy) name should be abbreviated, if it exceeds the specified maximum length.</string>
-        </property>
-        <property name="text">
-         <string>Abbreviate channel names</string>
-        </property>
-       </widget>
-      </item>
-      <item row="11" column="0">
-       <widget class="QLabel" name="qlPostfixCharCount">
-        <property name="toolTip">
-         <string>How many characters from the original name to display at the end of an abbreviated name.</string>
-        </property>
-        <property name="text">
-         <string>Abbreviated postfix characters</string>
-        </property>
-       </widget>
-      </item>
-      <item row="14" column="0">
-       <widget class="QLabel" name="qlAbbreviationReplacement">
-        <property name="toolTip">
-         <string>String that gets used instead of the cut-out part of an abbreviated name.</string>
-        </property>
-        <property name="text">
-         <string>Abbreviation replacement</string>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="1">
-       <widget class="QSpinBox" name="qsbPrefixCharCount">
-        <property name="toolTip">
-         <string>How many characters from the original name to display at the beginning of an abbreviated name.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="13" column="1">
-       <widget class="QLineEdit" name="qleChannelSeparator">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>String to separate a channel name from its parent's.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="qlRelFontSize">
-        <property name="toolTip">
-         <string>Relative font size to use in the Talking UI in percent.</string>
-        </property>
-        <property name="text">
-         <string>Rel. font size (%)</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbShowLocalListeners">
-        <property name="toolTip">
-         <string>Whether to show all of the local user's listeners (ears) in the TalkingUI (and thereby also the channels they are in). </string>
-        </property>
-        <property name="text">
-         <string>Show local user's listeners (ears)</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="0" column="0" colspan="2">
-    <widget class="QGroupBox" name="qgbLayout">
-     <property name="title">
-      <string>Layout</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayoutLayout">
-      <item row="0" column="5">
-       <widget class="QLabel" name="qlLHybrid">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="pixmap">
-         <pixmap>skin:layout_hybrid.svg</pixmap>
-        </property>
-        <property name="scaledContents">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="5">
-       <widget class="QRadioButton" name="qrbLHybrid">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Hybrid</string>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>64</width>
-          <height>64</height>
-         </size>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="7">
-       <widget class="QRadioButton" name="qrbLCustom">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Custom</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="7">
-       <widget class="QLabel" name="qlLCustom">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="pixmap">
-         <pixmap>skin:layout_custom.svg</pixmap>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QRadioButton" name="qrbLStacked">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Stacked</string>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>64</width>
-          <height>64</height>
-         </size>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QRadioButton" name="qrbLClassic">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Classic</string>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>64</width>
-          <height>64</height>
-         </size>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <spacer name="horizontalSpacer_4">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="qlLClassic">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="pixmap">
-         <pixmap>skin:layout_classic.svg</pixmap>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="3">
-       <widget class="QLabel" name="qlLStacked">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="pixmap">
-         <pixmap>skin:layout_stacked.svg</pixmap>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="4">
-       <spacer name="horizontalSpacer_5">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="1" column="0">
-       <spacer name="horizontalSpacer_2">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="1" column="8">
-       <spacer name="horizontalSpacer_3">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="1" column="6">
-       <spacer name="horizontalSpacer_6">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="1" column="0" rowspan="4">
-    <widget class="QGroupBox" name="qgbLookFeel">
-     <property name="title">
-      <string>Look and Feel</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="3" column="0" colspan="2">
-       <widget class="MUComboBox" name="qcbLanguage">
-        <property name="toolTip">
-         <string>Language to use (requires restart)</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This sets which language Mumble should use.&lt;/b&gt;&lt;br /&gt;You have to restart Mumble to use the new language.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliTheme">
-        <property name="text">
-         <string>Theme</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="2">
-       <widget class="MUComboBox" name="qcbTheme">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Theme to use to style the user interface</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Configures which theme the Mumble user interface should be styled with&lt;/b&gt;&lt;br /&gt;Mumble will pick up themes from certain directories and display them in this list. The one you select will be used to customize the visual appearance of Mumble. This includes colors, icons and more.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbShowTransmitModeComboBox">
-        <property name="text">
-         <string>Show transmit mode dropdown in toolbar</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbHighContrast">
-        <property name="toolTip">
-         <string>Apply some high contrast optimizations for visually impaired users</string>
-        </property>
-        <property name="text">
-         <string>Optimize for high contrast</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0">
-       <spacer name="verticalSpacer">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>40</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qliLanguage">
-        <property name="text">
-         <string>Language</string>
-        </property>
-        <property name="buddy">
-         <cstring>qcbLanguage</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="qlThemesDirectory">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QGroupBox" name="qgbTray">
-     <property name="title">
-      <string>Tray Icon</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbHideTray">
-        <property name="toolTip">
-         <string>Hide the main Mumble window in the tray when it is minimized.</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;If set, minimizing the Mumble main window will cause it to be hidden and accessible only from the tray. Otherwise, it will be minimized as a window normally would.&lt;/b&gt;</string>
-        </property>
-        <property name="text">
-         <string>Hide in tray when minimized</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbStateInTray">
-        <property name="toolTip">
-         <string>Displays talking status in system tray</string>
-        </property>
-        <property name="whatsThis">
-         <string/>
-        </property>
-        <property name="text">
-         <string>Show talking status in tray icon</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QGroupBox" name="qgbApplication">
-     <property name="title">
-      <string>Application</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_3" columnstretch="0,0">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliAlwaysOnTop">
-        <property name="text">
-         <string>Always On Top</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="MUComboBox" name="qcbAlwaysOnTop">
-        <property name="toolTip">
-         <string>This setting controls when the application will be always on top.</string>
-        </property>
-        <property name="whatsThis">
-         <string>This setting controls in which situations the application will stay always on top. If you select &lt;i&gt;Never&lt;/i&gt; the application will not stay on top. &lt;i&gt;Always&lt;/i&gt; will always keep the application on top. &lt;i&gt;In minimal view&lt;/i&gt; / &lt;i&gt;In normal view&lt;/i&gt; will only keep the application always on top when minimal view is activated / deactivated.</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>Never</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Always</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>In minimal view</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>In normal view</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbShowContextMenuInMenuBar">
-        <property name="toolTip">
-         <string>Adds user and channel context menus into the menu bar</string>
-        </property>
-        <property name="text">
-         <string>Show context menu in menu bar</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbAskOnQuit">
-        <property name="toolTip">
-         <string>Ask whether to close or minimize when quitting Mumble.</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;If set, will verify you want to quit if connected.&lt;/b&gt;</string>
-        </property>
-        <property name="text">
-         <string>Ask on quit while connected</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbEnableDeveloperMenu">
-        <property name="whatsThis">
-         <string>&lt;b&gt;Enable Developer menu&lt;/b&gt;&lt;br /&gt;This enables the &quot;Developer&quot;-menu in Mumble. This menu is used for developer-specific features, such as the Developer Console.</string>
-        </property>
-        <property name="text">
-         <string>Enable Developer menu</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbLockLayout">
-        <property name="whatsThis">
-         <string>When in custom layout mode, checking this disables rearranging.</string>
-        </property>
-        <property name="text">
-         <string>Lock layout</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="5" column="1">
-    <spacer name="horizontalSpacer">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>40</width>
-       <height>20</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item row="3" column="1">
-    <widget class="QGroupBox" name="qgbChannel">
-     <property name="title">
-      <string>Channel Tree</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_2" columnstretch="0,0">
-      <item row="7" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbFilterHidesEmptyChannels">
-        <property name="text">
-         <string>Filter automatically hides empty channels</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="MUComboBox" name="qcbExpand">
-        <property name="toolTip">
-         <string>When to automatically expand channels</string>
-        </property>
-        <property name="whatsThis">
-         <string>This sets which channels to automatically expand. &lt;i&gt;None&lt;/i&gt; and &lt;i&gt;All&lt;/i&gt; will expand no or all channels, while &lt;i&gt;Only with users&lt;/i&gt; will expand and collapse channels as users join and leave them.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="MUComboBox" name="qcbUserDrag">
-        <property name="toolTip">
-         <string>This changes the behavior when moving users.</string>
-        </property>
-        <property name="whatsThis">
-         <string>This sets the behavior of user drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the user without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the user.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliUserDrag">
-        <property name="text">
-         <string>User Dragging</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliChannelDrag">
-        <property name="text">
-         <string>Channel Dragging</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbChatBarUseSelection">
-        <property name="text">
-         <string>Use selected item as the chat bar target</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qliExpand">
-        <property name="text">
-         <string>Expand</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbShowUserCount">
-        <property name="toolTip">
-         <string>Show number of users in each channel</string>
-        </property>
-        <property name="text">
-         <string>Show channel user count</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="MUComboBox" name="qcbChannelDrag">
-        <property name="toolTip">
-         <string>This changes the behavior when moving channels.</string>
-        </property>
-        <property name="whatsThis">
-         <string>This sets the behavior of channel drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the channel without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the channel.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbUsersTop">
-        <property name="toolTip">
-         <string>List users above subchannels (requires restart).</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;If set, users will be shown above subchannels in the channel view.&lt;/b&gt;&lt;br /&gt;A restart of Mumble is required to see the change.</string>
-        </property>
-        <property name="text">
-         <string>Users above Channels</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0" colspan="2">
-       <widget class="QCheckBox" name="qcbShowVolumeAdjustments">
-        <property name="toolTip">
-         <string>Show the local volume adjustment for each user (if any).</string>
-        </property>
-        <property name="text">
-         <string>Show volume adjustments</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="6" column="1">
-    <spacer name="verticalSpacer_2">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#import <AppKit/AppKit.h>
+#import <Carbon/Carbon.h>
+
+#include "GlobalShortcut_macx.h"
+#include "OverlayClient.h"
+
+#define MOD_OFFSET   0x10000
+#define MOUSE_OFFSET 0x20000
+
+GlobalShortcutEngine *GlobalShortcutEngine::platformInit() {
+	return new GlobalShortcutMac();
+}
+
+CGEventRef GlobalShortcutMac::callback(CGEventTapProxy proxy, CGEventType type,
+                                       CGEventRef event, void *udata) {
+	GlobalShortcutMac *gs = reinterpret_cast<GlobalShortcutMac *>(udata);
+	unsigned int keycode;
+	bool suppress = false;
+	bool forward = false;
+	bool down = false;
+	int64_t repeat = 0;
+
+	Q_UNUSED(proxy);
+
+	switch (type) {
+		case kCGEventLeftMouseDown:
+		case kCGEventRightMouseDown:
+		case kCGEventOtherMouseDown:
+			down = true;
+		case kCGEventLeftMouseUp:
+		case kCGEventRightMouseUp:
+		case kCGEventOtherMouseUp: {
+			keycode = static_cast<unsigned int>(CGEventGetIntegerValueField(event, kCGMouseEventButtonNumber));
+			suppress = gs->handleButton(MOUSE_OFFSET+keycode, down);
+			/* Suppressing "the" mouse button is probably not a good idea :-) */
+			if (keycode == 0)
+				suppress = false;
+			forward = !suppress;
+			break;
+		}
+
+		case kCGEventMouseMoved:
+		case kCGEventLeftMouseDragged:
+		case kCGEventRightMouseDragged:
+		case kCGEventOtherMouseDragged: {
+			if (g.ocIntercept) {
+				int64_t dx = CGEventGetIntegerValueField(event, kCGMouseEventDeltaX);
+				int64_t dy = CGEventGetIntegerValueField(event, kCGMouseEventDeltaY);
+				g.ocIntercept->iMouseX = qBound<int>(0, g.ocIntercept->iMouseX + static_cast<int>(dx), g.ocIntercept->uiWidth - 1);
+				g.ocIntercept->iMouseY = qBound<int>(0, g.ocIntercept->iMouseY + static_cast<int>(dy), g.ocIntercept->uiHeight - 1);
+				QMetaObject::invokeMethod(g.ocIntercept, "updateMouse", Qt::QueuedConnection);
+				forward = true;
+			}
+			break;
+		}
+
+		case kCGEventScrollWheel:
+			forward = true;
+			break;
+
+		case kCGEventKeyDown:
+			down = true;
+		case kCGEventKeyUp:
+			repeat = CGEventGetIntegerValueField(event, kCGKeyboardEventAutorepeat);
+			if (! repeat) {
+				keycode = static_cast<unsigned int>(CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode));
+				suppress = gs->handleButton(keycode, down);
+			}
+			forward = true;
+			break;
+
+		case kCGEventFlagsChanged: {
+			CGEventFlags f = CGEventGetFlags(event);
+
+			// Dump active event taps on Ctrl+Alt+Cmd.
+			CGEventFlags ctrlAltCmd = static_cast<CGEventFlags>(kCGEventFlagMaskControl|kCGEventFlagMaskAlternate|kCGEventFlagMaskCommand);
+			if ((f & ctrlAltCmd) == ctrlAltCmd)
+				gs->dumpEventTaps();
+
+			suppress = gs->handleModButton(f);
+			forward = !suppress;
+			break;
+		}
+
+		case kCGEventTapDisabledByTimeout:
+			qWarning("GlobalShortcutMac: EventTap disabled by timeout. Re-enabling.");
+			/*
+			 * On Snow Leopard, we get this event type quite often. It disables our event
+			 * tap completely. Possible Apple bug.
+			 *
+			 * For now, simply call CGEventTapEnable() to enable our event tap again.
+			 *
+			 * See: http://lists.apple.com/archives/quartz-dev/2009/Sep/msg00007.html
+			 */
+			CGEventTapEnable(gs->port, true);
+			break;
+
+		case kCGEventTapDisabledByUserInput:
+			break;
+
+		default:
+			break;
+	}
+
+		if (forward && g.ocIntercept) {
+			NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+			NSEvent *evt = [[NSEvent eventWithCGEvent:event] retain];
+			QMetaObject::invokeMethod(gs, "forwardEvent", Qt::QueuedConnection, Q_ARG(void *, evt));
+			[pool release];
+			return nullptr;
+		}
+
+	return suppress ? nullptr : event;
+}
+
+GlobalShortcutMac::GlobalShortcutMac()
+    : loop(nullptr)
+    , port(nullptr)
+    , modmask(static_cast<CGEventFlags>(0)) {
+#ifndef QT_NO_DEBUG
+	qWarning("GlobalShortcutMac: Debug build detected. Disabling shortcut engine.");
+	return;
+#endif
+
+	CGEventMask evmask = CGEventMaskBit(kCGEventLeftMouseDown) |
+	                     CGEventMaskBit(kCGEventLeftMouseUp) |
+	                     CGEventMaskBit(kCGEventRightMouseDown) |
+	                     CGEventMaskBit(kCGEventRightMouseUp) |
+	                     CGEventMaskBit(kCGEventOtherMouseDown) |
+	                     CGEventMaskBit(kCGEventOtherMouseUp) |
+	                     CGEventMaskBit(kCGEventKeyDown) |
+	                     CGEventMaskBit(kCGEventKeyUp) |
+	                     CGEventMaskBit(kCGEventFlagsChanged) |
+	                     CGEventMaskBit(kCGEventMouseMoved) |
+	                     CGEventMaskBit(kCGEventLeftMouseDragged) |
+	                     CGEventMaskBit(kCGEventRightMouseDragged) |
+	                     CGEventMaskBit(kCGEventOtherMouseDragged) |
+	                     CGEventMaskBit(kCGEventScrollWheel);
+	port = CGEventTapCreate(kCGSessionEventTap,
+	                        kCGTailAppendEventTap,
+	                        kCGEventTapOptionDefault, // active filter (not only a listener)
+	                        evmask,
+	                        GlobalShortcutMac::callback,
+	                        this);
+
+	if (! port) {
+		qWarning("GlobalShortcutMac: Unable to create EventTap. Global Shortcuts will not be available.");
+		return;
+	}
+
+	kbdLayout = nullptr;
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
+# if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
+	if (TISCopyCurrentKeyboardInputSource && TISGetInputSourceProperty)
+# endif
+	{
+		TISInputSourceRef inputSource = TISCopyCurrentKeyboardInputSource();
+		if (inputSource) {
+			CFDataRef data = static_cast<CFDataRef>(TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData));
+			if (data)
+				kbdLayout = reinterpret_cast<UCKeyboardLayout *>(const_cast<UInt8 *>(CFDataGetBytePtr(data)));
+		}
+	}
+#endif
+#ifndef __LP64__
+	if (! kbdLayout) {
+		SInt16 currentKeyScript = GetScriptManagerVariable(smKeyScript);
+		SInt16 lastKeyLayoutID = GetScriptVariable(currentKeyScript, smScriptKeys);
+		Handle handle = GetResource('uchr', lastKeyLayoutID);
+		if (handle)
+			kbdLayout = reinterpret_cast<UCKeyboardLayout *>(*handle);
+	}
+#endif
+	if (! kbdLayout)
+		qWarning("GlobalShortcutMac: No keyboard layout mapping available. Unable to perform key translation.");
+
+	start(QThread::TimeCriticalPriority);
+}
+
+GlobalShortcutMac::~GlobalShortcutMac() {
+#ifndef QT_NO_DEBUG
+	return;
+#endif
+	if (loop) {
+		CFRunLoopStop(loop);
+		loop = nullptr;
+		wait();
+	}
+}
+
+void GlobalShortcutMac::dumpEventTaps() {
+	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+	uint32_t ntaps = 0;
+	CGEventTapInformation table[64];
+	if (CGGetEventTapList(20, table, &ntaps) == kCGErrorSuccess) {
+		qWarning("--- Installed Event Taps ---");
+		for (uint32_t i = 0; i < ntaps; i++) {
+			CGEventTapInformation *info = &table[i];
+
+			NSString *processName = nil;
+			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier: info->processBeingTapped];
+			if (app) {
+				processName = [app localizedName];
+			}
+
+			qWarning("{");
+			qWarning("  eventTapID: %u", info->eventTapID);
+			qWarning("  tapPoint: 0x%x", info->tapPoint);
+			qWarning("  options = 0x%x", info->options);
+			qWarning("  eventsOfInterest = 0x%llx", info->eventsOfInterest);
+			qWarning("  tappingProcess = %i (%s)", info->tappingProcess, [processName UTF8String]);
+			qWarning("  processBeingTapped = %i", info->processBeingTapped);
+			qWarning("  enabled = %s", info->enabled ? "true":"false");
+			qWarning("  minUsecLatency = %.2f", info->minUsecLatency);
+			qWarning("  avgUsecLatency = %.2f", info->avgUsecLatency);
+			qWarning("  maxUsecLatency = %.2f", info->maxUsecLatency);
+			qWarning("}");
+		}
+		qWarning("--- End of Event Taps ---");
+	}
+	[pool release];
+}
+
+void GlobalShortcutMac::forwardEvent(void *evt) {
+	NSEvent *event = (NSEvent *)evt;
+	SEL sel = nil;
+
+	if (! g.ocIntercept)
+		return;
+
+	QWidget *vp = g.ocIntercept->qgv.viewport();
+	NSView *view = (NSView *) vp->winId();
+
+	switch ([event type]) {
+		case NSLeftMouseDown:
+			sel = @selector(mouseDown:);
+			break;
+		case NSLeftMouseUp:
+			sel = @selector(mouseUp:);
+			break;
+		case NSLeftMouseDragged:
+			sel = @selector(mouseDragged:);
+			break;
+		case NSRightMouseDown:
+			sel = @selector(rightMouseDown:);
+			break;
+		case NSRightMouseUp:
+			sel = @selector(rightMouseUp:);
+			break;
+		case NSRightMouseDragged:
+			sel = @selector(rightMouseDragged:);
+			break;
+		case NSOtherMouseDown:
+			sel = @selector(otherMouseDown:);
+			break;
+		case NSOtherMouseUp:
+			sel = @selector(otherMouseUp:);
+			break;
+		case NSOtherMouseDragged:
+			sel = @selector(otherMouseDragged:);
+			break;
+		case NSMouseEntered:
+			sel = @selector(mouseEntered:);
+			break;
+		case NSMouseExited:
+			sel = @selector(mouseExited:);
+			break;
+		case NSMouseMoved:
+			sel = @selector(mouseMoved:);
+			break;
+		default:
+			// Ignore the rest. We only care about mouse events.
+			break;
+	}
+
+	if (sel) {
+		NSPoint p; p.x = (CGFloat) g.ocIntercept->iMouseX;
+		p.y = (CGFloat) (g.ocIntercept->uiHeight - g.ocIntercept->iMouseY);
+		NSEvent *mouseEvent = [NSEvent mouseEventWithType:[event type] location:p modifierFlags:[event modifierFlags] timestamp:[event timestamp]
+		                               windowNumber:0 context:nil eventNumber:[event eventNumber] clickCount:[event clickCount]
+		                               pressure:[event pressure]];
+		if ([view respondsToSelector:sel])
+				[view performSelector:sel withObject:mouseEvent];
+		[event release];
+		return;
+	}
+
+	switch ([event type]) {
+		case NSKeyDown:
+			sel = @selector(keyDown:);
+			break;
+		case NSKeyUp:
+			sel = @selector(keyUp:);
+			break;
+		case NSFlagsChanged:
+			sel = @selector(flagsChanged:);
+			break;
+		case NSScrollWheel:
+			sel = @selector(scrollWheel:);
+			break;
+		default:
+			break;
+	}
+
+	if (sel) {
+		if ([view respondsToSelector:sel])
+				[view performSelector:sel withObject:event];
+	}
+
+	[event release];
+}
+
+void GlobalShortcutMac::run() {
+	loop = CFRunLoopGetCurrent();
+	CFRunLoopSourceRef src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0);
+	CFRunLoopAddSource(loop, src, kCFRunLoopCommonModes);
+	CFRunLoopRun();
+}
+
+void GlobalShortcutMac::needRemap() {
+	remap();
+}
+
+bool GlobalShortcutMac::handleModButton(const CGEventFlags newmask) {
+	bool down;
+	bool suppress = false;
+
+#define MOD_CHANGED(mask, btn) do { \
+	    if ((newmask & mask) != (modmask & mask)) { \
+	        down = newmask & mask; \
+	        suppress = handleButton(MOD_OFFSET+btn, down); \
+	        modmask = newmask; \
+	        return suppress; \
+	    }} while (0)
+
+	MOD_CHANGED(kCGEventFlagMaskAlphaShift, 0);
+	MOD_CHANGED(kCGEventFlagMaskShift, 1);
+	MOD_CHANGED(kCGEventFlagMaskControl, 2);
+	MOD_CHANGED(kCGEventFlagMaskAlternate, 3);
+	MOD_CHANGED(kCGEventFlagMaskCommand, 4);
+	MOD_CHANGED(kCGEventFlagMaskHelp, 5);
+	MOD_CHANGED(kCGEventFlagMaskSecondaryFn, 6);
+	MOD_CHANGED(kCGEventFlagMaskNumericPad, 7);
+
+	return false;
+}
+
+QString GlobalShortcutMac::translateMouseButton(const unsigned int keycode) const {
+	return QString::fromLatin1("Mouse Button %1").arg(keycode-MOUSE_OFFSET+1);
+}
+
+QString GlobalShortcutMac::translateModifierKey(const unsigned int keycode) const {
+	unsigned int key = keycode - MOD_OFFSET;
+	switch (key) {
+		case 0:
+			return QLatin1String("Caps Lock");
+		case 1:
+			return QLatin1String("Shift");
+		case 2:
+			return QLatin1String("Control");
+		case 3:
+			return QLatin1String("Alt/Option");
+		case 4:
+			return QLatin1String("Command");
+		case 5:
+			return QLatin1String("Help");
+		case 6:
+			return QLatin1String("Fn");
+		case 7:
+			return QLatin1String("Num Lock");
+	}
+	return QString::fromLatin1("Modifier %1").arg(key);
+}
+
+QString GlobalShortcutMac::translateKeyName(const unsigned int keycode) const {
+	UInt32 junk = 0;
+	UniCharCount len = 64;
+	UniChar unicodeString[len];
+
+	if (! kbdLayout)
+		return QString();
+
+	OSStatus err = UCKeyTranslate(kbdLayout, static_cast<UInt16>(keycode),
+	                              kUCKeyActionDisplay, 0, LMGetKbdType(),
+	                              kUCKeyTranslateNoDeadKeysBit, &junk,
+	                              len, &len, unicodeString);
+	if (err != noErr)
+		return QString();
+
+	if (len == 1) {
+		switch (unicodeString[0]) {
+			case '\t':
+				return QLatin1String("Tab");
+			case '\r':
+				return QLatin1String("Enter");
+			case '\b':
+				return QLatin1String("Backspace");
+			case '\e':
+				return QLatin1String("Escape");
+			case ' ':
+				return QLatin1String("Space");
+			case 28:
+				return QLatin1String("Left");
+			case 29:
+				return QLatin1String("Right");
+			case 30:
+				return QLatin1String("Up");
+			case 31:
+				return QLatin1String("Down");
+		}
+
+		if (unicodeString[0] < ' ') {
+			qWarning("GlobalShortcutMac: Unknown translation for keycode %u: %u", keycode, unicodeString[0]);
+			return QString();
+		}
+	}
+
+	return QString(reinterpret_cast<const QChar *>(unicodeString), len).toUpper();
+}
+
+QString GlobalShortcutMac::buttonName(const QVariant &v) {
+	bool ok;
+	unsigned int key = v.toUInt(&ok);
+	if (!ok)
+		return QString();
+
+	if (key >= MOUSE_OFFSET)
+		return translateMouseButton(key);
+	else if (key >= MOD_OFFSET)
+		return translateModifierKey(key);
+	else {
+		QString str = translateKeyName(key);
+		if (!str.isEmpty())
+			return str;
+	}
+
+	return QString::fromLatin1("Keycode %1").arg(key);
+}
+
+void GlobalShortcutMac::setEnabled(bool b) {
+	// Since Mojave, passing nullptr to CGEventTapEnable() segfaults.
+	if (port) {
+		CGEventTapEnable(port, b);
+	}
+}
+
+bool GlobalShortcutMac::enabled() {
+	if (!port) {
+		return false;
+	}
+
+	return CGEventTapIsEnabled(port);
+}
+
+bool GlobalShortcutMac::canSuppress() {
+	return true;
+}
+
+bool GlobalShortcutMac::canDisable() {
+	return true;
+}
