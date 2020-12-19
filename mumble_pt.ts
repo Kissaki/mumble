@@ -1,776 +1,394 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>AudioOutput</class>
- <widget class="QWidget" name="AudioOutput">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>546</width>
-    <height>775</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Audio output</string>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QGroupBox" name="qgbInterfaces">
-     <property name="title">
-      <string>Interface</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_3">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliSystem">
-        <property name="text">
-         <string>System</string>
-        </property>
-        <property name="buddy">
-         <cstring>qcbSystem</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="MUComboBox" name="qcbSystem">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Output method for audio</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the output method to use for audio.&lt;/b&gt;</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <spacer>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Maximum</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>24</width>
-          <height>16</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="0" column="3">
-       <widget class="QLabel" name="qliDevice">
-        <property name="text">
-         <string>Device</string>
-        </property>
-        <property name="buddy">
-         <cstring>qcbDevice</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="4">
-       <widget class="MUComboBox" name="qcbDevice">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Output device for audio</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the output device to use for audio.&lt;/b&gt;</string>
-        </property>
-        <property name="sizeAdjustPolicy">
-         <enum>QComboBox::AdjustToContents</enum>
-        </property>
-        <property name="minimumContentsLength">
-         <number>16</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QCheckBox" name="qcbExclusive">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>27</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Exclusive mode, not recommended.</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</string>
-        </property>
-        <property name="text">
-         <string>Exclusive</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbOutput">
-     <property name="title">
-      <string>Audio Output</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="1" column="2">
-       <widget class="QLabel" name="qlVolume">
-        <property name="text">
-         <string notr="true">vol</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QSlider" name="qsDelay">
-        <property name="toolTip">
-         <string>Amount of data to buffer</string>
-        </property>
-        <property name="whatsThis">
-         <string>This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn't cause rapid jitter in the sound.</string>
-        </property>
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>10</number>
-        </property>
-        <property name="pageStep">
-         <number>3</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <widget class="QLabel" name="qlJitter">
-        <property name="minimumSize">
-         <size>
-          <width>40</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string notr="true">jb</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qliDelay">
-        <property name="text">
-         <string>Output Delay</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsDelay</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QSlider" name="qsVolume">
-        <property name="toolTip">
-         <string>Volume of incoming speech</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This adjusts the volume of incoming speech.&lt;/b&gt;&lt;br /&gt;Note that if you increase this beyond 100%, audio will be distorted.</string>
-        </property>
-        <property name="minimum">
-         <number>0</number>
-        </property>
-        <property name="maximum">
-         <number>200</number>
-        </property>
-        <property name="value">
-         <number>100</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliVolume">
-        <property name="text">
-         <string>Volume</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsVolume</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QLabel" name="qlDelay">
-        <property name="text">
-         <string notr="true">od</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSlider" name="qsJitter">
-        <property name="toolTip">
-         <string>Safety margin for jitter buffer</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This sets the minimum safety margin for the jitter buffer.&lt;/b&gt;&lt;br /&gt;All incoming audio is buffered, and the jitter buffer continually tries to push the buffer to the minimum sustainable by your network, so latency can be as low as possible. This sets the minimum buffer size to use. If the start of sentences you hear is very jittery, increase this value.</string>
-        </property>
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>5</number>
-        </property>
-        <property name="pageStep">
-         <number>2</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliJitter">
-        <property name="text">
-         <string>Default &amp;Jitter Buffer</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsJitter</cstring>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbAttenuation">
-     <property name="toolTip">
-      <string/>
-     </property>
-     <property name="title">
-      <string>Attenuation</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_4">
-      <item row="6" column="0" colspan="3">
-       <widget class="QCheckBox" name="qcbOnlyAttenuateSameOutput">
-        <property name="toolTip">
-         <string>If checked, Mumble will only attenuate applications that are using the same output source as Mumble</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Attenuate only applications using the same output as Mumble&lt;/b&gt;&lt;br /&gt;If checked, applications that use a different output than Mumble will not be attenuated.</string>
-        </property>
-        <property name="text">
-         <string>Only attenuate applications using the same output device</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0" rowspan="3">
-       <widget class="QLabel" name="qliOtherVolume">
-        <property name="text">
-         <string>Attenuate applications by...</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-        <property name="buddy">
-         <cstring>qsOtherVolume</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="0" colspan="3">
-       <widget class="QCheckBox" name="qcbAttenuateLoopbacks">
-        <property name="toolTip">
-         <string>If checked, PulseAudio loopback modules will be attenuated</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Attenuate PulseAudio loopback modules&lt;/b&gt;&lt;br /&gt;If loopback modules are linked to Mumble's output device/sink, they will also be attenuated.</string>
-        </property>
-        <property name="text">
-         <string>Attenuate PulseAudio loopback modules</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <spacer name="horizontalSpacer">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeType">
-           <enum>QSizePolicy::Maximum</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
-         <widget class="QCheckBox" name="qcbAttenuateOthers">
-          <property name="toolTip">
-           <string>If checked Mumble lowers the volume of other applications while other users talk</string>
-          </property>
-          <property name="whatsThis">
-           <string>&lt;b&gt;Attenuate applications while other users talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while other users talk to you.</string>
-          </property>
-          <property name="text">
-           <string>while other users talk</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <spacer name="horizontalSpacer_3">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeType">
-           <enum>QSizePolicy::Fixed</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
-         <widget class="QCheckBox" name="qcbAttenuateOthersOnTalk">
-          <property name="toolTip">
-           <string>If checked Mumble lowers the volume of other applications while you talk</string>
-          </property>
-          <property name="whatsThis">
-           <string>&lt;b&gt;Attenuate applications while you talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while you talk.</string>
-          </property>
-          <property name="text">
-           <string>while you talk</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <spacer name="horizontalSpacer_2">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-       </layout>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSlider" name="qsOtherVolume">
-        <property name="toolTip">
-         <string>Attenuation of other applications during speech</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Attenuate volume of other applications during speech&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This sets the attenuation of other applications if the feature is enabled.</string>
-        </property>
-        <property name="minimum">
-         <number>0</number>
-        </property>
-        <property name="maximum">
-         <number>100</number>
-        </property>
-        <property name="value">
-         <number>0</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <widget class="QLabel" name="qlOtherVolume">
-        <property name="text">
-         <string notr="true">at</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0" colspan="3">
-       <widget class="QCheckBox" name="qcbAttenuateUsersOnPrioritySpeak">
-        <property name="toolTip">
-         <string>If checked Mumble lowers the volume of other users while you talk if you have the &quot;Priority Speaker&quot; status.</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Attenuate other users while talking as Priority Speaker&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other users while you talk as the &lt;i&gt;Priority Speaker&lt;/i&gt; to avoid getting disturbed. Checking this checkbox will enable this feature.</string>
-        </property>
-        <property name="text">
-         <string>Attenuate other users while talking as Priority Speaker</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbPositionalAudio">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
-     <property name="title">
-      <string>Positional Audio</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_2">
-      <item row="1" column="1">
-       <widget class="QLabel" name="qliMinDistancce">
-        <property name="text">
-         <string>Minimum Distance</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsMinDistance</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="4">
-       <widget class="QLabel" name="qlMinDistance">
-        <property name="minimumSize">
-         <size>
-          <width>40</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="whatsThis">
-         <string>Checking this indicates that you don't have speakers connected, just headphones. This is important, as speakers are usually in front of you, while headphones are directly to your left/right.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QLabel" name="qliMaxDistVolume">
-        <property name="text">
-         <string>Minimum Volume</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsMaxDistance</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QLabel" name="qliMaxDistancce">
-        <property name="text">
-         <string>Maximum Distance</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsMaxDistance</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QSlider" name="qsMinDistance">
-        <property name="toolTip">
-         <string>Minimum distance to user before sound volume decreases</string>
-        </property>
-        <property name="statusTip">
-         <string/>
-        </property>
-        <property name="whatsThis">
-         <string>This sets the minimum distance for sound calculations. The volume of other users' speech will not decrease until they are at least this far away from you.</string>
-        </property>
-        <property name="minimum">
-         <number>10</number>
-        </property>
-        <property name="maximum">
-         <number>200</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QCheckBox" name="qcbPositional">
-        <property name="text">
-         <string>Enable</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QSlider" name="qsBloom">
-        <property name="toolTip">
-         <string>Factor for sound volume increase</string>
-        </property>
-        <property name="whatsThis">
-         <string>How much should sound volume increase for sources that are really close?</string>
-        </property>
-        <property name="minimum">
-         <number>0</number>
-        </property>
-        <property name="maximum">
-         <number>75</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <widget class="QCheckBox" name="qcbHeadphones">
-        <property name="toolTip">
-         <string>The connected &quot;speakers&quot; are actually headphones</string>
-        </property>
-        <property name="whatsThis">
-         <string>Checking this indicates that you don't have speakers connected, just headphones. This is important, as speakers are usually in front of you, while headphones are directly to your left/right.</string>
-        </property>
-        <property name="text">
-         <string>Headphones</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="4">
-       <widget class="QLabel" name="qlMaxDistVolume">
-        <property name="minimumSize">
-         <size>
-          <width>40</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string notr="true">mv</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="2">
-       <widget class="QSlider" name="qsMaxDistVolume">
-        <property name="toolTip">
-         <string>Factor for sound volume decrease</string>
-        </property>
-        <property name="whatsThis">
-         <string>What should the volume be at the maximum distance?</string>
-        </property>
-        <property name="maximum">
-         <number>100</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="4">
-       <widget class="QLabel" name="qlBloom">
-        <property name="minimumSize">
-         <size>
-          <width>40</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string notr="true">bl</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="4">
-       <widget class="QLabel" name="qlMaxDistance">
-        <property name="minimumSize">
-         <size>
-          <width>40</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string notr="true">md</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QSlider" name="qsMaxDistance">
-        <property name="toolTip">
-         <string>Maximum distance, beyond which speech volume won't decrease</string>
-        </property>
-        <property name="whatsThis">
-         <string>This sets the maximum distance for sound calculations. When farther away than this, other users' speech volume will not decrease any further.</string>
-        </property>
-        <property name="minimum">
-         <number>10</number>
-        </property>
-        <property name="maximum">
-         <number>1000</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="qliBloom">
-        <property name="text">
-         <string>Bloom</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsMaxDistVolume</cstring>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbLoopback">
-     <property name="title">
-      <string>Loopback Test</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliPacketDelay">
-        <property name="text">
-         <string>Delay Variance</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsPacketDelay</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QSlider" name="qsPacketDelay">
-        <property name="toolTip">
-         <string>Variance in packet latency</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This sets the packet latency variance for loopback testing.&lt;/b&gt;&lt;br /&gt;Most audio paths contain some variable latency. This allows you to set that variance for loopback mode testing. For example, if you set this to 15ms, this will emulate a network with 20-35ms ping latency or one with 80-95ms latency. Most domestic net connections have a variance of about 5ms.</string>
-        </property>
-        <property name="maximum">
-         <number>100</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLabel" name="qlPacketDelay">
-        <property name="minimumSize">
-         <size>
-          <width>40</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string notr="true">dv</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qliPacketLoss">
-        <property name="text">
-         <string>Packet Loss</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsPacketLoss</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QSlider" name="qsPacketLoss">
-        <property name="toolTip">
-         <string>Packet loss for loopback mode</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This sets the packet loss for loopback mode.&lt;/b&gt;&lt;br /&gt;This will be the ratio of packets lost. Unless your outgoing bandwidth is peaked or there's something wrong with your network connection, this will be 0%</string>
-        </property>
-        <property name="maximum">
-         <number>50</number>
-        </property>
-        <property name="singleStep">
-         <number>5</number>
-        </property>
-        <property name="pageStep">
-         <number>20</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QLabel" name="qlPacketLoss">
-        <property name="minimumSize">
-         <size>
-          <width>40</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string notr="true">pl</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliLoopback">
-        <property name="text">
-         <string>&amp;Loopback</string>
-        </property>
-        <property name="buddy">
-         <cstring>qcbLoopback</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="2">
-       <widget class="MUComboBox" name="qcbLoopback">
-        <property name="toolTip">
-         <string>Desired loopback mode</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This enables one of the loopback test modes.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;None&lt;/i&gt; - Loopback disabled&lt;br /&gt;&lt;i&gt;Local&lt;/i&gt; - Emulate a local server.&lt;br /&gt;&lt;i&gt;Server&lt;/i&gt; - Request loopback from server.&lt;br /&gt;Please note than when loopback is enabled, no other users will hear your voice. This setting is not saved on application exit.</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <spacer name="spacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <tabstops>
-  <tabstop>qcbSystem</tabstop>
-  <tabstop>qcbDevice</tabstop>
-  <tabstop>qsJitter</tabstop>
-  <tabstop>qsVolume</tabstop>
-  <tabstop>qsDelay</tabstop>
-  <tabstop>qsMinDistance</tabstop>
-  <tabstop>qsBloom</tabstop>
-  <tabstop>qsMaxDistance</tabstop>
-  <tabstop>qsMaxDistVolume</tabstop>
-  <tabstop>qcbLoopback</tabstop>
-  <tabstop>qsPacketDelay</tabstop>
-  <tabstop>qsPacketLoss</tabstop>
- </tabstops>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "TalkingUIEntry.h"
+#include "Channel.h"
+#include "ClientUser.h"
+#include "TalkingUI.h"
+#include "TalkingUIContainer.h"
+#include "UserModel.h"
+
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QObject>
+#include <QPainter>
+#include <QPixmap>
+#include <QVariant>
+#include <QWidget>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+TalkingUIEntry::TalkingUIEntry(unsigned int associatedUserSession) : m_associatedUserSession(associatedUserSession) {
+}
+
+unsigned int TalkingUIEntry::getAssociatedUserSession() const {
+	return m_associatedUserSession;
+}
+
+TalkingUIContainer *TalkingUIEntry::getContainer() {
+	return m_container;
+}
+
+const TalkingUIContainer *TalkingUIEntry::getContainer() const {
+	return m_container;
+}
+
+int TalkingUIEntry::compare(const TalkingUIEntry &other) const {
+	if (getPriority() != other.getPriority()) {
+		return static_cast< int >(getPriority()) - static_cast< int >(other.getPriority());
+	}
+
+	if (getType() != other.getType()) {
+		return other.getType() > getType() ? -1 : 1;
+	}
+
+	if (other.getAssociatedUserSession() == getAssociatedUserSession()) {
+		return 0;
+	}
+
+	return other.getAssociatedUserSession() > m_associatedUserSession ? -1 : 1;
+}
+
+void TalkingUIEntry::setPriority(EntryPriority priority) {
+	m_priority = priority;
+}
+
+EntryPriority TalkingUIEntry::getPriority() const {
+	return m_priority;
+}
+
+bool TalkingUIEntry::operator==(const TalkingUIEntry &other) const {
+	return compare(other) == 0;
+}
+
+bool TalkingUIEntry::operator!=(const TalkingUIEntry &other) const {
+	return compare(other) != 0;
+}
+
+bool TalkingUIEntry::operator<(const TalkingUIEntry &other) const {
+	return compare(other) < 0;
+}
+
+bool TalkingUIEntry::operator<=(const TalkingUIEntry &other) const {
+	return compare(other) <= 0;
+}
+
+bool TalkingUIEntry::operator>(const TalkingUIEntry &other) const {
+	return compare(other) > 0;
+}
+
+bool TalkingUIEntry::operator>=(const TalkingUIEntry &other) const {
+	return compare(other) >= 0;
+}
+
+
+
+static const int USER_CONTAINER_HORIZONTAL_MARGIN = 2;
+static const int USER_CONTAINER_VERTICAL_MARGIN   = 3;
+
+
+TalkingUIUser::TalkingUIUser(const ClientUser &user) : TalkingUIEntry(user.uiSession), m_name(user.qsName), m_timer() {
+	// Create background widget and its layout that we'll use to place all other
+	// components on
+	m_backgroundWidget = new QWidget();
+	m_backgroundWidget->setProperty("selected", false);
+	QLayout *backgroundLayout = new QHBoxLayout();
+	backgroundLayout->setContentsMargins(USER_CONTAINER_HORIZONTAL_MARGIN, USER_CONTAINER_VERTICAL_MARGIN,
+										 USER_CONTAINER_HORIZONTAL_MARGIN, USER_CONTAINER_VERTICAL_MARGIN);
+	m_backgroundWidget->setLayout(backgroundLayout);
+	m_backgroundWidget->setAutoFillBackground(true);
+
+	// Create the label we use to display the user's name
+	m_nameLabel                 = new QLabel(m_backgroundWidget);
+	const QString displayString = UserModel::createDisplayString(user, false, nullptr);
+	setDisplayString(displayString);
+
+	// Create the label we'll use to display the user's TalkingIcon
+	m_talkingIcon = new QLabel(m_backgroundWidget);
+	m_talkingIcon->setAlignment(Qt::AlignCenter);
+	m_talkingIcon->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
+
+	// Create the label we'll use to display any status icons for the user
+	m_statusIcons = new QLabel(m_backgroundWidget);
+	m_statusIcons->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	// Uncomment the line below if you want to debug the icons
+	// m_statusIcons->setStyleSheet(QLatin1String("border: 1px solid black;"));
+
+
+	// By default we assume that there are no status icons to display and thus we only add
+	// the label for the TalkingIcon and the name
+	backgroundLayout->addWidget(m_talkingIcon);
+	backgroundLayout->addWidget(m_nameLabel);
+
+	// init size for talking icon to FontSize
+	m_iconSize = QFontMetrics(m_backgroundWidget->font()).height();
+
+	updateTalkingIcon();
+
+	// If the timer runs out, we remove this entry from its container (if any)
+	// and thereby this will cause its deletion (smart-pointer goes out of scope)
+	QObject::connect(&m_timer, &QTimer::timeout, [this]() {
+		if (getContainer()) {
+			// We let the TalkingUI handle the removing in order for it to do the necessary
+			// housekeeping (e.g. making sure there is no active selection for this user).
+			getContainer()->m_talkingUI.removeUser(getAssociatedUserSession());
+		}
+	});
+}
+
+TalkingUIUser::~TalkingUIUser() {
+	// Note that we have to use deleteLater instead of directly deleting the objects since
+	// the latter can easily cause segmentation faults due to Qt's automatic memory
+	// management model (parent-child-hierarchy)
+	m_backgroundWidget->deleteLater();
+	m_talkingIcon->deleteLater();
+	m_nameLabel->deleteLater();
+	m_statusIcons->deleteLater();
+}
+
+const QIcon &TalkingUIUser::getTalkingIcon(Settings::TalkState talkState) const {
+	static const QIcon s_talkingIcon      = QIcon(QLatin1String("skin:talking_on.svg"));
+	static const QIcon s_mutedTalkingIcon = QIcon(QLatin1String("skin:talking_muted.svg"));
+	static const QIcon s_passiveIcon      = QIcon(QLatin1String("skin:talking_off.svg"));
+	static const QIcon s_shoutingIcon     = QIcon(QLatin1String("skin:talking_alt.svg"));
+	static const QIcon s_whisperingIcon   = QIcon(QLatin1String("skin:talking_whisper.svg"));
+
+	switch (talkState) {
+		case Settings::MutedTalking:
+			return s_mutedTalkingIcon;
+		case Settings::Talking:
+			return s_talkingIcon;
+		case Settings::Whispering:
+			return s_whisperingIcon;
+		case Settings::Shouting:
+			return s_shoutingIcon;
+		case Settings::Passive:
+			return s_passiveIcon;
+	}
+
+	// switch above should cover all possible TalkStates
+	// Return s_passiveIcon as a fallback
+	qCritical("TalkingUIUser: Encountered invalid TalkState");
+	return s_passiveIcon;
+}
+
+QWidget *TalkingUIUser::getWidget() {
+	return m_backgroundWidget;
+}
+
+const QWidget *TalkingUIUser::getWidget() const {
+	return m_backgroundWidget;
+}
+
+EntryType TalkingUIUser::getType() const {
+	return EntryType::USER;
+}
+
+QString TalkingUIUser::getName() const {
+	return m_name;
+}
+
+int TalkingUIUser::compare(const TalkingUIEntry &other) const {
+	if (other.getType() != getType()) {
+		return static_cast< int >(other.getType()) - static_cast< int >(getType());
+	}
+
+	const TalkingUIUser &otherUser = static_cast< const TalkingUIUser & >(other);
+
+	if (getPriority() != otherUser.getPriority()) {
+		return getPriority() < other.getPriority() ? 1 : -1;
+	}
+
+	int res = getName().localeAwareCompare(otherUser.getName());
+
+	if (res == 0) {
+		// Make sure that we only consider users the same, if they have the same ID and
+		// not simply because they happen to have the same name
+		res = otherUser.getAssociatedUserSession() - getAssociatedUserSession();
+	}
+
+	return res;
+}
+
+void TalkingUIUser::updateTalkingIcon() {
+	m_talkingIcon->setPixmap(
+		getTalkingIcon(m_talkingState).pixmap(QSize(m_iconSize, m_iconSize), QIcon::Normal, QIcon::On));
+}
+
+void TalkingUIUser::setTalkingState(Settings::TalkState talkState) {
+	if (m_talkingState == talkState) {
+		return;
+	}
+
+	m_talkingState = talkState;
+
+	switch (talkState) {
+		case Settings::Passive:
+			if (m_restrictLifetime) {
+				// Start timer as soon as the user has become passive
+				m_timer.start();
+			}
+			break;
+		case Settings::Talking:
+		case Settings::Whispering:
+		case Settings::Shouting:
+		case Settings::MutedTalking:
+			// Stop timer as the user is no longer inactive
+			m_timer.stop();
+	}
+
+	updateTalkingIcon();
+}
+
+void TalkingUIUser::setIconSize(int size) {
+	m_iconSize = size;
+
+	updateTalkingIcon();
+}
+
+void TalkingUIUser::setDisplayString(const QString &displayString) {
+	if (g.uiSession == getAssociatedUserSession()) {
+		// Display own name in bold
+		m_nameLabel->setText(QString::fromLatin1("<b>%1</b>").arg(displayString));
+	} else {
+		m_nameLabel->setText(displayString);
+	}
+}
+
+void TalkingUIUser::setLifeTime(unsigned int time) {
+	m_timer.setInterval(time);
+}
+
+void TalkingUIUser::restrictLifetime(bool restrict) {
+	if (restrict && !m_timer.isActive()) {
+		// Start timer
+		m_timer.start();
+	} else if (!restrict && !m_timer.isActive()) {
+		// Stop timer
+		m_timer.stop();
+	}
+
+	m_restrictLifetime = restrict;
+}
+
+void TalkingUIUser::setStatus(UserStatus status) {
+	static const QIcon s_muteIcon      = QIcon(QLatin1String("skin:muted_server.svg"));
+	static const QIcon s_deafIcon      = QIcon(QLatin1String("skin:deafened_server.svg"));
+	static const QIcon s_localMuteIcon = QIcon(QLatin1String("skin:muted_local.svg"));
+	static const QIcon s_selfMuteIcon  = QIcon(QLatin1String("skin:muted_self.svg"));
+	static const QIcon s_selfDeafIcon  = QIcon(QLatin1String("skin:deafened_self.svg"));
+
+
+	std::vector< std::reference_wrapper< const QIcon > > icons;
+
+	if (status.muted) {
+		icons.push_back(s_muteIcon);
+	}
+	if (status.selfMuted) {
+		icons.push_back(s_selfMuteIcon);
+	}
+	if (status.localMuted) {
+		icons.push_back(s_localMuteIcon);
+	}
+	if (status.deafened) {
+		icons.push_back(s_deafIcon);
+	}
+	if (status.selfDeafened) {
+		icons.push_back(s_selfDeafIcon);
+	}
+
+	if (icons.size() == 0) {
+		// No status icons to be shown -> hide the widget
+		m_statusIcons->hide();
+		m_backgroundWidget->layout()->removeWidget(m_statusIcons);
+	} else {
+		// Create a Pixmap that'll hold all icons
+		const QSize size(m_iconSize * static_cast<int>(icons.size()), m_iconSize);
+		QPixmap pixmap(size);
+		pixmap.fill(Qt::transparent);
+
+		// Draw the icons to the Pixmap
+		QPainter painter(&pixmap);
+		for (int i = 0; i < static_cast<int>(icons.size()); i++) {
+			painter.drawPixmap(i * m_iconSize, 0,
+							   icons[i].get().pixmap(QSize(m_iconSize, m_iconSize), QIcon::Normal, QIcon::On));
+		}
+
+		m_statusIcons->setPixmap(pixmap);
+
+		if (m_backgroundWidget->layout()->indexOf(m_statusIcons) < 0) {
+			// Add the status icons into the scene
+			m_statusIcons->show();
+			m_backgroundWidget->layout()->addWidget(m_statusIcons);
+		}
+	}
+}
+
+
+
+TalkingUIChannelListener::TalkingUIChannelListener(const ClientUser &user, const Channel &channel)
+	: TalkingUIEntry(user.uiSession), m_channelID(channel.iId), m_name(user.qsName) {
+	// Create background widget and its layout that we'll use to place all other
+	// components on
+	m_backgroundWidget = new QWidget();
+	m_backgroundWidget->setProperty("selected", false);
+	QLayout *backgroundLayout = new QHBoxLayout();
+	backgroundLayout->setContentsMargins(USER_CONTAINER_HORIZONTAL_MARGIN, USER_CONTAINER_VERTICAL_MARGIN,
+										 USER_CONTAINER_HORIZONTAL_MARGIN, USER_CONTAINER_VERTICAL_MARGIN);
+	m_backgroundWidget->setLayout(backgroundLayout);
+	m_backgroundWidget->setAutoFillBackground(true);
+
+
+	// Create the label we use to display the icon
+	m_icon = new QLabel(m_backgroundWidget);
+	m_icon->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+	int iconSize = QFontMetrics(m_backgroundWidget->font()).height();
+	// setIconSize will not only set the size but also the icon itself
+	setIconSize(iconSize);
+
+	// Create the label we use to display the user's name
+	m_nameLabel                 = new QLabel(m_backgroundWidget);
+	const QString displayString = UserModel::createDisplayString(user, true, &channel);
+	setDisplayString(displayString);
+
+
+	backgroundLayout->addWidget(m_icon);
+	backgroundLayout->addWidget(m_nameLabel);
+}
+
+TalkingUIChannelListener::~TalkingUIChannelListener() {
+	m_backgroundWidget->deleteLater();
+	m_icon->deleteLater();
+	m_nameLabel->deleteLater();
+}
+
+EntryType TalkingUIChannelListener::getType() const {
+	return EntryType::LISTENER;
+}
+
+QWidget *TalkingUIChannelListener::getWidget() {
+	return m_backgroundWidget;
+}
+
+const QWidget *TalkingUIChannelListener::getWidget() const {
+	return m_backgroundWidget;
+}
+
+void TalkingUIChannelListener::setIconSize(int size) {
+	static const QIcon s_earIcon = QIcon(QLatin1String("skin:ear.svg"));
+
+	m_icon->setPixmap(s_earIcon.pixmap(QSize(size, size), QIcon::Normal, QIcon::On));
+}
+
+void TalkingUIChannelListener::setDisplayString(const QString &displayString) {
+	m_nameLabel->setText(QString::fromLatin1("<i>%1</i>").arg(displayString));
+}
+
+int TalkingUIChannelListener::getAssociatedChannelID() const {
+	return m_channelID;
+}
