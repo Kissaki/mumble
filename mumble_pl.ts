@@ -3,88 +3,234 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_DATABASE_H_
-#define MUMBLE_MUMBLE_DATABASE_H_
+#include "CrashReporter.h"
 
-#include "Settings.h"
-#include "UnresolvedServerAddress.h"
-#include <QSqlDatabase>
+#include "EnvUtils.h"
+#include "NetworkConfig.h"
+#include "OSInfo.h"
+#include "Global.h"
 
-struct FavoriteServer {
-	QString qsName;
-	QString qsUsername;
-	QString qsPassword;
-	QString qsHostname;
-	QString qsUrl;
-	unsigned short usPort;
-};
+#include <QtCore/QProcess>
+#include <QtCore/QTemporaryFile>
+#include <QtNetwork/QHostAddress>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
 
-class Database : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(Database)
+CrashReporter::CrashReporter(QWidget *p) : QDialog(p) {
+	setWindowTitle(tr("Mumble Crash Report"));
 
-	QSqlDatabase db;
-	/// This function is called when no database location is configured
-	/// in the config file. It tries to find an existing database file and
-	/// creates a new one if none was found.
-	bool findOrCreateDatabase();
+	QVBoxLayout *vbl = new QVBoxLayout(this);
 
-public:
-	Database(const QString &dbname);
-	~Database() Q_DECL_OVERRIDE;
+	QLabel *l;
 
-	QList< FavoriteServer > getFavorites();
-	void setFavorites(const QList< FavoriteServer > &servers);
-	void setPassword(const QString &host, unsigned short port, const QString &user, const QString &pw);
-	bool fuzzyMatch(QString &name, QString &user, QString &pw, QString &host, unsigned short port);
+	l = new QLabel(tr("<p><b>We're terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report "
+					  "to the Mumble developers?</b></p>"
+					  "<p>The crash report contains a partial copy of Mumble's memory at the time it crashed, and will "
+					  "help the developers fix the problem.</p>"));
 
-	bool isLocalIgnored(const QString &hash);
-	void setLocalIgnored(const QString &hash, bool ignored);
+	vbl->addWidget(l);
 
-	bool isLocalIgnoredTTS(const QString &hash);
-	void setLocalIgnoredTTS(const QString &hash, bool ignoredTTS);
+	QHBoxLayout *hbl = new QHBoxLayout();
 
-	bool isLocalMuted(const QString &hash);
-	void setLocalMuted(const QString &hash, bool muted);
+	qleEmail = new QLineEdit(g.qs->value(QLatin1String("crashemail")).toString());
+	l        = new QLabel(tr("Email address (optional)"));
+	l->setBuddy(qleEmail);
 
-	float getUserLocalVolume(const QString &hash);
-	void setUserLocalVolume(const QString &hash, float volume);
+	hbl->addWidget(l);
+	hbl->addWidget(qleEmail, 1);
+	vbl->addLayout(hbl);
 
-	bool isChannelFiltered(const QByteArray &server_cert_digest, const int channel_id);
-	void setChannelFiltered(const QByteArray &server_cert_digest, const int channel_id, bool hidden);
+	qteDescription = new QTextEdit();
+	l->setBuddy(qteDescription);
+	l = new QLabel(tr("Please describe briefly, in English, what you were doing at the time of the crash"));
 
-	QMap< UnresolvedServerAddress, unsigned int > getPingCache();
-	void setPingCache(const QMap< UnresolvedServerAddress, unsigned int > &cache);
+	vbl->addWidget(l);
+	vbl->addWidget(qteDescription, 1);
 
-	bool seenComment(const QString &hash, const QByteArray &commenthash);
-	void setSeenComment(const QString &hash, const QByteArray &commenthash);
+	QPushButton *pbOk = new QPushButton(tr("Send Report"));
+	pbOk->setDefault(true);
 
-	QByteArray blob(const QByteArray &hash);
-	void setBlob(const QByteArray &hash, const QByteArray &blob);
+	QPushButton *pbCancel = new QPushButton(tr("Don't send report"));
+	pbCancel->setAutoDefault(false);
 
-	QStringList getTokens(const QByteArray &digest);
-	void setTokens(const QByteArray &digest, QStringList &tokens);
+	QDialogButtonBox *dbb = new QDialogButtonBox(Qt::Horizontal);
+	dbb->addButton(pbOk, QDialogButtonBox::AcceptRole);
+	dbb->addButton(pbCancel, QDialogButtonBox::RejectRole);
+	connect(dbb, SIGNAL(accepted()), this, SLOT(accept()));
+	connect(dbb, SIGNAL(rejected()), this, SLOT(reject()));
+	vbl->addWidget(dbb);
 
-	QList< Shortcut > getShortcuts(const QByteArray &digest);
-	bool setShortcuts(const QByteArray &digest, QList< Shortcut > &shortcuts);
+	qelLoop     = new QEventLoop(this);
+	qpdProgress = nullptr;
+	qnrReply    = nullptr;
+}
 
-	void addFriend(const QString &name, const QString &hash);
-	void removeFriend(const QString &hash);
-	const QString getFriend(const QString &hash);
-	const QMap< QString, QString > getFriends();
+CrashReporter::~CrashReporter() {
+	g.qs->setValue(QLatin1String("crashemail"), qleEmail->text());
+	delete qnrReply;
+}
 
-	const QString getDigest(const QString &hostname, unsigned short port);
-	void setDigest(const QString &hostname, unsigned short port, const QString &digest);
+void CrashReporter::uploadFinished() {
+	qpdProgress->reset();
+	if (qnrReply->error() == QNetworkReply::NoError) {
+		if (qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200)
+			QMessageBox::information(nullptr, tr("Crash upload successful"),
+									 tr("Thank you for helping make Mumble better!"));
+		else
+			QMessageBox::critical(nullptr, tr("Crash upload failed"),
+								  tr("We're really sorry, but it appears the crash upload has failed with error %1 %2. "
+									 "Please inform a developer.")
+									  .arg(qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
+									  .arg(qnrReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString()));
+	} else {
+		QMessageBox::critical(nullptr, tr("Crash upload failed"),
+							  tr("This really isn't funny, but apparently there's a bug in the crash reporting code, "
+								 "and we've failed to upload the report. You may inform a developer about error %1")
+								  .arg(qnrReply->error()));
+	}
+	qelLoop->exit(0);
+}
 
-	bool getUdp(const QByteArray &digest);
-	void setUdp(const QByteArray &digest, bool udp);
+void CrashReporter::uploadProgress(qint64 sent, qint64 total) {
+	qpdProgress->setMaximum(static_cast< int >(total));
+	qpdProgress->setValue(static_cast< int >(sent));
+}
 
-	QList< int > getChannelListeners(const QByteArray &digest);
-	void setChannelListeners(const QByteArray &digest, const QSet< int > &channelIDs);
+void CrashReporter::run() {
+	QByteArray qbaDumpContents;
+	QFile qfCrashDump(g.qdBasePath.filePath(QLatin1String("mumble.dmp")));
+	if (!qfCrashDump.exists())
+		return;
 
-	QHash< int, float > getChannelListenerLocalVolumeAdjustments(const QByteArray &digest);
-	void setChannelListenerLocalVolumeAdjustments(const QByteArray &digest, const QHash< int, float > &volumeMap);
-};
+	qfCrashDump.open(QIODevice::ReadOnly);
 
+#if defined(Q_OS_WIN)
+	/* On Windows, the .dmp file is a real minidump. */
+
+	if (qfCrashDump.peek(4) != "MDMP")
+		return;
+	qbaDumpContents = qfCrashDump.readAll();
+
+#elif defined(Q_OS_MAC)
+	/*
+	 * On OSX, the .dmp file is simply a dummy file that we
+	 * use to find the *real* crash dump, made by the OSX
+	 * built in crash reporter.
+	 */
+	QFileInfo qfiDump(qfCrashDump);
+	QDateTime qdtModification = qfiDump.lastModified();
+
+	/* Find the real crash report. */
+	QDir qdCrashReports(QDir::home().absolutePath() + QLatin1String("/Library/Logs/DiagnosticReports/"));
+	if (!qdCrashReports.exists()) {
+		qdCrashReports.setPath(QDir::home().absolutePath() + QLatin1String("/Library/Logs/CrashReporter/"));
+	}
+
+	QStringList qslFilters;
+	qslFilters << QString::fromLatin1("Mumble_*.crash");
+	qdCrashReports.setNameFilters(qslFilters);
+	qdCrashReports.setSorting(QDir::Time);
+	QFileInfoList qfilEntries = qdCrashReports.entryInfoList();
+
+	/*
+	 * Figure out if our delta is sufficiently close to the Apple crash dump, or
+	 * if something weird happened.
+	 */
+	foreach (QFileInfo fi, qfilEntries) {
+		qint64 delta = qAbs< qint64 >(qdtModification.secsTo(fi.lastModified()));
+		if (delta < 8) {
+			QFile f(fi.absoluteFilePath());
+			f.open(QIODevice::ReadOnly);
+			qbaDumpContents = f.readAll();
+			break;
+		}
+	}
 #endif
+
+	QString details;
+#ifdef Q_OS_WIN
+	{
+		QTemporaryFile qtf;
+		if (qtf.open()) {
+			qtf.close();
+
+			QProcess qp;
+			QStringList qsl;
+
+			qsl << QLatin1String("/t");
+			qsl << qtf.fileName();
+
+			QString app        = QLatin1String("dxdiag.exe");
+			QString systemRoot = EnvUtils::getenv(QLatin1String("SystemRoot"));
+
+			if (systemRoot.count() > 0) {
+				app = QDir::fromNativeSeparators(systemRoot + QLatin1String("/System32/dxdiag.exe"));
+			}
+
+			qp.start(app, qsl);
+			if (qp.waitForFinished(30000)) {
+				if (qtf.open()) {
+					QByteArray qba = qtf.readAll();
+					details        = QString::fromLocal8Bit(qba);
+				}
+			} else {
+				details = QLatin1String("Failed to run dxdiag");
+			}
+			qp.kill();
+		}
+	}
+#endif
+
+	if (qbaDumpContents.isEmpty()) {
+		qWarning("CrashReporter: Empty crash dump file, not reporting.");
+		return;
+	}
+
+	if (exec() == QDialog::Accepted) {
+		qpdProgress = new QProgressDialog(tr("Uploading crash report"), tr("Abort upload"), 0, 100, this);
+		qpdProgress->setMinimumDuration(500);
+		qpdProgress->setValue(0);
+		connect(qpdProgress, SIGNAL(canceled()), qelLoop, SLOT(quit()));
+
+		QString boundary =
+			QString::fromLatin1("---------------------------%1").arg(QDateTime::currentDateTime().toTime_t());
+
+		QString os = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+										 "name=\"os\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
+						 .arg(boundary, OSInfo::getOS(), OSInfo::getOSVersion());
+		QString ver = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+										  "name=\"ver\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
+						  .arg(boundary, QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE));
+		QString email = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+											"name=\"email\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
+							.arg(boundary, qleEmail->text());
+		QString descr = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+											"name=\"desc\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
+							.arg(boundary, qteDescription->toPlainText());
+		QString det = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+										  "name=\"details\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
+						  .arg(boundary, details);
+		QString head = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; name=\"dump\"; "
+										   "filename=\"mumble.dmp\"\r\nContent-Type: binary/octet-stream\r\n\r\n")
+						   .arg(boundary);
+		QString end = QString::fromLatin1("\r\n--%1--\r\n").arg(boundary);
+
+		QByteArray post = os.toUtf8() + ver.toUtf8() + email.toUtf8() + descr.toUtf8() + det.toUtf8() + head.toUtf8()
+						  + qbaDumpContents + end.toUtf8();
+
+		QUrl url(QLatin1String("https://crash-report.mumble.info/v1/report"));
+		QNetworkRequest req(url);
+		req.setHeader(QNetworkRequest::ContentTypeHeader,
+					  QString::fromLatin1("multipart/form-data; boundary=%1").arg(boundary));
+		req.setHeader(QNetworkRequest::ContentLengthHeader, QString::number(post.size()));
+		Network::prepareRequest(req);
+		qnrReply = g.nam->post(req, post);
+		connect(qnrReply, SIGNAL(finished()), this, SLOT(uploadFinished()));
+		connect(qnrReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(uploadProgress(qint64, qint64)));
+
+		qelLoop->exec(QEventLoop::DialogExec);
+	}
+
+	if (!qfCrashDump.remove())
+		qWarning("CrashReporeter: Unable to remove crash file.");
+}
