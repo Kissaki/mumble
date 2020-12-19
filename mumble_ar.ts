@@ -1,22 +1,39 @@
-// Copyright 2019-2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_SCREEN_H
-#define MUMBLE_MUMBLE_SCREEN_H
+#include "SvgIcon.h"
 
-class QPoint;
-class QScreen;
-class QWidget;
-class QWindow;
+#include <QPainter>
+#include <QSvgRenderer>
 
-class Screen {
-public:
-	/// Inspired by https://phabricator.kde.org/D22379
-	static QWindow *windowFromWidget(const QWidget &widget);
-	static QScreen *screenFromWidget(const QWidget &widget);
-	static QScreen *screenAt(const QPoint &point);
-};
+void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
+	QSvgRenderer svg(fn);
 
-#endif
+	QList< QSize > commonSizes;
+	commonSizes << QSize(8, 8);
+	commonSizes << QSize(16, 16);
+	commonSizes << QSize(22, 22); // Plasma notification area size
+	commonSizes << QSize(24, 24);
+	commonSizes << QSize(32, 32);
+	commonSizes << QSize(44, 44); // Plasma notification area size @x2
+	commonSizes << QSize(48, 48);
+	commonSizes << QSize(64, 64);
+	commonSizes << QSize(96, 96);
+	commonSizes << QSize(128, 128);
+	commonSizes << QSize(256, 256);
+
+	foreach (QSize size, commonSizes) {
+		QPixmap pm(size);
+		pm.fill(Qt::transparent);
+
+		QPainter p(&pm);
+		p.setRenderHint(QPainter::Antialiasing);
+		p.setRenderHint(QPainter::TextAntialiasing);
+		p.setRenderHint(QPainter::SmoothPixmapTransform);
+		svg.render(&p);
+
+		icon.addPixmap(pm);
+	}
+}
