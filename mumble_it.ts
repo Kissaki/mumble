@@ -1,283 +1,175 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>LogConfig</class>
- <widget class="QWidget" name="LogConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>554</width>
-    <height>414</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Messages</string>
-  </property>
-  <layout class="QVBoxLayout">
-   <item>
-    <widget class="QTreeWidget" name="qtwMessages">
-     <property name="alternatingRowColors">
-      <bool>true</bool>
-     </property>
-     <property name="selectionMode">
-      <enum>QAbstractItemView::SingleSelection</enum>
-     </property>
-     <property name="rootIsDecorated">
-      <bool>false</bool>
-     </property>
-     <property name="uniformRowHeights">
-      <bool>true</bool>
-     </property>
-     <property name="itemsExpandable">
-      <bool>false</bool>
-     </property>
-     <column>
-      <property name="text">
-       <string>Message</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Console</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Notification</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Highlight</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Text-To-Speech</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Soundfile</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Path</string>
-      </property>
-     </column>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbTTS">
-     <property name="title">
-      <string>Text To Speech</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlVolume">
-        <property name="text">
-         <string>Volume</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsVolume</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="3">
-       <widget class="QSlider" name="qsVolume">
-        <property name="toolTip">
-         <string>Volume of Text-To-Speech Engine</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</string>
-        </property>
-        <property name="maximum">
-         <number>100</number>
-        </property>
-        <property name="singleStep">
-         <number>5</number>
-        </property>
-        <property name="pageStep">
-         <number>20</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="tickPosition">
-         <enum>QSlider::TicksBelow</enum>
-        </property>
-        <property name="tickInterval">
-         <number>5</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlThreshold">
-        <property name="text">
-         <string>Length threshold</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsbThreshold</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QSpinBox" name="qsbThreshold">
-        <property name="toolTip">
-         <string>Message length threshold for Text-To-Speech Engine</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</string>
-        </property>
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::PlusMinus</enum>
-        </property>
-        <property name="suffix">
-         <string> Characters</string>
-        </property>
-        <property name="maximum">
-         <number>5000</number>
-        </property>
-        <property name="singleStep">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QCheckBox" name="qcbReadBackOwn">
-        <property name="toolTip">
-         <string>If enabled text messages you send will be read back to you with TTS</string>
-        </property>
-        <property name="text">
-         <string>Read back own messages</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QCheckBox" name="qcbNoScope">
-        <property name="toolTip">
-         <string>If enabled, TTS will not dictate the message scope.</string>
-        </property>
-        <property name="text">
-         <string>Omit Message Scope</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QCheckBox" name="qcbNoAuthor">
-        <property name="toolTip">
-         <string>If enabled, TTS will not dictate the message author.</string>
-        </property>
-        <property name="text">
-         <string>Omit Message Author</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbWhisper">
-     <property name="title">
-      <string>Whisper</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbWhisperFriends">
-        <property name="toolTip">
-         <string>If checked you will only hear whispers from users you added to your friend list.</string>
-        </property>
-        <property name="text">
-         <string>Only accept whispers from friends</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbMaxBlocks">
-     <property name="title">
-      <string>Chat Log</string>
-     </property>
-     <layout class="QGridLayout" name="_2">
-      <item row="1" column="0">
-       <widget class="QCheckBox" name="qcb24HourClock">
-        <property name="toolTip">
-         <string>If checked the time at the beginning of a message will be displayed in the 24-hour format.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-The setting only applies for new messages, the already shown ones will retain the previous time format.</string>
-        </property>
-        <property name="text">
-         <string>Use 24-hour clock</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSpinBox" name="qsbMaxBlocks">
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::PlusMinus</enum>
-        </property>
-        <property name="specialValueText">
-         <string>Unlimited</string>
-        </property>
-        <property name="suffix">
-         <string> Lines</string>
-        </property>
-        <property name="maximum">
-         <number>1000000</number>
-        </property>
-        <property name="singleStep">
-         <number>100</number>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlMaxBlocks">
-        <property name="text">
-         <string>Maximum chat length</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <spacer name="horizontalSpacer">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>8</width>
-          <height>16</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlChatMessageMargins">
-        <property name="toolTip">
-         <string>How far individual messages are spaced out from one another.</string>
-        </property>
-        <property name="text">
-         <string>Message margins</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QSpinBox" name="qsbChatMessageMargins">
-        <property name="toolTip">
-         <string>How far individual messages are spaced out from one another.</string>
-        </property>
-        <property name="frame">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+#ifndef MUMBLE_MUMBLE_LOG_H_
+#define MUMBLE_MUMBLE_LOG_H_
+
+#include <QtCore/QDate>
+#include <QtCore/QMutex>
+#include <QtCore/QVector>
+#include <QtGui/QTextCursor>
+#include <QtGui/QTextDocument>
+
+#include "ConfigDialog.h"
+#include "ui_Log.h"
+
+#ifndef USE_NO_TTS
+class TextToSpeech;
+#endif
+
+class LogConfig : public ConfigWidget, public Ui::LogConfig {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(LogConfig)
+
+	QTreeWidgetItem *allMessagesItem;
+
+protected:
+	void updateSelectAllButtons();
+
+public:
+	/// The unique name of this ConfigWidget
+	static const QString name;
+	enum Column { ColMessage, ColConsole, ColNotification, ColHighlight, ColTTS, ColStaticSound, ColStaticSoundPath };
+	LogConfig(Settings &st);
+	QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	QIcon icon() const Q_DECL_OVERRIDE;
+public slots:
+	void accept() const Q_DECL_OVERRIDE;
+	void save() const Q_DECL_OVERRIDE;
+	void load(const Settings &) Q_DECL_OVERRIDE;
+
+	void on_qtwMessages_itemChanged(QTreeWidgetItem *, int);
+	void on_qtwMessages_itemClicked(QTreeWidgetItem *, int);
+	void on_qtwMessages_itemDoubleClicked(QTreeWidgetItem *, int);
+	void browseForAudioFile();
+};
+
+class ClientUser;
+class Channel;
+class LogMessage;
+
+class Log : public QObject {
+	friend class LogConfig;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Log)
+public:
+	enum MsgType {
+		DebugInfo,
+		CriticalError,
+		Warning,
+		Information,
+		ServerConnected,
+		ServerDisconnected,
+		UserJoin,
+		UserLeave,
+		Recording,
+		YouKicked,
+		UserKicked,
+		SelfMute,
+		OtherSelfMute,
+		YouMuted,
+		YouMutedOther,
+		OtherMutedOther,
+		ChannelJoin,
+		ChannelLeave,
+		PermissionDenied,
+		TextMessage,
+		SelfUnmute,
+		SelfDeaf,
+		SelfUndeaf,
+		UserRenamed,
+		SelfChannelJoin,
+		SelfChannelJoinOther,
+		ChannelJoinConnect,
+		ChannelLeaveDisconnect,
+		PrivateTextMessage,
+		ChannelListeningAdd,
+		ChannelListeningRemove
+	};
+	enum LogColorType { Time, Server, Privilege, Source, Target };
+	static const MsgType firstMsgType = DebugInfo;
+	static const MsgType lastMsgType  = ChannelListeningRemove;
+
+	// Display order in settingsscreen, allows to insert new events without breaking config-compatibility with older
+	// versions.
+	static const MsgType msgOrder[];
+
+protected:
+	/// Mutex for qvDeferredLogs
+	static QMutex qmDeferredLogs;
+	/// A vector containing deferred log messages
+	static QVector< LogMessage > qvDeferredLogs;
+
+	QHash< MsgType, int > qmIgnore;
+	static const char *msgNames[];
+	static const char *colorClasses[];
+#ifndef USE_NO_TTS
+	TextToSpeech *tts;
+#endif
+	unsigned int uiLastId;
+	QDate qdDate;
+	static const QStringList allowedSchemes();
+	void postNotification(MsgType mt, const QString &plain);
+	void postQtNotification(MsgType mt, const QString &plain);
+
+public:
+	Log(QObject *p = nullptr);
+	QString msgName(MsgType t) const;
+	void setIgnore(MsgType t, int ignore = 1 << 30);
+	void clearIgnore();
+	static QString validHtml(const QString &html, QTextCursor *tc = nullptr);
+	static QString imageToImg(const QByteArray &format, const QByteArray &image);
+	static QString imageToImg(QImage img);
+	static QString msgColor(const QString &text, LogColorType t);
+	static QString formatClientUser(ClientUser *cu, LogColorType t, const QString &displayName = QString());
+	static QString formatChannel(::Channel *c);
+	/// Either defers the LogMessage or defers it, depending on whether Global::l is created already
+	/// (if it is, it is used to directly log the msg)
+	static void logOrDefer(Log::MsgType mt, const QString &console, const QString &terse = QString(),
+						   bool ownMessage = false, const QString &overrideTTS = QString(), bool ignoreTTS = false);
+public slots:
+	void log(MsgType mt, const QString &console, const QString &terse = QString(), bool ownMessage = false,
+			 const QString &overrideTTS = QString(), bool ignoreTTS = false);
+	/// Logs LogMessages that have been deferred so far
+	void processDeferredLogs();
+};
+
+class LogMessage {
+public:
+	Log::MsgType mt;
+	QString console;
+	QString terse;
+	bool ownMessage;
+	QString overrideTTS;
+	bool ignoreTTS;
+
+	LogMessage() = default;
+	LogMessage(Log::MsgType mt, const QString &console, const QString &terse, bool ownMessage,
+			   const QString &overrideTTS, bool ignoreTTS);
+};
+
+class LogDocument : public QTextDocument {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(LogDocument)
+public:
+	LogDocument(QObject *p = nullptr);
+	QVariant loadResource(int, const QUrl &) Q_DECL_OVERRIDE;
+public slots:
+	void finished();
+};
+
+class LogDocumentResourceAddedEvent : public QEvent {
+public:
+	static const QEvent::Type Type = static_cast< QEvent::Type >(20145);
+
+	LogDocumentResourceAddedEvent();
+};
+
+#endif
