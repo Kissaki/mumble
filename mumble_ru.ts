@@ -3,222 +3,459 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_PULSEAUDIO_H_
-#define MUMBLE_MUMBLE_PULSEAUDIO_H_
+#include "RichTextEditor.h"
 
-#include "AudioInput.h"
-#include "AudioOutput.h"
+#include "Log.h"
+#include "MainWindow.h"
+#include "XMLTools.h"
 
-#include <QtCore/QLibrary>
-#include <QtCore/QWaitCondition>
+#include <QtCore/QMimeData>
+#include <QtGui/QImageReader>
+#include <QtGui/QPainter>
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QToolTip>
 
-#include <pulse/channelmap.h>
-#include <pulse/context.h>
-#include <pulse/def.h>
-#include <pulse/ext-stream-restore.h>
-#include <pulse/introspect.h>
-#include <pulse/mainloop-api.h>
-#include <pulse/sample.h>
-#include <pulse/stream.h>
-#include <pulse/subscribe.h>
-#include <pulse/thread-mainloop.h>
-#include <pulse/volume.h>
-
-struct PulseAttenuation {
-	uint32_t index;
-	QString name;
-	QString stream_restore_id;
-	pa_cvolume normal_volume;
-	pa_cvolume attenuated_volume;
-};
-
-class PulseAudio : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PulseAudio)
-protected:
-	QLibrary m_lib;
-
-public:
-	bool m_ok;
-
-	const char *(*get_library_version)();
-	const char *(*strerror)(int error);
-
-	void (*operation_unref)(pa_operation *o);
-
-	int (*cvolume_equal)(const pa_cvolume *a, const pa_cvolume *b);
-	pa_cvolume *(*sw_cvolume_multiply_scalar)(pa_cvolume *dest, const pa_cvolume *a, pa_volume_t b);
-
-	int (*sample_spec_equal)(const pa_sample_spec *a, const pa_sample_spec *b);
-	int (*channel_map_equal)(const pa_channel_map *a, const pa_channel_map *b);
-
-	pa_proplist *(*proplist_new)();
-	void (*proplist_free)(pa_proplist *p);
-	const char *(*proplist_gets)(const pa_proplist *p, const char *key);
-	int (*proplist_sets)(pa_proplist *p, const char *key, const char *value);
-
-	pa_threaded_mainloop *(*threaded_mainloop_new)();
-	void (*threaded_mainloop_free)(pa_threaded_mainloop *m);
-	int (*threaded_mainloop_start)(pa_threaded_mainloop *m);
-	void (*threaded_mainloop_stop)(pa_threaded_mainloop *m);
-	void (*threaded_mainloop_lock)(pa_threaded_mainloop *m);
-	void (*threaded_mainloop_unlock)(pa_threaded_mainloop *m);
-	pa_mainloop_api *(*threaded_mainloop_get_api)(pa_threaded_mainloop *m);
-
-	int (*context_errno)(const pa_context *c);
-	pa_context *(*context_new_with_proplist)(pa_mainloop_api *mainloop, const char *name, const pa_proplist *proplist);
-	void (*context_unref)(pa_context *c);
-	int (*context_connect)(pa_context *c, const char *server, pa_context_flags_t flags, const pa_spawn_api *api);
-	void (*context_disconnect)(pa_context *c);
-	pa_operation *(*context_subscribe)(pa_context *c, pa_subscription_mask_t m, pa_context_success_cb_t cb,
-									   void *userdata);
-	pa_context_state_t (*context_get_state)(const pa_context *c);
-	pa_operation *(*context_get_server_info)(pa_context *c, pa_server_info_cb_t cb, void *userdata);
-	pa_operation *(*context_get_sink_info_by_name)(pa_context *c, const char *name, pa_sink_info_cb_t cb,
-												   void *userdata);
-	pa_operation *(*context_get_sink_info_list)(pa_context *c, pa_sink_info_cb_t cb, void *userdata);
-	pa_operation *(*context_get_sink_input_info_list)(pa_context *c, pa_sink_input_info_cb_t cb, void *userdata);
-	pa_operation *(*context_get_source_info_list)(pa_context *c, pa_source_info_cb_t cb, void *userdata);
-	pa_operation *(*context_set_sink_input_volume)(pa_context *c, uint32_t idx, const pa_cvolume *volume,
-												   pa_context_success_cb_t cb, void *userdata);
-	void (*context_set_state_callback)(pa_context *c, pa_context_notify_cb_t cb, void *userdata);
-	void (*context_set_subscribe_callback)(pa_context *c, pa_context_subscribe_cb_t cb, void *userdata);
-
-	pa_stream *(*stream_new)(pa_context *c, const char *name, const pa_sample_spec *ss, const pa_channel_map *map);
-	void (*stream_unref)(pa_stream *s);
-	int (*stream_connect_playback)(pa_stream *s, const char *dev, const pa_buffer_attr *attr, pa_stream_flags_t flags,
-								   const pa_cvolume *volume, pa_stream *sync_stream);
-	int (*stream_connect_record)(pa_stream *s, const char *dev, const pa_buffer_attr *attr, pa_stream_flags_t flags);
-	int (*stream_disconnect)(pa_stream *s);
-	int (*stream_peek)(pa_stream *p, const void **data, size_t *nbytes);
-	int (*stream_write)(pa_stream *p, const void *data, size_t nbytes, pa_free_cb_t free_cb, int64_t offset,
-						pa_seek_mode_t seek);
-	int (*stream_drop)(pa_stream *p);
-	pa_operation *(*stream_cork)(pa_stream *s, int b, pa_stream_success_cb_t cb, void *userdata);
-	pa_stream_state_t (*stream_get_state)(const pa_stream *p);
-	pa_context *(*stream_get_context)(const pa_stream *p);
-	const pa_sample_spec *(*stream_get_sample_spec)(pa_stream *s);
-	const pa_channel_map *(*stream_get_channel_map)(pa_stream *s);
-	const pa_buffer_attr *(*stream_get_buffer_attr)(pa_stream *s);
-	void (*stream_set_state_callback)(pa_stream *s, pa_stream_notify_cb_t cb, void *userdata);
-	void (*stream_set_read_callback)(pa_stream *p, pa_stream_request_cb_t cb, void *userdata);
-	void (*stream_set_write_callback)(pa_stream *p, pa_stream_request_cb_t cb, void *userdata);
-
-	pa_operation *(*ext_stream_restore_read)(pa_context *c, pa_ext_stream_restore_read_cb_t cb, void *userdata);
-	pa_operation *(*ext_stream_restore_write)(pa_context *c, pa_update_mode_t mode,
-											  const pa_ext_stream_restore_info data[], unsigned n,
-											  int apply_immediately, pa_context_success_cb_t cb, void *userdata);
-
-public:
-	PulseAudio();
-};
-
-class PulseAudioSystem : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PulseAudioSystem)
-protected:
-	void wakeup();
-
-	PulseAudio m_pulseAudio;
-	pa_context *pacContext;
-	pa_stream *pasInput, *pasOutput, *pasSpeaker;
-	pa_threaded_mainloop *pam;
-	pa_defer_event *pade;
-
-	bool bSourceDone, bSinkDone, bServerDone, bRunning;
-
-	QString qsDefaultInput, qsDefaultOutput;
-
-	int iDelayCache;
-	QString qsOutputCache, qsInputCache, qsEchoCache;
-	bool bEchoMultiCache;
-	QHash< QString, QString > qhEchoMap;
-	QHash< QString, pa_sample_spec > qhSpecMap;
-	QHash< QString, pa_channel_map > qhChanMap;
-
-	bool bAttenuating;
-	int iRemainingOperations;
-	int iSinkId;
-	QHash< uint32_t, PulseAttenuation > qhVolumes;
-	QList< uint32_t > qlMatchedSinks;
-	QHash< QString, PulseAttenuation > qhUnmatchedSinks;
-	QHash< QString, PulseAttenuation > qhMissingSinks;
-
-	static void defer_event_callback(pa_mainloop_api *a, pa_defer_event *e, void *userdata);
-	static void context_state_callback(pa_context *c, void *userdata);
-	static void subscribe_callback(pa_context *c, pa_subscription_event_type_t t, uint32_t idx, void *userdata);
-	static void sink_callback(pa_context *c, const pa_sink_info *i, int eol, void *userdata);
-	static void source_callback(pa_context *c, const pa_source_info *i, int eol, void *userdata);
-	static void server_callback(pa_context *c, const pa_server_info *i, void *userdata);
-	static void sink_info_callback(pa_context *c, const pa_sink_info *i, int eol, void *userdata);
-	static void write_stream_callback(pa_stream *s, void *userdata);
-	static void read_stream_callback(pa_stream *s, void *userdata);
-	static void read_callback(pa_stream *s, size_t bytes, void *userdata);
-	static void write_callback(pa_stream *s, size_t bytes, void *userdata);
-	static void volume_sink_input_list_callback(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata);
-	static void restore_sink_input_list_callback(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata);
-	static void stream_restore_read_callback(pa_context *c, const pa_ext_stream_restore_info *i, int eol,
-											 void *userdata);
-	static void restore_volume_success_callback(pa_context *c, int success, void *userdata);
-	void contextCallback(pa_context *c);
-	void eventCallback(pa_mainloop_api *a, pa_defer_event *e);
-
-	void query();
-
-	QString outputDevice() const;
-	QString inputDevice() const;
-
-	void setVolumes();
-	PulseAttenuation *getAttenuation(QString stream_restore_id);
-
-public:
-	QHash< QString, QString > qhInput;
-	QHash< QString, QString > qhOutput;
-	bool bPulseIsGood;
-	QMutex qmWait;
-	QWaitCondition qwcWait;
-
-	void wakeup_lock();
-
-	PulseAudioSystem();
-	~PulseAudioSystem() Q_DECL_OVERRIDE;
-};
-
-class PulseAudioInput : public AudioInput {
-	friend class PulseAudioSystem;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PulseAudioInput)
-protected:
-	QMutex qmMutex;
-	QWaitCondition qwcWait;
-	pa_sample_spec pssMic, pssEcho;
-
-public:
-	PulseAudioInput();
-	~PulseAudioInput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
-};
-
-class PulseAudioOutput : public AudioOutput {
-	friend class PulseAudioSystem;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PulseAudioOutput)
-protected:
-	QMutex qmMutex;
-	QWaitCondition qwcWait;
-	pa_sample_spec pss;
-	pa_channel_map pcm;
-
-public:
-	PulseAudioOutput();
-	~PulseAudioOutput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
-};
-
+#ifdef Q_OS_WIN
+#	include <shlobj.h>
 #endif
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+RichTextHtmlEdit::RichTextHtmlEdit(QWidget *p) : QTextEdit(p) {
+	m_document = new LogDocument(this);
+	m_document->setDefaultStyleSheet(qApp->styleSheet());
+	setDocument(m_document);
+}
+
+/* On nix, some programs send utf8, some send wchar_t. Some zeroterminate once, some twice, some not at all.
+ */
+
+static QString decodeMimeString(const QByteArray &src) {
+	if (src.isEmpty())
+		return QString();
+
+	if ((src.length() >= 4) && ((src.length() % sizeof(ushort)) == 0)) {
+		const ushort *ptr = reinterpret_cast< const ushort * >(src.constData());
+		int len           = static_cast< int >(src.length() / sizeof(ushort));
+		if ((ptr[0] > 0) && (ptr[0] < 0x7f) && (ptr[1] > 0) && (ptr[1] < 0x7f)) {
+			while (len && (ptr[len - 1] == 0))
+				--len;
+			return QString::fromUtf16(ptr, len);
+		}
+	}
+
+	if ((sizeof(wchar_t) != sizeof(ushort)) && (src.length() >= static_cast< int >(sizeof(wchar_t)))
+		&& ((src.length() % sizeof(wchar_t)) == 0)) {
+		const wchar_t *ptr = reinterpret_cast< const wchar_t * >(src.constData());
+		int len            = static_cast< int >(src.length() / sizeof(wchar_t));
+		if (*ptr < 0x7f) {
+			while (len && (ptr[len - 1] == 0))
+				--len;
+			return QString::fromWCharArray(ptr, len);
+		}
+	}
+	const char *ptr = src.constData();
+	int len         = src.length();
+	while (len && (ptr[len - 1] == 0))
+		--len;
+	return QString::fromUtf8(ptr, len);
+}
+
+/* Try really hard to properly decode Mime into something sane.
+ */
+
+void RichTextHtmlEdit::insertFromMimeData(const QMimeData *source) {
+	QString uri;
+	QString title;
+	QRegExp newline(QLatin1String("[\\r\\n]"));
+
+#ifndef QT_NO_DEBUG
+	qWarning() << "RichTextHtmlEdit::insertFromMimeData" << source->formats();
+#endif
+
+	if (source->hasImage()) {
+		QImage img   = qvariant_cast< QImage >(source->imageData());
+		QString html = Log::imageToImg(img);
+		if (!html.isEmpty())
+			insertHtml(html);
+		return;
+	}
+
+	QString mozurl = decodeMimeString(source->data(QLatin1String("text/x-moz-url")));
+	if (!mozurl.isEmpty()) {
+		QStringList lines = mozurl.split(newline);
+		qWarning() << mozurl << lines;
+		if (lines.count() >= 2) {
+			uri   = lines.at(0);
+			title = lines.at(1);
+		}
+	}
+
+	if (uri.isEmpty())
+		uri = decodeMimeString(source->data(QLatin1String("text/x-moz-url-data")));
+	if (title.isEmpty())
+		title = decodeMimeString(source->data(QLatin1String("text/x-moz-url-desc")));
+
+	if (uri.isEmpty()) {
+		QStringList urls;
+#ifdef Q_OS_WIN
+		urls = decodeMimeString(
+				   source->data(QLatin1String("application/x-qt-windows-mime;value=\"UniformResourceLocatorW\"")))
+				   .split(newline);
+		if (urls.isEmpty())
+#endif
+			urls = decodeMimeString(source->data(QLatin1String("text/uri-list"))).split(newline);
+		if (!urls.isEmpty())
+			uri = urls.at(0).trimmed();
+	}
+
+	if (uri.isEmpty()) {
+		QUrl url(source->text(), QUrl::StrictMode);
+		if (url.isValid() && !url.isRelative()) {
+			uri = url.toString();
+		}
+	}
+
+#ifdef Q_OS_WIN
+	if (title.isEmpty()
+		&& source->hasFormat(QLatin1String("application/x-qt-windows-mime;value=\"FileGroupDescriptorW\""))) {
+		QByteArray qba = source->data(QLatin1String("application/x-qt-windows-mime;value=\"FileGroupDescriptorW\""));
+		if (qba.length() == sizeof(FILEGROUPDESCRIPTORW)) {
+			const FILEGROUPDESCRIPTORW *ptr = reinterpret_cast< const FILEGROUPDESCRIPTORW * >(qba.constData());
+			title                           = QString::fromWCharArray(ptr->fgd[0].cFileName);
+			if (title.endsWith(QLatin1String(".url"), Qt::CaseInsensitive))
+				title = title.left(title.length() - 4);
+		}
+	}
+#endif
+
+	if (!uri.isEmpty()) {
+		if (title.isEmpty())
+			title = uri;
+
+		uri   = uri.toHtmlEscaped();
+		title = title.toHtmlEscaped();
+
+		insertHtml(QString::fromLatin1("<a href=\"%1\">%2</a>").arg(uri, title));
+		return;
+	}
+
+	QString html = decodeMimeString(source->data(QLatin1String("text/html")));
+	if (!html.isEmpty()) {
+		insertHtml(html);
+		return;
+	}
+
+	QTextEdit::insertFromMimeData(source);
+}
+
+RichTextEditorLink::RichTextEditorLink(const QString &txt, QWidget *p) : QDialog(p) {
+	setupUi(this);
+
+	if (!txt.isEmpty()) {
+		qleText->setText(txt);
+	}
+}
+
+QString RichTextEditorLink::text() const {
+	QUrl url(qleUrl->text(), QUrl::StrictMode);
+	QString txt = qleText->text();
+
+	txt = txt.toHtmlEscaped();
+
+	if (url.isValid() && !url.isRelative() && !txt.isEmpty()) {
+		return QString::fromLatin1("<a href=\"%1\">%2</a>").arg(url.toString(), txt);
+	}
+
+	return QString();
+}
+
+RichTextEditor::RichTextEditor(QWidget *p) : QTabWidget(p) {
+	bChanged  = false;
+	bModified = false;
+	bReadOnly = false;
+
+	setupUi(this);
+
+	qtbToolBar->addAction(qaBold);
+	qtbToolBar->addAction(qaItalic);
+	qtbToolBar->addAction(qaUnderline);
+	qtbToolBar->addAction(qaColor);
+	qtbToolBar->addSeparator();
+	qtbToolBar->addAction(qaLink);
+	qtbToolBar->addAction(qaImage);
+
+	connect(this, SIGNAL(currentChanged(int)), this, SLOT(onCurrentChanged(int)));
+	updateActions();
+
+	qteRichText->setFocus();
+
+	qteRichText->installEventFilter(this);
+	qptePlainText->installEventFilter(this);
+}
+
+bool RichTextEditor::isModified() const {
+	return bModified;
+}
+
+void RichTextEditor::on_qaBold_triggered(bool on) {
+	qteRichText->setFontWeight(on ? QFont::Bold : QFont::Normal);
+}
+
+void RichTextEditor::on_qaItalic_triggered(bool on) {
+	qteRichText->setFontItalic(on);
+}
+
+void RichTextEditor::on_qaUnderline_triggered(bool on) {
+	qteRichText->setFontUnderline(on);
+}
+
+void RichTextEditor::on_qaColor_triggered() {
+	QColor c = QColorDialog::getColor();
+	if (c.isValid())
+		qteRichText->setTextColor(c);
+}
+
+void RichTextEditor::on_qaLink_triggered() {
+	QTextCursor qtc          = qteRichText->textCursor();
+	RichTextEditorLink *rtel = new RichTextEditorLink(qtc.selectedText(), this);
+	if (rtel->exec() == QDialog::Accepted) {
+		QString html = rtel->text();
+		if (!html.isEmpty())
+			qteRichText->insertHtml(html);
+	}
+	delete rtel;
+}
+
+void RichTextEditor::on_qaImage_triggered() {
+	QPair< QByteArray, QImage > choice = g.mw->openImageFile();
+
+	QByteArray &qba = choice.first;
+
+	if (qba.isEmpty())
+		return;
+
+	if ((g.uiImageLength > 0) && (static_cast< unsigned int >(qba.length()) > g.uiImageLength)) {
+		QMessageBox::warning(this, tr("Failed to load image"),
+							 tr("Image file too large to embed in document. Please use images smaller than %1 kB.")
+								 .arg(g.uiImageLength / 1024));
+		return;
+	}
+
+	QBuffer qb(&qba);
+	qb.open(QIODevice::ReadOnly);
+
+	QByteArray format = QImageReader::imageFormat(&qb);
+	qb.close();
+
+	qteRichText->insertHtml(Log::imageToImg(format, qba));
+}
+
+void RichTextEditor::onCurrentChanged(int index) {
+	if (!bChanged)
+		return;
+
+	if (index == 1)
+		richToPlain();
+	else
+		qteRichText->setHtml(qptePlainText->toPlainText());
+
+	bChanged = false;
+}
+
+void RichTextEditor::on_qptePlainText_textChanged() {
+	bModified = true;
+	bChanged  = true;
+}
+
+void RichTextEditor::on_qteRichText_textChanged() {
+	bModified = true;
+	bChanged  = true;
+	updateActions();
+
+	if (!g.uiMessageLength)
+		return;
+
+	richToPlain();
+
+	const QString &plainText = qptePlainText->toPlainText();
+
+	bool over = true;
+
+	unsigned int imagelength = plainText.length();
+
+
+	if (g.uiMessageLength && imagelength <= g.uiMessageLength) {
+		over = false;
+	} else if (g.uiImageLength && imagelength > g.uiImageLength) {
+		over = true;
+	} else {
+		QString qsOut;
+		QXmlStreamReader qxsr(QString::fromLatin1("<document>%1</document>").arg(plainText));
+		QXmlStreamWriter qxsw(&qsOut);
+		while (!qxsr.atEnd()) {
+			switch (qxsr.readNext()) {
+				case QXmlStreamReader::Invalid:
+					return;
+				case QXmlStreamReader::StartElement: {
+					if (qxsr.name() == QLatin1String("img")) {
+						QXmlStreamAttributes attr = qxsr.attributes();
+
+						qxsw.writeStartElement(qxsr.namespaceUri().toString(), qxsr.name().toString());
+						foreach (const QXmlStreamAttribute &a, qxsr.attributes())
+							if (a.name() != QLatin1String("src"))
+								qxsw.writeAttribute(a);
+					} else {
+						qxsw.writeCurrentToken(qxsr);
+					}
+				} break;
+				default:
+					qxsw.writeCurrentToken(qxsr);
+					break;
+			}
+		}
+		over = (static_cast< unsigned int >(qsOut.length()) > g.uiMessageLength);
+	}
+
+
+	QString tooltip = tr("Message is too long.");
+
+	if (!over) {
+		if (QToolTip::text() == tooltip)
+			QToolTip::hideText();
+	} else {
+		QPoint p       = QCursor::pos();
+		const QRect &r = qteRichText->rect();
+		if (!r.contains(qteRichText->mapFromGlobal(p)))
+			p = qteRichText->mapToGlobal(r.center());
+		QToolTip::showText(p, tooltip, qteRichText);
+	}
+}
+
+void RichTextEditor::on_qteRichText_cursorPositionChanged() {
+	updateActions();
+}
+
+void RichTextEditor::on_qteRichText_currentCharFormatChanged() {
+	updateActions();
+}
+
+void RichTextEditor::updateColor(const QColor &col) {
+	if (col == qcColor)
+		return;
+	qcColor = col;
+
+	QRect r(0, 0, 24, 24);
+
+	QPixmap qpm(r.size());
+	QPainter qp(&qpm);
+	qp.fillRect(r, col);
+	qp.setPen(col.darker());
+	qp.drawRect(r.adjusted(0, 0, -1, -1));
+
+	qaColor->setIcon(qpm);
+}
+
+void RichTextEditor::updateActions() {
+	qaBold->setChecked(qteRichText->fontWeight() == QFont::Bold);
+	qaItalic->setChecked(qteRichText->fontItalic());
+	qaUnderline->setChecked(qteRichText->fontUnderline());
+	updateColor(qteRichText->textColor());
+}
+
+void RichTextEditor::richToPlain() {
+	QXmlStreamReader reader(qteRichText->toHtml());
+
+	QString qsOutput;
+	QXmlStreamWriter writer(&qsOutput);
+
+	int paragraphs = 0;
+
+	QMap< QString, QString > def;
+
+	def.insert(QLatin1String("margin-top"), QLatin1String("0px"));
+	def.insert(QLatin1String("margin-bottom"), QLatin1String("0px"));
+	def.insert(QLatin1String("margin-left"), QLatin1String("0px"));
+	def.insert(QLatin1String("margin-right"), QLatin1String("0px"));
+	def.insert(QLatin1String("-qt-block-indent"), QLatin1String("0"));
+	def.insert(QLatin1String("text-indent"), QLatin1String("0px"));
+
+	XMLTools::recurseParse(reader, writer, paragraphs, def);
+
+	qsOutput = qsOutput.trimmed();
+
+	bool changed;
+	do {
+		// Make sure the XML has a root element (would be invalid XML otherwise)
+		// The "unduplicate" element will be dropped by XMLTools::unduplciateTags
+		qsOutput = QString::fromLatin1("<unduplicate>%1</unduplicate>").arg(qsOutput);
+
+		QXmlStreamReader r(qsOutput);
+		qsOutput = QString();
+		QXmlStreamWriter w(&qsOutput);
+		changed  = XMLTools::unduplicateTags(r, w);
+		qsOutput = qsOutput.trimmed();
+	} while (changed);
+
+	qptePlainText->setPlainText(qsOutput);
+}
+
+void RichTextEditor::setText(const QString &txt, bool readonly) {
+	qtbToolBar->setEnabled(!readonly && g.bAllowHTML);
+	qtbToolBar->setVisible(!readonly && g.bAllowHTML);
+	qptePlainText->setReadOnly(readonly || !g.bAllowHTML);
+	qteRichText->setReadOnly(readonly);
+
+	qteRichText->setHtml(txt);
+	qptePlainText->setPlainText(txt);
+
+	bChanged  = false;
+	bModified = false;
+	bReadOnly = readonly;
+}
+
+QString RichTextEditor::text() {
+	if (bChanged) {
+		if (currentIndex() == 0)
+			richToPlain();
+		else
+			qteRichText->setHtml(qptePlainText->toPlainText());
+	}
+
+	bChanged = false;
+	return qptePlainText->toPlainText();
+}
+
+bool RichTextEditor::eventFilter(QObject *obj, QEvent *evt) {
+	if (obj != qptePlainText && obj != qteRichText)
+		return false;
+	if (evt->type() == QEvent::KeyPress) {
+		QKeyEvent *keyEvent = static_cast< QKeyEvent * >(evt);
+		if (((keyEvent->key() == Qt::Key_Enter) || (keyEvent->key() == Qt::Key_Return))
+			&& (keyEvent->modifiers() == Qt::ControlModifier)) {
+			emit accept();
+			return true;
+		}
+	}
+	return false;
+}
+
+bool RichTextImage::isValidImage(const QByteArray &ba, QByteArray &fmt) {
+	QBuffer qb;
+	qb.setData(ba);
+	if (!qb.open(QIODevice::ReadOnly)) {
+		return false;
+	}
+
+	QByteArray detectedFormat = QImageReader::imageFormat(&qb).toLower();
+	if (detectedFormat == QByteArray("png") || detectedFormat == QByteArray("jpg")
+		|| detectedFormat == QByteArray("jpeg") || detectedFormat == QByteArray("gif")) {
+		fmt = detectedFormat;
+		return true;
+	}
+
+	return false;
+}
