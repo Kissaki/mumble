@@ -1,712 +1,917 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "AudioWizard.h"
-
-#include "AudioInput.h"
-#include "AudioOutputSample.h"
-#include "Log.h"
-#include "MainWindow.h"
-#include "Utils.h"
-
-#include <QtGui/QMouseEvent>
-#include <QtWidgets/QGraphicsEllipseItem>
-
-#include <cmath>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-CompletablePage::CompletablePage(QWizard *p) : QWizardPage(p) {
-	bComplete = true;
-}
-
-void CompletablePage::setComplete(bool b) {
-	bComplete = b;
-	emit completeChanged();
-}
-
-bool CompletablePage::isComplete() const {
-	return bComplete;
-}
-
-AudioWizard::AudioWizard(QWidget *p) : QWizard(p) {
-	bInit            = true;
-	bLastActive      = false;
-	g.bInAudioWizard = true;
-
-	ticker = new QTimer(this);
-	ticker->setObjectName(QLatin1String("Ticker"));
-
-	setupUi(this);
-
-	qcbInput->setAccessibleName(tr("Input system"));
-	qcbInputDevice->setAccessibleName(tr("Input device"));
-	qcbOutput->setAccessibleName(tr("Output system"));
-	qcbOutputDevice->setAccessibleName(tr("Output device"));
-	qsOutputDelay->setAccessibleName(tr("Output delay"));
-	qsMaxAmp->setAccessibleName(tr("Maximum amplification"));
-	skwPTT->setAccessibleName(tr("PTT key"));
-	qsVAD->setAccessibleName(tr("VAD level"));
-
-	// Done
-	qcbUsage->setChecked(g.s.bUsage);
-
-	// Device
-	if (AudioInputRegistrar::qmNew) {
-		foreach (AudioInputRegistrar *air, *AudioInputRegistrar::qmNew) {
-			qcbInput->addItem(air->name);
-			if (air->name == AudioInputRegistrar::current) {
-				qcbInput->setCurrentIndex(qcbInput->count() - 1);
-				qcbEcho->setEnabled(air->canEcho(qcbOutput->currentText()));
-			}
-			QList< audioDevice > ql = air->getDeviceChoices();
-		}
-	}
-	if (qcbInput->count() < 2) {
-		qcbInput->setEnabled(false);
-	}
-
-	qcbEcho->setChecked(g.s.bEcho);
-
-	if (AudioOutputRegistrar::qmNew) {
-		foreach (AudioOutputRegistrar *aor, *AudioOutputRegistrar::qmNew) {
-			qcbOutput->addItem(aor->name);
-			if (aor->name == AudioOutputRegistrar::current) {
-				qcbOutput->setCurrentIndex(qcbOutput->count() - 1);
-				bDelay = aor->usesOutputDelay();
-				qcbAttenuateOthers->setEnabled(aor->canMuteOthers());
-			}
-			QList< audioDevice > ql = aor->getDeviceChoices();
-		}
-	}
-
-	if (qcbOutput->count() < 2) {
-		qcbOutput->setEnabled(false);
-	}
-
-	qcbHighContrast->setChecked(g.s.bHighContrast);
-	on_qcbHighContrast_clicked(g.s.bHighContrast);
-#ifdef Q_OS_WIN
-	// On windows we can autodetect this
-	qcbHighContrast->setVisible(false);
-#endif
-
-	// Settings
-	if (g.s.iQuality == 16000 && g.s.iFramesPerPacket == 6)
-		qrbQualityLow->setChecked(true);
-	else if (g.s.iQuality == 40000 && g.s.iFramesPerPacket == 2)
-		qrbQualityBalanced->setChecked(true);
-	else if (g.s.iQuality == 72000 && g.s.iFramesPerPacket == 1)
-		qrbQualityUltra->setChecked(true);
-	else
-		qrbQualityCustom->setChecked(true);
-
-	quint32 iMessage = Settings::LogNone;
-	for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
-		iMessage |= (g.s.qmMessages[i] & (Settings::LogSoundfile | Settings::LogTTS));
-	}
-
-#ifdef USE_NO_TTS
-	qrbNotificationCustom->setChecked(false);
-	qrbNotificationCustom->setDisabled(true);
-	qrbNotificationTTS->setChecked(false);
-	qrbNotificationTTS->setDisabled(true);
-	qrbNotificationSounds->setChecked(true);
-#else
-	if (iMessage == Settings::LogTTS && g.s.bTTS)
-		qrbNotificationTTS->setChecked(true);
-	else if (iMessage == Settings::LogSoundfile)
-		qrbNotificationSounds->setChecked(true);
-	else // If we find mixed message types or only tts with main tts disable assume custom
-		qrbNotificationCustom->setChecked(true);
-	qrbNotificationCustom->setVisible(qrbNotificationCustom->isChecked());
-#endif
-
-	qrbQualityCustom->setVisible(qrbQualityCustom->isChecked());
-	qlQualityCustom->setVisible(qrbQualityCustom->isChecked());
-
-	qcbPositional->setChecked(g.s.bPositionalAudio);
-	qcbAttenuateOthers->setChecked(g.s.bAttenuateOthers);
-
-	on_qcbInput_activated(qcbInput->currentIndex());
-	on_qcbOutput_activated(qcbOutput->currentIndex());
-
-	abAmplify->qcBelow  = Qt::blue;
-	abAmplify->qcInside = Qt::green;
-	abAmplify->qcAbove  = Qt::red;
-
-	// Trigger
-	foreach (const Shortcut &s, g.s.qlShortcuts) {
-		if (s.iIndex == g.mw->gsPushTalk->idx) {
-			skwPTT->setShortcut(s.qlButtons);
-			break;
-		}
-	}
-
-	if (g.s.atTransmit == Settings::PushToTalk)
-		qrPTT->setChecked(true);
-	else if (g.s.vsVAD == Settings::Amplitude)
-		qrAmplitude->setChecked(true);
-	else
-		qrSNR->setChecked(true);
-
-	abVAD->qcBelow  = Qt::red;
-	abVAD->qcInside = Qt::yellow;
-	abVAD->qcAbove  = Qt::green;
-
-	qsVAD->setValue(iroundf(g.s.fVADmax * 32767.f + 0.5f));
-
-	// Positional
-	qcbHeadphone->setChecked(g.s.bPositionalHeadphone);
-
-	fAngle = 0.0f;
-	fX = fY   = 0.0f;
-	qgsScene  = nullptr;
-	qgiSource = nullptr;
-	aosSource = nullptr;
-	qgvView->scale(1.0f, -1.0f);
-	qgvView->viewport()->installEventFilter(this);
-	qgvView->setRenderHints(QPainter::Antialiasing);
-
-	// Volume
-	qsMaxAmp->setValue(g.s.iMinLoudness);
-
-	// Device Tuning
-	qsOutputDelay->setValue(g.s.iOutputDelay);
-
-	on_qsOutputDelay_valueChanged(qsOutputDelay->value());
-
-	setOption(QWizard::NoCancelButton, false);
-	resize(700, 500);
-
-	updateTriggerWidgets(qrPTT->isChecked());
-	sOldSettings        = g.s;
-	g.s.lmLoopMode      = Settings::Local;
-	g.s.dPacketLoss     = 0.0;
-	g.s.dMaxPacketDelay = 0.0;
-	g.s.bMute           = true;
-	g.s.bDeaf           = false;
-
-	bTransmitChanged = false;
-
-	iMaxPeak = 0;
-	iTicks   = 0;
-
-	qpTalkingOn  = QPixmap::fromImage(QImage(QLatin1String("skin:talking_on.svg")).scaled(64, 64));
-	qpTalkingOff = QPixmap::fromImage(QImage(QLatin1String("skin:talking_off.svg")).scaled(64, 64));
-
-	bInit = false;
-
-	connect(this, SIGNAL(currentIdChanged(int)), this, SLOT(showPage(int)));
-
-	ticker->setSingleShot(false);
-	ticker->start(20);
-}
-
-bool AudioWizard::eventFilter(QObject *obj, QEvent *evt) {
-	if ((evt->type() == QEvent::MouseButtonPress) || (evt->type() == QEvent::MouseMove)) {
-		QMouseEvent *qme = dynamic_cast< QMouseEvent * >(evt);
-		if (qme) {
-			if (qme->buttons() & Qt::LeftButton) {
-				QPointF qpf = qgvView->mapToScene(qme->pos());
-				fX          = static_cast< float >(qpf.x());
-				fY          = static_cast< float >(qpf.y());
-			}
-		}
-	}
-	return QWizard::eventFilter(obj, evt);
-}
-
-void AudioWizard::on_qcbInput_activated(int) {
-	qcbInputDevice->clear();
-
-	if (!AudioInputRegistrar::qmNew)
-		return;
-
-	AudioInputRegistrar *air = AudioInputRegistrar::qmNew->value(qcbInput->currentText());
-	QList< audioDevice > ql  = air->getDeviceChoices();
-
-	foreach (audioDevice d, ql) { qcbInputDevice->addItem(d.first, d.second); }
-
-	qcbInputDevice->setEnabled(ql.count() > 1);
-
-	on_qcbInputDevice_activated(0);
-}
-
-void AudioWizard::on_qcbInputDevice_activated(int) {
-	if (bInit)
-		return;
-
-	if (!AudioInputRegistrar::qmNew)
-		return;
-
-	Audio::stopInput();
-
-	AudioInputRegistrar *air = AudioInputRegistrar::qmNew->value(qcbInput->currentText());
-	int idx                  = qcbInputDevice->currentIndex();
-	if (idx > -1) {
-		air->setDeviceChoice(qcbInputDevice->itemData(idx), g.s);
-	}
-
-	qcbEcho->setEnabled(air->canEcho(qcbOutput->currentText()));
-
-	g.ai = AudioInputPtr(air->create());
-	g.ai->start(QThread::HighestPriority);
-}
-
-void AudioWizard::on_qcbOutput_activated(int) {
-	qcbOutputDevice->clear();
-
-	if (!AudioOutputRegistrar::qmNew)
-		return;
-
-	AudioOutputRegistrar *aor = AudioOutputRegistrar::qmNew->value(qcbOutput->currentText());
-	QList< audioDevice > ql   = aor->getDeviceChoices();
-
-	foreach (audioDevice d, ql) { qcbOutputDevice->addItem(d.first, d.second); }
-
-	qcbAttenuateOthers->setEnabled(aor->canMuteOthers());
-
-	qcbOutputDevice->setEnabled(ql.count() > 1);
-
-	on_qcbOutputDevice_activated(0);
-}
-
-void AudioWizard::on_qcbOutputDevice_activated(int) {
-	if (bInit)
-		return;
-
-	if (!AudioOutputRegistrar::qmNew)
-		return;
-
-	Audio::stopOutput();
-
-	AudioOutputRegistrar *aor = AudioOutputRegistrar::qmNew->value(qcbOutput->currentText());
-	int idx                   = qcbOutputDevice->currentIndex();
-	if (idx > -1) {
-		aor->setDeviceChoice(qcbOutputDevice->itemData(idx), g.s);
-		bDelay = aor->usesOutputDelay();
-	}
-
-	AudioInputRegistrar *air = AudioInputRegistrar::qmNew->value(qcbInput->currentText());
-	qcbEcho->setEnabled(air->canEcho(qcbOutput->currentText()));
-
-	g.ao = AudioOutputPtr(aor->create());
-	g.ao->start(QThread::HighPriority);
-}
-
-void AudioWizard::on_qsOutputDelay_valueChanged(int v) {
-	qlOutputDelay->setText(tr("%1 ms").arg(v * 10));
-	g.s.iOutputDelay = v;
-	restartAudio();
-}
-
-void AudioWizard::on_qsMaxAmp_valueChanged(int v) {
-	g.s.iMinLoudness = qMin(v, 30000);
-}
-
-void AudioWizard::showPage(int pageid) {
-	if (pageid == -1)
-		return;
-
-	CompletablePage *cp = qobject_cast< CompletablePage * >(currentPage());
-
-	AudioOutputPtr ao = g.ao;
-	if (ao)
-		ao->wipe();
-	aosSource = nullptr;
-
-	g.bPosTest = false;
-
-	if (cp == qwpIntro) {
-		g.s.bMute = true;
-	} else if (cp == qwpDone) {
-		g.s.bMute = true;
-	} else if (cp == qwpDeviceTuning) {
-		g.s.bMute = true;
-		playChord();
-	} else if (cp == qwpPositional) {
-		fX = fY    = 0.0f;
-		g.s.bMute  = true;
-		g.bPosTest = true;
-		if (qgsScene) {
-			delete qgsScene;
-			qgiSource = nullptr;
-			qgsScene  = nullptr;
-		}
-		playChord();
-	} else {
-		g.s.bMute = false;
-	}
-
-	if ((cp == qwpTrigger) || (cp == qwpSettings)) {
-		if (!bTransmitChanged)
-			g.s.atTransmit = sOldSettings.atTransmit;
-		else if (qrPTT->isChecked())
-			g.s.atTransmit = Settings::PushToTalk;
-		else
-			g.s.atTransmit = Settings::VAD;
-	} else {
-		g.s.atTransmit = Settings::Continuous;
-	}
-}
-
-int AudioWizard::nextId() const {
-	AudioOutputPtr ao = g.ao;
-
-	int nextid = QWizard::nextId();
-	if (currentPage() == qwpSettings && !g.s.bPositionalAudio)
-		nextid++;
-	else if ((currentPage() == qwpDevice) && !bDelay)
-		nextid++;
-	return nextid;
-}
-
-void AudioWizard::playChord() {
-	AudioOutputPtr ao = g.ao;
-	if (!ao || aosSource || bInit)
-		return;
-	aosSource = ao->playSample(QLatin1String(":/wb_male.oga"), true);
-}
-
-void AudioWizard::restartAudio() {
-	aosSource = nullptr;
-
-	Audio::stop();
-
-	g.s.qsAudioInput  = qcbInput->currentText();
-	g.s.qsAudioOutput = qcbOutput->currentText();
-
-	Audio::start();
-
-	if (qgsScene) {
-		delete qgsScene;
-		qgiSource = nullptr;
-		qgsScene  = nullptr;
-	}
-
-	if ((currentPage() == qwpPositional) || (currentPage() == qwpDeviceTuning))
-		playChord();
-}
-
-void AudioWizard::reject() {
-	g.s = sOldSettings;
-
-	g.s.lmLoopMode = Settings::None;
-	restartAudio();
-
-	AudioOutputPtr ao = g.ao;
-	if (ao)
-		ao->wipe();
-	aosSource        = nullptr;
-	g.bInAudioWizard = false;
-
-	QWizard::reject();
-}
-
-void AudioWizard::accept() {
-	if (!bTransmitChanged)
-		g.s.atTransmit = sOldSettings.atTransmit;
-	else if (qrPTT->isChecked())
-		g.s.atTransmit = Settings::PushToTalk;
-	else
-		g.s.atTransmit = Settings::VAD;
-
-	g.s.bMute      = sOldSettings.bMute;
-	g.s.bDeaf      = sOldSettings.bDeaf;
-	g.s.lmLoopMode = Settings::None;
-
-	// Switch TTS<->Sounds according to user selection
-	if (!qrbNotificationCustom->isChecked()) {
-		Settings::MessageLog mlReplace = qrbNotificationTTS->isChecked() ? Settings::LogSoundfile : Settings::LogTTS;
-
-		for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
-			if (g.s.qmMessages[i] & mlReplace)
-				g.s.qmMessages[i] ^= Settings::LogSoundfile | Settings::LogTTS;
-		}
-
-		if (qrbNotificationTTS->isChecked()) {
-			g.s.bTTS = true;
-			g.mw->qaAudioTTS->setChecked(true);
-		}
-	}
-
-	g.s.bUsage = qcbUsage->isChecked();
-	g.bPosTest = false;
-	restartAudio();
-	g.bInAudioWizard = false;
-	QWizard::accept();
-}
-
-bool AudioWizard::validateCurrentPage() {
-	if (currentId() == 1) {
-		if ((qcbInput->currentIndex() < 0) || (qcbOutput->currentIndex() < 0))
-			return false;
-	}
-	return true;
-}
-
-void AudioWizard::on_Ticker_timeout() {
-	AudioInputPtr ai  = g.ai;
-	AudioOutputPtr ao = g.ao;
-	if (!ai || !ao)
-		return;
-
-	int iPeak = static_cast< int >(ai->dMaxMic);
-
-	if (iTicks++ >= 50) {
-		iMaxPeak = 0;
-		iTicks   = 0;
-	}
-	if (iPeak > iMaxPeak)
-		iMaxPeak = iPeak;
-
-	abAmplify->iBelow = qsMaxAmp->value();
-	abAmplify->iValue = iPeak;
-	abAmplify->iPeak  = iMaxPeak;
-	abAmplify->update();
-
-	abVAD->iBelow = iroundf(g.s.fVADmin * 32767.0f + 0.5f);
-	abVAD->iAbove = iroundf(g.s.fVADmax * 32767.0f + 0.5f);
-
-	if (g.s.vsVAD == Settings::Amplitude) {
-		abVAD->iValue = iroundf((32767.f / 96.0f) * (96.0f + ai->dPeakCleanMic) + 0.5f);
-	} else {
-		abVAD->iValue = iroundf(ai->fSpeechProb * 32767.0f + 0.5f);
-	}
-	abVAD->update();
-
-	bool active = ai->isTransmitting();
-	if (active != bLastActive) {
-		bLastActive = active;
-		qlTalkIcon->setPixmap(active ? qpTalkingOn : qpTalkingOff);
-	}
-
-	if (!qgsScene) {
-		const float baseRadius = 0.5;
-
-		unsigned int nspeaker = 0;
-
-		// Note: when updating these, make sure the colors in AudioWizard.ui match up.
-		const QColor skyBlueColor(QLatin1String("#56b4e9"));
-		const QColor bluishGreenColor(QLatin1String("#009e73"));
-		const QColor vermillionColor(QLatin1String("#d55e00"));
-
-		// Get the directions of the speakers as unit vectors and also the amount of them
-		const float *spos = ao->getSpeakerPos(nspeaker);
-
-		if ((nspeaker > 0) && spos) {
-			qgsScene = new QGraphicsScene(QRectF(-4.0f, -4.0f, 8.0f, 8.0f), this);
-
-			QPen pen;
-			// A width of 0 will cause it to always use a width
-			// of exactly 1 pixel
-			pen.setWidth(0);
-
-			QGraphicsEllipseItem *ownPos = qgsScene->addEllipse(
-				QRectF(-baseRadius, -baseRadius, 2 * baseRadius, 2 * baseRadius), pen, QBrush(skyBlueColor));
-			ownPos->setPos(0, 0);
-
-			// Good for debugging: This draws a cross at the origin
-			// qgsScene->addLine(QLineF(0,-1,0,1), pen);
-			// qgsScene->addLine(QLineF(-1,0,1,0), pen);
-
-			const float speakerScale  = 0.9;
-			const float speakerRadius = baseRadius * speakerScale;
-
-			// nspeaker is in format [x1,y1,z1, x2,y2,z2, ...]
-			for (unsigned int i = 0; i < nspeaker; ++i) {
-				if ((spos[3 * i] != 0.0f) || (spos[3 * i + 1] != 0.0f) || (spos[3 * i + 2] != 0.0f)) {
-					float x = spos[3 * i];
-					float z = spos[3 * i + 2];
-
-					const float lengthInPlane = std::sqrt(x * x + z * z);
-
-					// Scale the vector in the xz plane so that its length is at least enough for
-					// the speaker icons and the icon for the own pos don't overlap
-					if ((baseRadius + speakerRadius) < lengthInPlane) {
-						const float scaleFactor = (baseRadius + speakerRadius) / lengthInPlane;
-
-						x *= scaleFactor;
-						z *= scaleFactor;
-					}
-
-					QGraphicsEllipseItem *ellipse = qgsScene->addEllipse(
-						QRectF(-speakerRadius, -speakerRadius, 2 * speakerRadius, 2 * speakerRadius), pen,
-						QBrush(vermillionColor));
-					ellipse->setPos(x, z);
-				}
-			}
-
-			const float sourceScale  = 0.9;
-			const float sourceRadius = baseRadius * sourceScale;
-
-			qgiSource = qgsScene->addEllipse(QRectF(-sourceRadius, -sourceRadius, 2 * sourceRadius, 2 * sourceRadius),
-											 pen, QBrush(bluishGreenColor));
-			qgiSource->setPos(0, (sourceRadius + baseRadius) * 1.5);
-
-			qgvView->setScene(qgsScene);
-			qgvView->fitInView(-4.0f, -4.0f, 8.0f, 8.0f, Qt::KeepAspectRatio);
-		}
-	} else if (currentPage() == qwpPositional) {
-		// This block here is responsible for setting the position of
-		// the audio source. Unless the user has clicked on the scene,
-		// the source will rotate around the origin at a radius of 2.
-		// Once the user has clicked on the scene, the sound source
-		// is put where (s)he clicked last.
-		float xp, yp;
-		if ((fX == 0.0f) && (fY == 0.0f)) {
-			// increase the angle of the sound source by a certain amount. he higher
-			// this value is, the faster will the source rotate.
-			fAngle += 0.02f;
-
-			xp = sinf(fAngle) * 2.0f;
-			yp = cosf(fAngle) * 2.0f;
-		} else {
-			xp = fX;
-			yp = fY;
-		}
-
-		qgiSource->setPos(xp, yp);
-		if (aosSource) {
-			aosSource->fPos[0] = xp;
-			aosSource->fPos[1] = 0;
-			aosSource->fPos[2] = yp;
-		}
-	}
-}
-
-void AudioWizard::on_qsVAD_valueChanged(int v) {
-	if (!bInit) {
-		g.s.fVADmax = static_cast< float >(v) / 32767.0f;
-		g.s.fVADmin = g.s.fVADmax * 0.9f;
-	}
-}
-
-void AudioWizard::on_qrSNR_clicked(bool on) {
-	if (on) {
-		g.s.vsVAD      = Settings::SignalToNoise;
-		g.s.atTransmit = Settings::VAD;
-		updateTriggerWidgets(false);
-		bTransmitChanged = true;
-	}
-}
-
-void AudioWizard::on_qrAmplitude_clicked(bool on) {
-	if (on) {
-		g.s.vsVAD      = Settings::Amplitude;
-		g.s.atTransmit = Settings::VAD;
-		updateTriggerWidgets(false);
-		bTransmitChanged = true;
-	}
-}
-
-void AudioWizard::on_qrPTT_clicked(bool on) {
-	if (on) {
-		g.s.atTransmit = Settings::PushToTalk;
-		updateTriggerWidgets(true);
-		bTransmitChanged = true;
-	}
-}
-
-void AudioWizard::on_skwPTT_keySet(bool valid, bool last) {
-	if (valid)
-		qrPTT->setChecked(true);
-	else if (qrPTT->isChecked())
-		qrAmplitude->setChecked(true);
-	updateTriggerWidgets(valid);
-	bTransmitChanged = true;
-
-	if (last) {
-		const QList< QVariant > &buttons = skwPTT->getShortcut();
-		QList< Shortcut > ql;
-		bool found = false;
-		foreach (Shortcut s, g.s.qlShortcuts) {
-			if (s.iIndex == g.mw->gsPushTalk->idx) {
-				if (buttons.isEmpty())
-					continue;
-				else if (!found) {
-					s.qlButtons = buttons;
-					found       = true;
-				}
-			}
-			ql << s;
-		}
-		if (!found && !buttons.isEmpty()) {
-			Shortcut s;
-			s.iIndex    = g.mw->gsPushTalk->idx;
-			s.bSuppress = false;
-			s.qlButtons = buttons;
-			ql << s;
-		}
-		g.s.qlShortcuts                          = ql;
-		GlobalShortcutEngine::engine->bNeedRemap = true;
-		GlobalShortcutEngine::engine->needRemap();
-	}
-}
-
-void AudioWizard::on_qcbEcho_clicked(bool on) {
-	g.s.bEcho = on;
-	restartAudio();
-}
-
-void AudioWizard::on_qcbHeadphone_clicked(bool on) {
-	g.s.bPositionalHeadphone = on;
-	restartAudio();
-}
-
-void AudioWizard::on_qcbPositional_clicked(bool on) {
-	g.s.bPositionalAudio  = on;
-	g.s.bTransmitPosition = on;
-	restartAudio();
-}
-
-void AudioWizard::updateTriggerWidgets(bool ptt) {
-	qwVAD->setEnabled(!ptt);
-	qwpTrigger->setComplete(!ptt || (skwPTT->qlButtons.count() > 0));
-}
-
-void AudioWizard::on_qcbAttenuateOthers_clicked(bool checked) {
-	g.s.bAttenuateOthers = checked;
-}
-
-void AudioWizard::on_qcbHighContrast_clicked(bool on) {
-	g.s.bHighContrast = on;
-
-	qliAmpTuningText->setVisible(!g.s.bHighContrast);
-	qliAmpTuningTextHC->setVisible(g.s.bHighContrast);
-
-	qliVolumeTuningText->setVisible(!g.s.bHighContrast);
-	qliVolumeTuningTextHC->setVisible(g.s.bHighContrast);
-
-	qliVadTuningText->setVisible(!g.s.bHighContrast);
-	qliVadTuningTextHC->setVisible(g.s.bHighContrast);
-}
-
-void AudioWizard::on_qrbQualityLow_clicked() {
-	g.s.iQuality         = 16000;
-	g.s.iFramesPerPacket = 6;
-	restartAudio();
-}
-
-void AudioWizard::on_qrbQualityBalanced_clicked() {
-	g.s.iQuality         = 40000;
-	g.s.iFramesPerPacket = 2;
-	restartAudio();
-}
-
-void AudioWizard::on_qrbQualityUltra_clicked() {
-	g.s.iQuality         = 72000;
-	g.s.iFramesPerPacket = 1;
-	restartAudio();
-}
-
-void AudioWizard::on_qrbQualityCustom_clicked() {
-	g.s.iQuality         = sOldSettings.iQuality;
-	g.s.iFramesPerPacket = sOldSettings.iFramesPerPacket;
-	restartAudio();
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AudioWizard</class>
+ <widget class="QWizard" name="AudioWizard">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>757</width>
+    <height>823</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Audio Tuning Wizard</string>
+  </property>
+  <property name="wizardStyle">
+   <enum>QWizard::ClassicStyle</enum>
+  </property>
+  <widget class="CompletablePage" name="qwpIntro">
+   <property name="title">
+    <string>Introduction</string>
+   </property>
+   <property name="subTitle">
+    <string>Welcome to the Mumble Audio Wizard</string>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This is the audio tuning wizard for Mumble. This will help you correctly set the input levels of your sound card, and also set the correct parameters for sound processing in Mumble. &lt;/p&gt;&lt;p&gt;Please be aware that as long as this wizard is active, audio will be looped locally to allow you to listen to it, and no audio will be sent to the server. &lt;/p&gt;&lt;p&gt;Note that you can cancel this wizard at any time without it having an effect on your current audio systems. The settings are only once this wizard has been completed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <spacer name="verticalSpacer_3">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>291</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+   </layout>
+  </widget>
+  <widget class="CompletablePage" name="qwpDevice">
+   <property name="title">
+    <string>Device selection</string>
+   </property>
+   <property name="subTitle">
+    <string>Selecting the input and output device to use with Mumble.</string>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_2">
+    <item>
+     <widget class="QGroupBox" name="qgbInput">
+      <property name="title">
+       <string>Input Device</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0" colspan="2">
+        <widget class="QLabel" name="qliInputText">
+         <property name="text">
+          <string>This is the device your microphone is connected to.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="qliInput">
+         <property name="text">
+          <string>System</string>
+         </property>
+         <property name="buddy">
+          <cstring>qcbInput</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="MUComboBox" name="qcbInput">
+         <property name="toolTip">
+          <string>Input method for audio</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="qliInputDevice">
+         <property name="text">
+          <string>Device</string>
+         </property>
+         <property name="buddy">
+          <cstring>qcbInputDevice</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="MUComboBox" name="qcbInputDevice">
+         <property name="toolTip">
+          <string>Input device to use</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;Selects which sound card to use for audio input.&lt;/b&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QCheckBox" name="qcbEcho">
+         <property name="toolTip">
+          <string>Cancel echo from headset or speakers</string>
+         </property>
+         <property name="whatsThis">
+          <string>This enables echo cancellation of outgoing audio, which helps both on speakers and on headsets.</string>
+         </property>
+         <property name="text">
+          <string>Use echo cancellation</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="qgbOutput">
+      <property name="title">
+       <string>Output Device</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0" colspan="2">
+        <widget class="QLabel" name="qliOutputText">
+         <property name="text">
+          <string>This is the device your speakers or headphones are connected to.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="qliOutput">
+         <property name="text">
+          <string>System</string>
+         </property>
+         <property name="buddy">
+          <cstring>qcbOutput</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="MUComboBox" name="qcbOutput">
+         <property name="toolTip">
+          <string>Output method for audio</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;This is the Output method to use for audio.&lt;/b&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="qliOutputDevice">
+         <property name="text">
+          <string>Device</string>
+         </property>
+         <property name="buddy">
+          <cstring>qcbOutputDevice</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="MUComboBox" name="qcbOutputDevice">
+         <property name="toolTip">
+          <string>Output device to use</string>
+         </property>
+         <property name="whatsThis">
+          <string>&lt;b&gt;Selects which sound card to use for audio Output.&lt;/b&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QCheckBox" name="qcbPositional">
+         <property name="toolTip">
+          <string>Allows positioning of sound</string>
+         </property>
+         <property name="whatsThis">
+          <string>This allows Mumble to use positional audio to place voices.</string>
+         </property>
+         <property name="text">
+          <string>Enable positional audio</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QCheckBox" name="qcbAttenuateOthers">
+         <property name="toolTip">
+          <string>Enables attenuation of other applications while users talk to you</string>
+         </property>
+         <property name="whatsThis">
+          <string>Enables attenuation of other applications while users talk to you. This means that as soon someone starts to speak to you in Mumble, the sound of all other applications (like audio players) will get attenuated so you can hear them more clearly.</string>
+         </property>
+         <property name="text">
+          <string>Attenuate applications while other users talk</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <spacer name="verticalSpacer">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>105</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+   </layout>
+  </widget>
+  <widget class="CompletablePage" name="qwpDeviceTuning">
+   <property name="title">
+    <string>Device tuning</string>
+   </property>
+   <property name="subTitle">
+    <string>Changing hardware output delays to their minimum value.</string>
+   </property>
+   <layout class="QGridLayout" name="gridLayout_3">
+    <item row="0" column="0" colspan="3">
+     <widget class="QLabel" name="qliDeviceTuningText">
+      <property name="text">
+       <string>&lt;p&gt;
+To keep latency to an absolute minimum, it's important to buffer as little audio as possible on the soundcard. However, many soundcards report that they require a much smaller buffer than what they can actually work with, so the only way to set this value is to try and fail.
+&lt;/p&gt;
+&lt;p&gt;
+You should hear a voice sample. Change the slider below to the lowest value which gives &lt;b&gt;no&lt;/b&gt; interruptions or jitter in the sound. Please note that local echo is disabled during this test.
+&lt;/p&gt;
+</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QSlider" name="qsOutputDelay">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+        <horstretch>1</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="toolTip">
+       <string>Amount of data to buffer</string>
+      </property>
+      <property name="whatsThis">
+       <string>This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn't cause rapid jitter in the sound.</string>
+      </property>
+      <property name="minimum">
+       <number>1</number>
+      </property>
+      <property name="maximum">
+       <number>6</number>
+      </property>
+      <property name="pageStep">
+       <number>2</number>
+      </property>
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QLabel" name="qlOutputDelay">
+      <property name="minimumSize">
+       <size>
+        <width>30</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="buddy">
+       <cstring>qsOutputDelay</cstring>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0" colspan="2">
+     <spacer name="verticalSpacer_2">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>431</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+   </layout>
+  </widget>
+  <widget class="CompletablePage" name="qwpVolume">
+   <property name="title">
+    <string>Volume tuning</string>
+   </property>
+   <property name="subTitle">
+    <string>Tuning microphone hardware volume to optimal settings.</string>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_3">
+    <item>
+     <widget class="QLabel" name="qliVolumeTuningText">
+      <property name="text">
+       <string>&lt;p&gt;
+Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there's an option to enable a &quot;Microphone boost&quot; make sure it's checked.
+&lt;/p&gt;
+&lt;p&gt;
+Speak loudly, as when you are annoyed or excited. Decrease the volume in the sound control panel until the bar below stays as high as possible in the blue and green but &lt;b&gt;not&lt;/b&gt; the red zone while you speak.
+&lt;/p&gt;
+</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="qliVolumeTuningTextHC">
+      <property name="text">
+       <string comment="For high contrast mode">&lt;p&gt;
+Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there's an option to enable a &quot;Microphone boost&quot; make sure it's checked.
+&lt;/p&gt;
+&lt;p&gt;
+Speak loudly, as when you are annoyed or excited. Decrease the volume in the sound control panel until the bar below stays as high as possible in the striped and the empty but &lt;b&gt;not&lt;/b&gt; the crisscrossed zone while you speak.
+&lt;/p&gt;
+</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="AudioBar" name="abAmplify" native="true">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>30</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="qliAmpTuningText">
+      <property name="text">
+       <string>Now talk softly, as you would when talking late at night and you don't want to disturb anyone. Adjust the slider below so that the bar moves into green when you talk, but stays blue while you're silent.</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="qliAmpTuningTextHC">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="text">
+       <string comment="For high contrast mode">Now talk softly, as you would when talking late at night and you don't want to disturb anyone. Adjust the slider below so that the bar moves into empty zone when you talk, but stays in the striped one while you're silent.</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QSlider" name="qsMaxAmp">
+      <property name="maximum">
+       <number>32767</number>
+      </property>
+      <property name="singleStep">
+       <number>100</number>
+      </property>
+      <property name="pageStep">
+       <number>1000</number>
+      </property>
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <spacer name="verticalSpacer_4">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>552</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbHighContrast">
+        <property name="toolTip">
+         <string>Apply some high contrast optimizations for visually impaired users</string>
+        </property>
+        <property name="text">
+         <string>Use high contrast graphics</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="CompletablePage" name="qwpTrigger">
+   <property name="title">
+    <string>Voice Activity Detection</string>
+   </property>
+   <property name="subTitle">
+    <string>Letting Mumble figure out when you're talking and when you're silent.</string>
+   </property>
+   <layout class="QGridLayout" name="gridLayout_4">
+    <item row="0" column="0" colspan="2">
+     <widget class="QLabel" name="qliVADText">
+      <property name="text">
+       <string>This will help Mumble figure out when you are talking. The first step is selecting which data value to use.</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QRadioButton" name="qrPTT">
+        <property name="text">
+         <string>Push To Talk:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="ShortcutKeyWidget" name="skwPTT"/>
+      </item>
+     </layout>
+    </item>
+    <item row="1" column="1" rowspan="4">
+     <widget class="QLabel" name="qlTalkIcon">
+      <property name="minimumSize">
+       <size>
+        <width>64</width>
+        <height>64</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QRadioButton" name="qrSNR">
+      <property name="text">
+       <string>Signal-To-Noise ratio</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0" colspan="2">
+     <widget class="QWidget" name="qwVAD" native="true">
+      <layout class="QVBoxLayout" name="verticalLayout_6">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="AudioBar" name="abVAD" native="true">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>30</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="qliVadTuningText">
+         <property name="text">
+          <string>Next you need to adjust the following slider. The first few utterances you say should end up in the green area (definitive speech). While talking, you should stay inside the yellow (might be speech) and when you're not talking, everything should be in the red (definitively not speech).</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="qliVadTuningTextHC">
+         <property name="text">
+          <string comment="For high contrast mode">Next you need to adjust the following slider. The first few utterances you say should end up in the empty area (definitive speech). While talking, you should stay inside the striped (might be speech) and when you're not talking, everything should be in the crisscrossed (definitively not speech).</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSlider" name="qsVAD">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>32767</number>
+         </property>
+         <property name="singleStep">
+          <number>100</number>
+         </property>
+         <property name="pageStep">
+          <number>1000</number>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="6" column="0">
+     <spacer name="verticalSpacer_7">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item row="2" column="0">
+     <widget class="QRadioButton" name="qrAmplitude">
+      <property name="text">
+       <string>Raw amplitude from input</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="CompletablePage" name="qwpSettings">
+   <property name="title">
+    <string>Quality &amp; Notifications</string>
+   </property>
+   <property name="subTitle">
+    <string>Adjust quality and notification settings.</string>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_9">
+    <item>
+     <widget class="QGroupBox" name="qgbQuality">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="title">
+       <string>Quality settings</string>
+      </property>
+      <layout class="QFormLayout" name="formLayout">
+       <property name="fieldGrowthPolicy">
+        <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+       </property>
+       <property name="labelAlignment">
+        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+       </property>
+       <item row="0" column="0">
+        <widget class="QRadioButton" name="qrbQualityLow">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Low</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="qlQualityLow">
+         <property name="text">
+          <string>In this configuration Mumble will use a &lt;b&gt;low amount of bandwidth&lt;/b&gt;. This will inevitably result in high latency and poor quality. Choose this only if your connection cannot handle the other settings. (16kbit/s, 60ms per packet)</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QRadioButton" name="qrbQualityBalanced">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Balanced</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="qlQualityBalanced">
+         <property name="text">
+          <string>This is the &lt;b&gt;recommended default&lt;/b&gt; configuration. It provides a good balance between quality, latency, and bandwidth usage. (40kbit/s, 20ms per packet)</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QRadioButton" name="qrbQualityUltra">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>High</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLabel" name="qlQualityUltra">
+         <property name="text">
+          <string>This configuration is only recommended for use in setups where bandwidth is not an issue, like a LAN. It provides the lowest latency supported by Mumble and &lt;b&gt;high quality&lt;/b&gt;. (72kbit/s, 10ms per packet)</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QRadioButton" name="qrbQualityCustom">
+         <property name="text">
+          <string>Custom</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLabel" name="qlQualityCustom">
+         <property name="text">
+          <string>You already set a customized quality configuration in Mumble. Select this setting to keep it.</string>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="qgbNotifications">
+      <property name="title">
+       <string>Notification settings</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_10">
+       <item>
+        <widget class="QRadioButton" name="qrbNotificationTTS">
+         <property name="text">
+          <string>Use Text-To-Speech to read notifications and messages to you.</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QRadioButton" name="qrbNotificationSounds">
+         <property name="text">
+          <string>Disable Text-To-Speech and use sounds instead.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QRadioButton" name="qrbNotificationCustom">
+         <property name="text">
+          <string>Keep custom Text-To-Speech settings.</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <spacer name="verticalSpacer_8">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+   </layout>
+  </widget>
+  <widget class="CompletablePage" name="qwpPositional">
+   <property name="title">
+    <string>Positional Audio</string>
+   </property>
+   <property name="subTitle">
+    <string>Adjusting attenuation of positional audio.</string>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_5">
+    <item>
+     <widget class="QLabel" name="qliPositionalText">
+      <property name="text">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble supports positional audio for some games, and will position the voice of other users relative to their position in game. Depending on their position, the volume of the voice will be changed between the speakers to simulate the direction and distance the other user is at. Such positioning depends on your speaker configuration being correct in your operating system, so a test is done here. &lt;/p&gt;&lt;p&gt;The graph below shows the position of &lt;span style=&quot; color:#56b4e9;&quot;&gt;you&lt;/span&gt;, the &lt;span style=&quot; color:#d55e00;&quot;&gt;speakers&lt;/span&gt; and a &lt;span style=&quot; color:#009e73;&quot;&gt;moving sound source&lt;/span&gt; as if seen from above. You should hear the audio move between the channels. &lt;/p&gt;&lt;p&gt;You can also use your mouse to position the &lt;span style=&quot; color:#009e73;&quot;&gt;sound source&lt;/span&gt; manually.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="qcbHeadphone">
+      <property name="toolTip">
+       <string>Use headphones instead of speakers</string>
+      </property>
+      <property name="whatsThis">
+       <string>This ignores the OS speaker configuration and configures the positioning for headphones instead.</string>
+      </property>
+      <property name="text">
+       <string>Use headphones</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGraphicsView" name="qgvView"/>
+    </item>
+    <item>
+     <spacer name="verticalSpacer_6">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>41</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+   </layout>
+  </widget>
+  <widget class="CompletablePage" name="qwpDone">
+   <property name="title">
+    <string>Finished</string>
+   </property>
+   <property name="subTitle">
+    <string>Enjoy using Mumble</string>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_4">
+    <item>
+     <widget class="QLabel" name="qlDone">
+      <property name="text">
+       <string>&lt;p&gt;
+Congratulations. You should now be ready to enjoy a richer sound experience with Mumble.
+&lt;/p&gt;
+&lt;p&gt;
+Mumble is under continuous development, and the development team wants to focus on the features that benefit the most users. To this end, Mumble supports submitting anonymous statistics about your configuration to the developers. These statistics are essential for future development, and also make sure the features you use aren't deprecated.
+&lt;/p&gt;
+</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="textInteractionFlags">
+       <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="qcbUsage">
+      <property name="text">
+       <string>Submit anonymous statistics to the Mumble project</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <spacer name="verticalSpacer_5">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>267</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>AudioBar</class>
+   <extends>QWidget</extends>
+   <header>AudioStats.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>CompletablePage</class>
+   <extends>QWizardPage</extends>
+   <header>AudioWizard.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ShortcutKeyWidget</class>
+   <extends>QLineEdit</extends>
+   <header>GlobalShortcut.h</header>
+  </customwidget>
+  <customwidget>
+   <class>MUComboBox</class>
+   <extends>QComboBox</extends>
+   <header>widgets/MUComboBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
