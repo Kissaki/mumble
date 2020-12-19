@@ -3,428 +3,234 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "CustomElements.h"
+#include "CrashReporter.h"
 
-#include "ClientUser.h"
-#include "Log.h"
-#include "MainWindow.h"
-#include "Utils.h"
-
-#include <QMimeData>
-#include <QtCore/QTimer>
-#include <QtGui/QAbstractTextDocumentLayout>
-#include <QtGui/QClipboard>
-#include <QtGui/QContextMenuEvent>
-#include <QtGui/QKeyEvent>
-#include <QtWidgets/QScrollBar>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "EnvUtils.h"
+#include "NetworkConfig.h"
+#include "OSInfo.h"
 #include "Global.h"
 
-LogTextBrowser::LogTextBrowser(QWidget *p) : QTextBrowser(p) {
+#include <QtCore/QProcess>
+#include <QtCore/QTemporaryFile>
+#include <QtNetwork/QHostAddress>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QPushButton>
+
+CrashReporter::CrashReporter(QWidget *p) : QDialog(p) {
+	setWindowTitle(tr("Mumble Crash Report"));
+
+	QVBoxLayout *vbl = new QVBoxLayout(this);
+
+	QLabel *l;
+
+	l = new QLabel(tr("<p><b>We're terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report "
+					  "to the Mumble developers?</b></p>"
+					  "<p>The crash report contains a partial copy of Mumble's memory at the time it crashed, and will "
+					  "help the developers fix the problem.</p>"));
+
+	vbl->addWidget(l);
+
+	QHBoxLayout *hbl = new QHBoxLayout();
+
+	qleEmail = new QLineEdit(g.qs->value(QLatin1String("crashemail")).toString());
+	l        = new QLabel(tr("Email address (optional)"));
+	l->setBuddy(qleEmail);
+
+	hbl->addWidget(l);
+	hbl->addWidget(qleEmail, 1);
+	vbl->addLayout(hbl);
+
+	qteDescription = new QTextEdit();
+	l->setBuddy(qteDescription);
+	l = new QLabel(tr("Please describe briefly, in English, what you were doing at the time of the crash"));
+
+	vbl->addWidget(l);
+	vbl->addWidget(qteDescription, 1);
+
+	QPushButton *pbOk = new QPushButton(tr("Send Report"));
+	pbOk->setDefault(true);
+
+	QPushButton *pbCancel = new QPushButton(tr("Don't send report"));
+	pbCancel->setAutoDefault(false);
+
+	QDialogButtonBox *dbb = new QDialogButtonBox(Qt::Horizontal);
+	dbb->addButton(pbOk, QDialogButtonBox::AcceptRole);
+	dbb->addButton(pbCancel, QDialogButtonBox::RejectRole);
+	connect(dbb, SIGNAL(accepted()), this, SLOT(accept()));
+	connect(dbb, SIGNAL(rejected()), this, SLOT(reject()));
+	vbl->addWidget(dbb);
+
+	qelLoop     = new QEventLoop(this);
+	qpdProgress = nullptr;
+	qnrReply    = nullptr;
 }
 
-void LogTextBrowser::resizeEvent(QResizeEvent *e) {
-	scrollLogToBottom();
-	QTextBrowser::resizeEvent(e);
+CrashReporter::~CrashReporter() {
+	g.qs->setValue(QLatin1String("crashemail"), qleEmail->text());
+	delete qnrReply;
 }
 
-bool LogTextBrowser::event(QEvent *e) {
-	if (e->type() == LogDocumentResourceAddedEvent::Type) {
-		scrollLogToBottom();
-	}
-	return QTextBrowser::event(e);
-}
-
-int LogTextBrowser::getLogScroll() {
-	return verticalScrollBar()->value();
-}
-
-int LogTextBrowser::getLogScrollMaximum() {
-	return verticalScrollBar()->maximum();
-}
-
-void LogTextBrowser::setLogScroll(int scroll_pos) {
-	verticalScrollBar()->setValue(scroll_pos);
-}
-
-void LogTextBrowser::scrollLogToBottom() {
-	verticalScrollBar()->setValue(verticalScrollBar()->maximum());
-}
-
-
-void ChatbarTextEdit::focusInEvent(QFocusEvent *qfe) {
-	inFocus(true);
-	QTextEdit::focusInEvent(qfe);
-}
-
-void ChatbarTextEdit::focusOutEvent(QFocusEvent *qfe) {
-	inFocus(false);
-	QTextEdit::focusOutEvent(qfe);
-}
-
-void ChatbarTextEdit::inFocus(bool focus) {
-	if (focus) {
-		if (bDefaultVisible) {
-			QFont f = font();
-			f.setItalic(false);
-			setFont(f);
-			setPlainText(QString());
-			bDefaultVisible = false;
-		}
+void CrashReporter::uploadFinished() {
+	qpdProgress->reset();
+	if (qnrReply->error() == QNetworkReply::NoError) {
+		if (qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200)
+			QMessageBox::information(nullptr, tr("Crash upload successful"),
+									 tr("Thank you for helping make Mumble better!"));
+		else
+			QMessageBox::critical(nullptr, tr("Crash upload failed"),
+								  tr("We're really sorry, but it appears the crash upload has failed with error %1 %2. "
+									 "Please inform a developer.")
+									  .arg(qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
+									  .arg(qnrReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString()));
 	} else {
-		if (toPlainText().trimmed().isEmpty() || bDefaultVisible) {
-			QFont f = font();
-			f.setItalic(true);
-			setFont(f);
-			setHtml(qsDefaultText);
-			bDefaultVisible = true;
-		} else {
-			bDefaultVisible = false;
-		}
+		QMessageBox::critical(nullptr, tr("Crash upload failed"),
+							  tr("This really isn't funny, but apparently there's a bug in the crash reporting code, "
+								 "and we've failed to upload the report. You may inform a developer about error %1")
+								  .arg(qnrReply->error()));
 	}
+	qelLoop->exit(0);
 }
 
-void ChatbarTextEdit::contextMenuEvent(QContextMenuEvent *qcme) {
-	QMenu *menu = createStandardContextMenu();
-
-	QAction *action = new QAction(tr("Paste and &Send") + QLatin1Char('\t'), menu);
-	action->setShortcut(Qt::CTRL + Qt::Key_Shift + Qt::Key_V);
-	action->setEnabled(!QApplication::clipboard()->text().isEmpty());
-	connect(action, SIGNAL(triggered()), this, SLOT(pasteAndSend_triggered()));
-	if (menu->actions().count() > 6)
-		menu->insertAction(menu->actions()[6], action);
-	else
-		menu->addAction(action);
-
-	menu->exec(qcme->globalPos());
-	delete menu;
+void CrashReporter::uploadProgress(qint64 sent, qint64 total) {
+	qpdProgress->setMaximum(static_cast< int >(total));
+	qpdProgress->setValue(static_cast< int >(sent));
 }
 
-void ChatbarTextEdit::dragEnterEvent(QDragEnterEvent *evt) {
-	inFocus(true);
-	evt->acceptProposedAction();
-}
-
-void ChatbarTextEdit::dragMoveEvent(QDragMoveEvent *evt) {
-	inFocus(true);
-	evt->acceptProposedAction();
-}
-
-void ChatbarTextEdit::dropEvent(QDropEvent *evt) {
-	inFocus(true);
-	if (sendImagesFromMimeData(evt->mimeData())) {
-		evt->acceptProposedAction();
-	} else {
-		QTextEdit::dropEvent(evt);
-	}
-}
-
-ChatbarTextEdit::ChatbarTextEdit(QWidget *p) : QTextEdit(p), iHistoryIndex(-1) {
-	setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-	setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	setMinimumHeight(0);
-	connect(this, SIGNAL(textChanged()), SLOT(doResize()));
-
-	bDefaultVisible = true;
-	setDefaultText(tr("<center>Type chat message here</center>"));
-	setAcceptDrops(true);
-}
-
-QSize ChatbarTextEdit::minimumSizeHint() const {
-	return QSize(0, fontMetrics().height());
-}
-
-QSize ChatbarTextEdit::sizeHint() const {
-	QSize sh                 = QTextEdit::sizeHint();
-	const int minHeight      = minimumSizeHint().height();
-	const int documentHeight = document()->documentLayout()->documentSize().height();
-	sh.setHeight(std::max(minHeight, documentHeight));
-	const_cast< ChatbarTextEdit * >(this)->setMaximumHeight(sh.height());
-	return sh;
-}
-
-void ChatbarTextEdit::resizeEvent(QResizeEvent *e) {
-	QTextEdit::resizeEvent(e);
-	QTimer::singleShot(0, this, SLOT(doScrollbar()));
-}
-
-void ChatbarTextEdit::doResize() {
-	updateGeometry();
-	QTimer::singleShot(0, this, SLOT(doScrollbar()));
-}
-
-void ChatbarTextEdit::doScrollbar() {
-	setVerticalScrollBarPolicy(sizeHint().height() > height() ? Qt::ScrollBarAlwaysOn : Qt::ScrollBarAlwaysOff);
-	ensureCursorVisible();
-}
-
-void ChatbarTextEdit::setDefaultText(const QString &new_default, bool force) {
-	qsDefaultText = new_default;
-
-	if (bDefaultVisible || force) {
-		QFont f = font();
-		f.setItalic(true);
-		setFont(f);
-		setHtml(qsDefaultText);
-		bDefaultVisible = true;
-	}
-}
-
-void ChatbarTextEdit::insertFromMimeData(const QMimeData *source) {
-	if (!sendImagesFromMimeData(source)) {
-		QTextEdit::insertFromMimeData(source);
-	}
-}
-
-bool ChatbarTextEdit::sendImagesFromMimeData(const QMimeData *source) {
-	if (source->hasImage()) {
-		// Process the image pasted onto the chatbar.
-		if (g.bAllowHTML) {
-			QImage image = qvariant_cast< QImage >(source->imageData());
-
-			QString imgHtml = QLatin1String("<br />") + Log::imageToImg(image);
-
-			if ((g.uiImageLength == 0) || static_cast< unsigned int >(imgHtml.length()) < g.uiImageLength) {
-				emit pastedImage(imgHtml);
-				return true;
-			} else {
-				g.l->log(Log::Information, tr("Unable to send image: too large."));
-			}
-		}
-	} else if (source->hasUrls()) {
-		// Process the files dropped onto the chatbar. URLs here should be understood as the URIs of files.
-		QList< QUrl > urlList = source->urls();
-
-		int count = 0;
-		for (int i = 0; i < urlList.size(); ++i) {
-			QString path = urlList[i].toLocalFile();
-			QImage image(path);
-
-			if (image.isNull())
-				continue;
-
-			QString imgHtml = QLatin1String("<br />") + Log::imageToImg(image);
-
-			if (static_cast< unsigned int >(imgHtml.length()) < g.uiImageLength) {
-				emit pastedImage(imgHtml);
-				++count;
-			} else {
-				g.l->log(Log::Information, tr("Unable to send image %1: too large.").arg(path));
-			}
-		}
-
-		return (count > 0);
-	}
-	return false;
-}
-
-bool ChatbarTextEdit::event(QEvent *evt) {
-	if (evt->type() == QEvent::ShortcutOverride) {
-		return false;
-	}
-
-	if (evt->type() == QEvent::KeyPress) {
-		QKeyEvent *kev = static_cast< QKeyEvent * >(evt);
-		if ((kev->key() == Qt::Key_Enter || kev->key() == Qt::Key_Return) && !(kev->modifiers() & Qt::ShiftModifier)) {
-			const QString msg = toPlainText();
-			if (!msg.isEmpty()) {
-				addToHistory(msg);
-				emit entered(msg);
-			}
-			return true;
-		}
-		if (kev->key() == Qt::Key_Tab) {
-			emit tabPressed();
-			return true;
-		} else if (kev->key() == Qt::Key_Backtab) {
-			emit backtabPressed();
-			return true;
-		} else if (kev->key() == Qt::Key_Space && kev->modifiers() == Qt::ControlModifier) {
-			emit ctrlSpacePressed();
-			return true;
-		} else if (kev->key() == Qt::Key_Up && kev->modifiers() == Qt::ControlModifier) {
-			historyUp();
-			return true;
-		} else if (kev->key() == Qt::Key_Down && kev->modifiers() == Qt::ControlModifier) {
-			historyDown();
-			return true;
-		} else if (kev->key() == Qt::Key_V && (kev->modifiers() & Qt::ControlModifier) && (kev->modifiers() & Qt::ShiftModifier)) {
-			pasteAndSend_triggered();
-			return true;
-		}
-	}
-	return QTextEdit::event(evt);
-}
-
-/**
- * The bar will try to complete the username, if the nickname
- * is already complete it will try to find a longer match. If
- * there is none it will cycle the nicknames alphabetically.
- * Nothing is done on mismatch.
- */
-unsigned int ChatbarTextEdit::completeAtCursor() {
-	// Get an alphabetically sorted list of usernames
-	unsigned int id = 0;
-
-	QList< QString > qlsUsernames;
-
-	if (ClientUser::c_qmUsers.empty())
-		return id;
-	foreach (ClientUser *usr, ClientUser::c_qmUsers) { qlsUsernames.append(usr->qsName); }
-	std::sort(qlsUsernames.begin(), qlsUsernames.end());
-
-	QString target = QString();
-	QTextCursor tc = textCursor();
-
-	if (toPlainText().isEmpty() || tc.position() == 0) {
-		target = qlsUsernames.first();
-		tc.insertText(target);
-	} else {
-		bool bBaseIsName = false;
-		int iend         = tc.position();
-		int istart       = toPlainText().lastIndexOf(QLatin1Char(' '), iend - 1) + 1;
-		QString base     = toPlainText().mid(istart, iend - istart);
-		tc.setPosition(istart);
-		tc.setPosition(iend, QTextCursor::KeepAnchor);
-
-		if (qlsUsernames.last() == base) {
-			bBaseIsName = true;
-			target      = qlsUsernames.first();
-		} else {
-			if (qlsUsernames.contains(base)) {
-				// Prevent to complete to what's already there
-				while (qlsUsernames.takeFirst() != base) {
-				}
-				bBaseIsName = true;
-			}
-
-			foreach (QString name, qlsUsernames) {
-				if (name.startsWith(base, Qt::CaseInsensitive)) {
-					target = name;
-					break;
-				}
-			}
-		}
-
-		if (bBaseIsName && target.isEmpty() && !qlsUsernames.empty()) {
-			// If autocomplete failed and base was a name get the next one
-			target = qlsUsernames.first();
-		}
-
-		if (!target.isEmpty()) {
-			tc.insertText(target);
-		}
-	}
-
-	if (!target.isEmpty()) {
-		setTextCursor(tc);
-
-		foreach (ClientUser *usr, ClientUser::c_qmUsers) {
-			if (usr->qsName == target) {
-				id = usr->uiSession;
-				break;
-			}
-		}
-	}
-	return id;
-}
-
-void ChatbarTextEdit::addToHistory(const QString &str) {
-	iHistoryIndex = -1;
-	qslHistory.push_front(str);
-	if (qslHistory.length() > MAX_HISTORY) {
-		qslHistory.pop_back();
-	}
-}
-
-void ChatbarTextEdit::historyUp() {
-	if (qslHistory.length() == 0)
+void CrashReporter::run() {
+	QByteArray qbaDumpContents;
+	QFile qfCrashDump(g.qdBasePath.filePath(QLatin1String("mumble.dmp")));
+	if (!qfCrashDump.exists())
 		return;
 
-	if (iHistoryIndex == -1) {
-		qsHistoryTemp = toPlainText();
-	}
+	qfCrashDump.open(QIODevice::ReadOnly);
 
-	if (iHistoryIndex < qslHistory.length() - 1) {
-		setPlainText(qslHistory[++iHistoryIndex]);
-		moveCursor(QTextCursor::End);
-	}
-}
+#if defined(Q_OS_WIN)
+	/* On Windows, the .dmp file is a real minidump. */
 
-void ChatbarTextEdit::historyDown() {
-	if (iHistoryIndex < 0) {
+	if (qfCrashDump.peek(4) != "MDMP")
 		return;
-	} else if (iHistoryIndex == 0) {
-		setPlainText(qsHistoryTemp);
-		iHistoryIndex--;
-	} else {
-		setPlainText(qslHistory[--iHistoryIndex]);
+	qbaDumpContents = qfCrashDump.readAll();
+
+#elif defined(Q_OS_MAC)
+	/*
+	 * On OSX, the .dmp file is simply a dummy file that we
+	 * use to find the *real* crash dump, made by the OSX
+	 * built in crash reporter.
+	 */
+	QFileInfo qfiDump(qfCrashDump);
+	QDateTime qdtModification = qfiDump.lastModified();
+
+	/* Find the real crash report. */
+	QDir qdCrashReports(QDir::home().absolutePath() + QLatin1String("/Library/Logs/DiagnosticReports/"));
+	if (!qdCrashReports.exists()) {
+		qdCrashReports.setPath(QDir::home().absolutePath() + QLatin1String("/Library/Logs/CrashReporter/"));
 	}
-	moveCursor(QTextCursor::End);
-}
 
-void ChatbarTextEdit::pasteAndSend_triggered() {
-	paste();
-	addToHistory(toPlainText());
-	emit entered(toPlainText());
-}
+	QStringList qslFilters;
+	qslFilters << QString::fromLatin1("Mumble_*.crash");
+	qdCrashReports.setNameFilters(qslFilters);
+	qdCrashReports.setSorting(QDir::Time);
+	QFileInfoList qfilEntries = qdCrashReports.entryInfoList();
 
-DockTitleBar::DockTitleBar() : QLabel(tr("Drag here")) {
-	setAlignment(Qt::AlignCenter);
-	setEnabled(false);
-	qtTick = new QTimer(this);
-	qtTick->setSingleShot(true);
-	connect(qtTick, SIGNAL(timeout()), this, SLOT(tick()));
-	size = newsize = 0;
-}
-
-QSize DockTitleBar::sizeHint() const {
-	return minimumSizeHint();
-}
-
-QSize DockTitleBar::minimumSizeHint() const {
-	return QSize(size, size);
-}
-
-bool DockTitleBar::eventFilter(QObject *, QEvent *evt) {
-	QDockWidget *qdw = qobject_cast< QDockWidget * >(parentWidget());
-
-	if (!this->isEnabled())
-		return false;
-
-	switch (evt->type()) {
-		case QEvent::Leave:
-		case QEvent::Enter:
-		case QEvent::MouseMove:
-		case QEvent::MouseButtonRelease: {
-			newsize  = 0;
-			QPoint p = qdw->mapFromGlobal(QCursor::pos());
-			if ((p.x() >= iroundf(static_cast< float >(qdw->width()) * 0.1f + 0.5f))
-				&& (p.x() < iroundf(static_cast< float >(qdw->width()) * 0.9f + 0.5f)) && (p.y() >= 0) && (p.y() < 15))
-				newsize = 15;
-			if (newsize > 0 && !qtTick->isActive())
-				qtTick->start(500);
-			else if ((newsize == size) && qtTick->isActive())
-				qtTick->stop();
-			else if (newsize == 0)
-				tick();
-		}
-		default:
+	/*
+	 * Figure out if our delta is sufficiently close to the Apple crash dump, or
+	 * if something weird happened.
+	 */
+	foreach (QFileInfo fi, qfilEntries) {
+		qint64 delta = qAbs< qint64 >(qdtModification.secsTo(fi.lastModified()));
+		if (delta < 8) {
+			QFile f(fi.absoluteFilePath());
+			f.open(QIODevice::ReadOnly);
+			qbaDumpContents = f.readAll();
 			break;
+		}
+	}
+#endif
+
+	QString details;
+#ifdef Q_OS_WIN
+	{
+		QTemporaryFile qtf;
+		if (qtf.open()) {
+			qtf.close();
+
+			QProcess qp;
+			QStringList qsl;
+
+			qsl << QLatin1String("/t");
+			qsl << qtf.fileName();
+
+			QString app        = QLatin1String("dxdiag.exe");
+			QString systemRoot = EnvUtils::getenv(QLatin1String("SystemRoot"));
+
+			if (systemRoot.count() > 0) {
+				app = QDir::fromNativeSeparators(systemRoot + QLatin1String("/System32/dxdiag.exe"));
+			}
+
+			qp.start(app, qsl);
+			if (qp.waitForFinished(30000)) {
+				if (qtf.open()) {
+					QByteArray qba = qtf.readAll();
+					details        = QString::fromLocal8Bit(qba);
+				}
+			} else {
+				details = QLatin1String("Failed to run dxdiag");
+			}
+			qp.kill();
+		}
+	}
+#endif
+
+	if (qbaDumpContents.isEmpty()) {
+		qWarning("CrashReporter: Empty crash dump file, not reporting.");
+		return;
 	}
 
-	return false;
-}
+	if (exec() == QDialog::Accepted) {
+		qpdProgress = new QProgressDialog(tr("Uploading crash report"), tr("Abort upload"), 0, 100, this);
+		qpdProgress->setMinimumDuration(500);
+		qpdProgress->setValue(0);
+		connect(qpdProgress, SIGNAL(canceled()), qelLoop, SLOT(quit()));
 
-void DockTitleBar::tick() {
-	QDockWidget *qdw = qobject_cast< QDockWidget * >(parentWidget());
+		QString boundary =
+			QString::fromLatin1("---------------------------%1").arg(QDateTime::currentDateTime().toTime_t());
 
-	if (newsize == size)
-		return;
+		QString os = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+										 "name=\"os\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
+						 .arg(boundary, OSInfo::getOS(), OSInfo::getOSVersion());
+		QString ver = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+										  "name=\"ver\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
+						  .arg(boundary, QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE));
+		QString email = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+											"name=\"email\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
+							.arg(boundary, qleEmail->text());
+		QString descr = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+											"name=\"desc\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
+							.arg(boundary, qteDescription->toPlainText());
+		QString det = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
+										  "name=\"details\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
+						  .arg(boundary, details);
+		QString head = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; name=\"dump\"; "
+										   "filename=\"mumble.dmp\"\r\nContent-Type: binary/octet-stream\r\n\r\n")
+						   .arg(boundary);
+		QString end = QString::fromLatin1("\r\n--%1--\r\n").arg(boundary);
 
-	size = newsize;
-	qdw->setTitleBarWidget(this);
+		QByteArray post = os.toUtf8() + ver.toUtf8() + email.toUtf8() + descr.toUtf8() + det.toUtf8() + head.toUtf8()
+						  + qbaDumpContents + end.toUtf8();
+
+		QUrl url(QLatin1String("https://crash-report.mumble.info/v1/report"));
+		QNetworkRequest req(url);
+		req.setHeader(QNetworkRequest::ContentTypeHeader,
+					  QString::fromLatin1("multipart/form-data; boundary=%1").arg(boundary));
+		req.setHeader(QNetworkRequest::ContentLengthHeader, QString::number(post.size()));
+		Network::prepareRequest(req);
+		qnrReply = g.nam->post(req, post);
+		connect(qnrReply, SIGNAL(finished()), this, SLOT(uploadFinished()));
+		connect(qnrReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(uploadProgress(qint64, qint64)));
+
+		qelLoop->exec(QEventLoop::DialogExec);
+	}
+
+	if (!qfCrashDump.remove())
+		qWarning("CrashReporeter: Unable to remove crash file.");
 }
