@@ -3,84 +3,166 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_MANUALPLUGIN_H_
-#define MUMBLE_MUMBLE_MANUALPLUGIN_H_
+#include "OverlayEditor.h"
 
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QDialog>
-#include <QtWidgets/QGraphicsItem>
-#include <QtWidgets/QGraphicsScene>
+#include "Channel.h"
+#include "Database.h"
+#include "MainWindow.h"
+#include "Message.h"
+#include "NetworkConfig.h"
+#include "OverlayClient.h"
+#include "OverlayText.h"
+#include "ServerHandler.h"
+#include "User.h"
+#include "Utils.h"
+#include "GlobalShortcut.h"
 
-#include "ui_ManualPlugin.h"
+#include <QtWidgets/QGraphicsProxyWidget>
 
-#include "../../plugins/mumble_plugin.h"
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-#include <atomic>
-#include <chrono>
+OverlayEditor::OverlayEditor(QWidget *p, QGraphicsItem *qgi, OverlaySettings *osptr)
+	: QDialog(p), qgiPromote(qgi), oes(g.s.os) {
+	setupUi(this);
+	qsZoom->setAccessibleName(tr("Zoom level"));
+	os = osptr ? osptr : &g.s.os;
 
-struct Position2D {
-	float x;
-	float y;
-};
+	connect(qdbbBox->button(QDialogButtonBox::Apply), SIGNAL(clicked()), this, SLOT(apply()));
+	connect(qdbbBox->button(QDialogButtonBox::Reset), SIGNAL(clicked()), this, SLOT(reset()));
 
-// We need this typedef in order to be able to pass this hash as an argument
-// to QMetaObject::invokeMethod
-using PositionMap = QHash< unsigned int, Position2D >;
-Q_DECLARE_METATYPE(PositionMap);
+	QGraphicsProxyWidget *qgpw = graphicsProxyWidget();
+	if (qgpw) {
+		qgpw->setFlag(QGraphicsItem::ItemIgnoresParentOpacity);
+		if (g.ocIntercept) {
+			qgpw->setPos(iroundf(static_cast< float >(g.ocIntercept->uiWidth) / 16.0f + 0.5f),
+						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) / 16.0f + 0.5f));
+			qgpw->resize(iroundf(static_cast< float >(g.ocIntercept->uiWidth) * 14.0f / 16.0f + 0.5f),
+						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) * 14.0f / 16.0f + 0.5f));
+		}
+	}
 
+	qgvView->setScene(&oes);
 
-/// A struct holding information about a stale entry in the
-/// manual plugin's position window
-struct StaleEntry {
-	/// The time point since when this entry is considered stale
-	std::chrono::time_point< std::chrono::steady_clock > staleSince;
-	/// The pointer to the stale item
-	QGraphicsItem *staleItem;
-};
+	reset();
+}
 
-class Manual : public QDialog, public Ui::Manual {
-	Q_OBJECT
-public:
-	Manual(QWidget *parent = 0);
+OverlayEditor::~OverlayEditor() {
+	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.9f);
+	if (qgiPromote)
+		qgiPromote->setZValue(-1.0f);
+}
 
-	static void setSpeakerPositions(const QHash< unsigned int, Position2D > &positions);
+void OverlayEditor::enterEvent(QEvent *e) {
+	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.9f);
 
+	qgpw = graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(1.0f);
 
-public slots:
-	void on_qpbUnhinge_pressed();
-	void on_qpbLinked_clicked(bool);
-	void on_qpbActivated_clicked(bool);
-	void on_qdsbX_valueChanged(double);
-	void on_qdsbY_valueChanged(double);
-	void on_qdsbZ_valueChanged(double);
-	void on_qsbAzimuth_valueChanged(int);
-	void on_qsbElevation_valueChanged(int);
-	void on_qdAzimuth_valueChanged(int);
-	void on_qdElevation_valueChanged(int);
-	void on_qleContext_editingFinished();
-	void on_qleIdentity_editingFinished();
-	void on_buttonBox_clicked(QAbstractButton *);
-	void on_qsbSilentUserDisplaytime_valueChanged(int);
+	if (qgiPromote)
+		qgiPromote->setZValue(-1.0f);
 
-	void on_speakerPositionUpdate(PositionMap positions);
+	QDialog::enterEvent(e);
+}
 
-	void on_updateStaleSpeakers();
+void OverlayEditor::leaveEvent(QEvent *e) {
+	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.3f);
 
-protected:
-	QGraphicsScene *qgsScene;
-	QGraphicsItem *qgiPosition;
+	qgpw = graphicsProxyWidget();
+	if (qgpw)
+		qgpw->setOpacity(0.3f);
 
-	std::atomic< bool > updateLoopRunning;
+	if (qgiPromote)
+		qgiPromote->setZValue(1.0f);
 
-	QHash< unsigned int, QGraphicsItem * > speakerPositions;
-	QHash< unsigned int, StaleEntry > staleSpeakerPositions;
+	QDialog::leaveEvent(e);
+}
 
-	bool eventFilter(QObject *, QEvent *);
-	void changeEvent(QEvent *e);
-	void updateTopAndFront(int orientation, int azimut);
-};
+void OverlayEditor::reset() {
+	oes.os = *os;
+	oes.resync();
 
-MumblePlugin *ManualPlugin_getMumblePlugin();
-MumblePluginQt *ManualPlugin_getMumblePluginQt();
+	qcbAvatar->setChecked(oes.os.bAvatar);
+	qcbUser->setChecked(oes.os.bUserName);
+	qcbChannel->setChecked(oes.os.bChannel);
+	qcbMutedDeafened->setChecked(oes.os.bMutedDeafened);
+	qcbBox->setChecked(oes.os.bBox);
+}
 
-#endif
+void OverlayEditor::apply() {
+	*os = oes.os;
+	emit applySettings();
+}
+
+void OverlayEditor::accept() {
+	apply();
+	QDialog::accept();
+}
+
+void OverlayEditor::on_qrbPassive_clicked() {
+	oes.tsColor = Settings::Passive;
+	oes.resync();
+}
+
+void OverlayEditor::on_qrbTalking_clicked() {
+	oes.tsColor = Settings::Talking;
+	oes.resync();
+}
+
+void OverlayEditor::on_qrbWhisper_clicked() {
+	oes.tsColor = Settings::Whispering;
+	oes.resync();
+}
+
+void OverlayEditor::on_qrbShout_clicked() {
+	oes.tsColor = Settings::Shouting;
+	oes.resync();
+}
+
+void OverlayEditor::on_qcbAvatar_clicked() {
+	oes.os.bAvatar = qcbAvatar->isChecked();
+	if (!oes.os.bAvatar && !oes.os.bUserName) {
+		qcbUser->setChecked(true);
+		oes.os.bUserName = true;
+		oes.updateUserName();
+	}
+	oes.updateAvatar();
+}
+
+void OverlayEditor::on_qcbUser_clicked() {
+	oes.os.bUserName = qcbUser->isChecked();
+	if (!oes.os.bAvatar && !oes.os.bUserName) {
+		qcbAvatar->setChecked(true);
+		oes.os.bAvatar = true;
+		oes.updateAvatar();
+	}
+	oes.updateUserName();
+}
+
+void OverlayEditor::on_qcbChannel_clicked() {
+	oes.os.bChannel = qcbChannel->isChecked();
+	oes.updateChannel();
+}
+
+void OverlayEditor::on_qcbMutedDeafened_clicked() {
+	oes.os.bMutedDeafened = qcbMutedDeafened->isChecked();
+	oes.updateMuted();
+}
+
+void OverlayEditor::on_qcbBox_clicked() {
+	oes.os.bBox = qcbBox->isChecked();
+	oes.moveBox();
+}
+
+void OverlayEditor::on_qsZoom_valueChanged(int zoom) {
+	oes.uiZoom = zoom;
+	oes.resync();
+}
