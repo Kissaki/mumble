@@ -1,203 +1,386 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "NetworkConfig.h"
-
-#include "MainWindow.h"
-#include "OSInfo.h"
-
-#include <QSignalBlocker>
-#include <QtNetwork/QHostAddress>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkProxy>
-
-#ifdef NO_UPDATE_CHECK
-#	include <QMessageBox>
-#endif
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-const QString NetworkConfig::name = QLatin1String("NetworkConfig");
-
-static ConfigWidget *NetworkConfigNew(Settings &st) {
-	return new NetworkConfig(st);
-}
-
-static ConfigRegistrar registrar(1300, NetworkConfigNew);
-
-NetworkConfig::NetworkConfig(Settings &st) : ConfigWidget(st) {
-	setupUi(this);
-	qcbType->setAccessibleName(tr("Type"));
-	qleHostname->setAccessibleName(tr("Hostname"));
-	qlePort->setAccessibleName(tr("Port"));
-	qleUsername->setAccessibleName(tr("Username"));
-	qlePassword->setAccessibleName(tr("Password"));
-}
-
-QString NetworkConfig::title() const {
-	return tr("Network");
-}
-
-const QString &NetworkConfig::getName() const {
-	return NetworkConfig::name;
-}
-
-QIcon NetworkConfig::icon() const {
-	return QIcon(QLatin1String("skin:config_network.png"));
-}
-
-void NetworkConfig::load(const Settings &r) {
-	loadCheckBox(qcbTcpMode, s.bTCPCompat);
-	loadCheckBox(qcbQoS, s.bQoS);
-	loadCheckBox(qcbAutoReconnect, s.bReconnect);
-	loadCheckBox(qcbAutoConnect, s.bAutoConnect);
-	loadCheckBox(qcbDisablePublicList, s.bDisablePublicList);
-	loadCheckBox(qcbSuppressIdentity, s.bSuppressIdentity);
-	loadComboBox(qcbType, s.ptProxyType);
-
-	qleHostname->setText(r.qsProxyHost);
-
-	if (r.usProxyPort > 0) {
-		QString port;
-		port.setNum(r.usProxyPort);
-		qlePort->setText(port);
-	} else
-		qlePort->setText(QString());
-
-	qleUsername->setText(r.qsProxyUsername);
-	qlePassword->setText(r.qsProxyPassword);
-
-	loadCheckBox(qcbHideOS, s.bHideOS);
-
-	const QSignalBlocker blocker(qcbAutoUpdate);
-	loadCheckBox(qcbAutoUpdate, r.bUpdateCheck);
-	loadCheckBox(qcbPluginUpdate, r.bPluginCheck);
-	loadCheckBox(qcbUsage, r.bUsage);
-}
-
-void NetworkConfig::save() const {
-	s.bTCPCompat         = qcbTcpMode->isChecked();
-	s.bQoS               = qcbQoS->isChecked();
-	s.bReconnect         = qcbAutoReconnect->isChecked();
-	s.bAutoConnect       = qcbAutoConnect->isChecked();
-	s.bDisablePublicList = qcbDisablePublicList->isChecked();
-	s.bSuppressIdentity  = qcbSuppressIdentity->isChecked();
-	s.bHideOS            = qcbHideOS->isChecked();
-
-	s.ptProxyType     = static_cast< Settings::ProxyType >(qcbType->currentIndex());
-	s.qsProxyHost     = qleHostname->text();
-	s.usProxyPort     = qlePort->text().toUShort();
-	s.qsProxyUsername = qleUsername->text();
-	s.qsProxyPassword = qlePassword->text();
-
-	s.bUpdateCheck = qcbAutoUpdate->isChecked();
-	s.bPluginCheck = qcbPluginUpdate->isChecked();
-	s.bUsage       = qcbUsage->isChecked();
-}
-
-static QNetworkProxy::ProxyType local_to_qt_proxy(Settings::ProxyType pt) {
-	switch (pt) {
-		case Settings::NoProxy:
-			return QNetworkProxy::NoProxy;
-		case Settings::HttpProxy:
-			return QNetworkProxy::HttpProxy;
-		case Settings::Socks5Proxy:
-			return QNetworkProxy::Socks5Proxy;
-	}
-
-	return QNetworkProxy::NoProxy;
-}
-
-void NetworkConfig::SetupProxy() {
-	QNetworkProxy proxy;
-	proxy.setType(local_to_qt_proxy(g.s.ptProxyType));
-	proxy.setHostName(g.s.qsProxyHost);
-	proxy.setPort(g.s.usProxyPort);
-	proxy.setUser(g.s.qsProxyUsername);
-	proxy.setPassword(g.s.qsProxyPassword);
-	QNetworkProxy::setApplicationProxy(proxy);
-}
-
-bool NetworkConfig::TcpModeEnabled() {
-	/*
-	 * We force TCP mode for both HTTP and SOCKS5 proxies, even though SOCKS5 supports UDP.
-	 *
-	 * This is because Qt's automatic application-wide proxying fails when we're in UDP
-	 * mode since the datagram transmission code assumes that its socket is created in its
-	 * own thread. Due to the automatic proxying, this assumption is incorrect, because of
-	 * Qt's behind-the-scenes magic.
-	 *
-	 * However, TCP mode uses Qt events to make sure packets are sent off from the right
-	 * thread, and this is what we utilize here.
-	 *
-	 * This is probably not even something that should even be taken care of, as proxying
-	 * itself already is a potential latency killer.
-	 */
-
-	return g.s.ptProxyType != Settings::NoProxy || g.s.bTCPCompat;
-}
-
-void NetworkConfig::accept() const {
-	NetworkConfig::SetupProxy();
-}
-
-void NetworkConfig::on_qcbType_currentIndexChanged(int v) {
-	Settings::ProxyType pt = static_cast< Settings::ProxyType >(v);
-
-	qleHostname->setEnabled(pt != Settings::NoProxy);
-	qlePort->setEnabled(pt != Settings::NoProxy);
-	qleUsername->setEnabled(pt != Settings::NoProxy);
-	qlePassword->setEnabled(pt != Settings::NoProxy);
-	qcbTcpMode->setEnabled(pt == Settings::NoProxy);
-
-	s.ptProxyType = pt;
-}
-
-#ifdef NO_UPDATE_CHECK
-void NetworkConfig::on_qcbAutoUpdate_stateChanged(int state) {
-	if (state == Qt::Checked) {
-		QMessageBox msgBox;
-		msgBox.setText(
-			QObject::tr("<p>You're using a Mumble version that <b>explicitly disabled</b> update-checks.</p>"
-						"<p>This means that the update notification you might receive by using this option will "
-						"<b>most likely be meaningless</b> for you.</p>"));
-		msgBox.setInformativeText(
-			QObject::tr("<p>If you're using Linux this is most likely because you are using a "
-						"version from your distribution's package repository that have their own update cycles.</p>"
-						"<p>If you want to always have the most recent Mumble version, you should consider using a "
-						"different method of installation.\n"
-						"See <a href=\"https://wiki.mumble.info/wiki/Installing_Mumble\">the Mumble wiki</a> for what "
-						"alternatives there are.</p>"));
-		msgBox.setIcon(QMessageBox::Warning);
-		msgBox.exec();
-	}
-}
-#endif
-
-QNetworkReply *Network::get(const QUrl &url) {
-	QNetworkRequest req(url);
-	prepareRequest(req);
-	return g.nam->get(req);
-}
-
-void Network::prepareRequest(QNetworkRequest &req) {
-	req.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, true);
-
-	// Do not send OS information if the corresponding privacy setting is enabled
-	if (g.s.bHideOS) {
-		req.setRawHeader(QString::fromLatin1("User-Agent").toUtf8(),
-						 QString::fromLatin1("Mozilla/5.0 Mumble/%1 %2")
-							 .arg(QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE))
-							 .toUtf8());
-	} else {
-		req.setRawHeader(QString::fromLatin1("User-Agent").toUtf8(),
-						 QString::fromLatin1("Mozilla/5.0 (%1; %2) Mumble/%3 %4")
-							 .arg(OSInfo::getOS(), OSInfo::getOSVersion(),
-								  QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE))
-							 .toUtf8());
-	}
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>NetworkConfig</class>
+ <widget class="QWidget" name="NetworkConfig">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>576</width>
+    <height>572</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string notr="true">Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <item>
+    <widget class="QGroupBox" name="qgbConnection">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Connection</string>
+     </property>
+     <layout class="QVBoxLayout">
+      <item>
+       <widget class="QCheckBox" name="qcbTcpMode">
+        <property name="toolTip">
+         <string>Use TCP compatibility mode</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Enable TCP compatibility mode&lt;/b&gt;.&lt;br /&gt;This will make Mumble use only TCP when communicating with the server. This will increase overhead and cause lost packets to produce noticeable pauses in communication, so this should only be used if you are unable to use the default (which uses UDP for voice and TCP for control).</string>
+        </property>
+        <property name="text">
+         <string>Force TCP mode</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbQoS">
+        <property name="toolTip">
+         <string>Enable QoS to prioritize packets</string>
+        </property>
+        <property name="whatsThis">
+         <string>This will enable QoS, which will attempt to prioritize voice packets over other traffic.</string>
+        </property>
+        <property name="text">
+         <string>Use Quality of Service</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbAutoReconnect">
+        <property name="toolTip">
+         <string>Reconnect when disconnected</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Reconnect when disconnected&lt;/b&gt;.&lt;br /&gt;This will make Mumble try to automatically reconnect after 10 seconds if your server connection fails.</string>
+        </property>
+        <property name="text">
+         <string>Reconnect automatically</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbAutoConnect">
+        <property name="toolTip">
+         <string>Reconnect to last used server when starting Mumble</string>
+        </property>
+        <property name="text">
+         <string>Reconnect to last server on startup</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbSuppressIdentity">
+        <property name="toolTip">
+         <string>Don't send certificate to server and don't save passwords. (Not saved).</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This will suppress identity information from the client.&lt;/b&gt;&lt;p&gt;The client will not identify itself with a certificate, even if defined, and will not cache passwords for connections. This is primarily a test-option and is not saved.&lt;/p&gt;</string>
+        </property>
+        <property name="text">
+         <string>Suppress certificate and password storage</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbProxy">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Proxy</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qlType">
+        <property name="text">
+         <string>Type</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="3">
+       <widget class="MUComboBox" name="qcbType">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Type of proxy to connect through</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Type of proxy to connect through.&lt;/b&gt;&lt;br /&gt;This makes Mumble connect through a proxy for all outgoing connections. Note: Proxy tunneling forces Mumble into TCP compatibility mode, causing all voice data to be sent via the control channel.</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Direct connection</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>HTTP(S) proxy</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>SOCKS5 proxy</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="qlHostname">
+        <property name="text">
+         <string>Hostname</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="qleHostname">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Hostname of the proxy</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Hostname of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the hostname of the proxy you wish to tunnel network traffic through.</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="qlPort">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Port</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QLineEdit" name="qlePort">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>20</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>60</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Port number of the proxy</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Port number of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the port number that the proxy expects connections on.</string>
+        </property>
+        <property name="inputMask">
+         <string/>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="maxLength">
+         <number>5</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="qlUsername">
+        <property name="text">
+         <string>Username</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1" colspan="3">
+       <widget class="QLineEdit" name="qleUsername">
+        <property name="toolTip">
+         <string>Username for proxy authentication</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Username for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the username you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="qlPassword">
+        <property name="text">
+         <string>Password</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="3">
+       <widget class="QLineEdit" name="qlePassword">
+        <property name="toolTip">
+         <string>Password for proxy authentication</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Password for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the password you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
+        </property>
+        <property name="inputMask">
+         <string/>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="echoMode">
+         <enum>QLineEdit::Password</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbPrivacy">
+     <property name="title">
+      <string>Privacy</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_4">
+      <item>
+       <widget class="QCheckBox" name="qcbHideOS">
+        <property name="toolTip">
+         <string>Prevent OS information being sent to Mumble servers and web servers</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Don't send OS information to servers&lt;/b&gt;&lt;br/&gt;
+Prevents the client from sending potentially identifying information about the operating system to the Mumble server and web servers.</string>
+        </property>
+        <property name="text">
+         <string>Do not send OS information to Mumble servers and web servers</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbServices">
+     <property name="title">
+      <string>Mumble services</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QCheckBox" name="qcbAutoUpdate">
+        <property name="toolTip">
+         <string>Check for new releases of Mumble automatically.</string>
+        </property>
+        <property name="whatsThis">
+         <string>This will check for new releases of Mumble every time you start the program, and notify you if one is available.</string>
+        </property>
+        <property name="text">
+         <string>Check for application updates on startup</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbPluginUpdate">
+        <property name="toolTip">
+         <string>Check for new releases of plugins automatically.</string>
+        </property>
+        <property name="whatsThis">
+         <string>This will check for new releases of plugins every time you start the program, and download them automatically.</string>
+        </property>
+        <property name="text">
+         <string>Download plugin and overlay updates on startup</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbUsage">
+        <property name="toolTip">
+         <string>Submit anonymous statistics to the Mumble project</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Submit anonymous statistics.&lt;/b&gt;&lt;br /&gt;Mumble has a small development team, and as such needs to focus its development where it is needed most. By submitting a bit of statistics you help the project determine where to focus development.</string>
+        </property>
+        <property name="text">
+         <string>Submit anonymous statistics</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="qcbDisablePublicList">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string>When toggled this hides the public server list from the connect dialog</string>
+        </property>
+        <property name="text">
+         <string>Hide public server list</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Expanding</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MUComboBox</class>
+   <extends>QComboBox</extends>
+   <header>widgets/MUComboBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
