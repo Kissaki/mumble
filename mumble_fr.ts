@@ -1,290 +1,283 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ConnectDialogEdit</class>
- <widget class="QDialog" name="ConnectDialogEdit">
+ <class>LogConfig</class>
+ <widget class="QWidget" name="LogConfig">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>430</width>
-    <height>356</height>
+    <width>554</width>
+    <height>414</height>
    </rect>
   </property>
-  <property name="sizePolicy">
-   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-    <horstretch>0</horstretch>
-    <verstretch>0</verstretch>
-   </sizepolicy>
-  </property>
-  <property name="minimumSize">
-   <size>
-    <width>430</width>
-    <height>0</height>
-   </size>
-  </property>
   <property name="windowTitle">
-   <string>Edit Server</string>
+   <string>Messages</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="1" column="0" colspan="2">
-    <widget class="QWidget" name="qwInlineNotice" native="true">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
+  <layout class="QVBoxLayout">
+   <item>
+    <widget class="QTreeWidget" name="qtwMessages">
+     <property name="alternatingRowColors">
+      <bool>true</bool>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QLabel" name="qlPasteNotice">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>4</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+     <property name="selectionMode">
+      <enum>QAbstractItemView::SingleSelection</enum>
+     </property>
+     <property name="rootIsDecorated">
+      <bool>false</bool>
+     </property>
+     <property name="uniformRowHeights">
+      <bool>true</bool>
+     </property>
+     <property name="itemsExpandable">
+      <bool>false</bool>
+     </property>
+     <column>
+      <property name="text">
+       <string>Message</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Console</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Notification</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Highlight</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Text-To-Speech</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Soundfile</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Path</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbTTS">
+     <property name="title">
+      <string>Text To Speech</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qlVolume">
+        <property name="text">
+         <string>Volume</string>
         </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
+        <property name="buddy">
+         <cstring>qsVolume</cstring>
         </property>
        </widget>
       </item>
-      <item>
-       <widget class="QWidget" name="qwActions" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+      <item row="0" column="1" colspan="3">
+       <widget class="QSlider" name="qsVolume">
+        <property name="toolTip">
+         <string>Volume of Text-To-Speech Engine</string>
         </property>
-        <layout class="QVBoxLayout" name="qlActions">
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QPushButton" name="qbFill">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>&amp;Fill</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="qbDiscard">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>&amp;Ignore</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</string>
+        </property>
+        <property name="maximum">
+         <number>100</number>
+        </property>
+        <property name="singleStep">
+         <number>5</number>
+        </property>
+        <property name="pageStep">
+         <number>20</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="tickPosition">
+         <enum>QSlider::TicksBelow</enum>
+        </property>
+        <property name="tickInterval">
+         <number>5</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="qlThreshold">
+        <property name="text">
+         <string>Length threshold</string>
+        </property>
+        <property name="buddy">
+         <cstring>qsbThreshold</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="qsbThreshold">
+        <property name="toolTip">
+         <string>Message length threshold for Text-To-Speech Engine</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</string>
+        </property>
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::PlusMinus</enum>
+        </property>
+        <property name="suffix">
+         <string> Characters</string>
+        </property>
+        <property name="maximum">
+         <number>5000</number>
+        </property>
+        <property name="singleStep">
+         <number>10</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QCheckBox" name="qcbReadBackOwn">
+        <property name="toolTip">
+         <string>If enabled text messages you send will be read back to you with TTS</string>
+        </property>
+        <property name="text">
+         <string>Read back own messages</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="qcbNoScope">
+        <property name="toolTip">
+         <string>If enabled, TTS will not dictate the message scope.</string>
+        </property>
+        <property name="text">
+         <string>Omit Message Scope</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QCheckBox" name="qcbNoAuthor">
+        <property name="toolTip">
+         <string>If enabled, TTS will not dictate the message author.</string>
+        </property>
+        <property name="text">
+         <string>Omit Message Author</string>
+        </property>
        </widget>
       </item>
      </layout>
     </widget>
    </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="qliServer">
-     <property name="text">
-      <string>A&amp;ddress</string>
+   <item>
+    <widget class="QGroupBox" name="qgbWhisper">
+     <property name="title">
+      <string>Whisper</string>
      </property>
-     <property name="buddy">
-      <cstring>qleServer</cstring>
-     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QCheckBox" name="qcbWhisperFriends">
+        <property name="toolTip">
+         <string>If checked you will only hear whispers from users you added to your friend list.</string>
+        </property>
+        <property name="text">
+         <string>Only accept whispers from friends</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
-   <item row="2" column="1">
-    <widget class="QLineEdit" name="qleServer">
-     <property name="toolTip">
-      <string>Internet address of the server.</string>
+   <item>
+    <widget class="QGroupBox" name="qgbMaxBlocks">
+     <property name="title">
+      <string>Chat Log</string>
      </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Address&lt;/b&gt;&lt;br/&gt;
-Internet address of the server. This can be a normal hostname, an IPv4/IPv6 address or a Bonjour service identifier. Bonjour service identifiers have to be prefixed with a '@' to be recognized by Mumble.</string>
-     </property>
-     <property name="placeholderText">
-      <string>127.0.0.1</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="qliPort">
-     <property name="text">
-      <string>&amp;Port</string>
-     </property>
-     <property name="buddy">
-      <cstring>qlePort</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="1">
-    <widget class="QLineEdit" name="qlePort">
-     <property name="toolTip">
-      <string>Port on which the server is listening</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Port&lt;/b&gt;&lt;br/&gt;
-Port on which the server is listening. If the server is identified by a Bonjour service identifier this field will be ignored.</string>
-     </property>
-     <property name="placeholderText">
-      <string>64738</string>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="0">
-    <widget class="QLabel" name="qliUsername">
-     <property name="text">
-      <string>&amp;Username</string>
-     </property>
-     <property name="buddy">
-      <cstring>qleUsername</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="0">
-    <widget class="QLabel" name="qliPassword">
-     <property name="text">
-      <string>Password</string>
-     </property>
-     <property name="buddy">
-      <cstring>qlePassword</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="1">
-    <widget class="QLineEdit" name="qleUsername">
-     <property name="toolTip">
-      <string>Username to send to the server</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Username&lt;/b&gt;&lt;br/&gt;
-Username to send to the server. Be aware that the server can impose restrictions on how a username might look like. Also your username could already be taken by another user.</string>
-     </property>
-     <property name="placeholderText">
-      <string>Your username</string>
-     </property>
-    </widget>
-   </item>
-   <item row="9" column="1">
-    <widget class="QDialogButtonBox" name="qdbbButtonBox">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="1">
-    <widget class="QLineEdit" name="qlePassword">
-     <property name="toolTip">
-      <string>Password to send to the server</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Password&lt;/b&gt;&lt;br/&gt;
-Password to be sent to the server on connect. This password is needed when connecting as &lt;i&gt;SuperUser&lt;/i&gt; or to a server using password authentication. If not entered here the password will be queried on connect.</string>
-     </property>
-     <property name="placeholderText">
-      <string>Your password</string>
-     </property>
-    </widget>
-   </item>
-   <item row="8" column="1">
-    <widget class="QCheckBox" name="qcbShowPassword">
-     <property name="toolTip">
-      <string/>
-     </property>
-     <property name="text">
-      <string>Show password</string>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="0">
-    <widget class="QLabel" name="qliName">
-     <property name="text">
-      <string>Label</string>
-     </property>
-     <property name="buddy">
-      <cstring>qleName</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="1">
-    <widget class="QLineEdit" name="qleName">
-     <property name="toolTip">
-      <string>Name of the server</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Label&lt;/b&gt;&lt;br/&gt;
-Label of the server. This is what the server will be named like in your server list and can be chosen freely.</string>
-     </property>
-     <property name="placeholderText">
-      <string>Local server label</string>
-     </property>
+     <layout class="QGridLayout" name="_2">
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="qcb24HourClock">
+        <property name="toolTip">
+         <string>If checked the time at the beginning of a message will be displayed in the 24-hour format.
+
+The setting only applies for new messages, the already shown ones will retain the previous time format.</string>
+        </property>
+        <property name="text">
+         <string>Use 24-hour clock</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="qsbMaxBlocks">
+        <property name="buttonSymbols">
+         <enum>QAbstractSpinBox::PlusMinus</enum>
+        </property>
+        <property name="specialValueText">
+         <string>Unlimited</string>
+        </property>
+        <property name="suffix">
+         <string> Lines</string>
+        </property>
+        <property name="maximum">
+         <number>1000000</number>
+        </property>
+        <property name="singleStep">
+         <number>100</number>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="qlMaxBlocks">
+        <property name="text">
+         <string>Maximum chat length</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>8</width>
+          <height>16</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="qlChatMessageMargins">
+        <property name="toolTip">
+         <string>How far individual messages are spaced out from one another.</string>
+        </property>
+        <property name="text">
+         <string>Message margins</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="qsbChatMessageMargins">
+        <property name="toolTip">
+         <string>How far individual messages are spaced out from one another.</string>
+        </property>
+        <property name="frame">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
   </layout>
  </widget>
- <tabstops>
-  <tabstop>qleServer</tabstop>
-  <tabstop>qlePort</tabstop>
-  <tabstop>qleUsername</tabstop>
-  <tabstop>qlePassword</tabstop>
-  <tabstop>qleName</tabstop>
-  <tabstop>qcbShowPassword</tabstop>
-  <tabstop>qdbbButtonBox</tabstop>
- </tabstops>
  <resources/>
- <connections>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>ConnectDialogEdit</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>175</x>
-     <y>231</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>50</x>
-     <y>198</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>rejected()</signal>
-   <receiver>ConnectDialogEdit</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>254</x>
-     <y>231</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>224</x>
-     <y>268</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
 </ui>
