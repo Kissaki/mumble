@@ -1,524 +1,310 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>Certificates</class>
- <widget class="QWizard" name="Certificates">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>669</width>
-    <height>606</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Certificate Management</string>
-  </property>
-  <property name="wizardStyle">
-   <enum>QWizard::ClassicStyle</enum>
-  </property>
-  <widget class="QWizardPage" name="qwpWelcome">
-   <property name="title">
-    <string>Certificate Authentication</string>
-   </property>
-   <property name="subTitle">
-    <string>Authenticating to servers without using passwords</string>
-   </property>
-   <attribute name="pageId">
-    <string notr="true">0</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <widget class="QLabel" name="qlIntroText">
-      <property name="text">
-       <string>&lt;p&gt;Mumble can use certificates to authenticate with servers. Using certificates avoids passwords, meaning you don't need to disclose any password to the remote site. It also enables very easy user registration and a client side friends list independent of servers.&lt;/p&gt;&lt;p&gt;While Mumble can work without certificates, the majority of servers will expect you to have one.&lt;/p&gt;&lt;p&gt;Creating a new certificate automatically is sufficient for most use cases. But Mumble also supports certificates representing trust in the users ownership of an email address. These certificates are issued by third parties. For more information see our &lt;a href=&quot;http://mumble.info/certificate.php&quot;&gt;user certificate documentation&lt;/a&gt;. &lt;/p&gt;</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="CertView" name="cvWelcome">
-      <property name="toolTip">
-       <string>Current certificate</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the certificate Mumble currently uses.</string>
-      </property>
-      <property name="title">
-       <string>Current Certificate</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QRadioButton" name="qrbQuick">
-      <property name="text">
-       <string>Automatic certificate creation</string>
-      </property>
-      <property name="icon">
-       <iconset>
-        <normaloff>skin:actions/bookmark-new.svg</normaloff>skin:actions/bookmark-new.svg</iconset>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>32</width>
-        <height>32</height>
-       </size>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QRadioButton" name="qrbCreate">
-      <property name="toolTip">
-       <string>Create a new certificate</string>
-      </property>
-      <property name="whatsThis">
-       <string>This will create a new certificate.</string>
-      </property>
-      <property name="text">
-       <string>Create a new certificate</string>
-      </property>
-      <property name="icon">
-       <iconset>
-        <normaloff>skin:actions/document-new.svg</normaloff>skin:actions/document-new.svg</iconset>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>32</width>
-        <height>32</height>
-       </size>
-      </property>
-      <property name="checked">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QRadioButton" name="qrbImport">
-      <property name="toolTip">
-       <string>Import certificate from file</string>
-      </property>
-      <property name="whatsThis">
-       <string>This will import a certificate from file.</string>
-      </property>
-      <property name="text">
-       <string>Import a certificate</string>
-      </property>
-      <property name="icon">
-       <iconset>
-        <normaloff>skin:actions/document-open.svg</normaloff>skin:actions/document-open.svg</iconset>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>32</width>
-        <height>32</height>
-       </size>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QRadioButton" name="qrbExport">
-      <property name="enabled">
-       <bool>false</bool>
-      </property>
-      <property name="toolTip">
-       <string>Export Certificate</string>
-      </property>
-      <property name="whatsThis">
-       <string>This will export a certificate to file.</string>
-      </property>
-      <property name="text">
-       <string>Export current certificate</string>
-      </property>
-      <property name="icon">
-       <iconset>
-        <normaloff>skin:actions/document-save-as.svg</normaloff>skin:actions/document-save-as.svg</iconset>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>32</width>
-        <height>32</height>
-       </size>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="CompletablePage" name="qwpImport">
-   <property name="title">
-    <string>Import Certificate</string>
-   </property>
-   <property name="subTitle">
-    <string>PKCS #12 Certificate import</string>
-   </property>
-   <attribute name="pageId">
-    <string notr="true">2</string>
-   </attribute>
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0" colspan="3">
-     <widget class="QLabel" name="qlImportText">
-      <property name="text">
-       <string>&lt;p&gt;Mumble can import certificates stored in PKCS #12 format. This is the format used when exporting a key from Mumble, and also when exporting keys from Firefox, Internet Explorer, Opera etc.&lt;/p&gt;&lt;p&gt;If the file is password protected, you will need the password to import the certificate.&lt;/p&gt;</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="qlImportFile">
-      <property name="text">
-       <string>Import from</string>
-      </property>
-      <property name="buddy">
-       <cstring>qleImportFile</cstring>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QLineEdit" name="qleImportFile">
-      <property name="toolTip">
-       <string>Filename to import from</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the filename you wish to import a certificate from.</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="QPushButton" name="qpbImportFile">
-      <property name="toolTip">
-       <string>Select file to import from</string>
-      </property>
-      <property name="whatsThis">
-       <string>This opens a file selection dialog to choose a file to import a certificate from.</string>
-      </property>
-      <property name="text">
-       <string>Open...</string>
-      </property>
-      <property name="icon">
-       <iconset>
-        <normaloff>skin:actions/document-open.svg</normaloff>skin:actions/document-open.svg</iconset>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="QLabel" name="qlPassword">
-      <property name="text">
-       <string>Password</string>
-      </property>
-      <property name="buddy">
-       <cstring>qlePassword</cstring>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QLineEdit" name="qlePassword">
-      <property name="toolTip">
-       <string>Password for PKCS#12 file</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the password for the PKCS#12 file containing your certificate.</string>
-      </property>
-      <property name="echoMode">
-       <enum>QLineEdit::Password</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="0" colspan="3">
-     <widget class="QLabel" name="qlPasswordNotice">
-      <property name="font">
-       <font>
-        <italic>true</italic>
-       </font>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">color:#ff0000;</string>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="4" column="0" colspan="3">
-     <widget class="CertView" name="cvImport">
-      <property name="toolTip">
-       <string>Certificate to import</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the certificate you are importing.</string>
-      </property>
-      <property name="title">
-       <string>Certificate Details</string>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QWizardPage" name="qwpReplace">
-   <property name="title">
-    <string>Replace Certificate</string>
-   </property>
-   <property name="subTitle">
-    <string>Replace existing certificate with new certificate?</string>
-   </property>
-   <attribute name="pageId">
-    <string notr="true">4</string>
-   </attribute>
-   <layout class="QGridLayout" name="gridLayout_2">
-    <item row="0" column="0" colspan="2">
-     <widget class="QLabel" name="qlReplace">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="text">
-       <string>&lt;p&gt;You already have a certificate stored in Mumble, and you are about to replace it.&lt;/p&gt;
-&lt;p&gt;If you are upgrading to a certificate issued to you by a trusted CA and the email addresses match your current certificate, this is completely safe, and servers you connect to will automatically recognize the strong certificate for your email address.
-&lt;/p&gt;
-&lt;p&gt;If this is not the case, you will no longer be recognized by any server you previously have authenticated with. If you haven't been registered on any server yet, this is nothing to worry about.
-&lt;/p&gt;
-&lt;p&gt;
-Are you sure you wish to replace your certificate?
-&lt;/p&gt;
-</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="CertView" name="cvCurrent">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>1</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="toolTip">
-       <string>Current certificate</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the certificate Mumble currently uses. It will be replaced.</string>
-      </property>
-      <property name="title">
-       <string>Current Certificate</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="CertView" name="cvNew">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>1</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="toolTip">
-       <string>New certificate</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the new certificate that will replace the old one.</string>
-      </property>
-      <property name="title">
-       <string>New Certificate</string>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="CompletablePage" name="qwpExport">
-   <property name="title">
-    <string>Export Certificate</string>
-   </property>
-   <property name="subTitle">
-    <string>Make a backup of your certificate</string>
-   </property>
-   <attribute name="pageId">
-    <string notr="true">3</string>
-   </attribute>
-   <layout class="QGridLayout" name="gridLayout_4">
-    <item row="0" column="0" colspan="3">
-     <widget class="QLabel" name="qlExport">
-      <property name="text">
-       <string>&lt;p&gt;If you ever lose your current certificate, which will happen if your computer suffers a hardware failure or you reinstall your machine, you will no longer be able to authenticate to any server you are registered on. It is therefore &lt;b&gt;mandatory&lt;/b&gt; that you make a backup of your certificate. We strongly recommend you store this backup on removable storage, such as a USB flash drive.&lt;/p&gt;
-&lt;p&gt;Note that this file will not be encrypted, and if anyone gains access to it, they will be able to impersonate you, so take good care of it.&lt;/p&gt;</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="qlExportFile">
-      <property name="text">
-       <string>Export to</string>
-      </property>
-      <property name="buddy">
-       <cstring>qleExportFile</cstring>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QLineEdit" name="qleExportFile">
-      <property name="toolTip">
-       <string>Filename to export to</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the filename you wish to export a certificate to.</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="QPushButton" name="qpbExportFile">
-      <property name="text">
-       <string>Save As...</string>
-      </property>
-      <property name="icon">
-       <iconset>
-        <normaloff>skin:actions/document-save-as.svg</normaloff>skin:actions/document-save-as.svg</iconset>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0" colspan="3">
-     <widget class="CertView" name="cvExport">
-      <property name="toolTip">
-       <string>Current certificate</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is the certificate Mumble currently uses. It will be exported.</string>
-      </property>
-      <property name="title">
-       <string>Certificate Details</string>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="CompletablePage" name="qwpNew">
-   <property name="title">
-    <string>New Certificate</string>
-   </property>
-   <property name="subTitle">
-    <string>Generate a new certificate for strong authentication</string>
-   </property>
-   <attribute name="pageId">
-    <string notr="true">1</string>
-   </attribute>
-   <layout class="QGridLayout" name="gridLayout_3">
-    <item row="0" column="0" colspan="2">
-     <widget class="QLabel" name="qlNewText">
-      <property name="text">
-       <string>&lt;p&gt;Mumble will now generate a strong certificate for authentication to servers.&lt;/p&gt;&lt;p&gt;If you wish, you may provide some additional information to be stored in the certificate, which will be presented to servers when you connect. If you provide a valid email address, you can upgrade to a CA issued email certificate later on, which provides strong identification.&lt;/p&gt;</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="qlName">
-      <property name="text">
-       <string>Name</string>
-      </property>
-      <property name="buddy">
-       <cstring>qleName</cstring>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="QLabel" name="qlEmail">
-      <property name="text">
-       <string>Email</string>
-      </property>
-      <property name="buddy">
-       <cstring>qleEmail</cstring>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QLineEdit" name="qleEmail">
-      <property name="toolTip">
-       <string>Your email address (e.g. johndoe@mumble.info)</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is your email address. It is strongly recommended to provide a valid email address, as this will allow you to upgrade to a strong certificate without authentication problems.</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="1">
-     <widget class="QLabel" name="qlError">
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QLineEdit" name="qleName">
-      <property name="toolTip">
-       <string>Your name (e.g. John Doe)</string>
-      </property>
-      <property name="whatsThis">
-       <string>This is your name, and will be filled out in the certificate. This field is entirely optional.</string>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QWizardPage" name="qwpFinish">
-   <property name="title">
-    <string>Finish</string>
-   </property>
-   <property name="subTitle">
-    <string>Certificate-based authentication is ready for use</string>
-   </property>
-   <attribute name="pageId">
-    <string notr="true">5</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout_2">
-    <item>
-     <widget class="QLabel" name="qlFinishText">
-      <property name="text">
-       <string>Enjoy using Mumble with strong authentication.</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>CompletablePage</class>
-   <extends>QWizardPage</extends>
-   <header>AudioWizard.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>CertView</class>
-   <extends>QGroupBox</extends>
-   <header>Cert.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
- <tabstops>
-  <tabstop>qrbQuick</tabstop>
-  <tabstop>qrbCreate</tabstop>
-  <tabstop>qrbImport</tabstop>
-  <tabstop>qrbExport</tabstop>
-  <tabstop>qleImportFile</tabstop>
-  <tabstop>qpbImportFile</tabstop>
-  <tabstop>qlePassword</tabstop>
-  <tabstop>qleExportFile</tabstop>
-  <tabstop>qpbExportFile</tabstop>
-  <tabstop>qleName</tabstop>
-  <tabstop>qleEmail</tabstop>
- </tabstops>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "ClientUser.h"
+
+#include "AudioOutput.h"
+#include "Channel.h"
+#include "Global.h"
+
+QHash< unsigned int, ClientUser * > ClientUser::c_qmUsers;
+QReadWriteLock ClientUser::c_qrwlUsers;
+
+QList< ClientUser * > ClientUser::c_qlTalking;
+QReadWriteLock ClientUser::c_qrwlTalking;
+
+ClientUser::ClientUser(QObject *p)
+	: QObject(p), tsState(Settings::Passive), tLastTalkStateChange(false), bLocalIgnore(false), bLocalIgnoreTTS(false),
+	  bLocalMute(false), fPowerMin(0.0f), fPowerMax(0.0f), fAverageAvailable(0.0f), iFrames(0), iSequence(0) {
+}
+
+float ClientUser::getLocalVolumeAdjustments() const {
+	return m_localVolume;
+}
+
+ClientUser *ClientUser::get(unsigned int uiSession) {
+	QReadLocker lock(&c_qrwlUsers);
+	ClientUser *p = c_qmUsers.value(uiSession);
+	return p;
+}
+
+QList< ClientUser * > ClientUser::getTalking() {
+	QReadLocker lock(&c_qrwlTalking);
+	return c_qlTalking;
+}
+
+QList< ClientUser * > ClientUser::getActive() {
+	QReadLocker lock(&c_qrwlUsers);
+	QList< ClientUser * > activeUsers;
+	foreach (ClientUser *cu, c_qmUsers) {
+		if (cu->isActive())
+			activeUsers << cu;
+	}
+	return activeUsers;
+}
+
+bool ClientUser::isValid(unsigned int uiSession) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	return c_qmUsers.contains(uiSession);
+}
+
+ClientUser *ClientUser::add(unsigned int uiSession, QObject *po) {
+	QWriteLocker lock(&c_qrwlUsers);
+
+	ClientUser *p        = new ClientUser(po);
+	p->uiSession         = uiSession;
+	c_qmUsers[uiSession] = p;
+	return p;
+}
+
+ClientUser *ClientUser::match(const ClientUser *other, bool matchname) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	ClientUser *p;
+	foreach (p, c_qmUsers) {
+		if (p == other)
+			continue;
+		if ((p->iId >= 0) && (p->iId == other->iId))
+			return p;
+		if (matchname && (p->qsName == other->qsName))
+			return p;
+	}
+	return nullptr;
+}
+
+void ClientUser::remove(unsigned int uiSession) {
+	ClientUser *p;
+	{
+		QWriteLocker lock(&c_qrwlUsers);
+		p = c_qmUsers.take(uiSession);
+
+		if (p) {
+			if (p->cChannel)
+				p->cChannel->removeUser(p);
+
+			if (p->tsState != Settings::Passive) {
+				QWriteLocker writeLock(&c_qrwlTalking);
+				c_qlTalking.removeAll(p);
+			}
+		}
+	}
+
+	if (p) {
+		AudioOutputPtr ao = g.ao;
+		if (ao) {
+			// It is safe to call this function and to give the ClientUser pointer
+			// to it even though we don't hold the lock anymore as it will only take
+			// the pointer to use as the key in a HashMap lookup. At no point in the
+			// code triggered by this function call will the ClientUser pointer be
+			// dereferenced.
+			// Furthermore ClientUser objects are deleted in UserModel::removeUser which
+			// calls this very function before doing so. Thus the object shouldn't be
+			// deleted before this function returns anyways.
+			ao->removeBuffer(p);
+		}
+	}
+}
+
+void ClientUser::remove(ClientUser *p) {
+	remove(p->uiSession);
+}
+
+QString ClientUser::getFlagsString() const {
+	QStringList flags;
+
+	if (!qsFriendName.isEmpty())
+		flags << ClientUser::tr("Friend");
+	if (iId >= 0)
+		flags << ClientUser::tr("Authenticated");
+	if (bPrioritySpeaker)
+		flags << ClientUser::tr("Priority speaker");
+	if (bRecording)
+		flags << ClientUser::tr("Recording");
+	if (bMute)
+		flags << ClientUser::tr("Muted (server)");
+	if (bDeaf)
+		flags << ClientUser::tr("Deafened (server)");
+	if (bLocalIgnore)
+		flags << ClientUser::tr("Local Ignore (Text messages)");
+	if (bLocalIgnoreTTS)
+		flags << ClientUser::tr("Local Ignore (Text-To-Speech)");
+	if (bLocalMute)
+		flags << ClientUser::tr("Local Mute");
+	if (bSelfMute)
+		flags << ClientUser::tr("Muted (self)");
+	if (bSelfDeaf)
+		flags << ClientUser::tr("Deafened (self)");
+
+	return flags.join(QLatin1String(", "));
+}
+
+void ClientUser::setTalking(Settings::TalkState ts) {
+	if (tsState == ts)
+		return;
+
+	bool nstate = false;
+	if (ts == Settings::Passive)
+		nstate = true;
+	else if (tsState == Settings::Passive)
+		nstate = true;
+
+	tsState = ts;
+	tLastTalkStateChange.restart();
+	emit talkingStateChanged();
+
+	if (nstate && cChannel) {
+		QWriteLocker lock(&c_qrwlTalking);
+		if (ts == Settings::Passive)
+			c_qlTalking.removeAll(this);
+		else
+			c_qlTalking << this;
+	}
+}
+
+void ClientUser::setMute(bool mute) {
+	if (bMute == mute)
+		return;
+	bMute = mute;
+	if (!bMute)
+		bDeaf = false;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setSuppress(bool suppress) {
+	if (bSuppress == suppress)
+		return;
+	bSuppress = suppress;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setLocalIgnore(bool ignore) {
+	if (bLocalIgnore == ignore)
+		return;
+	bLocalIgnore = ignore;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setLocalIgnoreTTS(bool ignoreTTS) {
+	bLocalIgnoreTTS = ignoreTTS;
+}
+
+void ClientUser::setLocalMute(bool mute) {
+	if (bLocalMute == mute)
+		return;
+	bLocalMute = mute;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setDeaf(bool deaf) {
+	bDeaf = deaf;
+	if (bDeaf)
+		bMute = true;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setSelfMute(bool mute) {
+	bSelfMute = mute;
+	if (!mute)
+		bSelfDeaf = false;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setSelfDeaf(bool deaf) {
+	bSelfDeaf = deaf;
+	if (deaf)
+		bSelfMute = true;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setPrioritySpeaker(bool priority) {
+	if (bPrioritySpeaker == priority)
+		return;
+	bPrioritySpeaker = priority;
+	emit prioritySpeakerStateChanged();
+}
+
+void ClientUser::setRecording(bool recording) {
+	if (bRecording == recording)
+		return;
+	bRecording = recording;
+	emit recordingStateChanged();
+}
+
+void ClientUser::setLocalVolumeAdjustment(float adjustment) {
+	float oldAdjustment = m_localVolume;
+	m_localVolume       = adjustment;
+
+	emit localVolumeAdjustmentsChanged(m_localVolume, oldAdjustment);
+}
+
+bool ClientUser::lessThanOverlay(const ClientUser *first, const ClientUser *second) {
+	if (g.s.os.osSort == OverlaySettings::LastStateChange) {
+		// Talkers above non-talkers
+		if (first->tsState != Settings::Passive && second->tsState == Settings::Passive)
+			return true;
+		if (first->tsState == Settings::Passive && second->tsState != Settings::Passive)
+			return false;
+
+		// Valid time above invalid time (possible when there wasn't a state-change yet)
+		if (first->tLastTalkStateChange.isStarted() && !second->tLastTalkStateChange.isStarted())
+			return true;
+		if (!first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted())
+			return false;
+
+		// If both have a valid time
+		if (first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted()) {
+			// Among talkers, long > short
+			// (if two clients are talking, the client that started first is above the other)
+			if (first->tsState != Settings::Passive && second->tsState != Settings::Passive)
+				return first->tLastTalkStateChange > second->tLastTalkStateChange;
+
+			// Among non-talkers, short -> long
+			// (if two clients are passive, the client that most recently stopped talking is above)
+			if (first->tsState == Settings::Passive && second->tsState == Settings::Passive)
+				return first->tLastTalkStateChange < second->tLastTalkStateChange;
+		}
+
+		// If both times are invalid, fall back to alphabetically (continuing below)
+	}
+
+	if (first->cChannel == second->cChannel || !first->cChannel || !second->cChannel)
+		return lessThan(first, second);
+
+	// When sorting for the overlay always place the local users
+	// channel above the others
+	ClientUser *self = c_qmUsers.value(g.uiSession);
+	if (self) {
+		if (self->cChannel == first->cChannel)
+			return true;
+		else if (self->cChannel == second->cChannel)
+			return false;
+	}
+
+	return Channel::lessThan(first->cChannel, second->cChannel);
+}
+
+void ClientUser::sortUsersOverlay(QList< ClientUser * > &list) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	std::sort(list.begin(), list.end(), ClientUser::lessThanOverlay);
+}
+
+bool ClientUser::isActive() {
+	if (tsState != Settings::Passive)
+		return true;
+
+	if (!tLastTalkStateChange.isStarted())
+		return false;
+
+	return tLastTalkStateChange.elapsed() < g.s.os.uiActiveTime * 1000000U;
+}
+
+/* From Channel.h
+ */
+void Channel::addClientUser(ClientUser *p) {
+	addUser(p);
+	p->setParent(this);
+}
