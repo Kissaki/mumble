@@ -1,603 +1,219 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>UserInformation</class>
- <widget class="QDialog" name="UserInformation">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>379</width>
-    <height>401</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>User Information</string>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QGroupBox" name="qgbConnection">
-     <property name="title">
-      <string>Connection Information</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliVersion">
-        <property name="text">
-         <string>Version</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="2">
-       <widget class="QLabel" name="qlVersion">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textFormat">
-         <enum>Qt::PlainText</enum>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliOS">
-        <property name="text">
-         <string>OS</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1" colspan="2">
-       <widget class="QLabel" name="qlOS">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textFormat">
-         <enum>Qt::PlainText</enum>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="qliCertificate">
-        <property name="text">
-         <string>Certificate</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QLabel" name="qlCertificate">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textFormat">
-         <enum>Qt::PlainText</enum>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="qliAddress">
-        <property name="text">
-         <string>IP Address</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1" colspan="2">
-       <widget class="QLabel" name="qlAddress">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="qliCELT">
-        <property name="text">
-         <string>CELT Versions</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1" colspan="2">
-       <widget class="QLabel" name="qlCELT">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QPushButton" name="qpbCertificate">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>150</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Details...</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0">
-       <widget class="QLabel" name="qliOpus">
-        <property name="text">
-         <string notr="true">Opus</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="1" colspan="2">
-       <widget class="QLabel" name="qlOpus">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbPing">
-     <property name="title">
-      <string>Ping Statistics</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_2">
-      <item row="0" column="1">
-       <widget class="QLabel" name="qliPingCount">
-        <property name="text">
-         <string>Pings received</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <widget class="QLabel" name="qliPingAvg">
-        <property name="text">
-         <string>Average ping</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="3">
-       <widget class="QLabel" name="qliPingVar">
-        <property name="text">
-         <string>Ping deviation</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliTCP">
-        <property name="text">
-         <string>TCP (Control)</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLabel" name="qlTCPCount">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLabel" name="qlTCPAvg">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QLabel" name="qlTCPVar">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qliUDP">
-        <property name="text">
-         <string>UDP (Voice)</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="qlUDPCount">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QLabel" name="qlUDPAvg">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="3">
-       <widget class="QLabel" name="qlUDPVar">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbUDP">
-     <property name="title">
-      <string>UDP Network statistics</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_3">
-      <item row="0" column="1">
-       <widget class="QLabel" name="qliGood">
-        <property name="text">
-         <string>Good</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <widget class="QLabel" name="qliLate">
-        <property name="text">
-         <string>Late</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="4">
-       <widget class="QLabel" name="qliLost">
-        <property name="text">
-         <string>Lost</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="6">
-       <widget class="QLabel" name="qliResync">
-        <property name="text">
-         <string>Resync</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliFromClient">
-        <property name="text">
-         <string>From Client</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLabel" name="qlFromGood">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLabel" name="qlFromLate">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="4">
-       <widget class="QLabel" name="qlFromLost">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="6">
-       <widget class="QLabel" name="qlFromResync">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qliToClient">
-        <property name="text">
-         <string>To Client</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="qlToGood">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QLabel" name="qlToLate">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="4">
-       <widget class="QLabel" name="qlToLost">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="6">
-       <widget class="QLabel" name="qlToResync">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="3">
-       <widget class="QLabel" name="qliLatePercent">
-        <property name="text">
-         <string notr="true">%</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="5">
-       <widget class="QLabel" name="qliLostPercent">
-        <property name="text">
-         <string notr="true">%</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QLabel" name="qlFromLatePercent">
-        <property name="text">
-         <string notr="true"/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="3">
-       <widget class="QLabel" name="qlToLatePercent">
-        <property name="text">
-         <string notr="true"/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="5">
-       <widget class="QLabel" name="qlFromLostPercent">
-        <property name="text">
-         <string notr="true"/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="5">
-       <widget class="QLabel" name="qlToLostPercent">
-        <property name="text">
-         <string notr="true"/>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbBandwidth">
-     <property name="title">
-      <string comment="GroupBox">Bandwidth</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_4">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qliTime">
-        <property name="text">
-         <string>Connection time</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="qlTime">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qliBandwidth">
-        <property name="text">
-         <string comment="Label">Bandwidth</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLabel" name="qlBandwidth">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textInteractionFlags">
-         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "UserInformation.h"
+
+#include "Audio.h"
+#include "CELTCodec.h"
+#include "HostAddress.h"
+#include "ServerHandler.h"
+#include "ViewCert.h"
+
+#include <QtCore/QUrl>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+static QString decode_utf8_qssl_string(const QString &input) {
+	QString i = input;
+	return QUrl::fromPercentEncoding(i.replace(QLatin1String("\\x"), QLatin1String("%")).toLatin1());
+}
+
+static QString decode_utf8_qssl_string(const QStringList &list) {
+	if (list.count() > 0) {
+		return decode_utf8_qssl_string(list.at(0));
+	}
+	return QString();
+}
+
+UserInformation::UserInformation(const MumbleProto::UserStats &msg, QWidget *p) : QDialog(p) {
+	setupUi(this);
+
+	uiSession = msg.session();
+
+	qtTimer = new QTimer(this);
+	connect(qtTimer, SIGNAL(timeout()), this, SLOT(tick()));
+	qtTimer->start(6000);
+
+	qgbConnection->setVisible(false);
+
+	qlOpus->setText(tr("Not Reported"));
+
+	update(msg);
+	resize(sizeHint());
+
+	qfCertificateFont = qlCertificate->font();
+}
+
+unsigned int UserInformation::session() const {
+	return uiSession;
+}
+
+void UserInformation::tick() {
+	if (bRequested)
+		return;
+
+	bRequested = true;
+
+	g.sh->requestUserStats(uiSession, true);
+}
+
+void UserInformation::on_qpbCertificate_clicked() {
+	ViewCert *vc = new ViewCert(qlCerts, this);
+	vc->setWindowModality(Qt::WindowModal);
+	vc->setAttribute(Qt::WA_DeleteOnClose, true);
+	vc->show();
+}
+
+QString UserInformation::secsToString(unsigned int secs) {
+	QStringList qsl;
+
+	int weeks   = secs / (60 * 60 * 24 * 7);
+	secs        = secs % (60 * 60 * 24 * 7);
+	int days    = secs / (60 * 60 * 24);
+	secs        = secs % (60 * 60 * 24);
+	int hours   = secs / (60 * 60);
+	secs        = secs % (60 * 60);
+	int minutes = secs / 60;
+	int seconds = secs % 60;
+
+	if (weeks)
+		qsl << tr("%1w").arg(weeks);
+	if (days)
+		qsl << tr("%1d").arg(days);
+	if (hours)
+		qsl << tr("%1h").arg(hours);
+	if (minutes || hours)
+		qsl << tr("%1m").arg(minutes);
+	qsl << tr("%1s").arg(seconds);
+
+	return qsl.join(QLatin1String(" "));
+}
+
+void UserInformation::update(const MumbleProto::UserStats &msg) {
+	bRequested = false;
+
+	bool showcon = false;
+
+	ClientUser *cu = ClientUser::get(uiSession);
+	if (cu)
+		setWindowTitle(cu->qsName);
+
+	if (msg.certificates_size() > 0) {
+		showcon = true;
+		qlCerts.clear();
+		for (int i = 0; i < msg.certificates_size(); ++i) {
+			const std::string &s = msg.certificates(i);
+			QList< QSslCertificate > certs =
+				QSslCertificate::fromData(QByteArray(s.data(), static_cast< int >(s.length())), QSsl::Der);
+			qlCerts << certs;
+		}
+		if (!qlCerts.isEmpty()) {
+			qpbCertificate->setEnabled(true);
+
+			const QSslCertificate &cert                                      = qlCerts.last();
+			const QMultiMap< QSsl::AlternativeNameEntryType, QString > &alts = cert.subjectAlternativeNames();
+			if (alts.contains(QSsl::EmailEntry))
+				qlCertificate->setText(QStringList(alts.values(QSsl::EmailEntry)).join(tr(", ")));
+			else
+				qlCertificate->setText(decode_utf8_qssl_string(cert.subjectInfo(QSslCertificate::CommonName)));
+
+			if (msg.strong_certificate()) {
+				QFont f = qfCertificateFont;
+				f.setBold(true);
+				qlCertificate->setFont(f);
+			} else {
+				qlCertificate->setFont(qfCertificateFont);
+			}
+		} else {
+			qpbCertificate->setEnabled(false);
+			qlCertificate->setText(QString());
+		}
+	}
+	if (msg.has_address()) {
+		showcon = true;
+		HostAddress ha(msg.address());
+		qlAddress->setText(ha.toString());
+	}
+	if (msg.has_version()) {
+		showcon = true;
+
+		const MumbleProto::Version &mpv = msg.version();
+
+		qlVersion->setText(tr("%1 (%2)").arg(MumbleVersion::toString(mpv.version())).arg(u8(mpv.release())));
+		qlOS->setText(tr("%1 (%2)").arg(u8(mpv.os())).arg(u8(mpv.os_version())));
+	}
+	if (msg.celt_versions_size() > 0) {
+		QStringList qsl;
+		for (int i = 0; i < msg.celt_versions_size(); ++i) {
+			int v         = msg.celt_versions(i);
+			CELTCodec *cc = g.qmCodecs.value(v);
+			if (cc)
+				qsl << cc->version();
+			else
+				qsl << QString::number(v, 16);
+		}
+		qlCELT->setText(qsl.join(tr(", ")));
+	}
+	if (msg.has_opus()) {
+		qlOpus->setText(msg.opus() ? tr("Supported") : tr("Not Supported"));
+	}
+	if (showcon)
+		qgbConnection->setVisible(true);
+
+	qlTCPCount->setText(QString::number(msg.tcp_packets()));
+	qlUDPCount->setText(QString::number(msg.udp_packets()));
+
+	qlTCPAvg->setText(QString::number(msg.tcp_ping_avg(), 'f', 2));
+	qlUDPAvg->setText(QString::number(msg.udp_ping_avg(), 'f', 2));
+
+	qlTCPVar->setText(QString::number(msg.tcp_ping_var() > 0.0f ? sqrtf(msg.tcp_ping_var()) : 0.0f, 'f', 2));
+	qlUDPVar->setText(QString::number(msg.udp_ping_var() > 0.0f ? sqrtf(msg.udp_ping_var()) : 0.0f, 'f', 2));
+
+	if (msg.has_from_client() && msg.has_from_server()) {
+		qgbUDP->setVisible(true);
+		const MumbleProto::UserStats_Stats &from = msg.from_client();
+		qlFromGood->setText(QString::number(from.good()));
+		qlFromLate->setText(QString::number(from.late()));
+		qlFromLost->setText(QString::number(from.lost()));
+		qlFromResync->setText(QString::number(from.resync()));
+
+		const MumbleProto::UserStats_Stats &to = msg.from_server();
+		qlToGood->setText(QString::number(to.good()));
+		qlToLate->setText(QString::number(to.late()));
+		qlToLost->setText(QString::number(to.lost()));
+		qlToResync->setText(QString::number(to.resync()));
+
+		quint32 allFromPackets = from.good() + from.late() + from.lost();
+		qlFromLatePercent->setText(
+			QString::number(allFromPackets > 0 ? from.late() * 100.0 / allFromPackets : 0., 'f', 2));
+		qlFromLostPercent->setText(
+			QString::number(allFromPackets > 0 ? from.lost() * 100.0 / allFromPackets : 0., 'f', 2));
+
+		quint32 allToPackets = to.good() + to.late() + to.lost();
+		qlToLatePercent->setText(QString::number(allToPackets > 0 ? to.late() * 100.0 / allToPackets : 0., 'f', 2));
+		qlToLostPercent->setText(QString::number(allToPackets > 0 ? to.lost() * 100.0 / allToPackets : 0., 'f', 2));
+	} else {
+		qgbUDP->setVisible(false);
+	}
+
+	if (msg.has_onlinesecs()) {
+		if (msg.has_idlesecs())
+			qlTime->setText(
+				tr("%1 online (%2 idle)").arg(secsToString(msg.onlinesecs()), secsToString(msg.idlesecs())));
+		else
+			qlTime->setText(tr("%1 online").arg(secsToString(msg.onlinesecs())));
+	}
+	if (msg.has_bandwidth()) {
+		qlBandwidth->setVisible(true);
+		qliBandwidth->setVisible(true);
+		qlBandwidth->setText(tr("%1 kbit/s").arg(msg.bandwidth() / 125.0, 0, 'f', 1));
+	} else {
+		qlBandwidth->setVisible(false);
+		qliBandwidth->setVisible(false);
+		qlBandwidth->setText(QString());
+	}
+}
