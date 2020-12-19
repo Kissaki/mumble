@@ -1,21 +1,12 @@
-<RCC>
-    <qresource prefix="/">
-        <file alias="rec.svg">../../icons/rec.svg</file>
-        <file alias="mumble.svg">../../icons/mumble.svg</file>
-        <file alias="mumble.icns">../../icons/mumble.icns</file>
-        <file alias="wb_male.oga">../../samples/wb_male.oga</file>
-        <file alias="on.ogg">../../samples/on.ogg</file>
-        <file alias="off.ogg">../../samples/off.ogg</file>
-        <file alias="Critical.ogg">../../samples/Critical.ogg</file>
-        <file alias="PermissionDenied.ogg">../../samples/PermissionDenied.ogg</file>
-        <file alias="SelfMutedDeafened.ogg">../../samples/SelfMutedDeafened.ogg</file>
-        <file alias="ServerConnected.ogg">../../samples/ServerConnected.ogg</file>
-        <file alias="ServerDisconnected.ogg">../../samples/ServerDisconnected.ogg</file>
-        <file alias="TextMessage.ogg">../../samples/TextMessage.ogg</file>
-        <file alias="UserJoinedChannel.ogg">../../samples/UserJoinedChannel.ogg</file>
-        <file alias="UserKickedYouOrByYou.ogg">../../samples/UserKickedYouOrByYou.ogg</file>
-        <file alias="UserLeftChannel.ogg">../../samples/UserLeftChannel.ogg</file>
-        <file alias="UserMutedYouOrByYou.ogg">../../samples/UserMutedYouOrByYou.ogg</file>
-        <file alias="RecordingStateChanged.ogg">../../samples/RecordingStateChanged.ogg</file>
-    </qresource>
-</RCC>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}"/><!-- Vista -->
+      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/><!-- Win 7 -->
+      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"/><!-- Win 8 -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/><!-- Win 8.1 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/><!-- Win 10 -->
+    </application>
+  </compatibility>
+</assembly>
