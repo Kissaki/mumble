@@ -3,28 +3,25 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_VERSIONCHECK_H_
-#define MUMBLE_MUMBLE_VERSIONCHECK_H_
+#ifndef MUMBLE_MUMBLE_TOKENS_H_
+#define MUMBLE_MUMBLE_TOKENS_H_
 
-#include <QFutureWatcher>
-#include <QtCore/QByteArray>
-#include <QtCore/QObject>
-#include <QtCore/QUrl>
+#include "ui_Tokens.h"
 
-class VersionCheck : public QObject {
+class Tokens : public QDialog, public Ui::Tokens {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(VersionCheck)
-
-	QFutureWatcher< void > m_preparationWatcher;
-	QUrl m_requestURL;
-protected slots:
-	void performRequest();
-public slots:
-	void fetched(QByteArray data, QUrl url);
+	Q_DISABLE_COPY(Tokens)
+protected:
+	QByteArray qbaDigest;
 
 public:
-	VersionCheck(bool autocheck, QObject *parent = nullptr, bool focus = false);
+	Tokens(QWidget *p = nullptr);
+public slots:
+	void accept() Q_DECL_OVERRIDE;
+public slots:
+	void on_qpbAdd_clicked();
+	void on_qpbRemove_clicked();
 };
 
 #endif
