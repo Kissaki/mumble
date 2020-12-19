@@ -1,103 +1,63 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_LCD_H_
-#define MUMBLE_MUMBLE_LCD_H_
+#include "ListenerLocalVolumeDialog.h"
+#include "Channel.h"
+#include "ChannelListener.h"
+#include "ClientUser.h"
 
-#include "ConfigDialog.h"
-#include "Timer.h"
+#include <QtWidgets/QPushButton>
 
-#include "ui_LCD.h"
+#include <cmath>
 
-class User;
-class LCDDevice;
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-class LCDConfig : public ConfigWidget, public Ui::LCDConfig {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDConfig)
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	LCDConfig(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void on_qsMinColWidth_valueChanged(int v);
-	void on_qsSplitterWidth_valueChanged(int v);
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-};
+ListenerLocalVolumeDialog::ListenerLocalVolumeDialog(ClientUser *user, Channel *channel, QWidget *parent)
+	: QDialog(parent), m_user(user), m_channel(channel) {
+	setupUi(this);
 
-class LCDEngine : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDEngine)
-protected:
-	QList< LCDDevice * > qlDevices;
+	m_initialAdjustemt = ChannelListener::getListenerLocalVolumeAdjustment(m_channel);
 
-public:
-	LCDEngine();
-	virtual ~LCDEngine() Q_DECL_OVERRIDE;
-	virtual QList< LCDDevice * > devices() const = 0;
-};
+	// Decibel formula: +6db = *2
+	// Calculate the db-shift from the set volume-faactor
+	float fdbShift = log2f(m_initialAdjustemt) * 6;
+	qsUserLocalVolume->setValue(static_cast< int >(roundf(fdbShift)));
 
-class LCDDevice {
-public:
-	LCDDevice();
-	virtual ~LCDDevice();
-	virtual bool enabled()                                  = 0;
-	virtual void setEnabled(bool e)                         = 0;
-	virtual void blitImage(QImage *img, bool alert = false) = 0;
-	virtual QString name() const                            = 0;
-	virtual QSize size() const                              = 0;
-};
+	setWindowTitle(tr("Adjusting local volume for listening to %1").arg(channel->qsName));
+}
 
-typedef LCDEngine *(*LCDEngineNew)(void);
+void ListenerLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
+	qsbUserLocalVolume->setValue(value);
+}
 
-class LCDEngineRegistrar Q_DECL_FINAL {
-protected:
-	LCDEngineNew n;
+void ListenerLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
+	qsUserLocalVolume->setValue(value);
 
-public:
-	static QList< LCDEngineNew > *qlInitializers;
-	LCDEngineRegistrar(LCDEngineNew n);
-	~LCDEngineRegistrar();
-};
+	// Decibel formula: +6db = *2
+	// Calculate the volume-factor for the set db-shift
+	ChannelListener::setListenerLocalVolumeAdjustment(m_channel,
+													  static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
+}
 
-class LCD : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCD)
-protected:
-	QFont qfNormal, qfBold, qfItalic, qfItalicBold;
-	QMap< unsigned int, Timer > qmSpeaking;
-	QMap< unsigned int, Timer > qmNew;
-	QMap< unsigned int, Timer > qmOld;
-	QMap< unsigned int, QString > qmNameCache;
+void ListenerLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
+	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
+		qsUserLocalVolume->setValue(0);
+	}
+	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
+		ListenerLocalVolumeDialog::accept();
+	}
+	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
+		ListenerLocalVolumeDialog::close();
+	}
+}
 
-	int iFontHeight;
-	int iFrameIndex;
-	QHash< QSize, unsigned char * > qhImageBuffers;
-	QHash< QSize, QImage * > qhImages;
-	void initBuffers();
-	void destroyBuffers();
-	QImage qiLogo;
-	QTimer *qtTimer;
-public slots:
-	void tick();
+void ListenerLocalVolumeDialog::reject() {
+	// Restore to what has been set before the dialog
+	ChannelListener::setListenerLocalVolumeAdjustment(m_channel, m_initialAdjustemt);
 
-public:
-	LCD();
-	~LCD() Q_DECL_OVERRIDE;
-	void updateUserView();
-	bool hasDevices();
-};
-
-uint qHash(const QSize &size);
-
-#endif
+	QDialog::reject();
+}
