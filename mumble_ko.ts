@@ -3,320 +3,222 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "SocketRPC.h"
+#ifndef MUMBLE_MUMBLE_PULSEAUDIO_H_
+#define MUMBLE_MUMBLE_PULSEAUDIO_H_
 
-#include "Channel.h"
-#include "ClientUser.h"
-#include "MainWindow.h"
-#include "ServerHandler.h"
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-#include <QtCore/QProcessEnvironment>
-#include <QtCore/QUrlQuery>
-#include <QtNetwork/QLocalServer>
-#include <QtXml/QDomDocument>
+#include <QtCore/QLibrary>
+#include <QtCore/QWaitCondition>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include <pulse/channelmap.h>
+#include <pulse/context.h>
+#include <pulse/def.h>
+#include <pulse/ext-stream-restore.h>
+#include <pulse/introspect.h>
+#include <pulse/mainloop-api.h>
+#include <pulse/sample.h>
+#include <pulse/stream.h>
+#include <pulse/subscribe.h>
+#include <pulse/thread-mainloop.h>
+#include <pulse/volume.h>
 
-SocketRPCClient::SocketRPCClient(QLocalSocket *s, QObject *p) : QObject(p), qlsSocket(s), qbBuffer(nullptr) {
-	qlsSocket->setParent(this);
+struct PulseAttenuation {
+	uint32_t index;
+	QString name;
+	QString stream_restore_id;
+	pa_cvolume normal_volume;
+	pa_cvolume attenuated_volume;
+};
 
-	connect(qlsSocket, SIGNAL(disconnected()), this, SLOT(disconnected()));
-	connect(qlsSocket, SIGNAL(error(QLocalSocket::LocalSocketError)), this,
-			SLOT(error(QLocalSocket::LocalSocketError)));
-	connect(qlsSocket, SIGNAL(readyRead()), this, SLOT(readyRead()));
+class PulseAudio : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PulseAudio)
+protected:
+	QLibrary m_lib;
 
-	qxsrReader.setDevice(qlsSocket);
-	qxswWriter.setAutoFormatting(true);
+public:
+	bool m_ok;
 
-	qbBuffer = new QBuffer(&qbaOutput, this);
-	qbBuffer->open(QIODevice::WriteOnly);
-	qxswWriter.setDevice(qbBuffer);
-}
+	const char *(*get_library_version)();
+	const char *(*strerror)(int error);
 
-void SocketRPCClient::disconnected() {
-	deleteLater();
-}
+	void (*operation_unref)(pa_operation *o);
 
-void SocketRPCClient::error(QLocalSocket::LocalSocketError) {
-}
+	int (*cvolume_equal)(const pa_cvolume *a, const pa_cvolume *b);
+	pa_cvolume *(*sw_cvolume_multiply_scalar)(pa_cvolume *dest, const pa_cvolume *a, pa_volume_t b);
 
-void SocketRPCClient::readyRead() {
-	forever {
-		switch (qxsrReader.readNext()) {
-			case QXmlStreamReader::Invalid: {
-				if (qxsrReader.error() != QXmlStreamReader::PrematureEndOfDocumentError) {
-					qWarning() << "Malformed" << qxsrReader.error();
-					qlsSocket->abort();
-				}
-				return;
-			} break;
-			case QXmlStreamReader::EndDocument: {
-				qxswWriter.writeCurrentToken(qxsrReader);
+	int (*sample_spec_equal)(const pa_sample_spec *a, const pa_sample_spec *b);
+	int (*channel_map_equal)(const pa_channel_map *a, const pa_channel_map *b);
 
-				processXml();
+	pa_proplist *(*proplist_new)();
+	void (*proplist_free)(pa_proplist *p);
+	const char *(*proplist_gets)(const pa_proplist *p, const char *key);
+	int (*proplist_sets)(pa_proplist *p, const char *key, const char *value);
 
-				qxsrReader.clear();
-				qxsrReader.setDevice(qlsSocket);
+	pa_threaded_mainloop *(*threaded_mainloop_new)();
+	void (*threaded_mainloop_free)(pa_threaded_mainloop *m);
+	int (*threaded_mainloop_start)(pa_threaded_mainloop *m);
+	void (*threaded_mainloop_stop)(pa_threaded_mainloop *m);
+	void (*threaded_mainloop_lock)(pa_threaded_mainloop *m);
+	void (*threaded_mainloop_unlock)(pa_threaded_mainloop *m);
+	pa_mainloop_api *(*threaded_mainloop_get_api)(pa_threaded_mainloop *m);
 
-				qxswWriter.setDevice(nullptr);
-				delete qbBuffer;
-				qbaOutput = QByteArray();
-				qbBuffer  = new QBuffer(&qbaOutput, this);
-				qbBuffer->open(QIODevice::WriteOnly);
-				qxswWriter.setDevice(qbBuffer);
-			} break;
-			default:
-				qxswWriter.writeCurrentToken(qxsrReader);
-				break;
-		}
-	}
-}
+	int (*context_errno)(const pa_context *c);
+	pa_context *(*context_new_with_proplist)(pa_mainloop_api *mainloop, const char *name, const pa_proplist *proplist);
+	void (*context_unref)(pa_context *c);
+	int (*context_connect)(pa_context *c, const char *server, pa_context_flags_t flags, const pa_spawn_api *api);
+	void (*context_disconnect)(pa_context *c);
+	pa_operation *(*context_subscribe)(pa_context *c, pa_subscription_mask_t m, pa_context_success_cb_t cb,
+									   void *userdata);
+	pa_context_state_t (*context_get_state)(const pa_context *c);
+	pa_operation *(*context_get_server_info)(pa_context *c, pa_server_info_cb_t cb, void *userdata);
+	pa_operation *(*context_get_sink_info_by_name)(pa_context *c, const char *name, pa_sink_info_cb_t cb,
+												   void *userdata);
+	pa_operation *(*context_get_sink_info_list)(pa_context *c, pa_sink_info_cb_t cb, void *userdata);
+	pa_operation *(*context_get_sink_input_info_list)(pa_context *c, pa_sink_input_info_cb_t cb, void *userdata);
+	pa_operation *(*context_get_source_info_list)(pa_context *c, pa_source_info_cb_t cb, void *userdata);
+	pa_operation *(*context_set_sink_input_volume)(pa_context *c, uint32_t idx, const pa_cvolume *volume,
+												   pa_context_success_cb_t cb, void *userdata);
+	void (*context_set_state_callback)(pa_context *c, pa_context_notify_cb_t cb, void *userdata);
+	void (*context_set_subscribe_callback)(pa_context *c, pa_context_subscribe_cb_t cb, void *userdata);
 
-void SocketRPCClient::processXml() {
-	QDomDocument qdd;
-	qdd.setContent(qbaOutput, false);
+	pa_stream *(*stream_new)(pa_context *c, const char *name, const pa_sample_spec *ss, const pa_channel_map *map);
+	void (*stream_unref)(pa_stream *s);
+	int (*stream_connect_playback)(pa_stream *s, const char *dev, const pa_buffer_attr *attr, pa_stream_flags_t flags,
+								   const pa_cvolume *volume, pa_stream *sync_stream);
+	int (*stream_connect_record)(pa_stream *s, const char *dev, const pa_buffer_attr *attr, pa_stream_flags_t flags);
+	int (*stream_disconnect)(pa_stream *s);
+	int (*stream_peek)(pa_stream *p, const void **data, size_t *nbytes);
+	int (*stream_write)(pa_stream *p, const void *data, size_t nbytes, pa_free_cb_t free_cb, int64_t offset,
+						pa_seek_mode_t seek);
+	int (*stream_drop)(pa_stream *p);
+	pa_operation *(*stream_cork)(pa_stream *s, int b, pa_stream_success_cb_t cb, void *userdata);
+	pa_stream_state_t (*stream_get_state)(const pa_stream *p);
+	pa_context *(*stream_get_context)(const pa_stream *p);
+	const pa_sample_spec *(*stream_get_sample_spec)(pa_stream *s);
+	const pa_channel_map *(*stream_get_channel_map)(pa_stream *s);
+	const pa_buffer_attr *(*stream_get_buffer_attr)(pa_stream *s);
+	void (*stream_set_state_callback)(pa_stream *s, pa_stream_notify_cb_t cb, void *userdata);
+	void (*stream_set_read_callback)(pa_stream *p, pa_stream_request_cb_t cb, void *userdata);
+	void (*stream_set_write_callback)(pa_stream *p, pa_stream_request_cb_t cb, void *userdata);
 
-	QDomElement request = qdd.firstChildElement();
+	pa_operation *(*ext_stream_restore_read)(pa_context *c, pa_ext_stream_restore_read_cb_t cb, void *userdata);
+	pa_operation *(*ext_stream_restore_write)(pa_context *c, pa_update_mode_t mode,
+											  const pa_ext_stream_restore_info data[], unsigned n,
+											  int apply_immediately, pa_context_success_cb_t cb, void *userdata);
 
-	if (!request.isNull()) {
-		bool ack = false;
-		QMap< QString, QVariant > qmRequest;
-		QMap< QString, QVariant > qmReply;
-		QMap< QString, QVariant >::const_iterator iter;
+public:
+	PulseAudio();
+};
 
-		QDomNamedNodeMap attributes = request.attributes();
-		for (int i = 0; i < attributes.count(); ++i) {
-			QDomAttr attr = attributes.item(i).toAttr();
-			qmRequest.insert(attr.name(), attr.value());
-		}
-		QDomNodeList childNodes = request.childNodes();
-		for (int i = 0; i < childNodes.count(); ++i) {
-			QDomElement child = childNodes.item(i).toElement();
-			if (!child.isNull())
-				qmRequest.insert(child.nodeName(), child.text());
-		}
+class PulseAudioSystem : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PulseAudioSystem)
+protected:
+	void wakeup();
 
-		iter = qmRequest.find(QLatin1String("reqid"));
-		if (iter != qmRequest.constEnd())
-			qmReply.insert(iter.key(), iter.value());
+	PulseAudio m_pulseAudio;
+	pa_context *pacContext;
+	pa_stream *pasInput, *pasOutput, *pasSpeaker;
+	pa_threaded_mainloop *pam;
+	pa_defer_event *pade;
 
-		if (request.nodeName() == QLatin1String("focus")) {
-			g.mw->show();
-			g.mw->raise();
-			g.mw->activateWindow();
+	bool bSourceDone, bSinkDone, bServerDone, bRunning;
 
-			ack = true;
-		} else if (request.nodeName() == QLatin1String("self")) {
-			iter = qmRequest.find(QLatin1String("mute"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set != g.s.bMute) {
-					g.mw->qaAudioMute->setChecked(!set);
-					g.mw->qaAudioMute->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("unmute"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bMute) {
-					g.mw->qaAudioMute->setChecked(set);
-					g.mw->qaAudioMute->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("togglemute"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bMute) {
-					g.mw->qaAudioMute->setChecked(set);
-					g.mw->qaAudioMute->trigger();
-				} else {
-					g.mw->qaAudioMute->setChecked(!set);
-					g.mw->qaAudioMute->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("deaf"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set != g.s.bDeaf) {
-					g.mw->qaAudioDeaf->setChecked(!set);
-					g.mw->qaAudioDeaf->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("undeaf"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bDeaf) {
-					g.mw->qaAudioDeaf->setChecked(set);
-					g.mw->qaAudioDeaf->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("toggledeaf"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bDeaf) {
-					g.mw->qaAudioDeaf->setChecked(set);
-					g.mw->qaAudioDeaf->trigger();
-				} else {
-					g.mw->qaAudioDeaf->setChecked(!set);
-					g.mw->qaAudioDeaf->trigger();
-				}
-			}
-			ack = true;
-		} else if (request.nodeName() == QLatin1String("url")) {
-			if (g.sh && g.sh->isRunning() && g.uiSession) {
-				QString host, user, pw;
-				unsigned short port;
-				QUrl u;
+	QString qsDefaultInput, qsDefaultOutput;
 
-				g.sh->getConnectionInfo(host, port, user, pw);
-				u.setScheme(QLatin1String("mumble"));
-				u.setHost(host);
-				u.setPort(port);
-				u.setUserName(user);
+	int iDelayCache;
+	QString qsOutputCache, qsInputCache, qsEchoCache;
+	bool bEchoMultiCache;
+	QHash< QString, QString > qhEchoMap;
+	QHash< QString, pa_sample_spec > qhSpecMap;
+	QHash< QString, pa_channel_map > qhChanMap;
 
-				QUrlQuery query;
-				query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
-				u.setQuery(query);
+	bool bAttenuating;
+	int iRemainingOperations;
+	int iSinkId;
+	QHash< uint32_t, PulseAttenuation > qhVolumes;
+	QList< uint32_t > qlMatchedSinks;
+	QHash< QString, PulseAttenuation > qhUnmatchedSinks;
+	QHash< QString, PulseAttenuation > qhMissingSinks;
 
-				QStringList path;
-				Channel *c = ClientUser::get(g.uiSession)->cChannel;
-				while (c->cParent) {
-					path.prepend(c->qsName);
-					c = c->cParent;
-				}
-				u.setPath(path.join(QLatin1String("/")));
-				qmReply.insert(QLatin1String("href"), u);
-			}
+	static void defer_event_callback(pa_mainloop_api *a, pa_defer_event *e, void *userdata);
+	static void context_state_callback(pa_context *c, void *userdata);
+	static void subscribe_callback(pa_context *c, pa_subscription_event_type_t t, uint32_t idx, void *userdata);
+	static void sink_callback(pa_context *c, const pa_sink_info *i, int eol, void *userdata);
+	static void source_callback(pa_context *c, const pa_source_info *i, int eol, void *userdata);
+	static void server_callback(pa_context *c, const pa_server_info *i, void *userdata);
+	static void sink_info_callback(pa_context *c, const pa_sink_info *i, int eol, void *userdata);
+	static void write_stream_callback(pa_stream *s, void *userdata);
+	static void read_stream_callback(pa_stream *s, void *userdata);
+	static void read_callback(pa_stream *s, size_t bytes, void *userdata);
+	static void write_callback(pa_stream *s, size_t bytes, void *userdata);
+	static void volume_sink_input_list_callback(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata);
+	static void restore_sink_input_list_callback(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata);
+	static void stream_restore_read_callback(pa_context *c, const pa_ext_stream_restore_info *i, int eol,
+											 void *userdata);
+	static void restore_volume_success_callback(pa_context *c, int success, void *userdata);
+	void contextCallback(pa_context *c);
+	void eventCallback(pa_mainloop_api *a, pa_defer_event *e);
 
-			iter = qmRequest.find(QLatin1String("href"));
-			if (iter != qmRequest.constEnd()) {
-				QUrl u = iter.value().toUrl();
-				if (u.isValid() && u.scheme() == QLatin1String("mumble")) {
-					OpenURLEvent *oue = new OpenURLEvent(u);
-					qApp->postEvent(g.mw, oue);
-					ack = true;
-				}
-			} else {
-				ack = true;
-			}
-		}
+	void query();
 
-		QDomDocument replydoc;
-		QDomElement reply = replydoc.createElement(QLatin1String("reply"));
+	QString outputDevice() const;
+	QString inputDevice() const;
 
-		qmReply.insert(QLatin1String("succeeded"), ack);
+	void setVolumes();
+	PulseAttenuation *getAttenuation(QString stream_restore_id);
 
-		for (iter = qmReply.constBegin(); iter != qmReply.constEnd(); ++iter) {
-			QDomElement elem = replydoc.createElement(iter.key());
-			QDomText text    = replydoc.createTextNode(iter.value().toString());
-			elem.appendChild(text);
-			reply.appendChild(elem);
-		}
+public:
+	QHash< QString, QString > qhInput;
+	QHash< QString, QString > qhOutput;
+	bool bPulseIsGood;
+	QMutex qmWait;
+	QWaitCondition qwcWait;
 
-		replydoc.appendChild(reply);
+	void wakeup_lock();
 
-		qlsSocket->write(replydoc.toByteArray());
-	}
-}
+	PulseAudioSystem();
+	~PulseAudioSystem() Q_DECL_OVERRIDE;
+};
 
-SocketRPC::SocketRPC(const QString &basename, QObject *p) : QObject(p) {
-	qlsServer = new QLocalServer(this);
+class PulseAudioInput : public AudioInput {
+	friend class PulseAudioSystem;
 
-	QString pipepath;
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PulseAudioInput)
+protected:
+	QMutex qmMutex;
+	QWaitCondition qwcWait;
+	pa_sample_spec pssMic, pssEcho;
 
-#ifdef Q_OS_WIN
-	pipepath = basename;
-#else
-	{
-		QString xdgRuntimePath = QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_RUNTIME_DIR"));
-		QDir xdgRuntimeDir     = QDir(xdgRuntimePath);
+public:
+	PulseAudioInput();
+	~PulseAudioInput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
 
-		if (!xdgRuntimePath.isNull() && xdgRuntimeDir.exists()) {
-			pipepath = xdgRuntimeDir.absoluteFilePath(basename + QLatin1String("Socket"));
-		} else {
-			pipepath = QDir::home().absoluteFilePath(QLatin1String(".") + basename + QLatin1String("Socket"));
-		}
-	}
+class PulseAudioOutput : public AudioOutput {
+	friend class PulseAudioSystem;
 
-	{
-		QFile f(pipepath);
-		if (f.exists()) {
-			qWarning() << "SocketRPC: Removing old socket on" << pipepath;
-			f.remove();
-		}
-	}
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PulseAudioOutput)
+protected:
+	QMutex qmMutex;
+	QWaitCondition qwcWait;
+	pa_sample_spec pss;
+	pa_channel_map pcm;
+
+public:
+	PulseAudioOutput();
+	~PulseAudioOutput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
 #endif
-
-	if (!qlsServer->listen(pipepath)) {
-		qWarning() << "SocketRPC: Listen failed";
-		delete qlsServer;
-		qlsServer = nullptr;
-	} else {
-		connect(qlsServer, SIGNAL(newConnection()), this, SLOT(newConnection()));
-	}
-}
-
-void SocketRPC::newConnection() {
-	while (true) {
-		QLocalSocket *qls = qlsServer->nextPendingConnection();
-		if (!qls)
-			break;
-		new SocketRPCClient(qls, this);
-	}
-}
-
-bool SocketRPC::send(const QString &basename, const QString &request, const QMap< QString, QVariant > &param) {
-	QString pipepath;
-
-#ifdef Q_OS_WIN
-	pipepath = basename;
-#else
-	{
-		QString xdgRuntimePath = QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_RUNTIME_DIR"));
-		QDir xdgRuntimeDir     = QDir(xdgRuntimePath);
-
-		if (!xdgRuntimePath.isNull() && xdgRuntimeDir.exists()) {
-			pipepath = xdgRuntimeDir.absoluteFilePath(basename + QLatin1String("Socket"));
-		} else {
-			pipepath = QDir::home().absoluteFilePath(QLatin1String(".") + basename + QLatin1String("Socket"));
-		}
-	}
-#endif
-
-	QLocalSocket qls;
-	qls.connectToServer(pipepath);
-	if (!qls.waitForConnected(1000)) {
-		return false;
-	}
-
-	QDomDocument requestdoc;
-	QDomElement req = requestdoc.createElement(request);
-	for (QMap< QString, QVariant >::const_iterator iter = param.constBegin(); iter != param.constEnd(); ++iter) {
-		QDomElement elem = requestdoc.createElement(iter.key());
-		QDomText text    = requestdoc.createTextNode(iter.value().toString());
-		elem.appendChild(text);
-		req.appendChild(elem);
-	}
-	requestdoc.appendChild(req);
-
-	qls.write(requestdoc.toByteArray());
-	qls.flush();
-
-	if (!qls.waitForReadyRead(2000)) {
-		return false;
-	}
-
-	QByteArray qba = qls.readAll();
-
-	QDomDocument replydoc;
-	replydoc.setContent(qba);
-
-	QDomElement succ = replydoc.firstChildElement(QLatin1String("reply"));
-	succ             = succ.firstChildElement(QLatin1String("succeeded"));
-	if (succ.isNull())
-		return false;
-
-	return QVariant(succ.text()).toBool();
-}
