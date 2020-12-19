@@ -3,134 +3,96 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "DBus.h"
+#ifndef MUMBLE_MUMBLE_CUSTOMELEMENTS_H_
+#define MUMBLE_MUMBLE_CUSTOMELEMENTS_H_
 
-#include "Channel.h"
-#include "ClientUser.h"
-#include "MainWindow.h"
-#include "ServerHandler.h"
+#include <QtCore/QObject>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QTextBrowser>
+#include <QtWidgets/QTextEdit>
 
-#include <QtCore/QUrlQuery>
-#include <QtDBus/QDBusConnection>
-#include <QtDBus/QDBusMessage>
+class LogTextBrowser : public QTextBrowser {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(LogTextBrowser)
+protected:
+	void resizeEvent(QResizeEvent *e) Q_DECL_OVERRIDE;
+	bool event(QEvent *e) Q_DECL_OVERRIDE;
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+public:
+	LogTextBrowser(QWidget *p = nullptr);
 
-MumbleDBus::MumbleDBus(QObject *mw) : QDBusAbstractAdaptor(mw) {
-}
+	int getLogScroll();
+	int getLogScrollMaximum();
+	void setLogScroll(int scroll_pos);
+	void scrollLogToBottom();
+};
 
-void MumbleDBus::openUrl(const QString &url, const QDBusMessage &msg) {
-	QUrl u     = QUrl::fromEncoded(url.toLatin1());
-	bool valid = u.isValid();
-	valid      = valid && (u.scheme() == QLatin1String("mumble"));
-	if (!valid) {
-		QDBusConnection::sessionBus().send(
-			msg.createErrorReply(QLatin1String("net.sourceforge.mumble.Error.url"), QLatin1String("Invalid URL")));
-	} else {
-		g.mw->openUrl(u);
-	}
-}
+class ChatbarTextEdit : public QTextEdit {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ChatbarTextEdit)
+	void inFocus(bool);
+	QStringList qslHistory;
+	QString qsHistoryTemp;
+	int iHistoryIndex;
+	static const int MAX_HISTORY = 50;
 
-void MumbleDBus::getCurrentUrl(const QDBusMessage &msg) {
-	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
-		QDBusConnection::sessionBus().send(msg.createErrorReply(
-			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
-		return;
-	}
-	QString host, user, pw;
-	unsigned short port;
-	QUrl u;
+protected:
+	QString qsDefaultText;
+	bool bDefaultVisible;
+	void focusInEvent(QFocusEvent *) Q_DECL_OVERRIDE;
+	void focusOutEvent(QFocusEvent *) Q_DECL_OVERRIDE;
+	void contextMenuEvent(QContextMenuEvent *) Q_DECL_OVERRIDE;
+	void dragEnterEvent(QDragEnterEvent *) Q_DECL_OVERRIDE;
+	void dragMoveEvent(QDragMoveEvent *) Q_DECL_OVERRIDE;
+	void dropEvent(QDropEvent *) Q_DECL_OVERRIDE;
+	bool event(QEvent *) Q_DECL_OVERRIDE;
+	QSize minimumSizeHint() const Q_DECL_OVERRIDE;
+	QSize sizeHint() const Q_DECL_OVERRIDE;
+	void resizeEvent(QResizeEvent *e) Q_DECL_OVERRIDE;
+	void insertFromMimeData(const QMimeData *source) Q_DECL_OVERRIDE;
+	bool sendImagesFromMimeData(const QMimeData *source);
 
-	g.sh->getConnectionInfo(host, port, user, pw);
-	u.setScheme(QLatin1String("mumble"));
-	u.setHost(host);
-	u.setPort(port);
-	u.setUserName(user);
+public:
+	void setDefaultText(const QString &, bool = false);
+	unsigned int completeAtCursor();
+signals:
+	void tabPressed(void);
+	void backtabPressed(void);
+	void ctrlSpacePressed(void);
+	void entered(QString);
+	void pastedImage(QString);
+public slots:
+	void pasteAndSend_triggered();
+	void doResize();
+	void doScrollbar();
+	void addToHistory(const QString &str);
+	void historyUp();
+	void historyDown();
 
-	QUrlQuery query;
-	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
-	u.setQuery(query);
+public:
+	ChatbarTextEdit(QWidget *p = nullptr);
+};
 
-	QStringList path;
-	Channel *c = ClientUser::get(g.uiSession)->cChannel;
-	while (c->cParent) {
-		path.prepend(c->qsName);
-		c = c->cParent;
-	}
-	QString fullpath = path.join(QLatin1String("/"));
-	// Make sure fullpath starts with a slash for non-empty paths. Setting
-	// a path without a leading slash clears the whole QUrl.
-	if (!fullpath.isEmpty()) {
-		fullpath.prepend(QLatin1String("/"));
-	}
-	u.setPath(fullpath);
-	QDBusConnection::sessionBus().send(msg.createReply(QString::fromLatin1(u.toEncoded())));
-}
+class DockTitleBar : public QLabel {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(DockTitleBar)
+protected:
+	QTimer *qtTick;
+	int size;
+	int newsize;
 
-void MumbleDBus::getTalkingUsers(const QDBusMessage &msg) {
-	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
-		QDBusConnection::sessionBus().send(msg.createErrorReply(
-			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
-		return;
-	}
-	QStringList names;
-	foreach (ClientUser *cu, ClientUser::getTalking()) { names.append(cu->qsName); }
-	QDBusConnection::sessionBus().send(msg.createReply(names));
-}
+public:
+	DockTitleBar();
+	QSize sizeHint() const Q_DECL_OVERRIDE;
+	QSize minimumSizeHint() const Q_DECL_OVERRIDE;
+public slots:
+	void tick();
 
-void MumbleDBus::focus() {
-	g.mw->show();
-	g.mw->raise();
-	g.mw->activateWindow();
-}
+protected:
+	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
+};
 
-void MumbleDBus::setTransmitMode(unsigned int mode, const QDBusMessage &msg) {
-	switch (mode) {
-		case 0:
-			g.s.atTransmit = Settings::Continuous;
-			break;
-		case 1:
-			g.s.atTransmit = Settings::VAD;
-			break;
-		case 2:
-			g.s.atTransmit = Settings::PushToTalk;
-			break;
-		default:
-			QDBusConnection::sessionBus().send(msg.createErrorReply(
-				QLatin1String("net.sourceforge.mumble.Error.transmitMode"), QLatin1String("Invalid transmit mode")));
-			return;
-	}
-	QMetaObject::invokeMethod(g.mw, "updateTransmitModeComboBox", Qt::QueuedConnection);
-}
-
-unsigned int MumbleDBus::getTransmitMode() {
-	return g.s.atTransmit;
-}
-
-void MumbleDBus::setSelfMuted(bool mute) {
-	g.mw->qaAudioMute->setChecked(!mute);
-	g.mw->qaAudioMute->trigger();
-}
-
-void MumbleDBus::setSelfDeaf(bool deafen) {
-	g.mw->qaAudioDeaf->setChecked(!deafen);
-	g.mw->qaAudioDeaf->trigger();
-}
-
-bool MumbleDBus::isSelfMuted() {
-	return g.s.bMute;
-}
-
-bool MumbleDBus::isSelfDeaf() {
-	return g.s.bDeaf;
-}
-
-void MumbleDBus::startTalking() {
-	g.mw->on_PushToTalk_triggered(true, QVariant());
-}
-
-void MumbleDBus::stopTalking() {
-	g.mw->on_PushToTalk_triggered(false, QVariant());
-}
+#endif // CUSTOMELEMENTS_H_
