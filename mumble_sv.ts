@@ -1,221 +1,288 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ConnectDialog</class>
- <widget class="QDialog" name="ConnectDialog">
+ <class>ConnectDialogEdit</class>
+ <widget class="QDialog" name="ConnectDialogEdit">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>574</width>
-    <height>366</height>
+    <width>430</width>
+    <height>356</height>
    </rect>
   </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>430</width>
+    <height>0</height>
+   </size>
+  </property>
   <property name="windowTitle">
-   <string>Mumble Server Connect</string>
+   <string>Edit Server</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="2" column="0" colspan="3">
+   <item row="1" column="0" colspan="2">
+    <widget class="QWidget" name="qwInlineNotice" native="true">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QLabel" name="qlPasteNotice">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <horstretch>4</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QWidget" name="qwActions" native="true">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <layout class="QVBoxLayout" name="qlActions">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QPushButton" name="qbFill">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>&amp;Fill</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="qbDiscard">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>&amp;Ignore</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="qliServer">
+     <property name="text">
+      <string>A&amp;ddress</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleServer</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <widget class="QLineEdit" name="qleServer">
+     <property name="toolTip">
+      <string>Internet address of the server.</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Address&lt;/b&gt;&lt;br/&gt;
+Internet address of the server. This can be a normal hostname, an IPv4/IPv6 address or a Bonjour service identifier. Bonjour service identifiers have to be prefixed with a '@' to be recognized by Mumble.</string>
+     </property>
+     <property name="placeholderText">
+      <string>127.0.0.1</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="qliPort">
+     <property name="text">
+      <string>&amp;Port</string>
+     </property>
+     <property name="buddy">
+      <cstring>qlePort</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QLineEdit" name="qlePort">
+     <property name="toolTip">
+      <string>Port on which the server is listening</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Port&lt;/b&gt;&lt;br/&gt;
+Port on which the server is listening. If the server is identified by a Bonjour service identifier this field will be ignored.</string>
+     </property>
+     <property name="placeholderText">
+      <string>64738</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="qliUsername">
+     <property name="text">
+      <string>&amp;Username</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleUsername</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="qliPassword">
+     <property name="text">
+      <string>Password</string>
+     </property>
+     <property name="buddy">
+      <cstring>qlePassword</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="QLineEdit" name="qleUsername">
+     <property name="toolTip">
+      <string>Username to send to the server</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Username&lt;/b&gt;&lt;br/&gt;
+Username to send to the server. Be aware that the server can impose restrictions on how a username might look like. Also your username could already be taken by another user.</string>
+     </property>
+     <property name="placeholderText">
+      <string>Your username</string>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="1">
     <widget class="QDialogButtonBox" name="qdbbButtonBox">
      <property name="standardButtons">
       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
      </property>
     </widget>
    </item>
-   <item row="0" column="0" colspan="3">
-    <widget class="ServerView" name="qtwServers">
-     <property name="contextMenuPolicy">
-      <enum>Qt::CustomContextMenu</enum>
+   <item row="6" column="1">
+    <widget class="QLineEdit" name="qlePassword">
+     <property name="toolTip">
+      <string>Password to send to the server</string>
      </property>
-     <property name="dragEnabled">
-      <bool>true</bool>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Password&lt;/b&gt;&lt;br/&gt;
+Password to be sent to the server on connect. This password is needed when connecting as &lt;i&gt;SuperUser&lt;/i&gt; or to a server using password authentication. If not entered here the password will be queried on connect.</string>
      </property>
-     <property name="dragDropMode">
-      <enum>QAbstractItemView::DragDrop</enum>
+     <property name="placeholderText">
+      <string>Your password</string>
      </property>
-     <property name="alternatingRowColors">
-      <bool>true</bool>
-     </property>
-     <property name="autoExpandDelay">
-      <number>250</number>
-     </property>
-     <property name="rootIsDecorated">
-      <bool>true</bool>
-     </property>
-     <property name="uniformRowHeights">
-      <bool>true</bool>
-     </property>
-     <property name="sortingEnabled">
-      <bool>true</bool>
-     </property>
-     <attribute name="headerStretchLastSection">
-      <bool>false</bool>
-     </attribute>
-     <column>
-      <property name="text">
-       <string>Servername</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Ping</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Users</string>
-      </property>
-     </column>
     </widget>
    </item>
-   <item row="1" column="0" colspan="3">
-    <widget class="QGroupBox" name="qgbSearch">
-     <property name="enabled">
-      <bool>true</bool>
+   <item row="8" column="1">
+    <widget class="QCheckBox" name="qcbShowPassword">
+     <property name="toolTip">
+      <string/>
      </property>
-     <property name="title">
-      <string>Search</string>
+     <property name="text">
+      <string>Show password</string>
      </property>
-     <layout class="QGridLayout">
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlSearchServername">
-        <property name="text">
-         <string>Servername</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLineEdit" name="qleSearchServername">
-        <property name="placeholderText">
-         <string>Servername</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlSearchLocation">
-        <property name="text">
-         <string>Location</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QComboBox" name="qcbSearchLocation"/>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="qlFilter">
-        <property name="text">
-         <string>Filter</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QComboBox" name="qcbFilter">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <item>
-         <property name="text">
-          <string>Show All</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Show Populated</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Show Reachable</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-     </layout>
+    </widget>
+   </item>
+   <item row="7" column="0">
+    <widget class="QLabel" name="qliName">
+     <property name="text">
+      <string>Label</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleName</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QLineEdit" name="qleName">
+     <property name="toolTip">
+      <string>Name of the server</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Label&lt;/b&gt;&lt;br/&gt;
+Label of the server. This is what the server will be named like in your server list and can be chosen freely.</string>
+     </property>
+     <property name="placeholderText">
+      <string>Local server label</string>
+     </property>
     </widget>
    </item>
   </layout>
-  <action name="qaFavoriteRemove">
-   <property name="text">
-    <string>Remove from Favorites</string>
-   </property>
-  </action>
-  <action name="qaFavoriteEdit">
-   <property name="text">
-    <string>&amp;Edit...</string>
-   </property>
-  </action>
-  <action name="qaFavoriteAddNew">
-   <property name="text">
-    <string>&amp;Add New...</string>
-   </property>
-   <property name="toolTip">
-    <string>Add custom server</string>
-   </property>
-  </action>
-  <action name="qaFavoriteAdd">
-   <property name="text">
-    <string>Add to &amp;Favorites</string>
-   </property>
-  </action>
-  <action name="qaUrl">
-   <property name="text">
-    <string>Open &amp;Webpage</string>
-   </property>
-  </action>
-  <action name="qaFavoriteCopy">
-   <property name="text">
-    <string>&amp;Copy</string>
-   </property>
-   <property name="toolTip">
-    <string>Copy favorite link to clipboard</string>
-   </property>
-  </action>
-  <action name="qaFavoritePaste">
-   <property name="text">
-    <string>&amp;Paste</string>
-   </property>
-   <property name="toolTip">
-    <string>Paste favorite from clipboard</string>
-   </property>
-  </action>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>ServerView</class>
-   <extends>QTreeWidget</extends>
-   <header>ConnectDialog.h</header>
-  </customwidget>
- </customwidgets>
+ <tabstops>
+  <tabstop>qleServer</tabstop>
+  <tabstop>qlePort</tabstop>
+  <tabstop>qleUsername</tabstop>
+  <tabstop>qlePassword</tabstop>
+  <tabstop>qleName</tabstop>
+  <tabstop>qcbShowPassword</tabstop>
+  <tabstop>qdbbButtonBox</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>
    <sender>qdbbButtonBox</sender>
    <signal>accepted()</signal>
-   <receiver>ConnectDialog</receiver>
+   <receiver>ConnectDialogEdit</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>365</x>
-     <y>270</y>
+     <x>175</x>
+     <y>231</y>
     </hint>
     <hint type="destinationlabel">
-     <x>365</x>
-     <y>513</y>
+     <x>50</x>
+     <y>198</y>
     </hint>
    </hints>
   </connection>
   <connection>
    <sender>qdbbButtonBox</sender>
    <signal>rejected()</signal>
-   <receiver>ConnectDialog</receiver>
+   <receiver>ConnectDialogEdit</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>459</x>
-     <y>275</y>
+     <x>254</x>
+     <y>231</y>
     </hint>
     <hint type="destinationlabel">
-     <x>456</x>
-     <y>494</y>
+     <x>224</x>
+     <y>268</y>
     </hint>
    </hints>
   </connection>
