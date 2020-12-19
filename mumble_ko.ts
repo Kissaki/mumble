@@ -3,28 +3,30 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_VERSIONCHECK_H_
-#define MUMBLE_MUMBLE_VERSIONCHECK_H_
+#ifndef MUMBLE_MUMBLE_VIEWCERT_H_
+#define MUMBLE_MUMBLE_VIEWCERT_H_
 
-#include <QFutureWatcher>
-#include <QtCore/QByteArray>
+#include <QtCore/QList>
 #include <QtCore/QObject>
-#include <QtCore/QUrl>
+#include <QtCore/QtGlobal>
+#include <QtNetwork/QSslCertificate>
+#include <QtWidgets/QDialog>
 
-class VersionCheck : public QObject {
+class QListWidget;
+
+class ViewCert : public QDialog {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(VersionCheck)
-
-	QFutureWatcher< void > m_preparationWatcher;
-	QUrl m_requestURL;
+	Q_DISABLE_COPY(ViewCert)
+protected:
+	QList< QSslCertificate > qlCerts;
+	QListWidget *qlwChain, *qlwCert;
 protected slots:
-	void performRequest();
-public slots:
-	void fetched(QByteArray data, QUrl url);
+	void on_Chain_currentRowChanged(int);
 
 public:
-	VersionCheck(bool autocheck, QObject *parent = nullptr, bool focus = false);
+	ViewCert(QList< QSslCertificate > c, QWidget *p);
+	static QString prettifyDigest(QString);
 };
 
 #endif
