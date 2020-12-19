@@ -1,270 +1,239 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>GlobalShortcut</class>
- <widget class="QWidget" name="GlobalShortcut">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>621</width>
-    <height>542</height>
-   </rect>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QWidget" name="qwWarningContainer" native="true">
-     <layout class="QVBoxLayout">
-      <property name="leftMargin">
-       <number>0</number>
-      </property>
-      <property name="topMargin">
-       <number>0</number>
-      </property>
-      <property name="rightMargin">
-       <number>0</number>
-      </property>
-      <property name="bottomMargin">
-       <number>0</number>
-      </property>
-      <item>
-       <widget class="QWidget" name="qwMacWarning" native="true">
-        <layout class="QVBoxLayout" name="verticalLayout_4">
-         <item>
-          <widget class="QLabel" name="label">
-           <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system's Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-           <property name="textFormat">
-            <enum>Qt::RichText</enum>
-           </property>
-           <property name="wordWrap">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_2">
-           <item>
-            <spacer name="horizontalSpacer_2">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <widget class="QPushButton" name="qpbOpenAccessibilityPrefs">
-             <property name="text">
-              <string>Open Accessibility Preferences</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="qpbSkipWarning">
-             <property name="text">
-              <string>Skip</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item>
-       <spacer name="verticalSpacer">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>10</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbShortcuts">
-     <property name="title">
-      <string>Shortcuts</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_3">
-      <item>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
-        <item>
-         <widget class="QCheckBox" name="qcbEnableGlobalShortcuts">
-          <property name="text">
-           <string>Enable Global Shortcuts</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QTreeWidget" name="qtwShortcuts">
-          <property name="toolTip">
-           <string>List of configured shortcuts</string>
-          </property>
-          <property name="editTriggers">
-           <set>QAbstractItemView::AllEditTriggers</set>
-          </property>
-          <property name="alternatingRowColors">
-           <bool>true</bool>
-          </property>
-          <property name="rootIsDecorated">
-           <bool>false</bool>
-          </property>
-          <property name="uniformRowHeights">
-           <bool>true</bool>
-          </property>
-          <attribute name="headerDefaultSectionSize">
-           <number>100</number>
-          </attribute>
-          <attribute name="headerMinimumSectionSize">
-           <number>50</number>
-          </attribute>
-          <attribute name="headerStretchLastSection">
-           <bool>false</bool>
-          </attribute>
-          <column>
-           <property name="text">
-            <string>Function</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Data</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Shortcut</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Suppress</string>
-           </property>
-          </column>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout">
-        <item>
-         <widget class="QPushButton" name="qpbAdd">
-          <property name="toolTip">
-           <string>Add new shortcut</string>
-          </property>
-          <property name="whatsThis">
-           <string>This will add a new global shortcut</string>
-          </property>
-          <property name="text">
-           <string>&amp;Add</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="qpbRemove">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="toolTip">
-           <string>Remove selected shortcut</string>
-          </property>
-          <property name="whatsThis">
-           <string>This will permanently remove a selected shortcut.</string>
-          </property>
-          <property name="text">
-           <string>&amp;Remove</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <spacer name="horizontalSpacer">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>59</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="QGroupBox" name="qgbWindowsShortcutEngines">
-        <property name="whatsThis">
-         <string>&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</string>
-        </property>
-        <property name="title">
-         <string>Additional Shortcut Engines</string>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_5">
-         <item>
-          <widget class="QCheckBox" name="qcbEnableUIAccess">
-           <property name="whatsThis">
-            <string>&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
-&lt;br /&gt;&lt;br /&gt;
-Without this option enabled, using Mumble's global shortcuts in privileged applications will not work. This can seem inconsistent: for example, if the Push-to-Talk button is pressed in a non-privileged program, but released in a privileged application, Mumble will not observe that it has been released and you will continue to talk until you press the Push-to-Talk button again.</string>
-           </property>
-           <property name="text">
-            <string>Enable shortcuts in privileged applications</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QCheckBox" name="qcbEnableWinHooks">
-           <property name="whatsThis">
-            <string>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</string>
-           </property>
-           <property name="text">
-            <string>Enable Windows hooks</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QCheckBox" name="qcbEnableGKey">
-           <property name="whatsThis">
-            <string>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</string>
-           </property>
-           <property name="text">
-            <string>Enable GKey</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QCheckBox" name="qcbEnableXboxInput">
-           <property name="whatsThis">
-            <string>&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</string>
-           </property>
-           <property name="text">
-            <string>Enable XInput</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "MumbleApplication.h"
+
+#include <QtCore/QStandardPaths>
+
+#ifdef Q_OS_WIN
+#	include <shlobj.h>
+#endif
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+Global *Global::g_global_struct;
+
+#ifndef Q_OS_WIN
+static void migrateDataDir() {
+#	ifdef Q_OS_MAC
+	QString olddir  = QDir::homePath() + QLatin1String("/Library/Preferences/Mumble");
+	QString newdir  = QStandardPaths::writableLocation(QStandardPaths::DataLocation);
+	QString linksTo = QFile::symLinkTarget(olddir);
+	if (!QFile::exists(newdir) && QFile::exists(olddir) && linksTo.isEmpty()) {
+		QDir d;
+		d.mkpath(newdir + QLatin1String("/.."));
+		if (d.rename(olddir, newdir)) {
+			if (d.cd(QDir::homePath() + QLatin1String("/Library/Preferences"))) {
+				if (QFile::link(d.relativeFilePath(newdir), olddir)) {
+					qWarning("Migrated application data directory from '%s' to '%s'", qPrintable(olddir),
+							 qPrintable(newdir));
+					return;
+				}
+			}
+		}
+	} else {
+		/* Data dir has already been migrated. */
+		return;
+	}
+
+	qWarning("Application data migration failed.");
+#	endif // Q_OS_MAC
+
+// Qt4 used another data directory on Unix-like systems, to ensure a seamless
+// transition we must first move the users data to the new directory.
+#	if defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
+	QString olddir =
+		QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("/data/Mumble");
+	QString newdir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("/Mumble");
+
+	if (!QFile::exists(newdir) && QFile::exists(olddir)) {
+		QDir d;
+		if (d.rename(olddir, newdir)) {
+			qWarning("Migrated application data directory from '%s' to '%s'", qPrintable(olddir), qPrintable(newdir));
+			return;
+		}
+	} else {
+		/* Data dir has already been migrated. */
+		return;
+	}
+
+	qWarning("Application data migration failed.");
+#	endif // defined(Q_OS_UNIX) && ! defined(Q_OS_MAC)
+}
+#endif // Q_OS_WIN
+
+Global::Global(const QString &qsConfigPath) {
+	mw              = 0;
+	db              = 0;
+	p               = 0;
+	nam             = 0;
+	c               = 0;
+	talkingUI       = 0;
+	uiSession       = 0;
+	uiDoublePush    = 1000000;
+	iPushToTalk     = 0;
+	iTarget         = 0;
+	iPrevTarget     = 0;
+	bPushToMute     = false;
+	bCenterPosition = false;
+	bPosTest        = false;
+	bInAudioWizard  = false;
+	iAudioPathTime  = 0;
+	iAudioBandwidth = -1;
+	iMaxBandwidth   = -1;
+
+	iCodecAlpha  = 0;
+	iCodecBeta   = 0;
+	bPreferAlpha = true;
+#ifdef USE_OPUS
+	bOpus = true;
+#else
+	bOpus = false;
+#endif
+
+	bAttenuateOthers              = false;
+	prioritySpeakerActiveOverride = false;
+
+	bAllowHTML      = true;
+	uiMessageLength = 5000;
+	uiImageLength   = 131072;
+	uiMaxUsers      = 0;
+
+	qs = nullptr;
+
+	zeroconf = nullptr;
+	lcd      = nullptr;
+	l        = nullptr;
+
+#ifdef USE_OVERLAY
+	ocIntercept = nullptr;
+	o           = nullptr;
+#endif
+
+	bHappyEaster = false;
+
+	bQuit            = false;
+	bDebugDumpInput  = false;
+	bDebugPrintQueue = false;
+
+#if defined(Q_OS_WIN)
+	QString appdata;
+	wchar_t appData[MAX_PATH];
+#endif
+
+	if (!qsConfigPath.isEmpty()) {
+		QFile inifile(qsConfigPath);
+		qs = new QSettings(inifile.fileName(), QSettings::IniFormat);
+	} else {
+		QStringList qsl;
+		qsl << QCoreApplication::instance()->applicationDirPath();
+		qsl << QStandardPaths::writableLocation(QStandardPaths::DataLocation);
+
+#if defined(Q_OS_WIN)
+		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appData))) {
+			appdata = QDir::fromNativeSeparators(QString::fromWCharArray(appData));
+
+			if (!appdata.isEmpty()) {
+				appdata.append(QLatin1String("/Mumble"));
+				qsl << appdata;
+			}
+		}
+#endif
+
+		foreach (const QString &dir, qsl) {
+			QFile inifile(QString::fromLatin1("%1/mumble.ini").arg(dir));
+			if (inifile.exists() && inifile.permissions().testFlag(QFile::WriteUser)) {
+				qdBasePath.setPath(dir);
+				qs = new QSettings(inifile.fileName(), QSettings::IniFormat);
+				break;
+			}
+		}
+	}
+
+	if (!qs) {
+		qs = new QSettings();
+#if defined(Q_OS_WIN)
+		if (!appdata.isEmpty())
+			qdBasePath.setPath(appdata);
+#else
+		migrateDataDir();
+		qdBasePath.setPath(QStandardPaths::writableLocation(QStandardPaths::DataLocation));
+#endif
+		if (!qdBasePath.exists()) {
+			QDir::root().mkpath(qdBasePath.absolutePath());
+			if (!qdBasePath.exists())
+				qdBasePath = QDir::home();
+		}
+	}
+
+	if (!qdBasePath.exists(QLatin1String("Plugins")))
+		qdBasePath.mkpath(QLatin1String("Plugins"));
+	if (!qdBasePath.exists(QLatin1String("Overlay")))
+		qdBasePath.mkpath(QLatin1String("Overlay"));
+	if (!qdBasePath.exists(QLatin1String("Themes")))
+		qdBasePath.mkpath(QLatin1String("Themes"));
+
+	qs->setIniCodec("UTF-8");
+}
+
+Global::~Global() {
+	delete qs;
+}
+
+const char Global::ccHappyEaster[] = {
+	072,  057,  0162, 0145, 0143, 056,  0163, 0166, 0147, 0,    0117, 0160, 0145, 0156, 040,  0164, 0150, 0145, 040,
+	0160, 0157, 0144, 040,  0142, 0141, 0171, 040,  0144, 0157, 0157, 0162, 0163, 054,  040,  0110, 0101, 0114, 056,
+	0,    0111, 047,  0155, 040,  0163, 0157, 0162, 0162, 0171, 054,  040,  045,  061,  056,  040,  0111, 047,  0155,
+	040,  0141, 0146, 0162, 0141, 0151, 0144, 040,  0111, 040,  0143, 0141, 0156, 047,  0164, 040,  0144, 0157, 040,
+	0164, 0150, 0141, 0164, 056,  0,    0121, 0127, 0151, 0144, 0147, 0145, 0164, 0173, 0142, 0141, 0143, 0153, 0147,
+	0162, 0157, 0165, 0156, 0144, 055,  0143, 0157, 0154, 0157, 0162, 072,  0142, 0154, 0141, 0143, 0153, 073,  0141,
+	0154, 0164, 0145, 0162, 0156, 0141, 0164, 0145, 055,  0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144,
+	055,  0143, 0157, 0154, 0157, 0162, 072,  043,  063,  063,  060,  060,  060,  060,  073,  0143, 0157, 0154, 0157,
+	0162, 072,  0167, 0150, 0151, 0164, 0145, 073,  0175, 0121, 0124, 0145, 0170, 0164, 0102, 0162, 0157, 0167, 0163,
+	0145, 0162, 0173, 0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0151, 0155, 0141, 0147, 0145,
+	072,  0165, 0162, 0154, 050,  072,  057,  0162, 0145, 0143, 056,  0163, 0166, 0147, 051,  073,  0142, 0141, 0143,
+	0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0160, 0157, 0163, 0151, 0164, 0151, 0157, 0156, 072,  0143, 0145,
+	0156, 0164, 0145, 0162, 0143, 0145, 0156, 0164, 0145, 0162, 073,  0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165,
+	0156, 0144, 055,  0143, 0154, 0151, 0160, 072,  0160, 0141, 0144, 0144, 0151, 0156, 0147, 073,  0142, 0141, 0143,
+	0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0157, 0162, 0151, 0147, 0151, 0156, 072,  0160, 0141, 0144, 0144,
+	0151, 0156, 0147, 073,  0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 055,  0162, 0145, 0160, 0145,
+	0141, 0164, 072,  0156, 0157, 055,  0162, 0145, 0160, 0145, 0141, 0164, 073,  0142, 0141, 0143, 0153, 0147, 0162,
+	0157, 0165, 0156, 0144, 055,  0141, 0164, 0164, 0141, 0143, 0150, 0155, 0145, 0156, 0164, 072,  0146, 0151, 0170,
+	0145, 0144, 073,  0175, 0121, 0115, 0145, 0156, 0165, 0102, 0141, 0162, 072,  072,  0151, 0164, 0145, 0155, 0173,
+	0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 072,  0164, 0162, 0141, 0156, 0163, 0160, 0141, 0162,
+	0145, 0156, 0164, 073,  0175, 0121, 0110, 0145, 0141, 0144, 0145, 0162, 0126, 0151, 0145, 0167, 072,  072,  0163,
+	0145, 0143, 0164, 0151, 0157, 0156, 0173, 0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 072,  0164,
+	0162, 0141, 0156, 0163, 0160, 0141, 0162, 0145, 0156, 0164, 073,  0175, 0121, 0124, 0141, 0142, 0102, 0141, 0162,
+	072,  072,  0164, 0141, 0142, 0173, 0142, 0141, 0143, 0153, 0147, 0162, 0157, 0165, 0156, 0144, 072,  0164, 0162,
+	0141, 0156, 0163, 0160, 0141, 0162, 0145, 0156, 0164, 073,  0175, 0
+};
+
+QMultiMap< int, DeferInit * > *DeferInit::qmDeferers = nullptr;
+
+void DeferInit::add(int priority) {
+	if (!qmDeferers) {
+		qmDeferers = new QMultiMap< int, DeferInit * >();
+	}
+	qmDeferers->insert(priority, this);
+}
+
+DeferInit::~DeferInit() {
+}
+
+void DeferInit::run_initializers() {
+	if (!qmDeferers)
+		return;
+	foreach (DeferInit *d, *qmDeferers) { d->initialize(); }
+}
+
+void DeferInit::run_destroyers() {
+	if (!qmDeferers)
+		return;
+	foreach (DeferInit *d, *qmDeferers) { d->destroy(); }
+	delete qmDeferers;
+	qmDeferers = nullptr;
+}
