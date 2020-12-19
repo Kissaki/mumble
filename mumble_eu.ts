@@ -1,20 +1,26 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_MARKDOWN_H_
-#define MUMBLE_MUMBLE_MARKDOWN_H_
+#ifndef MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
+#define MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
 
-#include <QString>
+#include "ui_PTTButtonWidget.h"
 
-namespace Markdown {
-/// Converts the given piece of text, interprets it as markdown and replaces
-/// the markdown constructs with the respective HTML ones.
-///
-/// @param markdownInput A reference to the input string
-/// @returns The processed HTML string
-QString markdownToHTML(const QString &markdownInput);
-}; // namespace Markdown
+class PTTButtonWidget : public QWidget, public Ui::qwPTTButtonWidget {
+	Q_OBJECT
+	Q_DISABLE_COPY(PTTButtonWidget)
+protected:
+	void closeEvent(QCloseEvent *e) Q_DECL_OVERRIDE;
 
-#endif // MUMBLE_MUMBLE_MARKDOWN_H_
+public:
+	PTTButtonWidget(QWidget *p = 0);
+public slots:
+	void on_qpbPushToTalk_pressed();
+	void on_qpbPushToTalk_released();
+signals:
+	void triggered(bool checked, QVariant);
+};
+
+#endif // PTTBUTTONWIDGET_H_
