@@ -3,29 +3,48 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_DEVELOPERCONSOLE_H_
-#define MUMBLE_MUMBLE_DEVELOPERCONSOLE_H_
+#include "DeveloperConsole.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QPointer>
-#include <QtCore/QStringList>
-#include <QtWidgets/QMainWindow>
+#include "LogEmitter.h"
 
-class DeveloperConsole : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(DeveloperConsole);
+#include <QtWidgets/QTextBrowser>
 
-protected:
-	QPointer< QMainWindow > m_window;
-	QStringList m_logEntries;
-public slots:
-	void addLogMessage(const QString &);
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-public:
-	DeveloperConsole(QObject *parent = nullptr);
-	~DeveloperConsole();
-	void show();
-};
+DeveloperConsole::DeveloperConsole(QObject *parent) : QObject(parent) {
+	connect(g.le.data(), SIGNAL(newLogEntry(const QString &)), this, SLOT(addLogMessage(const QString &)));
+}
 
-#endif
+DeveloperConsole::~DeveloperConsole() {
+	QMainWindow *mw = m_window.data();
+	delete mw;
+}
+
+void DeveloperConsole::show() {
+	if (m_window.isNull()) {
+		QMainWindow *mw = new QMainWindow();
+		mw->setAttribute(Qt::WA_DeleteOnClose);
+		QTextBrowser *tb = new QTextBrowser();
+		mw->resize(675, 300);
+		mw->setCentralWidget(tb);
+		mw->setWindowTitle(tr("Developer Console"));
+
+		connect(g.le.data(), SIGNAL(newLogEntry(const QString &)), tb, SLOT(append(const QString &)));
+
+		foreach (const QString &m, m_logEntries)
+			tb->append(m);
+		m_window = QPointer< QMainWindow >(mw);
+	}
+
+	m_window.data()->show();
+	m_window.data()->activateWindow();
+}
+
+void DeveloperConsole::addLogMessage(const QString &msg) {
+	if (m_logEntries.count() >= 1000)
+		m_logEntries.removeFirst();
+
+	m_logEntries.append(msg);
+}
