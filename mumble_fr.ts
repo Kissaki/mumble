@@ -3,213 +3,105 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "VersionCheck.h"
+#ifndef MUMBLE_MUMBLE_ACLEDITOR_H_
+#define MUMBLE_MUMBLE_ACLEDITOR_H_
 
-#include "MainWindow.h"
-#include "Utils.h"
-#include "WebFetch.h"
+#include "ACL.h"
+#include "Group.h"
+#include "Mumble.pb.h"
 
-#ifdef Q_OS_WIN
-#	include "win.h"
+#include "ui_ACLEditor.h"
+
+class ACLGroup : public Group {
+private:
+	Q_DISABLE_COPY(ACLGroup)
+public:
+	bool bInherited;
+	ACLGroup(const QString &name);
+};
+
+class ACLEditor : public QDialog, public Ui::ACLEditor {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ACLEditor)
+protected:
+	typedef QPair< QString, int > idname;
+	MumbleProto::ACL msg;
+	enum WaitID { GroupAdd, GroupRemove, GroupInherit, ACLList };
+	QHash< int, QString > qhNameCache;
+	QHash< QString, int > qhIDCache;
+	QHash< QString, int > qhNameWait;
+
+	int iUnknown;
+
+	void refill(WaitID what);
+
+	ACLGroup *currentGroup();
+	ChanACL *currentACL();
+
+	int iId;
+	bool bInheritACL;
+	QList< ChanACL * > qlACLs;
+	QList< ACLGroup * > qlGroups;
+	ChanACL *pcaPassword;
+
+	int numInheritACL;
+	int iChannel;
+	bool bAddChannelMode;
+
+	const QString userName(int id);
+	int id(const QString &uname);
+
+	QList< QCheckBox * > qlACLAllow;
+	QList< QCheckBox * > qlACLDeny;
+	QList< ChanACL::Perm > qlPerms;
+
+	void updatePasswordACL(void);
+	void updatePasswordField(void);
+	void showEvent(QShowEvent *) Q_DECL_OVERRIDE;
+	void fillWidgetFromSet(QListWidget *, const QSet< int > &);
+
+public:
+	ACLEditor(int parentchannelid, QWidget *p = nullptr);
+	ACLEditor(int channelid, const MumbleProto::ACL &mea, QWidget *p = nullptr);
+	~ACLEditor();
+	void returnQuery(const MumbleProto::QueryUsers &mqu);
+public slots:
+	void accept() Q_DECL_OVERRIDE;
+public slots:
+	void refillACL();
+	void refillGroupNames();
+	void refillGroupAdd();
+	void refillGroupRemove();
+	void refillGroupInherit();
+	void refillComboBoxes();
+	void groupEnableCheck();
+	void ACLEnableCheck();
+
+	void on_qtwTab_currentChanged(int index);
+	void on_qlwACLs_currentRowChanged();
+	void on_qpbACLAdd_clicked();
+	void on_qpbACLRemove_clicked();
+	void on_qpbACLUp_clicked();
+	void on_qpbACLDown_clicked();
+	void on_qcbACLInherit_clicked(bool checked);
+	void on_qcbACLApplyHere_clicked(bool checked);
+	void on_qcbACLApplySubs_clicked(bool checked);
+	void on_qcbACLGroup_activated(const QString &text);
+	void on_qcbACLUser_activated();
+	void ACLPermissions_clicked();
+
+	void on_qcbGroupList_activated(const QString &text);
+	void on_qcbGroupList_editTextChanged(const QString &text);
+	void on_qpbGroupAdd_clicked();
+	void on_qpbGroupRemove_clicked();
+	void on_qcbGroupInherit_clicked(bool checked);
+	void on_qcbGroupInheritable_clicked(bool checked);
+	void on_qpbGroupAddAdd_clicked();
+	void on_qpbGroupAddRemove_clicked();
+	void on_qpbGroupRemoveAdd_clicked();
+	void on_qpbGroupRemoveRemove_clicked();
+	void on_qpbGroupInheritRemove_clicked();
+};
+
 #endif
-
-#include <QtCore/QUrlQuery>
-#include <QtWidgets/QMessageBox>
-#include <QtXml/QDomDocument>
-
-#include <QtConcurrent/QtConcurrent>
-
-#ifdef Q_OS_WIN
-#	include <shellapi.h>
-#	include <softpub.h>
-#endif
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-VersionCheck::VersionCheck(bool autocheck, QObject *p, bool focus) : QObject(p), m_preparationWatcher() {
-	connect(&m_preparationWatcher, &QFutureWatcher< void >::finished, this, &VersionCheck::performRequest);
-
-	QFuture< void > future = QtConcurrent::run([this, autocheck, focus]() {
-		m_requestURL.setPath(focus ? QLatin1String("/v1/banner") : QLatin1String("/v1/version-check"));
-
-		QList< QPair< QString, QString > > queryItems;
-		queryItems << qMakePair(QString::fromLatin1("ver"),
-								QString::fromLatin1(QUrl::toPercentEncoding(QLatin1String(MUMBLE_RELEASE))));
-#if defined(Q_OS_WIN)
-#	if defined(Q_OS_WIN64)
-		queryItems << qMakePair(QString::fromLatin1("os"), QString::fromLatin1("WinX64"));
-#	else
-		queryItems << qMakePair(QString::fromLatin1("os"), QString::fromLatin1("Win32"));
-#	endif
-#elif defined(Q_OS_MAC)
-#	if defined(USE_MAC_UNIVERSAL)
-		queryItems << qMakePair(QString::fromLatin1("os"), QString::fromLatin1("MacOSX-Universal"));
-#	else
-		queryItems << qMakePair(QString::fromLatin1("os"), QString::fromLatin1("MacOSX"));
-#	endif
-#else
-		queryItems << qMakePair(QString::fromLatin1("os"), QString::fromLatin1("Unix"));
-#endif
-		if (!g.s.bUsage)
-			queryItems << qMakePair(QString::fromLatin1("nousage"), QString::fromLatin1("1"));
-		if (autocheck)
-			queryItems << qMakePair(QString::fromLatin1("auto"), QString::fromLatin1("1"));
-
-		queryItems << qMakePair(QString::fromLatin1("locale"),
-								g.s.qsLanguage.isEmpty() ? QLocale::system().name() : g.s.qsLanguage);
-
-		QFile f(qApp->applicationFilePath());
-		if (!f.open(QIODevice::ReadOnly)) {
-			qWarning("VersionCheck: Failed to open binary");
-		} else {
-			QByteArray a = f.readAll();
-			if (a.size() < 1) {
-				qWarning("VersionCheck: suspiciously small binary");
-			} else {
-				QCryptographicHash qch(QCryptographicHash::Sha1);
-				qch.addData(a);
-				queryItems << qMakePair(QString::fromLatin1("sha1"), QString::fromLatin1(qch.result().toHex()));
-			}
-		}
-
-		QUrlQuery query;
-		query.setQueryItems(queryItems);
-		m_requestURL.setQuery(query);
-	});
-
-	m_preparationWatcher.setFuture(future);
-}
-
-void VersionCheck::performRequest() {
-	WebFetch::fetch(QLatin1String("update"), m_requestURL, this, SLOT(fetched(QByteArray, QUrl)));
-}
-
-void VersionCheck::fetched(QByteArray a, QUrl url) {
-	if (!a.isNull()) {
-		if (!a.isEmpty()) {
-#ifdef SNAPSHOT_BUILD
-			if (url.path() == QLatin1String("/v1/banner")) {
-				g.mw->msgBox(QString::fromUtf8(a));
-			} else if (url.path() == QLatin1String("/v1/version-check")) {
-#	ifndef Q_OS_WIN
-				g.mw->msgBox(QString::fromUtf8(a));
-#	else
-				QDomDocument qdd;
-				qdd.setContent(a);
-
-				QDomElement elem = qdd.firstChildElement(QLatin1String("p"));
-				elem             = elem.firstChildElement(QLatin1String("a"));
-
-				QUrl fetch = QUrl(elem.attribute(QLatin1String("href")));
-				fetch.setHost(QString());
-				fetch.setScheme(QString());
-				if (!fetch.isValid()) {
-					g.mw->msgBox(QString::fromUtf8(a));
-				} else {
-					QString filename =
-						g.qdBasePath.absoluteFilePath(QLatin1String("Snapshots/") + QFileInfo(fetch.path()).fileName());
-
-					QFile qf(filename);
-					if (qf.exists()) {
-						std::wstring native = QDir::toNativeSeparators(filename).toStdWString();
-
-						WINTRUST_FILE_INFO file;
-						ZeroMemory(&file, sizeof(file));
-						file.cbStruct      = sizeof(file);
-						file.pcwszFilePath = native.c_str();
-
-						WINTRUST_DATA data;
-						ZeroMemory(&data, sizeof(data));
-						data.cbStruct            = sizeof(data);
-						data.dwUIChoice          = WTD_UI_NONE;
-						data.fdwRevocationChecks = WTD_REVOKE_NONE;
-						data.dwUnionChoice       = WTD_CHOICE_FILE;
-						data.pFile               = &file;
-						data.dwProvFlags         = WTD_SAFER_FLAG | WTD_USE_DEFAULT_OSVER_CHECK;
-						data.dwUIContext         = WTD_UICONTEXT_INSTALL;
-
-						static GUID guid = WINTRUST_ACTION_GENERIC_VERIFY_V2;
-
-						LONG ts = WinVerifyTrust(0, &guid, &data);
-
-						if (ts == 0) {
-							if (QMessageBox::question(
-									g.mw, tr("Upgrade Mumble"),
-									tr("A new version of Mumble has been detected and automatically downloaded. It is "
-									   "recommended that you either upgrade to this version, or downgrade to the "
-									   "latest stable release. Do you want to launch the installer now?"),
-									QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)
-								== QMessageBox::Yes) {
-								SHELLEXECUTEINFOW execinfo;
-								std::wstring filenative = filename.toStdWString();
-								std::wstring dirnative  = QDir::toNativeSeparators(QDir::tempPath()).toStdWString();
-								ZeroMemory(&execinfo, sizeof(execinfo));
-								execinfo.cbSize      = sizeof(execinfo);
-								execinfo.lpFile      = filenative.c_str();
-								execinfo.lpDirectory = dirnative.c_str();
-								execinfo.nShow       = SW_NORMAL;
-
-								if (ShellExecuteExW(&execinfo)) {
-									g.mw->bSuppressAskOnQuit = true;
-									qApp->closeAllWindows();
-								} else {
-									g.mw->msgBox(tr("Failed to launch snapshot installer."));
-								}
-							}
-
-						} else {
-							g.mw->msgBox(tr("Corrupt download of new version detected. Automatically removed."));
-							qf.remove();
-						}
-
-						// Delete all but the N most recent snapshots
-						size_t numberOfSnapshotsToKeep = 1;
-
-						QDir snapdir(g.qdBasePath.absolutePath() + QLatin1String("/Snapshots/"), QString(), QDir::Name,
-									 QDir::Files);
-
-						foreach (const QFileInfo fileInfo,
-								 snapdir.entryInfoList(QStringList(), QDir::NoFilter, QDir::Time)) {
-							if (numberOfSnapshotsToKeep) {
-								--numberOfSnapshotsToKeep;
-								continue;
-							}
-
-							qWarning() << "Purging old snapshot" << fileInfo.fileName();
-							QFile file(fileInfo.absoluteFilePath());
-							file.remove();
-						}
-					} else {
-						g.mw->msgBox(tr("Downloading new snapshot from %1 to %2")
-										 .arg(fetch.toString().toHtmlEscaped(), filename.toHtmlEscaped()));
-						WebFetch::fetch(QLatin1String("dl"), fetch, this, SLOT(fetched(QByteArray, QUrl)));
-						return;
-					}
-				}
-			} else {
-				QString filename =
-					g.qdBasePath.absoluteFilePath(QLatin1String("Snapshots/") + QFileInfo(url.path()).fileName());
-
-				QFile qf(filename);
-				if (qf.open(QIODevice::WriteOnly)) {
-					qf.write(a);
-					qf.close();
-					new VersionCheck(true, g.mw);
-				} else {
-					g.mw->msgBox(tr("Failed to write new version to disk."));
-				}
-#	endif
-			}
-#else
-			Q_UNUSED(url);
-			g.mw->msgBox(QString::fromUtf8(a));
-#endif
-		}
-	} else {
-		g.mw->msgBox(tr("Mumble failed to retrieve version information from the central server."));
-	}
-
-	deleteLater();
-}
