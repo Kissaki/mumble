@@ -1,51 +1,12 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include <winver.h>
-
-IDI_ICON1 ICON DISCARDABLE "@MUMBLE_ICON@"
-
-#ifndef DEBUG
-#define VER_DEBUG 0L
-#else
-#define VER_DEBUG VS_FF_DEBUG
-#endif
-
-#ifdef SNAPSHOT_BUILD
-#define	VER_RELEASE	VS_FF_SPECIALBUILD|VS_FF_PRERELEASE
-#else
-#define VER_RELEASE 0L
-#endif
-
-VS_VERSION_INFO VERSIONINFO
-	FILEVERSION		@PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
-	PRODUCTVERSION	@PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
-	FILEFLAGSMASK	VS_FFI_FILEFLAGSMASK
-	FILEFLAGS		(VER_DEBUG|VER_RELEASE)
-	FILEOS			VOS_NT_WINDOWS32
-	FILETYPE		VFT_APP
-	FILESUBTYPE		0L
-	BEGIN
-		BLOCK "StringFileInfo"
-		BEGIN
-			BLOCK "040904E4"
-			BEGIN
-				VALUE "CompanyName", "The Mumble Developers"
-				VALUE "FileDescription", "Mumble - Low-latency VoIP client"
-				VALUE "FileVersion", "@PROJECT_VERSION@"
-				VALUE "ProductVersion", "@PROJECT_VERSION@"
-				VALUE "LegalCopyright", "Copyright (c) 2005-@MUMBLE_BUILD_YEAR@ The Mumble Developers"
-				VALUE "OriginalFilename", "mumble.exe"
-				VALUE "ProductName", "Mumble"
-#ifdef SNAPSHOT_BUILD
-				VALUE "SpecialBuild", "Snapshot development release"
-#endif
-			END
-		END
-		BLOCK "VarFileInfo"
-		BEGIN
-			VALUE "Translation", 0x409, 1252
-		END
-	END
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}"/><!-- Vista -->
+      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/><!-- Win 7 -->
+      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"/><!-- Win 8 -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/><!-- Win 8.1 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/><!-- Win 10 -->
+    </application>
+  </compatibility>
+</assembly>
