@@ -3,63 +3,100 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OVERLAYTEXT_H_
-#define MUMBLE_MUMBLE_OVERLAYTEXT_H_
+#ifndef MUMBLE_MUMBLE_PAAUDIO_H_
+#define MUMBLE_MUMBLE_PAAUDIO_H_
 
-#include <QtGui/QFont>
-#include <QtGui/QPainterPath>
-#include <QtGui/QPixmap>
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-//! Annotated QPixmap supplying a basepoint.
-class BasepointPixmap : public QPixmap {
-public:
-	//! Local coordinates of the base point.
-	QPoint qpBasePoint;
-	//@{
-	/**
-	 * Font ascent and descent.
-	 * The pixmap may exceed those font metrics, so if you need to
-	 * transform rendered text properly, use these attributes.
-	 */
-	int iAscent;
-	int iDescent;
-	//@}
+#include <QtCore/QLibrary>
+#include <QtCore/QWaitCondition>
 
-	BasepointPixmap();
-	//! Create from QPixmap, basepoint is bottom left.
-	BasepointPixmap(const QPixmap &);
-	//! Empty pixmap, basepoint is bottom left.
-	BasepointPixmap(int, int);
-	//! Empty pixmap with specified basepoint.
-	BasepointPixmap(int, int, const QPoint &);
-};
+#include <portaudio.h>
 
-class OverlayTextLine {
+class PortAudioInit;
+
+class PortAudioSystem : public QObject {
+	friend PortAudioInit;
+
 private:
-	const float fEdgeFactor;
+	Q_OBJECT
+	Q_DISABLE_COPY(PortAudioSystem)
+protected:
+	bool bOk;
+	QMutex qmWait;
+	QLibrary qlPortAudio;
+	QWaitCondition qwcWait;
 
-	QString qsText;
-	QFont qfFont;
-	QPainterPath qpp;
-	float fAscent, fDescent;
-	float fXCorrection, fYCorrection;
-	int iCurWidth, iCurHeight;
-	float fEdge;
-	float fBaseliningThreshold;
-	bool bElided;
+	static int streamCallback(const void *input, void *output, unsigned long frames, const PaStreamCallbackTimeInfo *,
+							  PaStreamCallbackFlags statusFlags, void *isInput);
 
-	BasepointPixmap render(int, int, const QColor &, const QPoint &) const;
+	const char *(*Pa_GetVersionText)();
+	const char *(*Pa_GetErrorText)(PaError errorCode);
+	PaError (*Pa_Initialize)();
+	PaError (*Pa_Terminate)();
+	PaError (*Pa_OpenStream)(PaStream **stream, const PaStreamParameters *inputParameters,
+							 const PaStreamParameters *outputParameters, double sampleRate,
+							 unsigned long framesPerBuffer, PaStreamFlags streamFlags, PaStreamCallback *streamCallback,
+							 void *userData);
+	PaError (*Pa_CloseStream)(PaStream *stream);
+	PaError (*Pa_StartStream)(PaStream *stream);
+	PaError (*Pa_StopStream)(PaStream *stream);
+	PaError (*Pa_IsStreamActive)(PaStream *stream);
+	PaDeviceIndex (*Pa_GetDefaultInputDevice)();
+	PaDeviceIndex (*Pa_GetDefaultOutputDevice)();
+	PaDeviceIndex (*Pa_HostApiDeviceIndexToDeviceIndex)(PaHostApiIndex hostApi, int hostApiDeviceIndex);
+	PaHostApiIndex (*Pa_GetHostApiCount)();
+	const PaHostApiInfo *(*Pa_GetHostApiInfo)(PaHostApiIndex hostApi);
+	const PaDeviceInfo *(*Pa_GetDeviceInfo)(PaDeviceIndex device);
 
 public:
-	OverlayTextLine(const QString &, const QFont &);
+	const QList< audioDevice > enumerateDevices(const bool input, const PaDeviceIndex current);
 
-	void setFont(const QFont &);
-	void setEdge(float);
+	bool isStreamRunning(PaStream *stream);
 
-	//! Render text with current font.
-	BasepointPixmap createPixmap(QColor col);
-	//! Render text to fit a bounding box.
-	BasepointPixmap createPixmap(unsigned int maxwidth, unsigned int height, QColor col);
+	int openStream(PaStream **stream, PaDeviceIndex device, const uint32_t frameSize, const bool isInput);
+	bool closeStream(PaStream *stream);
+
+	bool startStream(PaStream *stream);
+	bool stopStream(PaStream *stream);
+
+	PortAudioSystem();
+	~PortAudioSystem();
 };
 
-#endif //_OVERLAYTEXT_H
+
+class PortAudioInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PortAudioInput)
+protected:
+	QMutex qmWait;
+	QWaitCondition qwcSleep;
+	PaStream *stream;
+
+public:
+	void process(const uint32_t frames, const void *buffer);
+	void run() Q_DECL_OVERRIDE;
+	PortAudioInput();
+	~PortAudioInput() Q_DECL_OVERRIDE;
+};
+
+
+class PortAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PortAudioOutput)
+protected:
+	QMutex qmWait;
+	QWaitCondition qwcSleep;
+	PaStream *stream;
+
+public:
+	void process(const uint32_t frames, void *buffer);
+	void run() Q_DECL_OVERRIDE;
+	PortAudioOutput();
+	~PortAudioOutput() Q_DECL_OVERRIDE;
+};
+
+#endif
