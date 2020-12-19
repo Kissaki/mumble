@@ -1,146 +1,270 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_GLOBAL_H_
-#define MUMBLE_MUMBLE_GLOBAL_H_
-
-#include <QtCore/QDir>
-#include <boost/shared_ptr.hpp>
-
-#include "ACL.h"
-#include "Settings.h"
-#include "Timer.h"
-#include "Version.h"
-
-// Global helper class to spread variables around across threads.
-
-class MainWindow;
-class ServerHandler;
-class AudioInput;
-class AudioOutput;
-class Database;
-class Log;
-class Plugins;
-class QSettings;
-class Overlay;
-class LCD;
-class Zeroconf;
-class OverlayClient;
-class CELTCodec;
-class OpusCodec;
-class LogEmitter;
-class DeveloperConsole;
-class TalkingUI;
-
-class QNetworkAccessManager;
-
-struct Global Q_DECL_FINAL {
-private:
-	Q_DISABLE_COPY(Global)
-public:
-	static Global *g_global_struct;
-	MainWindow *mw;
-	Settings s;
-	boost::shared_ptr< ServerHandler > sh;
-	boost::shared_ptr< AudioInput > ai;
-	boost::shared_ptr< AudioOutput > ao;
-	/**
-	 * @remark Must only be accessed from the main event loop
-	 */
-	Database *db;
-	Log *l;
-	Plugins *p;
-	QSettings *qs;
-#ifdef USE_OVERLAY
-	Overlay *o;
-#endif
-	LCD *lcd;
-	Zeroconf *zeroconf;
-	QNetworkAccessManager *nam;
-	QSharedPointer< LogEmitter > le;
-	DeveloperConsole *c;
-	TalkingUI *talkingUI;
-	int iPushToTalk;
-	Timer tDoublePush;
-	quint64 uiDoublePush;
-	/// Holds the current VoiceTarget ID to send audio to
-	int iTarget;
-	/// Holds the value of iTarget before its last change until the current
-	/// audio-stream ends (and it has a value > 0). See the comment in
-	/// AudioInput::flushCheck for further details on this.
-	int iPrevTarget;
-	bool bPushToMute;
-	bool bCenterPosition;
-	bool bPosTest;
-	bool bInAudioWizard;
-#ifdef USE_OVERLAY
-	OverlayClient *ocIntercept;
-#endif
-	int iAudioPathTime;
-	/// A unique ID for the current user. It is being assigned by the server right
-	/// after connecting to it. An ID of 0 indicates that the user currently isn't
-	/// connected to a server.
-	unsigned int uiSession;
-	ChanACL::Permissions pPermissions;
-	int iMaxBandwidth;
-	int iAudioBandwidth;
-	QDir qdBasePath;
-	QMap< int, CELTCodec * > qmCodecs;
-	OpusCodec *oCodec;
-	int iCodecAlpha, iCodecBeta;
-	bool bPreferAlpha;
-	bool bOpus;
-	bool bAttenuateOthers;
-	/// If set the AudioOutput::mix will forcefully adjust the volume of all
-	/// non-priority speakers.
-	bool prioritySpeakerActiveOverride;
-	bool bAllowHTML;
-	unsigned int uiMessageLength;
-	unsigned int uiImageLength;
-	unsigned int uiMaxUsers;
-	bool bQuit;
-	QString windowTitlePostfix;
-	bool bDebugDumpInput;
-	bool bDebugPrintQueue;
-
-	bool bHappyEaster;
-	static const char ccHappyEaster[];
-
-	Global(const QString &qsConfigPath = QString());
-	~Global();
-};
-
-// Class to handle ordered initialization of globals.
-// This allows the same link-time magic as used everywhere else
-// for globals that need an init before the GUI starts, but
-// after we reach main().
-
-class DeferInit {
-private:
-	Q_DISABLE_COPY(DeferInit)
-protected:
-	static QMultiMap< int, DeferInit * > *qmDeferers;
-	void add(int priority);
-
-public:
-	DeferInit(int priority) { add(priority); };
-	DeferInit() { add(0); };
-	virtual ~DeferInit();
-	virtual void initialize(){};
-	virtual void destroy(){};
-	static void run_initializers();
-	static void run_destroyers();
-};
-
-/// Special exit code which causes mumble to restart itself. The outward facing return code with be 0
-const int MUMBLE_EXIT_CODE_RESTART = 64738;
-
-// -Wshadow is bugged. If an inline function of a class uses a variable or
-// parameter named 'g', that will generate a warning even if the class header
-// is included long before this definition.
-
-#define g (*Global::g_global_struct)
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GlobalShortcut</class>
+ <widget class="QWidget" name="GlobalShortcut">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>621</width>
+    <height>542</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QWidget" name="qwWarningContainer" native="true">
+     <layout class="QVBoxLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QWidget" name="qwMacWarning" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system's Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="textFormat">
+            <enum>Qt::RichText</enum>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <spacer name="horizontalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbOpenAccessibilityPrefs">
+             <property name="text">
+              <string>Open Accessibility Preferences</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbSkipWarning">
+             <property name="text">
+              <string>Skip</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>10</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbShortcuts">
+     <property name="title">
+      <string>Shortcuts</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QCheckBox" name="qcbEnableGlobalShortcuts">
+          <property name="text">
+           <string>Enable Global Shortcuts</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTreeWidget" name="qtwShortcuts">
+          <property name="toolTip">
+           <string>List of configured shortcuts</string>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::AllEditTriggers</set>
+          </property>
+          <property name="alternatingRowColors">
+           <bool>true</bool>
+          </property>
+          <property name="rootIsDecorated">
+           <bool>false</bool>
+          </property>
+          <property name="uniformRowHeights">
+           <bool>true</bool>
+          </property>
+          <attribute name="headerDefaultSectionSize">
+           <number>100</number>
+          </attribute>
+          <attribute name="headerMinimumSectionSize">
+           <number>50</number>
+          </attribute>
+          <attribute name="headerStretchLastSection">
+           <bool>false</bool>
+          </attribute>
+          <column>
+           <property name="text">
+            <string>Function</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Data</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Shortcut</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Suppress</string>
+           </property>
+          </column>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="qpbAdd">
+          <property name="toolTip">
+           <string>Add new shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will add a new global shortcut</string>
+          </property>
+          <property name="text">
+           <string>&amp;Add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="qpbRemove">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Remove selected shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will permanently remove a selected shortcut.</string>
+          </property>
+          <property name="text">
+           <string>&amp;Remove</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>59</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="qgbWindowsShortcutEngines">
+        <property name="whatsThis">
+         <string>&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</string>
+        </property>
+        <property name="title">
+         <string>Additional Shortcut Engines</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_5">
+         <item>
+          <widget class="QCheckBox" name="qcbEnableUIAccess">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
+&lt;br /&gt;&lt;br /&gt;
+Without this option enabled, using Mumble's global shortcuts in privileged applications will not work. This can seem inconsistent: for example, if the Push-to-Talk button is pressed in a non-privileged program, but released in a privileged application, Mumble will not observe that it has been released and you will continue to talk until you press the Push-to-Talk button again.</string>
+           </property>
+           <property name="text">
+            <string>Enable shortcuts in privileged applications</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableWinHooks">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</string>
+           </property>
+           <property name="text">
+            <string>Enable Windows hooks</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableGKey">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</string>
+           </property>
+           <property name="text">
+            <string>Enable GKey</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableXboxInput">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</string>
+           </property>
+           <property name="text">
+            <string>Enable XInput</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
