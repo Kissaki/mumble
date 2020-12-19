@@ -3,216 +3,299 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_USERMODEL_H_
-#define MUMBLE_MUMBLE_USERMODEL_H_
+#include "UserListModel.h"
 
-#include <QtCore/QAbstractItemModel>
-#include <QtCore/QHash>
-#include <QtCore/QObject>
-#include <QtCore/QSet>
-#include <QtGui/QIcon>
+#include "Channel.h"
+#include "Message.h"
+#include "Utils.h"
 
-class User;
-class ClientUser;
-class Channel;
+#include <algorithm>
 
-struct ModelItem Q_DECL_FINAL {
-	friend class UserModel;
-
-private:
-	Q_DISABLE_COPY(ModelItem)
-public:
-	Channel *cChan;
-	ClientUser *pUser;
-
-	bool isListener;
-
-	bool bCommentSeen;
-
-	ModelItem *parent;
-	QList< ModelItem * > qlChildren;
-	QList< ModelItem * > qlHiddenChildren;
-	/// Number of users in this channel (recursive)
-	int iUsers;
-
-	static QHash< const Channel *, ModelItem * > c_qhChannels;
-	static QHash< const ClientUser *, ModelItem * > c_qhUsers;
-	static QHash< const ClientUser *, QList< ModelItem * > > s_userProxies;
-	static bool bUsersTop;
-
-	ModelItem(Channel *c);
-	ModelItem(ClientUser *p, bool isListener = false);
-	ModelItem(ModelItem *);
-	~ModelItem();
-
-	ModelItem *child(int idx) const;
-
-	bool validRow(int idx) const;
-	ClientUser *userAt(int idx) const;
-	Channel *channelAt(int idx) const;
-	int rowOf(Channel *c) const;
-	int rowOf(ClientUser *p, const bool isListener) const;
-	int rowOfSelf() const;
-	int rows() const;
-	int insertIndex(Channel *c) const;
-	int insertIndex(ClientUser *p, bool isListener = false) const;
-	QString hash() const;
-	void wipe();
-};
-
-class UserModel : public QAbstractItemModel {
-	friend struct ModelItem;
-	friend class UserView;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(UserModel)
-protected:
-	QIcon qiTalkingOn, qiTalkingMuted, qiTalkingWhisper, qiTalkingShout, qiTalkingOff;
-	QIcon qiMutedPushToMute, qiMutedSelf, qiMutedServer, qiMutedLocal, qiIgnoredLocal, qiMutedSuppressed;
-	QIcon qiPrioritySpeaker;
-	QIcon qiRecording;
-	QIcon qiDeafenedSelf, qiDeafenedServer;
-	QIcon qiAuthenticated, qiChannel, qiLinkedChannel, qiActiveChannel;
-	QIcon qiFriend;
-	QIcon qiComment, qiCommentSeen, qiFilter;
-	QIcon qiLock_locked, qiLock_unlocked;
-	QIcon qiEar;
-	ModelItem *miRoot;
-	QSet< Channel * > qsLinked;
-	QMap< QString, ClientUser * > qmHashes;
-
-	bool bClicked;
-
-	void recursiveClone(const ModelItem *old, ModelItem *item, QModelIndexList &from, QModelIndexList &to);
-	ModelItem *moveItem(ModelItem *oldparent, ModelItem *newparent, ModelItem *item);
-
-	QString stringIndex(const QModelIndex &index) const;
-
-	/// @returns The QModelIndex that is currently selected. If there is no selection, the returned index
-	/// 	is invalid.
-	QModelIndex getSelectedIndex() const;
-
-	/// Removes the given user as a listener to the given channel
-	///
-	/// @param item A pointer to the listener's ModelItem that shall be removed
-	/// @param citem A pointer to the ModelItem that represents the channel the listener
-	/// 	is in. The listener has to be a direct child of this item. If this is nullptr,
-	/// 	the parent of the provided item is used directly.
-	void removeChannelListener(ModelItem *item, ModelItem *citem = nullptr);
-
-public:
-	UserModel(QObject *parent = 0);
-	~UserModel() Q_DECL_OVERRIDE;
-
-	QModelIndex index(ClientUser *, int column = 0) const;
-	QModelIndex index(Channel *, int column = 0) const;
-	QModelIndex index(ModelItem *) const;
-	QModelIndex channelListenerIndex(const ClientUser *, const Channel *, int column = 0) const;
-
-	QVariant data(const QModelIndex &index, int role) const Q_DECL_OVERRIDE;
-	Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
-	QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const Q_DECL_OVERRIDE;
-	QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
-	QModelIndex parent(const QModelIndex &index) const Q_DECL_OVERRIDE;
-	int rowCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
-	int columnCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
-	Qt::DropActions supportedDropActions() const Q_DECL_OVERRIDE;
-	QStringList mimeTypes() const Q_DECL_OVERRIDE;
-	QMimeData *mimeData(const QModelIndexList &idx) const Q_DECL_OVERRIDE;
-	bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
-					  const QModelIndex &parent) Q_DECL_OVERRIDE;
-
-	ClientUser *addUser(unsigned int id, const QString &name);
-	ClientUser *getUser(const QModelIndex &idx) const;
-	ClientUser *getUser(const QString &hash) const;
-	/// @returns A pointer to the currently selected User or nullptr if there is none
-	ClientUser *getSelectedUser() const;
-	/// Sets the selection to the User with the given session
-	///
-	/// @param session The session ID of the respective User
-	void setSelectedUser(unsigned int session);
-
-	Channel *addChannel(int id, Channel *p, const QString &name);
-	Channel *getChannel(const QModelIndex &idx) const;
-	/// @returns A pointer to the currently selected Channel or nullptr if there is none
-	Channel *getSelectedChannel() const;
-	/// Sets the selection to the Channel with the given ID
-	///
-	/// @param session The ID of the respective Channel
-	void setSelectedChannel(int id);
-
-	/// Adds the guven user as a listener to the given channel
-	///
-	/// @param p A pointer to the user
-	/// @param c A pointer to the channel
-	void addChannelListener(ClientUser *p, Channel *c);
-	/// Removes the guven user as a listener to the given channel
-	///
-	/// @param p A pointer to the user
-	/// @param c A pointer to the channel. If this is nullptr, then all listeners
-	/// 	for the given user are removed (from all channels).
-	void removeChannelListener(const ClientUser *p, const Channel *c = nullptr);
-	/// @param idx The QModelIndex to check
-	/// @returns Whether the ModelItem associated with the given index is a listener-proxy
-	bool isChannelListener(const QModelIndex &idx) const;
-
-	/// Sets the selection to the ChannelListener of the given user in the given channel
-	///
-	/// @param userSession The session ID of the respective User
-	/// @param channelID The ID of the respective Channel
-	void setSelectedChannelListener(unsigned int userSession, int channelID);
-
-	Channel *getSubChannel(Channel *p, int idx) const;
-
-	void renameUser(ClientUser *p, const QString &name);
-	void renameChannel(Channel *c, const QString &name);
-	void repositionChannel(Channel *c, const int position);
-	void setUserId(ClientUser *p, int id);
-	void setHash(ClientUser *p, const QString &hash);
-	void setFriendName(ClientUser *p, const QString &name);
-	void setComment(ClientUser *p, const QString &comment);
-	void setCommentHash(ClientUser *p, const QByteArray &hash);
-	void seenComment(const QModelIndex &idx);
-
-	void moveUser(ClientUser *p, Channel *c);
-	void moveChannel(Channel *c, Channel *p);
-	void setComment(Channel *c, const QString &comment);
-	void setCommentHash(Channel *c, const QByteArray &hash);
-
-	void removeUser(ClientUser *p);
-	bool removeChannel(Channel *c, const bool onlyIfUnoccupied = false);
-
-	void linkChannels(Channel *c, QList< Channel * > links);
-	void unlinkChannels(Channel *c, QList< Channel * > links);
-	void unlinkAll(Channel *c);
-
-	void removeAll();
-
-	void expandAll(Channel *c);
-	void collapseEmpty(Channel *c);
-
-	QVariant otherRoles(const QModelIndex &idx, int role) const;
-
-	unsigned int uiSessionComment;
-	int iChannelDescription;
-
-
-	/// Creates the display string for the given user/listener
-	///
-	/// @param user The user to create the string for
-	/// @param isChannelListener Whether the display String is in fact for a listener of the given user
-	/// @param parentChannel The channel in which the listener resides. May be nullptr, if isChannelListener is false
-	/// @return The created display string
-	static QString createDisplayString(const ClientUser &user, bool isChannelListener, const Channel *parentChannel);
-public slots:
-	/// Invalidates the model data of the ClientUser triggering this slot.
-	void userStateChanged();
-	void on_channelListenerLocalVolumeAdjustmentChanged(int channelID, float oldValue, float newValue);
-	void ensureSelfVisible();
-	void recheckLinks();
-	void updateOverlay() const;
-	void toggleChannelFiltered(Channel *c);
-};
-
+#ifdef _MSC_VER
+#	include <functional>
 #endif
+
+#include <vector>
+
+UserListModel::UserListModel(const MumbleProto::UserList &userList, QObject *parent_)
+	: QAbstractTableModel(parent_), m_legacyMode(false) {
+	m_userList.reserve(userList.users_size());
+	for (int i = 0; i < userList.users_size(); ++i) {
+		m_userList.append(userList.users(i));
+	}
+
+	if (!m_userList.empty()) {
+		const MumbleProto::UserList_User &user = m_userList.back();
+		m_legacyMode                           = !user.has_last_seen() || !user.has_last_channel();
+	}
+}
+
+int UserListModel::rowCount(const QModelIndex &parentIndex) const {
+	if (parentIndex.isValid())
+		return 0;
+
+	return m_userList.size();
+}
+
+int UserListModel::columnCount(const QModelIndex &parentIndex) const {
+	if (parentIndex.isValid())
+		return 0;
+
+	if (m_legacyMode) {
+		// Only COL_NICK
+		return 1;
+	}
+
+	return COUNT_COL;
+}
+
+QVariant UserListModel::headerData(int section, Qt::Orientation orientation, int role) const {
+	if (orientation != Qt::Horizontal)
+		return QVariant();
+
+	if (section < 0 || section >= columnCount())
+		return QVariant();
+
+	if (role == Qt::DisplayRole) {
+		switch (section) {
+			case COL_NICK:
+				return tr("Nick");
+			case COL_INACTIVEDAYS:
+				return tr("Inactive days");
+			case COL_LASTCHANNEL:
+				return tr("Last channel");
+			default:
+				return QVariant();
+		}
+	}
+
+	return QVariant();
+}
+
+QVariant UserListModel::data(const QModelIndex &dataIndex, int role) const {
+	if (!dataIndex.isValid())
+		return QVariant();
+
+	if (dataIndex.row() < 0 || dataIndex.row() >= m_userList.size())
+		return QVariant();
+
+	if (dataIndex.column() >= columnCount())
+		return QVariant();
+
+	const MumbleProto::UserList_User &user = m_userList[dataIndex.row()];
+
+	if (role == Qt::DisplayRole) {
+		switch (dataIndex.column()) {
+			case COL_NICK:
+				return u8(user.name());
+			case COL_INACTIVEDAYS:
+				return lastSeenToTodayDayCount(user.last_seen());
+			case COL_LASTCHANNEL:
+				return pathForChannelId(user.last_channel());
+			default:
+				return QVariant();
+		}
+	} else if (role == Qt::ToolTipRole) {
+		switch (dataIndex.column()) {
+			case COL_INACTIVEDAYS:
+				return tr("Last seen: %1")
+					.arg(user.last_seen().empty() ? tr("Never") : u8(user.last_seen()).toHtmlEscaped());
+			case COL_LASTCHANNEL:
+				return tr("Channel ID: %1").arg(user.last_channel());
+			default:
+				return QVariant();
+		}
+	} else if (role == Qt::UserRole) {
+		switch (dataIndex.column()) {
+			case COL_INACTIVEDAYS:
+				return isoUTCToDateTime(user.last_seen());
+			case COL_LASTCHANNEL:
+				return user.last_channel();
+			default:
+				return QVariant();
+		}
+	} else if (role == Qt::EditRole) {
+		if (dataIndex.column() == COL_NICK) {
+			return u8(user.name());
+		}
+	}
+
+	return QVariant();
+}
+
+bool UserListModel::setData(const QModelIndex &dataIndex, const QVariant &value, int role) {
+	if (!dataIndex.isValid())
+		return false;
+
+	if (dataIndex.column() != COL_NICK || role != Qt::EditRole)
+		return false;
+
+	if (dataIndex.row() < 0 || dataIndex.row() >= m_userList.size())
+		return false;
+
+	const std::string newNick = u8(value.toString());
+	if (newNick.empty()) {
+		// Empty nick is not valid
+		return false;
+	}
+
+	MumbleProto::UserList_User &user = m_userList[dataIndex.row()];
+	if (newNick != user.name()) {
+		foreach (const MumbleProto::UserList_User &otherUser, m_userList) {
+			if (otherUser.name() == newNick) {
+				// Duplicate is not valid
+				return false;
+			}
+		}
+
+		user.set_name(newNick);
+		m_changes[user.user_id()] = user;
+
+		emit dataChanged(dataIndex, dataIndex);
+	}
+
+	return true;
+}
+
+Qt::ItemFlags UserListModel::flags(const QModelIndex &flagIndex) const {
+	const Qt::ItemFlags original = QAbstractTableModel::flags(flagIndex);
+
+	if (flagIndex.column() == COL_NICK) {
+		return original | Qt::ItemIsEditable;
+	}
+
+	return original;
+}
+
+bool UserListModel::removeRows(int row, int count, const QModelIndex &parentIndex) {
+	if (row + count > m_userList.size())
+		return false;
+
+	beginRemoveRows(parentIndex, row, row + count - 1);
+
+	ModelUserList::Iterator startIt = m_userList.begin() + row;
+	ModelUserList::Iterator endIt   = startIt + count;
+
+	for (ModelUserList::Iterator it = startIt; it != endIt; ++it) {
+		it->clear_name();
+		m_changes[it->user_id()] = *it;
+	}
+
+	m_userList.erase(startIt, endIt);
+
+	endRemoveRows();
+	return true;
+}
+
+void UserListModel::removeRowsInSelection(const QItemSelection &selection) {
+	QModelIndexList indices = selection.indexes();
+
+	std::vector< int > rows;
+	rows.reserve(indices.size());
+
+	foreach (const QModelIndex &idx, indices) {
+		if (idx.column() != COL_NICK)
+			continue;
+
+		rows.push_back(idx.row());
+	}
+
+	// Make sure to presort the rows so we work from back (high) to front (low).
+	// This prevents the row numbers from becoming invalid after removing a group.
+	// The basic idea is to take a number of sorted rows (e.g. 10,9,5,3,2,1) and
+	// delete them with the minimum number of removeRows calls. This means grouping
+	// adjacent rows (e.g. (10,9),(5),(3,2,1)) and using a removeRows call for each group.
+	std::sort(rows.begin(), rows.end(), std::greater< int >());
+
+	int nextRow       = -2;
+	int groupRowCount = 0;
+
+	for (size_t i = 0; i < rows.size(); ++i) {
+		if (rows[i] == nextRow) {
+			++groupRowCount;
+			--nextRow;
+		} else {
+			if (groupRowCount > 0) {
+				// Remove previous group
+				const int lastRowInGroup = nextRow + 1;
+				removeRows(lastRowInGroup, groupRowCount);
+			}
+
+			// Start next group
+			nextRow       = rows[i] - 1;
+			groupRowCount = 1;
+		}
+	}
+
+	if (groupRowCount > 0) {
+		// Remove leftover group
+		const int lastRowInGroup = nextRow + 1;
+		removeRows(lastRowInGroup, groupRowCount);
+	}
+}
+
+MumbleProto::UserList UserListModel::getUserListUpdate() const {
+	MumbleProto::UserList updateList;
+
+	for (ModelUserListChangeMap::ConstIterator it = m_changes.constBegin(); it != m_changes.constEnd(); ++it) {
+		MumbleProto::UserList_User *user = updateList.add_users();
+		*user                            = it.value();
+	}
+
+	return updateList;
+}
+
+bool UserListModel::isUserListDirty() const {
+	return !m_changes.empty();
+}
+
+bool UserListModel::isLegacy() const {
+	return m_legacyMode;
+}
+
+QVariant UserListModel::lastSeenToTodayDayCount(const std::string &lastSeenDate) const {
+	if (lastSeenDate.empty())
+		return QVariant();
+
+	QVariant count = m_stringToLastSeenToTodayCount.value(u8(lastSeenDate));
+	if (count.isNull()) {
+		QDateTime dt = isoUTCToDateTime(lastSeenDate);
+		if (!dt.isValid()) {
+			// Not convertable to int
+			return QVariant();
+		}
+		count = dt.daysTo(QDateTime::currentDateTime().toUTC());
+		m_stringToLastSeenToTodayCount.insert(u8(lastSeenDate), count);
+	}
+	return count;
+}
+
+QString UserListModel::pathForChannelId(const int channelId) const {
+	QString path = m_channelIdToPathMap.value(channelId);
+	if (path.isNull()) {
+		path = QLatin1String("-");
+
+		Channel *channel = Channel::get(channelId);
+		if (channel) {
+			QStringList pathParts;
+
+			while (channel->cParent) {
+				pathParts.prepend(channel->qsName);
+				channel = channel->cParent;
+			}
+
+			pathParts.append(QString());
+
+			path = QLatin1String("/ ") + pathParts.join(QLatin1String(" / "));
+		}
+
+		m_channelIdToPathMap.insert(channelId, path);
+	}
+	return path;
+}
+
+QDateTime UserListModel::isoUTCToDateTime(const std::string &isoTime) const {
+	QDateTime dt = QDateTime::fromString(u8(isoTime), Qt::ISODate);
+	dt.setTimeSpec(Qt::UTC);
+	return dt;
+}
