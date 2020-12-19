@@ -3,23 +3,24 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TextMessage.h"
+#ifndef MUMBLE_MUMBLE_TEXTMESSAGE_H_
+#define MUMBLE_MUMBLE_TEXTMESSAGE_H_
 
-TextMessage::TextMessage(QWidget *p, QString title, bool bChannel) : QDialog(p) {
-	setupUi(this);
-	rteMessage->setAccessibleName(tr("Message"));
-	if (!bChannel)
-		qcbTreeMessage->setHidden(true);
-	setWindowTitle(title);
-	bTreeMessage = false;
+#include "ui_TextMessage.h"
 
-	QObject::connect(rteMessage, SIGNAL(accept()), this, SLOT(accept()));
-}
+class TextMessage : public QDialog, public Ui::TextMessage {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(TextMessage)
+protected:
+	QString qsRep;
+public slots:
+	void on_qcbTreeMessage_stateChanged(int);
 
-void TextMessage::on_qcbTreeMessage_stateChanged(int s) {
-	bTreeMessage = s == Qt::Checked ? true : false;
-}
+public:
+	TextMessage(QWidget *parent = nullptr, QString title = tr("Enter text"), bool bChannel = false);
+	QString message();
+	bool bTreeMessage;
+};
 
-QString TextMessage::message() {
-	return rteMessage->text();
-}
+#endif
