@@ -1,331 +1,159 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>GlobalShortcutTarget</class>
- <widget class="QDialog" name="GlobalShortcutTarget">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>421</width>
-    <height>542</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Whisper Target</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="qlTarget">
-     <property name="text">
-      <string>Shout/Whisper to:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="2">
-    <widget class="QStackedWidget" name="qswStack">
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
-     <widget class="QWidget" name="qwSelectionPage">
-      <layout class="QHBoxLayout" name="horizontalLayout_3">
-       <item>
-        <widget class="QGroupBox" name="qgbSelection">
-         <property name="title">
-          <string>Current selection</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_5">
-          <item>
-           <widget class="QLabel" name="qlWhenShouting">
-            <property name="text">
-             <string>When shouting to channel:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QWidget" name="widget" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <layout class="QVBoxLayout" name="verticalLayout_6">
-             <item>
-              <widget class="QCheckBox" name="qcbShoutLinks">
-               <property name="toolTip">
-                <string>The whisper will also be transmitted to linked channels.</string>
-               </property>
-               <property name="text">
-                <string>Shout to linked channels</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="qcbShoutSubchans">
-               <property name="toolTip">
-                <string>The whisper will also be sent to the subchannels of the channel target.</string>
-               </property>
-               <property name="text">
-                <string>Shout to subchannels</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <spacer name="verticalSpacer_3">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwUserPage">
-      <layout class="QVBoxLayout" name="verticalLayout">
-       <item>
-        <widget class="QGroupBox" name="qgbUser">
-         <property name="title">
-          <string>List of users</string>
-         </property>
-         <layout class="QGridLayout" name="gridLayout_2">
-          <item row="0" column="0" rowspan="4">
-           <widget class="QListWidget" name="qlwUsers"/>
-          </item>
-          <item row="0" column="1">
-           <widget class="MUComboBox" name="qcbUser"/>
-          </item>
-          <item row="1" column="1">
-           <widget class="QPushButton" name="qpbAdd">
-            <property name="text">
-             <string>Add</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QPushButton" name="qpbRemove">
-            <property name="text">
-             <string>Remove</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="1">
-           <spacer name="verticalSpacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>94</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwChannelPage">
-      <layout class="QVBoxLayout" name="verticalLayout_2">
-       <item>
-        <widget class="QGroupBox" name="qgbChannel">
-         <property name="title">
-          <string>Channel Target</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_3">
-          <item>
-           <widget class="QTreeWidget" name="qtwChannels">
-            <property name="indentation">
-             <number>10</number>
-            </property>
-            <property name="rootIsDecorated">
-             <bool>true</bool>
-            </property>
-            <property name="sortingEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="headerHidden">
-             <bool>true</bool>
-            </property>
-            <column>
-             <property name="text">
-              <string notr="true">Name</string>
-             </property>
-            </column>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout">
-            <item>
-             <widget class="QLabel" name="qlGroup">
-              <property name="text">
-               <string>Restrict to Group</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="qleGroup">
-              <property name="toolTip">
-               <string>If specified, only members of this group will receive the whisper.</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <item>
-             <widget class="QCheckBox" name="qcbLinks">
-              <property name="toolTip">
-               <string>The whisper will also be transmitted to linked channels.</string>
-              </property>
-              <property name="text">
-               <string>Shout to Linked channels</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="qcbChildren">
-              <property name="toolTip">
-               <string>The whisper will also be sent to the subchannels of the channel target.</string>
-              </property>
-              <property name="text">
-               <string>Shout to subchannels</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </widget>
-   </item>
-   <item row="2" column="0" colspan="2">
-    <widget class="QGroupBox" name="qgbModifiers">
-     <property name="title">
-      <string>Modifiers</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <widget class="QCheckBox" name="qcbForceCenter">
-        <property name="toolTip">
-         <string>Do not send positional audio information when using this whisper shortcut.</string>
-        </property>
-        <property name="text">
-         <string>Ignore positional audio</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QComboBox" name="qcbTarget">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="frame">
-      <bool>true</bool>
-     </property>
-     <item>
-      <property name="text">
-       <string>Current selection</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>List of users</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Channel</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="3" column="0" colspan="2">
-    <widget class="QDialogButtonBox" name="qbbButtons">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <tabstops>
-  <tabstop>qlwUsers</tabstop>
-  <tabstop>qcbUser</tabstop>
-  <tabstop>qpbAdd</tabstop>
-  <tabstop>qpbRemove</tabstop>
-  <tabstop>qtwChannels</tabstop>
-  <tabstop>qleGroup</tabstop>
-  <tabstop>qcbLinks</tabstop>
-  <tabstop>qcbChildren</tabstop>
-  <tabstop>qcbForceCenter</tabstop>
-  <tabstop>qbbButtons</tabstop>
- </tabstops>
- <resources/>
- <connections>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>accepted()</signal>
-   <receiver>GlobalShortcutTarget</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>227</x>
-     <y>290</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>157</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>rejected()</signal>
-   <receiver>GlobalShortcutTarget</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>295</x>
-     <y>296</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "G15LCDEngine_lglcd.h"
+
+#define G15_MAX_DEV 5
+#define G15_MAX_WIDTH 160
+#define G15_MAX_HEIGHT 43
+#define G15_MAX_BPP 1
+#define G15_MAX_FBMEM (G15_MAX_WIDTH * G15_MAX_HEIGHT * G15_MAX_BPP)
+#define G15_MAX_FBMEM_BITS (G15_MAX_FBMEM / 8)
+#if defined(WIN32)
+#	define G15_WIDGET_NAME L"Mumble G15 Display"
+#elif defined(APPLE)
+#	define G15_WIDGET_NAME CFSTR("Mumble G15 Display")
+#endif
+
+static LCDEngine *G15LCDEngineNew() {
+	return new G15LCDEngineLGLCD();
+}
+
+static LCDEngineRegistrar registrar(G15LCDEngineNew);
+
+G15LCDEngineLGLCD::G15LCDEngineLGLCD() : LCDEngine() {
+	DWORD dwErr;
+
+	ZeroMemory(&llcceConnect, sizeof(llcceConnect));
+	ZeroMemory(&llcContext, sizeof(llcContext));
+
+	llcceConnect.appFriendlyName               = G15_WIDGET_NAME;
+	llcceConnect.isAutostartable               = FALSE;
+	llcceConnect.isPersistent                  = FALSE;
+	llcceConnect.dwAppletCapabilitiesSupported = LGLCD_APPLET_CAP_BASIC | LGLCD_APPLET_CAP_BW;
+	llcceConnect.connection                    = LGLCD_INVALID_CONNECTION;
+
+	llcContext.device = LGLCD_INVALID_DEVICE;
+
+	dwErr = lgLcdInit();
+	if (dwErr != ERROR_SUCCESS) {
+		qWarning() << "LGLCD: Unable to initialize Logitech LCD library" << dwErr;
+		return;
+	}
+
+	dwErr = lgLcdConnectEx(&llcceConnect);
+	if (dwErr != ERROR_SUCCESS) {
+		qWarning() << "LGLCD: Unable to connect to Logitech LCD manager" << dwErr;
+		return;
+	}
+
+
+	qlDevices << new G15LCDDeviceLGLCD(this);
+
+	QMetaObject::connectSlotsByName(this);
+}
+
+G15LCDEngineLGLCD::~G15LCDEngineLGLCD() {
+	if (llcContext.device != LGLCD_INVALID_DEVICE) {
+		lgLcdClose(llcContext.device);
+		llcContext.device = LGLCD_INVALID_DEVICE;
+	}
+	if (llcceConnect.connection != LGLCD_INVALID_CONNECTION) {
+		lgLcdDisconnect(llcceConnect.connection);
+		llcceConnect.connection = LGLCD_INVALID_CONNECTION;
+	}
+	lgLcdDeInit();
+}
+
+QList< LCDDevice * > G15LCDEngineLGLCD::devices() const {
+	return qlDevices;
+}
+
+/* -- */
+
+G15LCDDeviceLGLCD::G15LCDDeviceLGLCD(G15LCDEngineLGLCD *e) : LCDDevice(), bEnabled(false) {
+	engine = e;
+}
+
+G15LCDDeviceLGLCD::~G15LCDDeviceLGLCD() {
+}
+
+bool G15LCDDeviceLGLCD::enabled() {
+	return bEnabled;
+}
+
+void G15LCDDeviceLGLCD::setEnabled(bool b) {
+	bEnabled = b;
+
+	if (bEnabled && (engine->llcContext.device == LGLCD_INVALID_DEVICE)) {
+		ZeroMemory(&engine->llcContext, sizeof(engine->llcContext));
+		engine->llcContext.connection = engine->llcceConnect.connection;
+		engine->llcContext.device     = LGLCD_INVALID_DEVICE;
+		engine->llcContext.deviceType = LGLCD_DEVICE_BW;
+
+		DWORD dwErr = lgLcdOpenByType(&engine->llcContext);
+
+	} else if (!bEnabled && (engine->llcContext.device != LGLCD_INVALID_DEVICE)) {
+		lgLcdClose(engine->llcContext.device);
+		engine->llcContext.device = LGLCD_INVALID_DEVICE;
+	}
+}
+
+void G15LCDDeviceLGLCD::blitImage(QImage *img, bool alert) {
+	Q_ASSERT(img);
+	int len    = G15_MAX_FBMEM_BITS;
+	uchar *tmp = img->bits();
+
+	lgLcdBitmap160x43x1 bitmap;
+	unsigned char *buf = bitmap.pixels;
+
+	if (engine->llcContext.device == LGLCD_INVALID_DEVICE)
+		return;
+
+	if (!bEnabled)
+		return;
+
+	/*
+	 * The amount of copying/conversion we're doing is hideous.
+	 *
+	 * To draw to the LCD display using Logitech's SDK, we need to pass
+	 * it a byte array (in which each byte represents a single pixel on
+	 * the LCD.)
+	 *
+	 * Unfortunately, there's no way out, really.  We *could* perhaps draw
+	 * directly to a monochrome "bytemap" (via Format_Indexed8, and a mono-
+	 * chrome colormap), but QPainter simply doesn't want to draw to a
+	 * QImage of Format_Indexed8.
+	 *
+	 * (What's even worse is that the byte array passed to the Logitech SDK
+	 * isn't even the native format of the LCD. It has to convert it once
+	 * more, when it receives a frame.)
+	 */
+	for (int i = 0; i < len; i++) {
+		int idx      = i * 8;
+		buf[idx + 7] = tmp[i] & 0x80 ? 0xff : 0x00;
+		buf[idx + 6] = tmp[i] & 0x40 ? 0xff : 0x00;
+		buf[idx + 5] = tmp[i] & 0x20 ? 0xff : 0x00;
+		buf[idx + 4] = tmp[i] & 0x10 ? 0xff : 0x00;
+		buf[idx + 3] = tmp[i] & 0x08 ? 0xff : 0x00;
+		buf[idx + 2] = tmp[i] & 0x04 ? 0xff : 0x00;
+		buf[idx + 1] = tmp[i] & 0x02 ? 0xff : 0x00;
+		buf[idx + 0] = tmp[i] & 0x01 ? 0xff : 0x00;
+	}
+
+	bitmap.hdr.Format = LGLCD_BMP_FORMAT_160x43x1;
+
+	DWORD dwErr =
+		lgLcdUpdateBitmap(engine->llcContext.device, &bitmap.hdr,
+						  alert ? LGLCD_SYNC_UPDATE(LGLCD_PRIORITY_ALERT) : LGLCD_SYNC_UPDATE(LGLCD_PRIORITY_NORMAL));
+}
+
+QString G15LCDDeviceLGLCD::name() const {
+	return QString::fromLatin1("Logitech Gamepanel");
+}
+
+QSize G15LCDDeviceLGLCD::size() const {
+	return QSize(G15_MAX_WIDTH, G15_MAX_HEIGHT);
+}
