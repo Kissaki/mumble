@@ -3,341 +3,793 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Overlay.h"
+#include "Plugins.h"
 
-#include "Channel.h"
+#include "../../plugins/mumble_plugin.h"
+#include "Log.h"
 #include "MainWindow.h"
+#include "Message.h"
 #include "MumbleApplication.h"
-#include "OverlayConfig.h"
-#include "User.h"
+#include "ServerHandler.h"
+#include "Utils.h"
+#include "WebFetch.h"
+#ifdef USE_MANUAL_PLUGIN
+#	include "ManualPlugin.h"
+#endif
 
-#include "Overlay_win.h"
+#include <QtCore/QLibrary>
+#include <QtCore/QUrlQuery>
 
-#include "../../overlay/overlay_exe/overlay_exe.h"
+#ifdef Q_OS_WIN
+#	include <QtCore/QTemporaryFile>
+#endif
+
+#include <QtWidgets/QMessageBox>
+#include <QtXml/QDomDocument>
+
+#ifdef Q_OS_WIN
+#	include <softpub.h>
+#	include <tlhelp32.h>
+#endif
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-// Used by the overlay to detect whether we injected into ourselves.
-//
-// A similar declaration can be found in mumble_exe's Overlay.cpp,
-// for the overlay's self-detection checks to continue working in a
-// mumble_app.dll world.
-extern "C" __declspec(dllexport) void mumbleSelfDetection(){};
+const QString PluginConfig::name = QLatin1String("PluginConfig");
 
-// Determine if the current Mumble client is able to host
-// x64 programs.
-//
-// If we're on x86, we use use the IsWoW64Process function
-// to determine this.  If we're on x64, we already know we're
-// capable, so we simply return TRUE.
-static bool canRun64BitPrograms() {
-#if defined(_M_X64)
-	return TRUE;
-#elif defined(_M_IX86)
-	typedef BOOL(WINAPI * IsWow64ProcessPtr)(HANDLE, BOOL *);
-	IsWow64ProcessPtr wow64check = (IsWow64ProcessPtr) GetProcAddress(GetModuleHandle(L"kernel32"), "IsWow64Process");
-	if (wow64check) {
-		BOOL isWoW64 = FALSE;
-		wow64check(GetCurrentProcess(), &isWoW64);
-		return isWoW64;
+static ConfigWidget *PluginConfigDialogNew(Settings &st) {
+	return new PluginConfig(st);
+}
+
+static ConfigRegistrar registrar(5000, PluginConfigDialogNew);
+
+struct PluginInfo {
+	bool locked;
+	bool enabled;
+	QLibrary lib;
+	QString filename;
+	QString description;
+	QString shortname;
+	MumblePlugin *p;
+	MumblePlugin2 *p2;
+	MumblePluginQt *pqt;
+	PluginInfo();
+};
+
+PluginInfo::PluginInfo() {
+	locked  = false;
+	enabled = false;
+	p       = nullptr;
+	p2      = nullptr;
+	pqt     = nullptr;
+}
+
+struct PluginFetchMeta {
+	QString hash;
+	QString path;
+
+	PluginFetchMeta(const QString &hash_ = QString(), const QString &path_ = QString())
+		: hash(hash_), path(path_) { /* Empty */
 	}
-	return FALSE;
+};
+
+
+PluginConfig::PluginConfig(Settings &st) : ConfigWidget(st) {
+	setupUi(this);
+	qtwPlugins->setAccessibleName(tr("Plugins"));
+	qtwPlugins->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+	qtwPlugins->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+
+	refillPluginList();
+}
+
+QString PluginConfig::title() const {
+	return tr("Plugins");
+}
+
+const QString &PluginConfig::getName() const {
+	return PluginConfig::name;
+}
+
+QIcon PluginConfig::icon() const {
+	return QIcon(QLatin1String("skin:config_plugin.png"));
+}
+
+void PluginConfig::load(const Settings &r) {
+	loadCheckBox(qcbTransmit, r.bTransmitPosition);
+}
+
+void PluginConfig::save() const {
+	QReadLocker lock(&g.p->qrwlPlugins);
+
+	s.bTransmitPosition = qcbTransmit->isChecked();
+	s.qmPositionalAudioPlugins.clear();
+
+	QList< QTreeWidgetItem * > list = qtwPlugins->findItems(QString(), Qt::MatchContains);
+	foreach (QTreeWidgetItem *i, list) {
+		bool enabled = (i->checkState(1) == Qt::Checked);
+
+		PluginInfo *pi = pluginForItem(i);
+		if (pi) {
+			s.qmPositionalAudioPlugins.insert(pi->filename, enabled);
+			pi->enabled = enabled;
+		}
+	}
+}
+
+PluginInfo *PluginConfig::pluginForItem(QTreeWidgetItem *i) const {
+	if (i) {
+		foreach (PluginInfo *pi, g.p->qlPlugins) {
+			if (pi->filename == i->data(0, Qt::UserRole).toString())
+				return pi;
+		}
+	}
+	return nullptr;
+}
+
+void PluginConfig::on_qpbConfig_clicked() {
+	PluginInfo *pi;
+	{
+		QReadLocker lock(&g.p->qrwlPlugins);
+		pi = pluginForItem(qtwPlugins->currentItem());
+	}
+
+	if (!pi)
+		return;
+
+	if (pi->pqt && pi->pqt->config) {
+		pi->pqt->config(this);
+	} else if (pi->p->config) {
+		pi->p->config(0);
+	} else {
+		QMessageBox::information(this, QLatin1String("Mumble"), tr("Plugin has no configure function."),
+								 QMessageBox::Ok, QMessageBox::NoButton);
+	}
+}
+
+void PluginConfig::on_qpbAbout_clicked() {
+	PluginInfo *pi;
+	{
+		QReadLocker lock(&g.p->qrwlPlugins);
+		pi = pluginForItem(qtwPlugins->currentItem());
+	}
+
+	if (!pi)
+		return;
+
+	if (pi->pqt && pi->pqt->about) {
+		pi->pqt->about(this);
+	} else if (pi->p->about) {
+		pi->p->about(0);
+	} else {
+		QMessageBox::information(this, QLatin1String("Mumble"), tr("Plugin has no about function."), QMessageBox::Ok,
+								 QMessageBox::NoButton);
+	}
+}
+
+void PluginConfig::on_qpbReload_clicked() {
+	g.p->rescanPlugins();
+	refillPluginList();
+}
+
+void PluginConfig::refillPluginList() {
+	QReadLocker lock(&g.p->qrwlPlugins);
+	qtwPlugins->clear();
+
+	foreach (PluginInfo *pi, g.p->qlPlugins) {
+		QTreeWidgetItem *i = new QTreeWidgetItem(qtwPlugins);
+		i->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+		i->setCheckState(1, pi->enabled ? Qt::Checked : Qt::Unchecked);
+		i->setText(0, pi->description);
+		if (pi->p->longdesc)
+			i->setToolTip(0, QString::fromStdWString(pi->p->longdesc()).toHtmlEscaped());
+		i->setData(0, Qt::UserRole, pi->filename);
+	}
+	qtwPlugins->setCurrentItem(qtwPlugins->topLevelItem(0));
+	on_qtwPlugins_currentItemChanged(qtwPlugins->topLevelItem(0), nullptr);
+}
+
+void PluginConfig::on_qtwPlugins_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *) {
+	QReadLocker lock(&g.p->qrwlPlugins);
+
+	PluginInfo *pi = pluginForItem(current);
+	if (pi) {
+		bool showAbout = false;
+		if (pi->p->about) {
+			showAbout = true;
+		}
+		if (pi->pqt && pi->pqt->about) {
+			showAbout = true;
+		}
+		qpbAbout->setEnabled(showAbout);
+
+		bool showConfig = false;
+		if (pi->p->config) {
+			showConfig = true;
+		}
+		if (pi->pqt && pi->pqt->config) {
+			showConfig = true;
+		}
+		qpbConfig->setEnabled(showConfig);
+	} else {
+		qpbAbout->setEnabled(false);
+		qpbConfig->setEnabled(false);
+	}
+}
+
+Plugins::Plugins(QObject *p) : QObject(p) {
+	QTimer *timer = new QTimer(this);
+	timer->setObjectName(QLatin1String("Timer"));
+	timer->start(500);
+	locked = prevlocked = nullptr;
+	bValid              = false;
+	iPluginTry          = 0;
+	for (int i = 0; i < 3; i++)
+		fPosition[i] = fFront[i] = fTop[i] = 0.0;
+	QMetaObject::connectSlotsByName(this);
+
+#ifdef QT_NO_DEBUG
+#	ifndef MUMBLE_PLUGIN_PATH
+	qsSystemPlugins =
+		QString::fromLatin1("%1/plugins").arg(MumbleApplication::instance()->applicationVersionRootPath());
+#		ifdef Q_OS_MAC
+	qsSystemPlugins = QString::fromLatin1("%1/../Plugins").arg(qApp->applicationDirPath());
+#		endif
+#	else
+	qsSystemPlugins = QLatin1String(MUMTEXT(MUMBLE_PLUGIN_PATH));
+#	endif
+
+	qsUserPlugins = g.qdBasePath.absolutePath() + QLatin1String("/Plugins");
+#else
+#	ifdef MUMBLE_PLUGIN_PATH
+	qsSystemPlugins = QLatin1String(MUMTEXT(MUMBLE_PLUGIN_PATH));
+#	else
+	qsSystemPlugins = QString();
+#	endif
+
+	qsUserPlugins = QString::fromLatin1("%1/plugins").arg(MumbleApplication::instance()->applicationVersionRootPath());
+#endif
+
+#ifdef Q_OS_WIN
+	// According to MS KB Q131065, we need this to OpenProcess()
+
+	hToken = nullptr;
+
+	if (!OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, FALSE, &hToken)) {
+		if (GetLastError() == ERROR_NO_TOKEN) {
+			ImpersonateSelf(SecurityImpersonation);
+			OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, FALSE, &hToken);
+		}
+	}
+
+	TOKEN_PRIVILEGES tp;
+	LUID luid;
+	cbPrevious = sizeof(TOKEN_PRIVILEGES);
+
+	LookupPrivilegeValue(nullptr, SE_DEBUG_NAME, &luid);
+
+	tp.PrivilegeCount           = 1;
+	tp.Privileges[0].Luid       = luid;
+	tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+	AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &tpPrevious, &cbPrevious);
 #endif
 }
 
-OverlayPrivateWin::OverlayPrivateWin(QObject *p)
-	: OverlayPrivate(p), m_helper_enabled(true), m_helper64_enabled(true), m_mumble_handle(0), m_active(false) {
-	// Acquire a handle to ourselves and duplicate it. We duplicate it because
-	// want it to be inheritable by our helper processes, and the handle returned
-	// by GetCurrentProcess is not inheritable. Duplicating it makes it inheritable.
-	// This allows our helper processes to access the handle.
-	//
-	// The helper processes need a handle to us, their parent, to be able to listen
-	// detect when our process dies.
-	//
-	// The value of the handle is passed as an argument to the helper processes via
-	// the command line as a number. The HANDLE type in Windows is typedef'd to LPVOID,
-	// but for handles that are supposed to be shared between processes (like a process
-	// handle that we are using), only the lower 32-bits of the HANDLE are considered:
-	//
-	//   "When sharing a handle between 32-bit and 64-bit applications, only the lower
-	//    32 bits are significant [...]"
-	//
-	// from https://msdn.microsoft.com/en-us/library/aa384203.aspx
-	HANDLE curproc = GetCurrentProcess();
-	if (!DuplicateHandle(curproc, curproc, curproc, &m_mumble_handle, 0, TRUE, DUPLICATE_SAME_ACCESS)) {
-		qFatal("OverlayPrivateWin: unable to duplicate handle to the Mumble process.");
+Plugins::~Plugins() {
+	clearPlugins();
+
+#ifdef Q_OS_WIN
+	AdjustTokenPrivileges(hToken, FALSE, &tpPrevious, cbPrevious, nullptr, nullptr);
+	CloseHandle(hToken);
+#endif
+}
+
+void Plugins::clearPlugins() {
+	QWriteLocker lock(&g.p->qrwlPlugins);
+	foreach (PluginInfo *pi, qlPlugins) {
+		if (pi->locked)
+			pi->p->unlock();
+		pi->lib.unload();
+		delete pi;
+	}
+	qlPlugins.clear();
+}
+
+void Plugins::rescanPlugins() {
+	clearPlugins();
+
+	QWriteLocker lock(&g.p->qrwlPlugins);
+	prevlocked = locked = nullptr;
+	bValid              = false;
+
+	QDir qd(qsSystemPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
+	QDir qud(qsUserPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
+	QFileInfoList libs = qud.entryInfoList() + qd.entryInfoList();
+
+	QSet< QString > evaluated;
+	foreach (const QFileInfo &libinfo, libs) {
+		QString fname   = libinfo.fileName();
+		QString libname = libinfo.absoluteFilePath();
+		if (!evaluated.contains(fname) && QLibrary::isLibrary(libname)) {
+			PluginInfo *pi = new PluginInfo();
+			pi->lib.setFileName(libname);
+			pi->filename = fname;
+			if (pi->lib.load()) {
+				mumblePluginFunc mpf = reinterpret_cast< mumblePluginFunc >(pi->lib.resolve("getMumblePlugin"));
+				if (mpf) {
+					evaluated.insert(fname);
+					pi->p = mpf();
+
+					// Check whether the plugin has a valid plugin magic and that it's not retracted.
+					// A retracted plugin is a plugin that clients should disregard, typically because
+					// the game the plugin was written for now provides positional audio via the
+					// link plugin (see null_plugin.cpp).
+					if (pi->p && pi->p->magic == MUMBLE_PLUGIN_MAGIC && pi->p->shortname != L"Retracted") {
+						pi->description = QString::fromStdWString(pi->p->description);
+						pi->shortname   = QString::fromStdWString(pi->p->shortname);
+						pi->enabled     = g.s.qmPositionalAudioPlugins.value(pi->filename, true);
+
+						mumblePlugin2Func mpf2 =
+							reinterpret_cast< mumblePlugin2Func >(pi->lib.resolve("getMumblePlugin2"));
+						if (mpf2) {
+							pi->p2 = mpf2();
+							if (pi->p2->magic != MUMBLE_PLUGIN_MAGIC_2) {
+								pi->p2 = nullptr;
+							}
+						}
+
+						mumblePluginQtFunc mpfqt =
+							reinterpret_cast< mumblePluginQtFunc >(pi->lib.resolve("getMumblePluginQt"));
+						if (mpfqt) {
+							pi->pqt = mpfqt();
+							if (pi->pqt->magic != MUMBLE_PLUGIN_MAGIC_QT) {
+								pi->pqt = nullptr;
+							}
+						}
+
+						qlPlugins << pi;
+						continue;
+					}
+				}
+				pi->lib.unload();
+			} else {
+				qWarning("Plugins: Failed to load %s: %s", qPrintable(pi->filename), qPrintable(pi->lib.errorString()));
+			}
+			delete pi;
+		}
+	}
+
+	// Handle built-in plugins
+	{
+#if defined(USE_MANUAL_PLUGIN)
+		// Manual plugin
+		PluginInfo *pi  = new PluginInfo();
+		pi->filename    = QLatin1String("manual.builtin");
+		pi->p           = ManualPlugin_getMumblePlugin();
+		pi->pqt         = ManualPlugin_getMumblePluginQt();
+		pi->description = QString::fromStdWString(pi->p->description);
+		pi->shortname   = QString::fromStdWString(pi->p->shortname);
+		pi->enabled     = g.s.qmPositionalAudioPlugins.value(pi->filename, true);
+		qlPlugins << pi;
+#endif
+	}
+}
+
+bool Plugins::fetch() {
+	if (g.bPosTest) {
+		fPosition[0] = fPosition[1] = fPosition[2] = 0.0f;
+		fFront[0]                                  = 0.0f;
+		fFront[1]                                  = 0.0f;
+		fFront[2]                                  = 1.0f;
+		fTop[0]                                    = 0.0f;
+		fTop[1]                                    = 1.0f;
+		fTop[2]                                    = 0.0f;
+
+		for (int i = 0; i < 3; ++i) {
+			fCameraPosition[i] = fPosition[i];
+			fCameraFront[i]    = fFront[i];
+			fCameraTop[i]      = fTop[i];
+		}
+
+		bValid = true;
+		return true;
+	}
+
+	if (!locked) {
+		bValid = false;
+		return bValid;
+	}
+
+	QReadLocker lock(&qrwlPlugins);
+	if (!locked) {
+		bValid = false;
+		return bValid;
+	}
+
+	if (!locked->enabled)
+		bUnlink = true;
+
+	bool ok;
+	{
+		QMutexLocker mlock(&qmPluginStrings);
+		ok = locked->p->fetch(fPosition, fFront, fTop, fCameraPosition, fCameraFront, fCameraTop, ssContext,
+							  swsIdentity);
+	}
+	if (!ok || bUnlink) {
+		lock.unlock();
+		QWriteLocker wlock(&qrwlPlugins);
+
+		if (locked) {
+			locked->p->unlock();
+			locked->locked = false;
+			prevlocked     = locked;
+			locked         = nullptr;
+			for (int i = 0; i < 3; i++)
+				fPosition[i] = fFront[i] = fTop[i] = fCameraPosition[i] = fCameraFront[i] = fCameraTop[i] = 0.0f;
+		}
+	}
+	bValid = ok;
+	return bValid;
+}
+
+void Plugins::on_Timer_timeout() {
+	fetch();
+
+	QReadLocker lock(&qrwlPlugins);
+
+	if (prevlocked) {
+		g.l->log(Log::Information, tr("%1 lost link.").arg(prevlocked->shortname.toHtmlEscaped()));
+		prevlocked = nullptr;
+	}
+
+
+	{
+		QMutexLocker mlock(&qmPluginStrings);
+
+		if (!locked) {
+			ssContext.clear();
+			swsIdentity.clear();
+		}
+
+		std::string context;
+		if (locked)
+			context.assign(u8(QString::fromStdWString(locked->p->shortname)) + static_cast< char >(0) + ssContext);
+
+		if (!g.uiSession) {
+			ssContextSent.clear();
+			swsIdentitySent.clear();
+		} else if ((context != ssContextSent) || (swsIdentity != swsIdentitySent)) {
+			MumbleProto::UserState mpus;
+			mpus.set_session(g.uiSession);
+			if (context != ssContextSent) {
+				ssContextSent.assign(context);
+				mpus.set_plugin_context(context);
+			}
+			if (swsIdentity != swsIdentitySent) {
+				swsIdentitySent.assign(swsIdentity);
+				mpus.set_plugin_identity(u8(QString::fromStdWString(swsIdentitySent)));
+			}
+			if (g.sh)
+				g.sh->sendMessage(mpus);
+		}
+	}
+
+	if (locked) {
 		return;
 	}
 
-	m_helper_exe_path =
-		QString::fromLatin1("%1/mumble_ol_helper.exe").arg(MumbleApplication::instance()->applicationVersionRootPath());
-	m_helper_exe_args << QString::number(OVERLAY_MAGIC_NUMBER)
-					  << QString::number(reinterpret_cast< quintptr >(m_mumble_handle));
-	m_helper_process = new QProcess(this);
-
-	connect(m_helper_process, SIGNAL(started()), this, SLOT(onHelperProcessStarted()));
-
-	connect(m_helper_process, SIGNAL(error(QProcess::ProcessError)), this,
-			SLOT(onHelperProcessError(QProcess::ProcessError)));
-
-	connect(m_helper_process, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-			SLOT(onHelperProcessExited(int, QProcess::ExitStatus)));
-
-	m_helper_restart_timer = new QTimer(this);
-	m_helper_restart_timer->setSingleShot(true);
-	connect(m_helper_restart_timer, SIGNAL(timeout()), this, SLOT(onDelayedRestartTimerTriggered()));
-
-	if (!g.s.bOverlayWinHelperX86Enable) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper.exe (32-bit overlay helper) disabled via "
-				 "'overlay_win/enable_x86_helper' config option.");
-		m_helper_enabled = false;
-	}
-
-	m_helper64_exe_path = QString::fromLatin1("%1/mumble_ol_helper_x64.exe")
-							  .arg(MumbleApplication::instance()->applicationVersionRootPath());
-	m_helper64_exe_args = m_helper_exe_args;
-	m_helper64_process  = new QProcess(this);
-
-	connect(m_helper64_process, SIGNAL(started()), this, SLOT(onHelperProcessStarted()));
-
-	connect(m_helper64_process, SIGNAL(error(QProcess::ProcessError)), this,
-			SLOT(onHelperProcessError(QProcess::ProcessError)));
-
-	connect(m_helper64_process, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-			SLOT(onHelperProcessExited(int, QProcess::ExitStatus)));
-
-	m_helper64_restart_timer = new QTimer(this);
-	m_helper64_restart_timer->setSingleShot(true);
-	connect(m_helper64_restart_timer, SIGNAL(timeout()), this, SLOT(onDelayedRestartTimerTriggered()));
-
-	if (!canRun64BitPrograms()) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper_x64.exe (64-bit overlay helper) disabled because the host is not "
-				 "x64 capable.");
-		m_helper64_enabled = false;
-	} else if (!g.s.bOverlayWinHelperX64Enable) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper_x64.exe (64-bit overlay helper) disabled via "
-				 "'overlay_win/enable_x64_helper' config option.");
-		m_helper64_enabled = false;
-	}
-}
-
-OverlayPrivateWin::~OverlayPrivateWin() {
-	m_active = false;
-
-	if (!CloseHandle(m_mumble_handle)) {
-		qFatal("OverlayPrivateWin: unable to close Mumble process handle.");
+	if (!g.s.bTransmitPosition)
 		return;
-	}
 
-	// Remove all signals, so they don't
-	// interfere with our calls to waitForFinished
-	// below.
-	m_helper_process->disconnect();
-	m_helper64_process->disconnect();
+	lock.unlock();
+	QWriteLocker wlock(&qrwlPlugins);
 
-	m_helper_process->terminate();
-	m_helper64_process->terminate();
-
-	m_helper_process->waitForFinished();
-	m_helper64_process->waitForFinished();
-}
-
-void OverlayPrivateWin::startHelper(QProcess *helper) {
-	if (helper->state() == QProcess::NotRunning) {
-		if (helper == m_helper_process) {
-			helper->start(m_helper_exe_path, m_helper_exe_args);
-			m_helper_start_time.restart();
-		} else if (helper == m_helper64_process) {
-			helper->start(m_helper64_exe_path, m_helper64_exe_args);
-			m_helper64_start_time.restart();
-		} else {
-			qFatal("OverlayPrivateWin: invalid helper passed to startHelper().");
-		}
-	} else {
-		qWarning("OverlayPrivateWin: startHelper() called while process is already running. skipping.");
-	}
-}
-
-void OverlayPrivateWin::setActive(bool active) {
-	if (m_active != active) {
-		m_active = active;
-
-		if (m_active) {
-			if (m_helper_enabled) {
-				startHelper(m_helper_process);
-			}
-			if (m_helper64_enabled) {
-				startHelper(m_helper64_process);
-			}
-		} else {
-			if (m_helper_enabled) {
-				m_helper_process->terminate();
-			}
-			if (m_helper64_enabled) {
-				m_helper64_process->terminate();
-			}
-		}
-	}
-}
-
-static const char *exitStatusString(QProcess::ExitStatus exitStatus) {
-	switch (exitStatus) {
-		case QProcess::NormalExit:
-			return "normal exit";
-		case QProcess::CrashExit:
-			return "crash";
-	}
-
-	return "unknown";
-}
-
-static const char *processErrorString(QProcess::ProcessError processError) {
-	switch (processError) {
-		case QProcess::FailedToStart:
-			return "process failed to start";
-		case QProcess::Crashed:
-			return "process crashed";
-		case QProcess::Timedout:
-			return "process wait operation timed out";
-		case QProcess::WriteError:
-			return "an error occurred when attempting to write to the process";
-		case QProcess::ReadError:
-			return "an error occurred when attempting to read from the process";
-		case QProcess::UnknownError:
-			return "an unknown error occurred";
-	}
-
-	return "unknown";
-}
-
-void OverlayPrivateWin::onHelperProcessStarted() {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-	QString path;
-	if (helper == m_helper_process) {
-		path = m_helper_exe_path;
-	} else if (helper == m_helper64_process) {
-		path = m_helper64_exe_path;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessStarted().");
-	}
-
-	PROCESS_INFORMATION *pi = helper->pid();
-	qWarning("OverlayPrivateWin: overlay helper process '%s' started with PID %llu.", qPrintable(path),
-			 static_cast< unsigned long long >(pi->dwProcessId));
-}
-
-void OverlayPrivateWin::onHelperProcessError(QProcess::ProcessError processError) {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-	QString path;
-	if (helper == m_helper_process) {
-		path = m_helper_exe_path;
-	} else if (helper == m_helper64_process) {
-		path = m_helper64_exe_path;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessError().");
-	}
-
-	qWarning("OverlayPrivateWin: an error occured for overlay helper process '%s': %s", qPrintable(path),
-			 processErrorString(processError));
-}
-
-void OverlayPrivateWin::onHelperProcessExited(int exitCode, QProcess::ExitStatus exitStatus) {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-
-	QString path;
-	qint64 elapsedMsec   = 0;
-	QTimer *restartTimer = nullptr;
-	if (helper == m_helper_process) {
-		path         = m_helper_exe_path;
-		elapsedMsec  = m_helper_start_time.elapsed();
-		restartTimer = m_helper_restart_timer;
-	} else if (helper == m_helper64_process) {
-		path         = m_helper64_exe_path;
-		elapsedMsec  = m_helper64_start_time.elapsed();
-		restartTimer = m_helper64_restart_timer;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessExited().");
-	}
-
-	const char *helperErrString = OverlayHelperErrorToString(static_cast< OverlayHelperError >(exitCode));
-	qWarning("OverlayPrivateWin: overlay helper process '%s' exited (%s) with status code %s.", qPrintable(path),
-			 exitStatusString(exitStatus), helperErrString ? helperErrString : qPrintable(QString::number(exitCode)));
-
-	// If the helper process exited while we're in 'active'
-	// mode, restart it.
-	if (m_active) {
-		// If the helper was only recently started, be
-		// a little more patient with restarting it.
-		// We could be hitting a crash bug in the helper,
-		// and we don't want to do too much harm in that
-		// case by spawning thousands of processes.
-		qint64 cooldownMsec = (qint64) g.s.iOverlayWinHelperRestartCooldownMsec;
-		if (elapsedMsec < cooldownMsec) {
-			qint64 delayMsec = cooldownMsec - elapsedMsec;
-			qWarning("OverlayPrivateWin: waiting %llu seconds until restarting helper process '%s'. last restart was "
-					 "%llu seconds ago.",
-					 (unsigned long long) delayMsec / 1000ULL, qPrintable(path),
-					 (unsigned long long) elapsedMsec / 1000ULL);
-			if (!restartTimer->isActive()) {
-				restartTimer->start(delayMsec);
-			}
-		} else {
-			startHelper(helper);
-		}
-	}
-}
-
-void OverlayPrivateWin::onDelayedRestartTimerTriggered() {
-	if (!m_active) {
+	if (qlPlugins.isEmpty())
 		return;
+
+	++iPluginTry;
+	if (iPluginTry >= qlPlugins.count())
+		iPluginTry = 0;
+
+	std::multimap< std::wstring, unsigned long long int > pids;
+#if defined(Q_OS_WIN)
+	PROCESSENTRY32 pe;
+
+	pe.dwSize    = sizeof(pe);
+	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (hSnap != INVALID_HANDLE_VALUE) {
+		BOOL ok = Process32First(hSnap, &pe);
+
+		while (ok) {
+			pids.insert(
+				std::pair< std::wstring, unsigned long long int >(std::wstring(pe.szExeFile), pe.th32ProcessID));
+			ok = Process32Next(hSnap, &pe);
+		}
+		CloseHandle(hSnap);
+	}
+#elif defined(Q_OS_LINUX)
+	QDir d(QLatin1String("/proc"));
+	QStringList entries = d.entryList();
+	bool ok;
+	foreach (const QString &entry, entries) {
+		// Check if the entry is a PID
+		// by checking whether it's a number.
+		// If it is not, skip it.
+		unsigned long long int pid = static_cast< unsigned long long int >(entry.toLongLong(&ok, 10));
+		if (!ok) {
+			continue;
+		}
+
+		QString exe = QFile::symLinkTarget(QString(QLatin1String("/proc/%1/exe")).arg(entry));
+		QFileInfo fi(exe);
+		QString firstPart      = fi.baseName();
+		QString completeSuffix = fi.completeSuffix();
+		QString baseName;
+		if (completeSuffix.isEmpty()) {
+			baseName = firstPart;
+		} else {
+			baseName = firstPart + QLatin1String(".") + completeSuffix;
+		}
+
+		if (baseName == QLatin1String("wine-preloader") || baseName == QLatin1String("wine64-preloader")) {
+			QFile f(QString(QLatin1String("/proc/%1/cmdline")).arg(entry));
+			if (f.open(QIODevice::ReadOnly)) {
+				QByteArray cmdline = f.readAll();
+				f.close();
+
+				int nul = cmdline.indexOf('\0');
+				if (nul != -1) {
+					cmdline.truncate(nul);
+				}
+
+				QString exe = QString::fromUtf8(cmdline);
+				if (exe.contains(QLatin1String("\\"))) {
+					int lastBackslash = exe.lastIndexOf(QLatin1String("\\"));
+					if (exe.count() > lastBackslash + 1) {
+						baseName = exe.mid(lastBackslash + 1);
+					}
+				}
+			}
+		}
+
+		if (!baseName.isEmpty()) {
+			pids.insert(std::pair< std::wstring, unsigned long long int >(baseName.toStdWString(), pid));
+		}
+	}
+#endif
+
+	PluginInfo *pi = qlPlugins.at(iPluginTry);
+	if (pi->enabled) {
+		if (pi->p2 ? pi->p2->trylock(pids) : pi->p->trylock()) {
+			pi->shortname = QString::fromStdWString(pi->p->shortname);
+			g.l->log(Log::Information, tr("%1 linked.").arg(pi->shortname.toHtmlEscaped()));
+			pi->locked = true;
+			bUnlink    = false;
+			locked     = pi;
+		}
+	}
+}
+
+void Plugins::checkUpdates() {
+	QUrl url;
+	url.setPath(QLatin1String("/v1/pa-plugins"));
+
+	QList< QPair< QString, QString > > queryItems;
+	queryItems << qMakePair(QString::fromUtf8("ver"),
+							QString::fromUtf8(QUrl::toPercentEncoding(QString::fromUtf8(MUMBLE_RELEASE))));
+#if defined(Q_OS_WIN)
+#	if defined(Q_OS_WIN64)
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("WinX64"));
+#	else
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("Win32"));
+#	endif
+	queryItems << qMakePair(QString::fromUtf8("abi"), QString::fromUtf8(MUMTEXT(_MSC_VER)));
+#elif defined(Q_OS_MAC)
+#	if defined(USE_MAC_UNIVERSAL)
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("MacOSX-Universal"));
+#	else
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("MacOSX"));
+#	endif
+#else
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("Unix"));
+#endif
+
+
+#ifdef QT_NO_DEBUG
+	QUrlQuery query;
+	query.setQueryItems(queryItems);
+	url.setQuery(query);
+
+	WebFetch::fetch(QLatin1String("update"), url, this, SLOT(fetchedUpdatePAPlugins(QByteArray, QUrl)));
+#else
+	g.mw->msgBox(tr("Skipping plugin update in debug mode."));
+#endif
+}
+
+void Plugins::fetchedUpdatePAPlugins(QByteArray data, QUrl) {
+	if (data.isNull())
+		return;
+
+	bool rescan = false;
+	qmPluginFetchMeta.clear();
+	QDomDocument doc;
+	doc.setContent(data);
+
+	QDomElement root = doc.documentElement();
+	QDomNode n       = root.firstChild();
+	while (!n.isNull()) {
+		QDomElement e = n.toElement();
+		if (!e.isNull()) {
+			if (e.tagName() == QLatin1String("plugin")) {
+				QString name = QFileInfo(e.attribute(QLatin1String("name"))).fileName();
+				QString hash = e.attribute(QLatin1String("hash"));
+				QString path = e.attribute(QLatin1String("path"));
+				qmPluginFetchMeta.insert(name, PluginFetchMeta(hash, path));
+			}
+		}
+		n = n.nextSibling();
 	}
 
-	QTimer *timer = qobject_cast< QTimer * >(sender());
+	QDir qd(qsSystemPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
+	QDir qdu(qsUserPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
 
-	QProcess *helper = nullptr;
-	if (timer == m_helper_restart_timer) {
-		helper = m_helper_process;
-	} else if (timer == m_helper64_restart_timer) {
-		helper = m_helper64_process;
-	} else {
-		qFatal("OverlayPrivateWin: unknown timer found in onDelayedRestartTimerTriggered().");
+	QFileInfoList libs = qd.entryInfoList();
+	foreach (const QFileInfo &libinfo, libs) {
+		QString libname     = libinfo.absoluteFilePath();
+		QString filename    = libinfo.fileName();
+		PluginFetchMeta pfm = qmPluginFetchMeta.value(filename);
+		QString wanthash    = pfm.hash;
+		if (!wanthash.isNull() && QLibrary::isLibrary(libname)) {
+			QFile f(libname);
+			if (wanthash.isEmpty()) {
+				// Outdated plugin
+				if (f.exists()) {
+					clearPlugins();
+					f.remove();
+					rescan = true;
+				}
+			} else if (f.open(QIODevice::ReadOnly)) {
+				QString h = QLatin1String(sha1(f.readAll()).toHex());
+				f.close();
+				if (h == wanthash) {
+					if (qd != qdu) {
+						QFile qfuser(qsUserPlugins + QString::fromLatin1("/") + filename);
+						if (qfuser.exists()) {
+							clearPlugins();
+							qfuser.remove();
+							rescan = true;
+						}
+					}
+					// Mark for removal from userplugins
+					qmPluginFetchMeta.insert(filename, PluginFetchMeta());
+				}
+			}
+		}
 	}
 
-	if (helper->state() == QProcess::NotRunning) {
-		startHelper(helper);
+	if (qd != qdu) {
+		libs = qdu.entryInfoList();
+		foreach (const QFileInfo &libinfo, libs) {
+			QString libname     = libinfo.absoluteFilePath();
+			QString filename    = libinfo.fileName();
+			PluginFetchMeta pfm = qmPluginFetchMeta.value(filename);
+			QString wanthash    = pfm.hash;
+			if (!wanthash.isNull() && QLibrary::isLibrary(libname)) {
+				QFile f(libname);
+				if (wanthash.isEmpty()) {
+					// Outdated plugin
+					if (f.exists()) {
+						clearPlugins();
+						f.remove();
+						rescan = true;
+					}
+				} else if (f.open(QIODevice::ReadOnly)) {
+					QString h = QLatin1String(sha1(f.readAll()).toHex());
+					f.close();
+					if (h == wanthash) {
+						qmPluginFetchMeta.remove(filename);
+					}
+				}
+			}
+		}
 	}
-}
+	QMap< QString, PluginFetchMeta >::const_iterator i;
+	for (i = qmPluginFetchMeta.constBegin(); i != qmPluginFetchMeta.constEnd(); ++i) {
+		PluginFetchMeta pfm = i.value();
+		if (!pfm.hash.isEmpty()) {
+			QUrl pluginDownloadUrl;
+			if (pfm.path.isEmpty()) {
+				pluginDownloadUrl.setPath(QString::fromLatin1("%1").arg(i.key()));
+			} else {
+				pluginDownloadUrl.setPath(pfm.path);
+			}
 
-void Overlay::platformInit() {
-	d = new OverlayPrivateWin(this);
-}
-
-void Overlay::setActiveInternal(bool act) {
-	if (d) {
-		// Only act if the private instance has been created already
-		static_cast< OverlayPrivateWin * >(d)->setActive(act);
+			WebFetch::fetch(QLatin1String("pa-plugin-dl"), pluginDownloadUrl, this,
+							SLOT(fetchedPAPluginDL(QByteArray, QUrl)));
+		}
 	}
+
+	if (rescan)
+		rescanPlugins();
 }
 
-bool OverlayConfig::supportsInstallableOverlay() {
-	return false;
-}
+void Plugins::fetchedPAPluginDL(QByteArray data, QUrl url) {
+	if (data.isNull())
+		return;
 
-bool OverlayConfig::isInstalled() {
-	return true;
-}
+	bool rescan = false;
 
-bool OverlayConfig::needsUpgrade() {
-	return false;
-}
+	const QString &urlPath = url.path();
+	QString fname          = QFileInfo(urlPath).fileName();
+	if (qmPluginFetchMeta.contains(fname)) {
+		PluginFetchMeta pfm = qmPluginFetchMeta.value(fname);
+		if (pfm.hash == QLatin1String(sha1(data).toHex())) {
+			bool verified = true;
+#ifdef Q_OS_WIN
+			verified = false;
+			QString tempname;
+			std::wstring tempnative;
+			{
+				QTemporaryFile temp(QDir::tempPath() + QLatin1String("/plugin_XXXXXX.dll"));
+				if (temp.open()) {
+					tempname   = temp.fileName();
+					tempnative = QDir::toNativeSeparators(tempname).toStdWString();
+					temp.write(data);
+					temp.setAutoRemove(false);
+				}
+			}
+			if (!tempname.isNull()) {
+				WINTRUST_FILE_INFO file;
+				ZeroMemory(&file, sizeof(file));
+				file.cbStruct      = sizeof(file);
+				file.pcwszFilePath = tempnative.c_str();
 
-bool OverlayConfig::installFiles() {
-	return false;
-}
+				WINTRUST_DATA data;
+				ZeroMemory(&data, sizeof(data));
+				data.cbStruct            = sizeof(data);
+				data.dwUIChoice          = WTD_UI_NONE;
+				data.fdwRevocationChecks = WTD_REVOKE_NONE;
+				data.dwUnionChoice       = WTD_CHOICE_FILE;
+				data.pFile               = &file;
+				data.dwProvFlags         = WTD_SAFER_FLAG | WTD_USE_DEFAULT_OSVER_CHECK;
+				data.dwUIContext         = WTD_UICONTEXT_INSTALL;
 
-bool OverlayConfig::uninstallFiles() {
-	return false;
+				static GUID guid = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+
+				LONG ts = WinVerifyTrust(0, &guid, &data);
+
+				QFile deltemp(tempname);
+				deltemp.remove();
+				verified = (ts == 0);
+			}
+#endif
+			if (verified) {
+				clearPlugins();
+
+				QFile f;
+				f.setFileName(qsSystemPlugins + QLatin1String("/") + fname);
+				if (f.open(QIODevice::WriteOnly)) {
+					f.write(data);
+					f.close();
+					g.mw->msgBox(tr("Downloaded new or updated plugin to %1.").arg(f.fileName().toHtmlEscaped()));
+				} else {
+					f.setFileName(qsUserPlugins + QLatin1String("/") + fname);
+					if (f.open(QIODevice::WriteOnly)) {
+						f.write(data);
+						f.close();
+						g.mw->msgBox(tr("Downloaded new or updated plugin to %1.").arg(f.fileName().toHtmlEscaped()));
+					} else {
+						g.mw->msgBox(tr("Failed to install new plugin to %1.").arg(f.fileName().toHtmlEscaped()));
+					}
+				}
+
+				rescan = true;
+			}
+		}
+	}
+
+	if (rescan)
+		rescanPlugins();
 }
