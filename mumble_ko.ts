@@ -3,163 +3,146 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ThemeInfo.h"
+#include "TextToSpeech.h"
 
-#include <QtCore/QDebug>
-#include <QtCore/QDir>
-#include <QtCore/QSettings>
-
-QFileInfo ThemeInfo::StyleInfo::getPlatformQss() const {
-#if defined(Q_OS_WIN)
-	return qssFiles.value(QLatin1String("WIN"), defaultQss);
-#elif defined(Q_OS_LINUX)
-	return qssFiles.value(QLatin1String("LINUX"), defaultQss);
-#elif defined(Q_OS_MAC)
-	return qssFiles.value(QLatin1String("MAC"), defaultQss);
-#else
-	return defaultQss;
+#ifdef USE_SPEECHD
+#	ifdef USE_SPEECHD_PKGCONFIG
+#		include <speech-dispatcher/libspeechd.h>
+#	else
+#		include <libspeechd.h>
+#	endif
 #endif
+
+#include <QtCore/QLocale>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+class TextToSpeechPrivate {
+#ifdef USE_SPEECHD
+protected:
+	SPDConnection *spd;
+	/// Used to store the requested volume of the TextToSpeech object
+	/// before speech-dispatcher has been initialized.
+	int volume;
+	bool initialized;
+	void ensureInitialized();
+#endif
+public:
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
+	void say(const QString &text);
+	void setVolume(int v);
+};
+
+#ifdef USE_SPEECHD
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	initialized = false;
+	volume      = -1;
+	spd         = nullptr;
 }
 
-boost::optional< ThemeInfo::StyleInfo > readStyleFromConfig(QSettings &themeConfig, const QString &styleId,
-															const ThemeInfo &theme, const QDir &themeDir) {
-	QRegExp qssPlatformRegex(QString::fromLatin1("^%1/qss_(.*)").arg(styleId));
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	if (spd) {
+		spd_close(spd);
+		spd = nullptr;
+	}
+}
 
-	ThemeInfo::StyleInfo style;
-
-	style.name      = themeConfig.value(QString::fromLatin1("%1/name").arg(styleId)).toString();
-	style.themeName = theme.name;
-	style.defaultQss =
-		QFileInfo(themeDir.filePath(themeConfig.value(QString::fromLatin1("%1/qss").arg(styleId)).toString()));
-
-	if (style.name.isNull()) {
-		qWarning() << "Style " << styleId << " of theme" << theme.name << " has no name, skipping theme";
-		return boost::none;
+void TextToSpeechPrivate::ensureInitialized() {
+	if (initialized) {
+		return;
 	}
 
-	if (!style.defaultQss.exists() || !style.defaultQss.isFile()) {
-		qWarning() << "Style " << style.name << " of theme " << theme.name << " references invalid qss "
-				   << style.defaultQss.filePath() << ", skipping theme";
-		return boost::none;
-	}
-
-	foreach (const QString &platformQssConfig, themeConfig.allKeys().filter(qssPlatformRegex)) {
-		qssPlatformRegex.indexIn(platformQssConfig);
-		const QString platform = qssPlatformRegex.cap(1);
-
-		QFileInfo platformQss = (themeDir.filePath(themeConfig.value(platformQssConfig).toString()));
-		if (!platformQss.exists() || !platformQss.isFile()) {
-			qWarning() << "Style" << style.name << " of theme " << theme.name << " references invalid qss "
-					   << platformQss.filePath() << " for platform " << platform << ", skipping theme";
-			return boost::none;
+	spd = spd_open("Mumble", nullptr, nullptr, SPD_MODE_THREADED);
+	if (!spd) {
+		qWarning("TextToSpeech: Failed to contact speech dispatcher.");
+	} else {
+		QString lang;
+		if (!g.s.qsTTSLanguage.isEmpty()) {
+			lang = g.s.qsTTSLanguage;
+		} else if (!g.s.qsLanguage.isEmpty()) {
+			QLocale locale(g.s.qsLanguage);
+			lang = locale.bcp47Name();
+		} else {
+			QLocale systemLocale;
+			lang = systemLocale.bcp47Name();
+		}
+		if (!lang.isEmpty()) {
+			if (spd_set_language(spd, lang.toLocal8Bit().constData()) != 0) {
+				qWarning("TextToSpeech: Failed to set language.");
+			}
 		}
 
-		style.qssFiles.insert(platform, platformQss);
+		if (spd_set_punctuation(spd, SPD_PUNCT_NONE) != 0)
+			qWarning("TextToSpech: Failed to set punctuation mode.");
+		if (spd_set_spelling(spd, SPD_SPELL_ON) != 0)
+			qWarning("TextToSpeech: Failed to set spelling mode.");
 	}
 
-	return style;
+	initialized = true;
+
+	if (volume != -1) {
+		setVolume(volume);
+	}
 }
 
-boost::optional< ThemeInfo > loadLegacyThemeInfo(const QDir &themeDirectory) {
-	ThemeInfo theme;
-	theme.name = themeDirectory.dirName();
+void TextToSpeechPrivate::say(const QString &txt) {
+	ensureInitialized();
 
-	QStringList filters;
-	filters << QLatin1String("*.qss");
-
-	foreach (const QFileInfo &qssFile, themeDirectory.entryInfoList(filters, QDir::Files)) {
-		ThemeInfo::StyleInfo style;
-		style.name       = qssFile.baseName();
-		style.themeName  = theme.name;
-		style.defaultQss = qssFile;
-
-		theme.styles.insert(style.name, style);
-	}
-
-	if (theme.styles.isEmpty()) {
-		qWarning() << themeDirectory.absolutePath() << " does not seem to contain a old-style theme, skipping";
-		return boost::none;
-	}
-
-	theme.defaultStyle = theme.styles.begin()->name;
-
-	return theme;
+	if (spd)
+		spd_say(spd, SPD_MESSAGE, txt.toUtf8());
 }
 
-boost::optional< ThemeInfo > ThemeInfo::load(const QDir &themeDirectory) {
-	QFile themeFile(themeDirectory.absoluteFilePath(QLatin1String("theme.ini")));
-	if (!themeFile.exists()) {
-		qWarning() << "Directory " << themeDirectory.absolutePath() << " has no theme.ini, trying fallback";
-
-		return loadLegacyThemeInfo(themeDirectory);
+void TextToSpeechPrivate::setVolume(int vol) {
+	if (!initialized) {
+		volume = vol;
+		return;
 	}
 
-	QSettings themeConfig(themeFile.fileName(), QSettings::IniFormat);
-	if (themeConfig.status() != QSettings::NoError) {
-		qWarning() << "Failed to load theme config from " << themeFile.fileName() << ", skipping";
-		return boost::none;
-	}
-
-	ThemeInfo theme;
-	QStringList styleIds;
-
-	theme.name = themeConfig.value(QLatin1String("theme/name")).toString();
-	styleIds   = themeConfig.value(QLatin1String("theme/styles")).toStringList();
-
-	if (theme.name.isNull()) {
-		qWarning() << "Theme in " << themeFile.fileName() << " does not have a name, skipping";
-		return boost::none;
-	}
-
-	if (styleIds.isEmpty()) {
-		qWarning() << "Theme " << theme.name << " doesn't have any styles, skipping";
-		return boost::none;
-	}
-
-	foreach (const QString &styleId, styleIds) {
-		boost::optional< ThemeInfo::StyleInfo > style =
-			readStyleFromConfig(themeConfig, styleId, theme, themeDirectory);
-		if (!style) {
-			return boost::none;
-		}
-		theme.styles.insert(style->name, *style);
-	}
-
-	theme.defaultStyle = theme.styles.begin()->name;
-
-	return theme;
+	if (spd)
+		spd_set_volume(spd, vol * 2 - 100);
+}
+#else
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	qWarning("TextToSpeech: Compiled without support for speech-dispatcher");
 }
 
-ThemeInfo::StyleInfo ThemeInfo::getStyle(QString name_) const {
-	Q_ASSERT(styles.contains(defaultStyle));
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+}
 
-	return styles.value(name_, styles.value(defaultStyle));
+void TextToSpeechPrivate::say(const QString &) {
+}
+
+void TextToSpeechPrivate::setVolume(int) {
+}
+#endif
+
+
+TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+	enabled = true;
+	d       = new TextToSpeechPrivate();
+}
+
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
+
+void TextToSpeech::say(const QString &text) {
+	if (enabled)
+		d->say(text);
+}
+
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
+
+void TextToSpeech::setVolume(int volume) {
+	d->setVolume(volume);
 }
 
 
-ThemeMap ThemeInfo::scanDirectory(const QDir &themesDirectory) {
-	ThemeMap themes;
-
-	foreach (const QFileInfo &subdirInfo, themesDirectory.entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot)) {
-		QDir subdir(subdirInfo.absoluteFilePath());
-
-		boost::optional< ThemeInfo > theme = ThemeInfo::load(subdir);
-		if (!theme) {
-			continue;
-		}
-
-		themes.insert(theme->name, *theme);
-	};
-
-	return themes;
-}
-
-ThemeMap ThemeInfo::scanDirectories(const QVector< QDir > &themesDirectories) {
-	ThemeMap themes;
-
-	foreach (const QDir &themesDirectory, themesDirectories) {
-		foreach (const ThemeInfo &theme, scanDirectory(themesDirectory)) { themes.insert(theme.name, theme); }
-	}
-
-	return themes;
+bool TextToSpeech::isEnabled() const {
+	return enabled;
 }
