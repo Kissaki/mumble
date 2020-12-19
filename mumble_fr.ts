@@ -3,84 +3,44 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_MANUALPLUGIN_H_
-#define MUMBLE_MUMBLE_MANUALPLUGIN_H_
+#ifndef MUMBLE_MUMBLE_GLOBALSHORTCUT_UNIX_H_
+#define MUMBLE_MUMBLE_GLOBALSHORTCUT_UNIX_H_
 
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QDialog>
-#include <QtWidgets/QGraphicsItem>
-#include <QtWidgets/QGraphicsScene>
+#include "ConfigDialog.h"
+#include "Global.h"
+#include "GlobalShortcut.h"
 
-#include "ui_ManualPlugin.h"
+#include <X11/X.h>
 
-#include "../../plugins/mumble_plugin.h"
+#define NUM_BUTTONS 0x2ff
 
-#include <atomic>
-#include <chrono>
+struct _XDisplay;
+typedef _XDisplay Display;
 
-struct Position2D {
-	float x;
-	float y;
-};
-
-// We need this typedef in order to be able to pass this hash as an argument
-// to QMetaObject::invokeMethod
-using PositionMap = QHash< unsigned int, Position2D >;
-Q_DECLARE_METATYPE(PositionMap);
-
-
-/// A struct holding information about a stale entry in the
-/// manual plugin's position window
-struct StaleEntry {
-	/// The time point since when this entry is considered stale
-	std::chrono::time_point< std::chrono::steady_clock > staleSince;
-	/// The pointer to the stale item
-	QGraphicsItem *staleItem;
-};
-
-class Manual : public QDialog, public Ui::Manual {
+class GlobalShortcutX : public GlobalShortcutEngine {
+private:
 	Q_OBJECT
+	Q_DISABLE_COPY(GlobalShortcutX)
 public:
-	Manual(QWidget *parent = 0);
+	Display *display;
+	QSet< Window > qsRootWindows;
+	int iXIopcode;
+	QSet< int > qsMasterDevices;
 
-	static void setSpeakerPositions(const QHash< unsigned int, Position2D > &positions);
+	volatile bool bRunning;
+	QSet< QString > qsKeyboards;
+	QMap< QString, QFile * > qmInputDevices;
 
+	GlobalShortcutX();
+	~GlobalShortcutX() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+	QString buttonName(const QVariant &) Q_DECL_OVERRIDE;
 
+	void queryXIMasterList();
 public slots:
-	void on_qpbUnhinge_pressed();
-	void on_qpbLinked_clicked(bool);
-	void on_qpbActivated_clicked(bool);
-	void on_qdsbX_valueChanged(double);
-	void on_qdsbY_valueChanged(double);
-	void on_qdsbZ_valueChanged(double);
-	void on_qsbAzimuth_valueChanged(int);
-	void on_qsbElevation_valueChanged(int);
-	void on_qdAzimuth_valueChanged(int);
-	void on_qdElevation_valueChanged(int);
-	void on_qleContext_editingFinished();
-	void on_qleIdentity_editingFinished();
-	void on_buttonBox_clicked(QAbstractButton *);
-	void on_qsbSilentUserDisplaytime_valueChanged(int);
-
-	void on_speakerPositionUpdate(PositionMap positions);
-
-	void on_updateStaleSpeakers();
-
-protected:
-	QGraphicsScene *qgsScene;
-	QGraphicsItem *qgiPosition;
-
-	std::atomic< bool > updateLoopRunning;
-
-	QHash< unsigned int, QGraphicsItem * > speakerPositions;
-	QHash< unsigned int, StaleEntry > staleSpeakerPositions;
-
-	bool eventFilter(QObject *, QEvent *);
-	void changeEvent(QEvent *e);
-	void updateTopAndFront(int orientation, int azimut);
+	void displayReadyRead(int);
+	void inputReadyRead(int);
+	void directoryChanged(const QString &);
 };
-
-MumblePlugin *ManualPlugin_getMumblePlugin();
-MumblePluginQt *ManualPlugin_getMumblePluginQt();
 
 #endif
