@@ -1,272 +1,270 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_GLOBALSHORTCUT_H_
-#define MUMBLE_MUMBLE_GLOBALSHORTCUT_H_
-
-#include <QtCore/QThread>
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QStyledItemDelegate>
-#include <QtWidgets/QToolButton>
-
-#include "ConfigDialog.h"
-#include "MUComboBox.h"
-#include "Timer.h"
-
-#include "ui_GlobalShortcut.h"
-#include "ui_GlobalShortcutTarget.h"
-
-class GlobalShortcut : public QObject {
-	friend class GlobalShortcutEngine;
-	friend class GlobalShortcutConfig;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(GlobalShortcut)
-protected:
-	QList< QVariant > qlActive;
-signals:
-	void down(QVariant);
-	void triggered(bool, QVariant);
-
-public:
-	QString qsToolTip;
-	QString qsWhatsThis;
-	QString name;
-	QVariant qvDefault;
-	int idx;
-
-	GlobalShortcut(QObject *parent, int index, QString qsName, QVariant def = QVariant());
-	~GlobalShortcut() Q_DECL_OVERRIDE;
-
-	bool active() const { return !qlActive.isEmpty(); }
-};
-
-/**
- * Widget used to define and key combination for a shortcut. Once it gains
- * focus it will listen for a button combination until it looses focus.
- */
-class ShortcutKeyWidget : public QLineEdit {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ShortcutKeyWidget)
-	Q_PROPERTY(QList< QVariant > shortcut READ getShortcut WRITE setShortcut USER true)
-protected:
-	virtual void focusInEvent(QFocusEvent *event);
-	virtual void focusOutEvent(QFocusEvent *event);
-	virtual void mouseDoubleClickEvent(QMouseEvent *e);
-	virtual bool eventFilter(QObject *, QEvent *);
-
-public:
-	QList< QVariant > qlButtons;
-	bool bModified;
-	ShortcutKeyWidget(QWidget *p = nullptr);
-	QList< QVariant > getShortcut() const;
-	void displayKeys(bool last = true);
-public slots:
-	void updateKeys(bool last);
-	void setShortcut(const QList< QVariant > &shortcut);
-signals:
-	void keySet(bool, bool);
-};
-
-/**
- * Combo box widget used to define the kind of action a shortcut triggers. Then
- * entries get auto-generated from the GlobalShortcutEngine::qmShortcuts store.
- *
- * @see GlobalShortcutEngine
- */
-class ShortcutActionWidget : public MUComboBox {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ShortcutActionWidget)
-	Q_PROPERTY(unsigned int index READ index WRITE setIndex USER true)
-public:
-	ShortcutActionWidget(QWidget *p = nullptr);
-	unsigned int index() const;
-	void setIndex(int);
-};
-
-class ShortcutToggleWidget : public MUComboBox {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ShortcutToggleWidget)
-	Q_PROPERTY(int index READ index WRITE setIndex USER true)
-public:
-	ShortcutToggleWidget(QWidget *p = nullptr);
-	int index() const;
-	void setIndex(int);
-};
-
-/**
- * Dialog which is used to select the targets of a targeted shortcut like Whisper.
- */
-class ShortcutTargetDialog : public QDialog, public Ui::GlobalShortcutTarget {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ShortcutTargetDialog)
-
-	enum Target { SELECTION = 0, USERLIST = 1, CHANNEL = 2 };
-
-protected:
-	QMap< QString, QString > qmHashNames;
-	ShortcutTarget stTarget;
-
-public:
-	ShortcutTargetDialog(const ShortcutTarget &, QWidget *p = nullptr);
-	ShortcutTarget target() const;
-public slots:
-	void accept() Q_DECL_OVERRIDE;
-	void on_qcbTarget_currentIndexChanged(int index);
-	void on_qpbAdd_clicked();
-	void on_qpbRemove_clicked();
-};
-
-enum ShortcutTargetTypes {
-	SHORTCUT_TARGET_ROOT              = -1,
-	SHORTCUT_TARGET_PARENT            = -2,
-	SHORTCUT_TARGET_CURRENT           = -3,
-	SHORTCUT_TARGET_SUBCHANNEL        = -4,
-	SHORTCUT_TARGET_PARENT_SUBCHANNEL = -12
-};
-
-/**
- * Widget used to display and change a ShortcutTarget. The widget displays a textual representation
- * of a ShortcutTarget and enable its editing with a ShortCutTargetDialog.
- */
-class ShortcutTargetWidget : public QFrame {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ShortcutTargetWidget)
-	Q_PROPERTY(ShortcutTarget target READ target WRITE setTarget USER true)
-protected:
-	ShortcutTarget stTarget;
-	QLineEdit *qleTarget;
-	QToolButton *qtbEdit;
-
-public:
-	ShortcutTargetWidget(QWidget *p = nullptr);
-	ShortcutTarget target() const;
-	void setTarget(const ShortcutTarget &);
-	static QString targetString(const ShortcutTarget &);
-public slots:
-	void on_qtbEdit_clicked();
-};
-
-/**
- * Used to get custom display and edit behaviour for the model used in GlobalShortcutConfig::qtwShortcuts.
- * It registers custom handlers which link specific types to custom ShortcutXWidget editors and also
- * provides a basic textual representation for them when they are not edited.
- *
- * @see GlobalShortcutConfig
- * @see ShortcutKeyWidget
- * @see ShortcutActionWidget
- * @see ShortcutTargetWidget
- */
-class ShortcutDelegate : public QStyledItemDelegate {
-	Q_OBJECT
-	Q_DISABLE_COPY(ShortcutDelegate)
-public:
-	ShortcutDelegate(QObject *);
-	~ShortcutDelegate() Q_DECL_OVERRIDE;
-	QString displayText(const QVariant &, const QLocale &) const Q_DECL_OVERRIDE;
-	bool helpEvent(QHelpEvent *, QAbstractItemView *, const QStyleOptionViewItem &,
-				   const QModelIndex &) Q_DECL_OVERRIDE;
-};
-
-/**
- * Contains the Shortcut tab from the settings. This ConfigWidget provides
- * the user with the interface to add/edit/delete global shortcuts in Mumble.
- */
-class GlobalShortcutConfig : public ConfigWidget, public Ui::GlobalShortcut {
-	friend class ShortcutActionWidget;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(GlobalShortcutConfig)
-protected:
-	QList< Shortcut > qlShortcuts;
-	QTreeWidgetItem *itemForShortcut(const Shortcut &) const;
-	bool showWarning() const;
-	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
-
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	GlobalShortcutConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	virtual const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void reload();
-	void commit();
-	void on_qcbEnableGlobalShortcuts_stateChanged(int);
-	void on_qpbAdd_clicked(bool);
-	void on_qpbRemove_clicked(bool);
-	void on_qtwShortcuts_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
-	void on_qtwShortcuts_itemChanged(QTreeWidgetItem *, int);
-	void on_qpbOpenAccessibilityPrefs_clicked();
-	void on_qpbSkipWarning_clicked();
-};
-
-struct ShortcutKey {
-	Shortcut s;
-	int iNumUp;
-	GlobalShortcut *gs;
-};
-
-/**
- * Creates a background thread which handles global shortcut behaviour. This class inherits
- * a system unspecific interface and basic functionality to the actually used native backend
- * classes (GlobalShortcutPlatform).
- *
- * @see GlobalShortcutX
- * @see GlobalShortcutMac
- * @see GlobalShortcutWin
- */
-class GlobalShortcutEngine : public QThread {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(GlobalShortcutEngine)
-public:
-	bool bNeedRemap;
-	Timer tReset;
-
-	static GlobalShortcutEngine *engine;
-	static GlobalShortcutEngine *platformInit();
-
-	QHash< int, GlobalShortcut * > qmShortcuts;
-	QList< QVariant > qlActiveButtons;
-	QList< QVariant > qlDownButtons;
-	QList< QVariant > qlSuppressed;
-
-	QList< QVariant > qlButtonList;
-	QList< QList< ShortcutKey * > > qlShortcutList;
-
-	GlobalShortcutEngine(QObject *p = nullptr);
-	~GlobalShortcutEngine() Q_DECL_OVERRIDE;
-	void resetMap();
-	void remap();
-	virtual void needRemap();
-	void run() Q_DECL_OVERRIDE;
-
-	bool handleButton(const QVariant &, bool);
-	static void add(GlobalShortcut *);
-	static void remove(GlobalShortcut *);
-	virtual QString buttonName(const QVariant &) = 0;
-	static QString buttonText(const QList< QVariant > &);
-	virtual bool canSuppress();
-
-	virtual void setEnabled(bool b);
-	virtual bool enabled();
-	virtual bool canDisable();
-signals:
-	void buttonPressed(bool last);
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GlobalShortcut</class>
+ <widget class="QWidget" name="GlobalShortcut">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>621</width>
+    <height>542</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QWidget" name="qwWarningContainer" native="true">
+     <layout class="QVBoxLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QWidget" name="qwMacWarning" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system's Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="textFormat">
+            <enum>Qt::RichText</enum>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <spacer name="horizontalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbOpenAccessibilityPrefs">
+             <property name="text">
+              <string>Open Accessibility Preferences</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="qpbSkipWarning">
+             <property name="text">
+              <string>Skip</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>10</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbShortcuts">
+     <property name="title">
+      <string>Shortcuts</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QCheckBox" name="qcbEnableGlobalShortcuts">
+          <property name="text">
+           <string>Enable Global Shortcuts</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTreeWidget" name="qtwShortcuts">
+          <property name="toolTip">
+           <string>List of configured shortcuts</string>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::AllEditTriggers</set>
+          </property>
+          <property name="alternatingRowColors">
+           <bool>true</bool>
+          </property>
+          <property name="rootIsDecorated">
+           <bool>false</bool>
+          </property>
+          <property name="uniformRowHeights">
+           <bool>true</bool>
+          </property>
+          <attribute name="headerDefaultSectionSize">
+           <number>100</number>
+          </attribute>
+          <attribute name="headerMinimumSectionSize">
+           <number>50</number>
+          </attribute>
+          <attribute name="headerStretchLastSection">
+           <bool>false</bool>
+          </attribute>
+          <column>
+           <property name="text">
+            <string>Function</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Data</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Shortcut</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Suppress</string>
+           </property>
+          </column>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="qpbAdd">
+          <property name="toolTip">
+           <string>Add new shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will add a new global shortcut</string>
+          </property>
+          <property name="text">
+           <string>&amp;Add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="qpbRemove">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Remove selected shortcut</string>
+          </property>
+          <property name="whatsThis">
+           <string>This will permanently remove a selected shortcut.</string>
+          </property>
+          <property name="text">
+           <string>&amp;Remove</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>59</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="qgbWindowsShortcutEngines">
+        <property name="whatsThis">
+         <string>&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</string>
+        </property>
+        <property name="title">
+         <string>Additional Shortcut Engines</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_5">
+         <item>
+          <widget class="QCheckBox" name="qcbEnableUIAccess">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
+&lt;br /&gt;&lt;br /&gt;
+Without this option enabled, using Mumble's global shortcuts in privileged applications will not work. This can seem inconsistent: for example, if the Push-to-Talk button is pressed in a non-privileged program, but released in a privileged application, Mumble will not observe that it has been released and you will continue to talk until you press the Push-to-Talk button again.</string>
+           </property>
+           <property name="text">
+            <string>Enable shortcuts in privileged applications</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableWinHooks">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</string>
+           </property>
+           <property name="text">
+            <string>Enable Windows hooks</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableGKey">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</string>
+           </property>
+           <property name="text">
+            <string>Enable GKey</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qcbEnableXboxInput">
+           <property name="whatsThis">
+            <string>&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</string>
+           </property>
+           <property name="text">
+            <string>Enable XInput</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
