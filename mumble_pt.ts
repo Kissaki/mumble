@@ -1,108 +1,54 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TalkingUISelection.h"
-#include "MainWindow.h"
-#include "UserModel.h"
+#include "Tokens.h"
 
-#include <QVariant>
-#include <QWidget>
+#include "Database.h"
+#include "ServerHandler.h"
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-TalkingUISelection::TalkingUISelection(QWidget *widget) : m_widget(widget) {
-}
+Tokens::Tokens(QWidget *p) : QDialog(p) {
+	setupUi(this);
+	qlwTokens->setAccessibleName(tr("Tokens"));
 
-
-void TalkingUISelection::setActive(bool active) {
-	if (m_widget) {
-		m_widget->setProperty("selected", active);
-		// Unpolish the widget's style so that the new property can take effect
-		m_widget->style()->unpolish(m_widget);
+	qbaDigest          = g.sh->qbaDigest;
+	QStringList tokens = g.db->getTokens(qbaDigest);
+	tokens.sort();
+	foreach (const QString &qs, tokens) {
+		QListWidgetItem *qlwi = new QListWidgetItem(qs);
+		qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
+		qlwTokens->addItem(qlwi);
 	}
 }
 
-void TalkingUISelection::apply() {
-	setActive(true);
-}
+void Tokens::accept() {
+	QStringList qsl;
 
-void TalkingUISelection::discard() {
-	setActive(false);
-}
-
-bool TalkingUISelection::operator==(const TalkingUISelection &other) const {
-	return m_widget == other.m_widget;
-}
-
-bool TalkingUISelection::operator!=(const TalkingUISelection &other) const {
-	return m_widget != other.m_widget;
-}
-
-bool TalkingUISelection::operator==(const QWidget *widget) const {
-	return m_widget == widget;
-}
-
-bool TalkingUISelection::operator!=(const QWidget *widget) const {
-	return m_widget != widget;
-}
-
-
-UserSelection::UserSelection(QWidget *widget, unsigned int userSession)
-	: TalkingUISelection(widget), m_userSession(userSession) {
-}
-
-void UserSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedUser(m_userSession);
+	QList< QListWidgetItem * > items = qlwTokens->findItems(QString(), Qt::MatchStartsWith);
+	foreach (QListWidgetItem *qlwi, items) {
+		const QString &text = qlwi->text().trimmed();
+		if (!text.isEmpty())
+			qsl << text;
 	}
+	g.db->setTokens(qbaDigest, qsl);
+	g.sh->setTokens(qsl);
+	QDialog::accept();
 }
 
-std::unique_ptr< TalkingUISelection > UserSelection::cloneToHeap() const {
-	return std::make_unique< UserSelection >(*this);
+void Tokens::on_qpbAdd_clicked() {
+	QListWidgetItem *qlwi = new QListWidgetItem(tr("Empty Token"));
+	qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
+
+	qlwTokens->addItem(qlwi);
+	qlwTokens->editItem(qlwi);
 }
 
-
-
-ChannelSelection::ChannelSelection(QWidget *widget, int channelID)
-	: TalkingUISelection(widget), m_channelID(channelID) {
-}
-
-void ChannelSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannel(m_channelID);
-	}
-}
-
-std::unique_ptr< TalkingUISelection > ChannelSelection::cloneToHeap() const {
-	return std::make_unique< ChannelSelection >(*this);
-}
-
-
-
-ListenerSelection::ListenerSelection(QWidget *widget, unsigned int userSession, int channelID)
-	: TalkingUISelection(widget), m_userSession(userSession), m_channelID(channelID) {
-}
-
-void ListenerSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannelListener(m_userSession, m_channelID);
-	}
-}
-
-std::unique_ptr< TalkingUISelection > ListenerSelection::cloneToHeap() const {
-	return std::make_unique< ListenerSelection >(*this);
-}
-
-
-
-void EmptySelection::syncToMainWindow() const {
-	// Do nothing
-}
-
-std::unique_ptr< TalkingUISelection > EmptySelection::cloneToHeap() const {
-	return std::make_unique< EmptySelection >(*this);
+void Tokens::on_qpbRemove_clicked() {
+	foreach (QListWidgetItem *qlwi, qlwTokens->selectedItems())
+		delete qlwi;
 }
