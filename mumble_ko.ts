@@ -3,70 +3,87 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Usage.h"
+#ifndef MUMBLE_MUMBLE_THEMEINFO_H_
+#define MUMBLE_MUMBLE_THEMEINFO_H_
 
-#include "ClientUser.h"
-#include "LCD.h"
-#include "NetworkConfig.h"
-#include "OSInfo.h"
-#include "Version.h"
-#include "Global.h"
+#include <QMetaType>
+#include <QtCore/QFileInfo>
+#include <QtCore/QMap>
+#include <QtCore/QString>
+#ifndef Q_MOC_RUN
+#	include <boost/optional.hpp>
+#endif
 
-#include <QtCore/QTimer>
-#include <QtNetwork/QHostAddress>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkReply>
-#include <QtXml/QDomElement>
+class QSettings;
+class QDir;
 
-Usage::Usage(QObject *p) : QObject(p) {
-	qbReport.open(QBuffer::ReadWrite);
-	qdsReport.setDevice(&qbReport);
-	qdsReport.setVersion(QDataStream::Qt_4_4);
-	qdsReport << static_cast< unsigned int >(2);
+class ThemeInfo;
+typedef QMap< QString, ThemeInfo > ThemeMap;
 
-	// Wait 10 minutes (so we know they're actually using this), then...
-	QTimer::singleShot(60 * 10 * 1000, this, SLOT(registerUsage()));
-}
+/// Description of a Mumble theme with multiple styles
+class ThemeInfo {
+public:
+	/// A specific style of a Mumble theme
+	///
+	/// Multiple styles can for example be used to differentiate light/dark
+	/// variants of a theme.
+	///
+	/// A single style can refer to multiple run-time platform specific qss
+	/// theme files.
+	class StyleInfo {
+	public:
+		/// Name of the theme containing this style
+		QString themeName;
+		/// Name for the style
+		QString name;
 
-void Usage::registerUsage() {
-	if (!g.s.bUsage
-		|| g.s.uiUpdateCounter == 0) // Only register usage if allowed by the user and first wizard run has finished
-		return;
+		/// @return Returns platform specific qss or defaultQss if none available
+		QFileInfo getPlatformQss() const;
 
-	QDomDocument doc;
-	QDomElement root = doc.createElement(QLatin1String("usage"));
-	doc.appendChild(root);
+		/// Default QSS file for the style
+		QFileInfo defaultQss;
+		/// Platform specific QSS files available
+		QMap< QString, QFileInfo > qssFiles;
+	};
 
-	QDomElement tag;
-	QDomText t;
+	typedef QMap< QString, StyleInfo > StylesMap;
 
-	OSInfo::fillXml(doc, root);
+	/// Takes stock of all mumble themes in the given folders.
+	///
+	/// If a theme with the same name is available in multiple directories
+	/// only the last occurance will be returned.
+	///
+	/// @param themesDirectories List of directories to search for theme directories.
+	/// @return Map of theme name to Theme
+	static ThemeMap scanDirectories(const QVector< QDir > &themesDirectories);
 
-	tag = doc.createElement(QLatin1String("in"));
-	root.appendChild(tag);
-	t = doc.createTextNode(g.s.qsAudioInput);
-	tag.appendChild(t);
+	/// Takes stock of all mumble themes in the given folder
+	///
+	/// Uses loadThemeInfoFromDirectory on each directory in the folder
+	/// to find themes. Themes with the same names will override each other.
+	///
+	/// @param themesDirectory Directory to scan for theme directories
+	/// @return Map of theme name to Theme
+	static ThemeMap scanDirectory(const QDir &themesDirectory);
 
-	tag = doc.createElement(QLatin1String("out"));
-	root.appendChild(tag);
-	t = doc.createTextNode(g.s.qsAudioOutput);
-	tag.appendChild(t);
+	/// Loads the theme description from a given directory
+	///
+	/// @param themeDirectory
+	/// @return Theme if description was correctly loaded. boost::none if not.
+	static boost::optional< ThemeInfo > load(const QDir &themeDirectory);
 
-	tag = doc.createElement(QLatin1String("lcd"));
-	root.appendChild(tag);
-	t = doc.createTextNode(QString::number(g.lcd->hasDevices() ? 1 : 0));
-	tag.appendChild(t);
+	/// @return Style with given name or default
+	StyleInfo getStyle(QString name_) const;
 
-	QBuffer *qb = new QBuffer();
-	qb->setData(doc.toString().toUtf8());
-	qb->open(QIODevice::ReadOnly);
+	/// Ideally unique theme name. A theme with identical name can override.
+	QString name;
+	/// Style name to style mapping.
+	StylesMap styles;
+	/// Default style
+	QString defaultStyle;
+};
 
-	QNetworkRequest req(QUrl(QLatin1String("https://usage-report.mumble.info/v1/report")));
-	Network::prepareRequest(req);
-	req.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("text/xml"));
+Q_DECLARE_METATYPE(ThemeInfo);
+Q_DECLARE_METATYPE(ThemeInfo::StyleInfo);
 
-	QNetworkReply *rep = g.nam->post(req, qb);
-	qb->setParent(rep);
-
-	connect(rep, SIGNAL(finished()), rep, SLOT(deleteLater()));
-}
+#endif // MUMBLE_MUMBLE_THEMEINFO_H_
