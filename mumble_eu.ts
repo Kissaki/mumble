@@ -3,67 +3,65 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "XboxInput.h"
+/* Copyright (C) 2015, Fredrik Nordin <freedick@ludd.ltu.se>
 
-#include <QtCore/QStringList>
+   All rights reserved.
 
-const QUuid XboxInput::s_XboxInputGuid = QUuid(QString::fromLatin1("ca3937e3-640c-4d9e-9ef3-903f8b4fbcab"));
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions
+   are met:
 
-XboxInput::XboxInput()
-	: GetState(nullptr), m_getStateFunc(nullptr), m_getStateExFunc(nullptr), m_xinputlib(nullptr), m_valid(false) {
-	// Load the most suitable XInput DLL available.
-	//
-	// We prefer 1_4 and 1_3 over the others because they provide
-	// XInputGetStateEx(), which allows us to query the state of
-	// the guide button.
-	//
-	// See https://msdn.microsoft.com/en-us/library/windows/desktop/hh405051(v=vs.85).aspx
-	// for more information.
-	QStringList alternatives;
-	alternatives << QLatin1String("XInput1_4.dll");
-	alternatives << QLatin1String("xinput1_3.dll");
-	alternatives << QLatin1String("XInput9_1_0.dll");
-	alternatives << QLatin1String("xinput1_2.dll");
-	alternatives << QLatin1String("xinput1_1.dll");
+   - Redistributions of source code must retain the above copyright notice,
+	 this list of conditions and the following disclaimer.
+   - Redistributions in binary form must reproduce the above copyright notice,
+	 this list of conditions and the following disclaimer in the documentation
+	 and/or other materials provided with the distribution.
+   - Neither the name of the Mumble Developers nor the names of its
+	 contributors may be used to endorse or promote products derived from this
+	 software without specific prior written permission.
 
-	foreach (const QString &lib, alternatives) {
-		m_xinputlib = LoadLibraryW(reinterpret_cast< const wchar_t * >(lib.utf16()));
-		if (m_xinputlib) {
-			qWarning("XboxInput: using XInput DLL '%s'", qPrintable(lib));
-			m_valid = true;
-			break;
-		}
-	}
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
+   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
-	if (!m_valid) {
-		qWarning("XboxInput: no valid XInput DLL was found on the system.");
-		return;
-	}
+#ifndef MUMBLE_MUMBLE_USERVOLUME_H_
+#define MUMBLE_MUMBLE_USERVOLUME_H_
 
-	m_getStateFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, "XInputGetState"));
-	// Undocumented XInputGetStateEx -- ordinal 100. It is available in XInput 1.3 and greater.
-	// It provides access to the state of the guide button.
-	// For reference, see SDL's XInput support: http://www.libsdl.org/tmp/SDL/src/core/windows/SDL_xinput.c
-	m_getStateExFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, (char *) 100));
+#include <QMap>
 
-	if (m_getStateExFunc) {
-		GetState = m_getStateExFunc;
-		qWarning("XboxInput: using XInputGetStateEx() as querying function.");
-	} else if (m_getStateFunc) {
-		GetState = m_getStateFunc;
-		qWarning("XboxInput: using XInputGetState() as querying function.");
-	} else {
-		m_valid = false;
-		qWarning("XboxInput: no valid querying function found.");
-	}
-}
+#include "ClientUser.h"
+#include "ui_UserLocalVolumeDialog.h"
 
-XboxInput::~XboxInput() {
-	if (m_xinputlib) {
-		FreeLibrary(m_xinputlib);
-	}
-}
+class UserLocalVolumeDialog : public QDialog, private Ui::UserLocalVolumeDialog {
+	Q_OBJECT
+	Q_DISABLE_COPY(UserLocalVolumeDialog);
 
-bool XboxInput::isValid() const {
-	return m_valid;
-}
+	/// The session ID for the user that the dialog is changing the volume for.
+	unsigned int m_clientSession;
+
+	/// The user's original adjustment (in dB) when entering the dialog.
+	int m_originalVolumeAdjustmentDecibel;
+	QMap< unsigned int, UserLocalVolumeDialog * > *m_qmUserVolTracker;
+
+public slots:
+	void closeEvent(QCloseEvent *event);
+	void on_qsUserLocalVolume_valueChanged(int value);
+	void on_qsbUserLocalVolume_valueChanged(int value);
+	void on_qbbUserLocalVolume_clicked(QAbstractButton *b);
+	void reject();
+
+public:
+	static void present(unsigned int sessionId, QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker);
+	UserLocalVolumeDialog(unsigned int sessionId, QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker);
+};
+
+#endif
