@@ -3,69 +3,111 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
-#define MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
+#include "WebFetch.h"
 
-#include <QtCore/QMutex>
-#include <QtCore/QObject>
-#include <mmdeviceapi.h>
+#include "NetworkConfig.h"
+
+#include <QtNetwork/QNetworkReply>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+WebFetch::WebFetch(QString service, QUrl url, QObject *obj, const char *slot)
+	: QObject(), qoObject(obj), cpSlot(slot), m_service(service) {
+	url.setScheme(QLatin1String("https"));
+
+	if (!g.s.qsServicePrefix.isEmpty()) {
+		url.setHost(prefixedServiceHost());
+	} else {
+		url.setHost(serviceHost());
+	}
+
+	qnr = Network::get(url);
+	connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
+	connect(this, SIGNAL(fetched(QByteArray, QUrl, QMap< QString, QString >)), obj, slot);
+}
+
+QString WebFetch::prefixedServiceHost() const {
+	if (g.s.qsServicePrefix.isEmpty()) {
+		return serviceHost();
+	}
+	return QString::fromLatin1("%1-%2.mumble.info").arg(g.s.qsServicePrefix, m_service);
+}
+
+QString WebFetch::serviceHost() const {
+	return QString::fromLatin1("%1.mumble.info").arg(m_service);
+}
+
+static QString fromUtf8(const QByteArray &qba) {
+	if (qba.isEmpty())
+		return QString();
+	return QString::fromUtf8(qba.constData(), qba.length());
+}
+
+void WebFetch::finished() {
+	// Note that if this functions succeeds, it should deleteLater() itself, as this is a temporary object.
+	Q_ASSERT(qobject_cast< QNetworkReply * >(sender()) == qnr);
+	qnr->disconnect();
+	qnr->deleteLater();
+
+	QUrl url = qnr->request().url();
+
+	if (qnr->error() == QNetworkReply::NoError) {
+		QByteArray a = qnr->readAll();
+
+		// empty response is not an error
+		if (a.isNull())
+			a.append("");
+
+		QMap< QString, QString > headers;
+
+		foreach (const QByteArray &headerName, qnr->rawHeaderList()) {
+			QString name  = fromUtf8(headerName);
+			QString value = fromUtf8(qnr->rawHeader(headerName));
+			if (!name.isEmpty() && !value.isEmpty()) {
+				headers.insert(name, value);
+				if (name == QLatin1String("Use-Service-Prefix")) {
+					QRegExp servicePrefixRegExp(QLatin1String("^[a-zA-Z]+$"));
+					if (servicePrefixRegExp.exactMatch(value)) {
+						g.s.qsServicePrefix = value.toLower();
+					}
+				}
+			}
+		}
+
+		emit fetched(a, url, headers);
+		deleteLater();
+	} else if (url.host() == prefixedServiceHost() && url.host() != serviceHost()) {
+		// We have tried to fetch from a local service domain (e.g. de-update.mumble.info)
+		// which has failed, so naturally we want to try the non-local one (update.mumble.info)
+		// as well as maybe that one will work.
+		// This of course only makes sense, if prefixedServiceHost() and serviceHost() are in fact
+		// different hosts.
+		url.setHost(serviceHost());
+
+		qnr = Network::get(url);
+		connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
+	} else {
+		emit fetched(QByteArray(), url, QMap< QString, QString >());
+		deleteLater();
+	}
+}
 
 /**
- * @brief Singleton for acting on WASAPINotification events for given devices.
+ * @brief Fetch URL from mumble servers.
+ *
+ * If fetching fails, the slot is invoked with a null QByteArray.
+ * @param url URL to fetch. Hostname and scheme must be blank.
+ * @param obj Object to invoke slot on.
+ * @param slot Slot to be triggered, invoked with the signature of \link fetched.
  */
-class WASAPINotificationClient : public QObject, public IMMNotificationClient {
-	Q_OBJECT
-public:
-	/* IMMNotificationClient interface */
-	HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDevice);
-	HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key);
-	HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId);
-	HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId);
-	HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState);
-	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface);
-	ULONG STDMETHODCALLTYPE AddRef();
-	ULONG STDMETHODCALLTYPE Release();
+void WebFetch::fetch(const QString &service, const QUrl &url, QObject *obj, const char *slot) {
+	Q_ASSERT(!service.isEmpty());
+	Q_ASSERT(url.scheme().isEmpty());
+	Q_ASSERT(url.host().isEmpty());
+	Q_ASSERT(obj);
+	Q_ASSERT(slot);
 
-	/* Enlist/Unlist functionality */
-	void enlistDefaultDeviceAsUsed(LPCWSTR pwstrDefaultDevice);
-
-	void enlistDeviceAsUsed(LPCWSTR pwstrDevice);
-	void enlistDeviceAsUsed(const QString &device);
-
-	void unlistDevice(LPCWSTR pwstrDevice);
-
-	void clearUsedDefaultDeviceList();
-	void clearUsedDeviceLists();
-
-	/**
-	 * @return Singleton instance reference.
-	 */
-	static WASAPINotificationClient &get();
-
-private:
-	WASAPINotificationClient();
-	~WASAPINotificationClient() Q_DECL_OVERRIDE;
-
-	WASAPINotificationClient(const WASAPINotificationClient &);
-	WASAPINotificationClient &operator=(const WASAPINotificationClient &);
-
-	static WASAPINotificationClient &doGet();
-	static void doGetOnce();
-
-	void restartAudio();
-
-	/* _fu = Non locking versions */
-	void _clearUsedDeviceLists();
-	void _enlistDeviceAsUsed(const QString &device);
-
-	QStringList usedDefaultDevices;
-	QStringList usedDevices;
-	IMMDeviceEnumerator *pEnumerator;
-	LONG _cRef;
-	QMutex listsMutex;
-
-signals:
-	void doResetAudio();
-};
-
-#endif // WASAPINOTIFICATIONCLIENT_H_
+	new WebFetch(service, url, obj, slot);
+}
