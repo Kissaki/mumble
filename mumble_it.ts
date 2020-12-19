@@ -1,67 +1,106 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-/* Copyright (C) 2015, Fredrik Nordin <freedick@ludd.ltu.se>
-
-   All rights reserved.
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions
-   are met:
-
-   - Redistributions of source code must retain the above copyright notice,
-	 this list of conditions and the following disclaimer.
-   - Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-   - Neither the name of the Mumble Developers nor the names of its
-	 contributors may be used to endorse or promote products derived from this
-	 software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
-   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-#ifndef MUMBLE_MUMBLE_USERVOLUME_H_
-#define MUMBLE_MUMBLE_USERVOLUME_H_
-
-#include <QMap>
-
-#include "ClientUser.h"
-#include "ui_UserLocalVolumeDialog.h"
-
-class UserLocalVolumeDialog : public QDialog, private Ui::UserLocalVolumeDialog {
-	Q_OBJECT
-	Q_DISABLE_COPY(UserLocalVolumeDialog);
-
-	/// The session ID for the user that the dialog is changing the volume for.
-	unsigned int m_clientSession;
-
-	/// The user's original adjustment (in dB) when entering the dialog.
-	int m_originalVolumeAdjustmentDecibel;
-	QMap< unsigned int, UserLocalVolumeDialog * > *m_qmUserVolTracker;
-
-public slots:
-	void closeEvent(QCloseEvent *event);
-	void on_qsUserLocalVolume_valueChanged(int value);
-	void on_qsbUserLocalVolume_valueChanged(int value);
-	void on_qbbUserLocalVolume_clicked(QAbstractButton *b);
-	void reject();
-
-public:
-	static void present(unsigned int sessionId, QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker);
-	UserLocalVolumeDialog(unsigned int sessionId, QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker);
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>UserLocalVolumeDialog</class>
+ <widget class="QDialog" name="UserLocalVolumeDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>500</width>
+    <height>224</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>500</width>
+    <height>224</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>16777215</width>
+    <height>224</height>
+   </size>
+  </property>
+  <layout class="QGridLayout">
+   <item row="0" column="0">
+    <widget class="QSlider" name="qsUserLocalVolume">
+     <property name="toolTip">
+      <string>Local volume for other users</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</string>
+     </property>
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
+     <property name="minimum">
+      <number>-60</number>
+     </property>
+     <property name="maximum">
+      <number>30</number>
+     </property>
+     <property name="value">
+      <number>0</number>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="tickPosition">
+      <enum>QSlider::TicksBelow</enum>
+     </property>
+     <property name="tickInterval">
+      <number>10</number>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0" colspan="2" alignment="Qt::AlignBottom">
+    <widget class="QDialogButtonBox" name="qbbUserLocalVolume">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::Reset</set>
+     </property>
+     <property name="centerButtons">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QSpinBox" name="qsbUserLocalVolume">
+     <property name="toolTip">
+      <string>Local volume for other users</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</string>
+     </property>
+     <property name="suffix">
+      <string> dB</string>
+     </property>
+     <property name="minimum">
+      <number>-60</number>
+     </property>
+     <property name="maximum">
+      <number>30</number>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0" colspan="2">
+    <widget class="QLabel" name="qlUserLocalVolume">
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use the slider or the text box to change the volume of the user.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-weight:600;&quot;&gt;Attention!&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Increasing the volume of a user too much can permanently damage your hearing. It may also increase the background noise of the user.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
