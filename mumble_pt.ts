@@ -3,79 +3,68 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
-#define MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
+#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSAMPLE_H_
+#define MUMBLE_MUMBLE_AUDIOOUTPUTSAMPLE_H_
 
-#include <celt.h>
-#include <speex/speex.h>
-#include <speex/speex_jitter.h>
+#include <QtCore/QFile>
+#include <QtCore/QObject>
+#include <sndfile.h>
 #include <speex/speex_resampler.h>
 
-#include <QtCore/QMutex>
-
 #include "AudioOutputUser.h"
-#include "Message.h"
 
-class CELTCodec;
-class OpusCodec;
-class ClientUser;
-struct OpusDecoder;
-
-class AudioOutputSpeech : public AudioOutputUser {
+class SoundFile : public QObject {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(AudioOutputSpeech)
+	Q_DISABLE_COPY(SoundFile)
 protected:
-	unsigned int iAudioBufferSize;
-	unsigned int iBufferOffset;
-	unsigned int iBufferFilled;
-	unsigned int iOutputSize;
-	unsigned int iLastConsume;
-	unsigned int iFrameSize;
-	unsigned int iFrameSizePerChannel;
-	unsigned int iSampleRate;
-	unsigned int iMixerFreq;
-	bool bLastAlive;
-	bool bHasTerminator;
-
-	float *fFadeIn;
-	float *fFadeOut;
-	float *fResamplerBuffer;
-
-	SpeexResamplerState *srs;
-
-	QMutex qmJitter;
-	JitterBuffer *jbJitter;
-	int iMissCount;
-
-	CELTCodec *cCodec;
-	CELTDecoder *cdDecoder;
-
-	OpusCodec *oCodec;
-	OpusDecoder *opusState;
-
-	SpeexBits sbBits;
-	void *dsSpeex;
-
-	QList< QByteArray > qlFrames;
+	SNDFILE *sfFile;
+	SF_INFO siInfo;
+	QFile qfFile;
+	static sf_count_t vio_get_filelen(void *user_data);
+	static sf_count_t vio_seek(sf_count_t offset, int whence, void *user_data);
+	static sf_count_t vio_read(void *ptr, sf_count_t count, void *user_data);
+	static sf_count_t vio_write(const void *ptr, sf_count_t count, void *user_data);
+	static sf_count_t vio_tell(void *user_data);
 
 public:
-	unsigned char ucFlags;
-	MessageHandler::UDPMessageType umtType;
-	int iMissedFrames;
-	ClientUser *p;
+	SoundFile(const QString &fname);
+	~SoundFile();
 
-	/// Fetch and decode frames from the jitter buffer. Called in mix().
-	///
-	/// @param frameCount Number of frames to decode. frame means a bundle of one sample from each channel.
-	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
+	int channels() const;
+	int samplerate() const;
+	int error() const;
+	QString strError() const;
+	bool isOpen() const;
 
-	void addFrameToBuffer(const QByteArray &, unsigned int iBaseSeq);
-
-	/// @param systemMaxBufferSize maximum number of samples the system audio play back may request each time
-	AudioOutputSpeech(ClientUser *, unsigned int freq, MessageHandler::UDPMessageType type,
-					  unsigned int systemMaxBufferSize);
-	~AudioOutputSpeech() Q_DECL_OVERRIDE;
+	sf_count_t seek(sf_count_t frames, int whence);
+	sf_count_t read(float *ptr, sf_count_t items);
 };
 
-#endif // AUDIOOUTPUTSPEECH_H_
+class AudioOutputSample : public AudioOutputUser {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioOutputSample)
+protected:
+	unsigned int iLastConsume;
+	unsigned int iBufferFilled;
+	unsigned int iOutSampleRate;
+	SpeexResamplerState *srs;
+
+	SoundFile *sfHandle;
+
+	bool bLoop;
+	bool bEof;
+signals:
+	void playbackFinished();
+
+public:
+	static SoundFile *loadSndfile(const QString &filename);
+	static QString browseForSndfile(QString defaultpath = QString());
+	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
+	AudioOutputSample(const QString &name, SoundFile *psndfile, bool repeat, unsigned int freq,
+					  unsigned int bufferSize);
+	~AudioOutputSample() Q_DECL_OVERRIDE;
+};
+
+#endif // AUDIOOUTPUTSAMPLE_H_
