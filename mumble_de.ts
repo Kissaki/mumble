@@ -3,252 +3,308 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "BanEditor.h"
+#include "ClientUser.h"
 
-#include "Ban.h"
+#include "AudioOutput.h"
 #include "Channel.h"
-#include "ServerHandler.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-BanEditor::BanEditor(const MumbleProto::BanList &msg, QWidget *p) : QDialog(p), maskDefaultValue(32) {
-	setupUi(this);
+QHash< unsigned int, ClientUser * > ClientUser::c_qmUsers;
+QReadWriteLock ClientUser::c_qrwlUsers;
 
-	qleSearch->setAccessibleName(tr("Search"));
-	qleUser->setAccessibleName(tr("User"));
-	qleIP->setAccessibleName(tr("IP Address"));
-	qsbMask->setAccessibleName(tr("Mask"));
-	qleReason->setAccessibleName(tr("Reason"));
-	qdteStart->setAccessibleName(tr("Start date/time"));
-	qdteEnd->setAccessibleName(tr("End date/time"));
-	qleHash->setAccessibleName(tr("Certificate hash"));
-	qlwBans->setAccessibleName(tr("Banned users"));
+QList< ClientUser * > ClientUser::c_qlTalking;
+QReadWriteLock ClientUser::c_qrwlTalking;
 
-	qlwBans->setFocus();
+ClientUser::ClientUser(QObject *p)
+	: QObject(p), tsState(Settings::Passive), tLastTalkStateChange(false), bLocalIgnore(false), bLocalIgnoreTTS(false),
+	  bLocalMute(false), fPowerMin(0.0f), fPowerMax(0.0f), fAverageAvailable(0.0f), iFrames(0), iSequence(0) {
+}
 
-	qlBans.clear();
-	for (int i = 0; i < msg.bans_size(); ++i) {
-		const MumbleProto::BanList_BanEntry &be = msg.bans(i);
-		Ban b;
-		b.haAddress  = be.address();
-		b.iMask      = be.mask();
-		b.qsUsername = u8(be.name());
-		b.qsHash     = u8(be.hash());
-		b.qsReason   = u8(be.reason());
-		b.qdtStart   = QDateTime::fromString(u8(be.start()), Qt::ISODate);
-		b.qdtStart.setTimeSpec(Qt::UTC);
-		if (!b.qdtStart.isValid())
-			b.qdtStart = QDateTime::currentDateTime();
-		b.iDuration = be.duration();
-		if (b.isValid())
-			qlBans << b;
+float ClientUser::getLocalVolumeAdjustments() const {
+	return m_localVolume;
+}
+
+ClientUser *ClientUser::get(unsigned int uiSession) {
+	QReadLocker lock(&c_qrwlUsers);
+	ClientUser *p = c_qmUsers.value(uiSession);
+	return p;
+}
+
+QList< ClientUser * > ClientUser::getTalking() {
+	QReadLocker lock(&c_qrwlTalking);
+	return c_qlTalking;
+}
+
+QList< ClientUser * > ClientUser::getActive() {
+	QReadLocker lock(&c_qrwlUsers);
+	QList< ClientUser * > activeUsers;
+	foreach (ClientUser *cu, c_qmUsers) {
+		if (cu->isActive())
+			activeUsers << cu;
+	}
+	return activeUsers;
+}
+
+bool ClientUser::isValid(unsigned int uiSession) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	return c_qmUsers.contains(uiSession);
+}
+
+ClientUser *ClientUser::add(unsigned int uiSession, QObject *po) {
+	QWriteLocker lock(&c_qrwlUsers);
+
+	ClientUser *p        = new ClientUser(po);
+	p->uiSession         = uiSession;
+	c_qmUsers[uiSession] = p;
+	return p;
+}
+
+ClientUser *ClientUser::match(const ClientUser *other, bool matchname) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	ClientUser *p;
+	foreach (p, c_qmUsers) {
+		if (p == other)
+			continue;
+		if ((p->iId >= 0) && (p->iId == other->iId))
+			return p;
+		if (matchname && (p->qsName == other->qsName))
+			return p;
+	}
+	return nullptr;
+}
+
+void ClientUser::remove(unsigned int uiSession) {
+	ClientUser *p;
+	{
+		QWriteLocker lock(&c_qrwlUsers);
+		p = c_qmUsers.take(uiSession);
+
+		if (p) {
+			if (p->cChannel)
+				p->cChannel->removeUser(p);
+
+			if (p->tsState != Settings::Passive) {
+				QWriteLocker writeLock(&c_qrwlTalking);
+				c_qlTalking.removeAll(p);
+			}
+		}
 	}
 
-	refreshBanList();
-}
-
-void BanEditor::accept() {
-	MumbleProto::BanList msg;
-
-	foreach (const Ban &b, qlBans) {
-		MumbleProto::BanList_BanEntry *be = msg.add_bans();
-		be->set_address(b.haAddress.toStdString());
-		be->set_mask(b.iMask);
-		be->set_name(u8(b.qsUsername));
-		be->set_hash(u8(b.qsHash));
-		be->set_reason(u8(b.qsReason));
-		be->set_start(u8(b.qdtStart.toString(Qt::ISODate)));
-		be->set_duration(b.iDuration);
-	}
-
-	g.sh->sendMessage(msg);
-	QDialog::accept();
-}
-
-void BanEditor::on_qlwBans_currentRowChanged() {
-	int idx = qlwBans->currentRow();
-	if (idx < 0)
-		return;
-
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setEnabled(false);
-	qpbRemove->setEnabled(true);
-
-	const Ban &ban = qlBans.at(idx);
-
-	int maskbits = ban.iMask;
-
-	const QHostAddress &addr = ban.haAddress.toAddress();
-	qleIP->setText(addr.toString());
-	if (!ban.haAddress.isV6())
-		maskbits -= 96;
-	qsbMask->setValue(maskbits);
-	qleUser->setText(ban.qsUsername);
-	qleHash->setText(ban.qsHash);
-	qleReason->setText(ban.qsReason);
-	qdteStart->setDateTime(ban.qdtStart.toLocalTime());
-	qdteEnd->setDateTime(ban.qdtStart.toLocalTime().addSecs(ban.iDuration));
-}
-
-Ban BanEditor::toBan(bool &ok) {
-	Ban b;
-
-	QHostAddress addr;
-
-	ok = addr.setAddress(qleIP->text());
-
-	if (ok) {
-		b.haAddress = addr;
-		b.iMask     = qsbMask->value();
-		if (!b.haAddress.isV6())
-			b.iMask += 96;
-		b.qsUsername          = qleUser->text();
-		b.qsHash              = qleHash->text();
-		b.qsReason            = qleReason->text();
-		b.qdtStart            = qdteStart->dateTime().toUTC();
-		const QDateTime &qdte = qdteEnd->dateTime();
-
-		if (qdte <= b.qdtStart)
-			b.iDuration = 0;
-		else
-			b.iDuration = static_cast< unsigned int >(b.qdtStart.secsTo(qdte));
-
-		ok = b.isValid();
-	}
-	return b;
-}
-
-void BanEditor::on_qpbAdd_clicked() {
-	bool ok;
-
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-
-	Ban b = toBan(ok);
-
-	if (ok) {
-		qlBans << b;
-		refreshBanList();
-		qlwBans->setCurrentRow(qlBans.indexOf(b));
-	}
-
-	qlwBans->setCurrentRow(-1);
-	qleSearch->clear();
-}
-
-void BanEditor::on_qpbUpdate_clicked() {
-	int idx = qlwBans->currentRow();
-	if (idx >= 0) {
-		bool ok;
-		Ban b = toBan(ok);
-		if (ok) {
-			qlBans.replace(idx, b);
-			refreshBanList();
-			qlwBans->setCurrentRow(qlBans.indexOf(b));
+	if (p) {
+		AudioOutputPtr ao = g.ao;
+		if (ao) {
+			// It is safe to call this function and to give the ClientUser pointer
+			// to it even though we don't hold the lock anymore as it will only take
+			// the pointer to use as the key in a HashMap lookup. At no point in the
+			// code triggered by this function call will the ClientUser pointer be
+			// dereferenced.
+			// Furthermore ClientUser objects are deleted in UserModel::removeUser which
+			// calls this very function before doing so. Thus the object shouldn't be
+			// deleted before this function returns anyways.
+			ao->removeBuffer(p);
 		}
 	}
 }
 
-void BanEditor::on_qpbRemove_clicked() {
-	int idx = qlwBans->currentRow();
-	if (idx >= 0)
-		qlBans.removeAt(idx);
-	refreshBanList();
-
-	qlwBans->setCurrentRow(-1);
-	qleUser->clear();
-	qleIP->clear();
-	qleReason->clear();
-	qsbMask->setValue(maskDefaultValue);
-	qleHash->clear();
-
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-	qdteEnd->setDateTime(QDateTime::currentDateTime());
-
-	qpbRemove->setDisabled(true);
-	qpbAdd->setDisabled(true);
+void ClientUser::remove(ClientUser *p) {
+	remove(p->uiSession);
 }
 
-void BanEditor::refreshBanList() {
-	qlwBans->clear();
+QString ClientUser::getFlagsString() const {
+	QStringList flags;
 
-	std::sort(qlBans.begin(), qlBans.end());
+	if (!qsFriendName.isEmpty())
+		flags << ClientUser::tr("Friend");
+	if (iId >= 0)
+		flags << ClientUser::tr("Authenticated");
+	if (bPrioritySpeaker)
+		flags << ClientUser::tr("Priority speaker");
+	if (bRecording)
+		flags << ClientUser::tr("Recording");
+	if (bMute)
+		flags << ClientUser::tr("Muted (server)");
+	if (bDeaf)
+		flags << ClientUser::tr("Deafened (server)");
+	if (bLocalIgnore)
+		flags << ClientUser::tr("Local Ignore (Text messages)");
+	if (bLocalIgnoreTTS)
+		flags << ClientUser::tr("Local Ignore (Text-To-Speech)");
+	if (bLocalMute)
+		flags << ClientUser::tr("Local Mute");
+	if (bSelfMute)
+		flags << ClientUser::tr("Muted (self)");
+	if (bSelfDeaf)
+		flags << ClientUser::tr("Deafened (self)");
 
-	foreach (const Ban &ban, qlBans) {
-		const QHostAddress &addr = ban.haAddress.toAddress();
-		if (ban.qsUsername.isEmpty())
-			qlwBans->addItem(addr.toString());
-		else
-			qlwBans->addItem(ban.qsUsername);
-	}
-
-	int n = qlBans.count();
-	setWindowTitle(tr("Ban List - %n Ban(s)", "", n));
+	return flags.join(QLatin1String(", "));
 }
 
-void BanEditor::on_qleSearch_textChanged(const QString &match) {
-	qlwBans->clearSelection();
+void ClientUser::setTalking(Settings::TalkState ts) {
+	if (tsState == ts)
+		return;
 
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setDisabled(true);
-	qpbRemove->setDisabled(true);
+	bool nstate = false;
+	if (ts == Settings::Passive)
+		nstate = true;
+	else if (tsState == Settings::Passive)
+		nstate = true;
 
-	qleUser->clear();
-	qleIP->clear();
-	qleReason->clear();
-	qsbMask->setValue(maskDefaultValue);
-	qleHash->clear();
+	tsState = ts;
+	tLastTalkStateChange.restart();
+	emit talkingStateChanged();
 
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-	qdteEnd->setDateTime(QDateTime::currentDateTime());
-
-	foreach (QListWidgetItem *item, qlwBans->findItems(QString(), Qt::MatchContains)) {
-		if (!item->text().contains(match, Qt::CaseInsensitive))
-			item->setHidden(true);
+	if (nstate && cChannel) {
+		QWriteLocker lock(&c_qrwlTalking);
+		if (ts == Settings::Passive)
+			c_qlTalking.removeAll(this);
 		else
-			item->setHidden(false);
+			c_qlTalking << this;
 	}
 }
 
-void BanEditor::on_qleIP_textChanged(QString) {
-	qpbAdd->setEnabled(qleIP->isModified());
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleIP->isModified());
+void ClientUser::setMute(bool mute) {
+	if (bMute == mute)
+		return;
+	bMute = mute;
+	if (!bMute)
+		bDeaf = false;
+	emit muteDeafStateChanged();
 }
 
-void BanEditor::on_qleReason_textChanged(QString) {
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleReason->isModified());
+void ClientUser::setSuppress(bool suppress) {
+	if (bSuppress == suppress)
+		return;
+	bSuppress = suppress;
+	emit muteDeafStateChanged();
 }
 
-void BanEditor::on_qdteEnd_editingFinished() {
-	qpbUpdate->setEnabled(!qleIP->text().isEmpty());
-	qpbRemove->setDisabled(true);
+void ClientUser::setLocalIgnore(bool ignore) {
+	if (bLocalIgnore == ignore)
+		return;
+	bLocalIgnore = ignore;
+	emit muteDeafStateChanged();
 }
 
-void BanEditor::on_qleUser_textChanged(QString) {
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleUser->isModified());
+void ClientUser::setLocalIgnoreTTS(bool ignoreTTS) {
+	bLocalIgnoreTTS = ignoreTTS;
 }
 
-void BanEditor::on_qleHash_textChanged(QString) {
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleHash->isModified());
+void ClientUser::setLocalMute(bool mute) {
+	if (bLocalMute == mute)
+		return;
+	bLocalMute = mute;
+	emit muteDeafStateChanged();
 }
 
-void BanEditor::on_qpbClear_clicked() {
-	qlwBans->setCurrentRow(-1);
-	qleUser->clear();
-	qleIP->clear();
-	qleReason->clear();
-	qsbMask->setValue(maskDefaultValue);
-	qleHash->clear();
+void ClientUser::setDeaf(bool deaf) {
+	bDeaf = deaf;
+	if (bDeaf)
+		bMute = true;
+	emit muteDeafStateChanged();
+}
 
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-	qdteEnd->setDateTime(QDateTime::currentDateTime());
+void ClientUser::setSelfMute(bool mute) {
+	bSelfMute = mute;
+	if (!mute)
+		bSelfDeaf = false;
+	emit muteDeafStateChanged();
+}
 
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setDisabled(true);
-	qpbRemove->setDisabled(true);
+void ClientUser::setSelfDeaf(bool deaf) {
+	bSelfDeaf = deaf;
+	if (deaf)
+		bSelfMute = true;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setPrioritySpeaker(bool priority) {
+	if (bPrioritySpeaker == priority)
+		return;
+	bPrioritySpeaker = priority;
+	emit prioritySpeakerStateChanged();
+}
+
+void ClientUser::setRecording(bool recording) {
+	if (bRecording == recording)
+		return;
+	bRecording = recording;
+	emit recordingStateChanged();
+}
+
+void ClientUser::setLocalVolumeAdjustment(float adjustment) {
+	float oldAdjustment = m_localVolume;
+	m_localVolume       = adjustment;
+
+	emit localVolumeAdjustmentsChanged(m_localVolume, oldAdjustment);
+}
+
+bool ClientUser::lessThanOverlay(const ClientUser *first, const ClientUser *second) {
+	if (g.s.os.osSort == OverlaySettings::LastStateChange) {
+		// Talkers above non-talkers
+		if (first->tsState != Settings::Passive && second->tsState == Settings::Passive)
+			return true;
+		if (first->tsState == Settings::Passive && second->tsState != Settings::Passive)
+			return false;
+
+		// Valid time above invalid time (possible when there wasn't a state-change yet)
+		if (first->tLastTalkStateChange.isStarted() && !second->tLastTalkStateChange.isStarted())
+			return true;
+		if (!first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted())
+			return false;
+
+		// If both have a valid time
+		if (first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted()) {
+			// Among talkers, long > short
+			// (if two clients are talking, the client that started first is above the other)
+			if (first->tsState != Settings::Passive && second->tsState != Settings::Passive)
+				return first->tLastTalkStateChange > second->tLastTalkStateChange;
+
+			// Among non-talkers, short -> long
+			// (if two clients are passive, the client that most recently stopped talking is above)
+			if (first->tsState == Settings::Passive && second->tsState == Settings::Passive)
+				return first->tLastTalkStateChange < second->tLastTalkStateChange;
+		}
+
+		// If both times are invalid, fall back to alphabetically (continuing below)
+	}
+
+	if (first->cChannel == second->cChannel || !first->cChannel || !second->cChannel)
+		return lessThan(first, second);
+
+	// When sorting for the overlay always place the local users
+	// channel above the others
+	ClientUser *self = c_qmUsers.value(g.uiSession);
+	if (self) {
+		if (self->cChannel == first->cChannel)
+			return true;
+		else if (self->cChannel == second->cChannel)
+			return false;
+	}
+
+	return Channel::lessThan(first->cChannel, second->cChannel);
+}
+
+void ClientUser::sortUsersOverlay(QList< ClientUser * > &list) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	std::sort(list.begin(), list.end(), ClientUser::lessThanOverlay);
+}
+
+bool ClientUser::isActive() {
+	if (tsState != Settings::Passive)
+		return true;
+
+	if (!tLastTalkStateChange.isStarted())
+		return false;
+
+	return tLastTalkStateChange.elapsed() < g.s.os.uiActiveTime * 1000000U;
+}
+
+/* From Channel.h
+ */
+void Channel::addClientUser(ClientUser *p) {
+	addUser(p);
+	p->setParent(this);
 }
