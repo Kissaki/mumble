@@ -3,37 +3,24 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "SvgIcon.h"
+#ifndef MUMBLE_MUMBLE_TEXTMESSAGE_H_
+#define MUMBLE_MUMBLE_TEXTMESSAGE_H_
 
-#include <QPainter>
-#include <QSvgRenderer>
+#include "ui_TextMessage.h"
 
-void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
-	QSvgRenderer svg(fn);
+class TextMessage : public QDialog, public Ui::TextMessage {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(TextMessage)
+protected:
+	QString qsRep;
+public slots:
+	void on_qcbTreeMessage_stateChanged(int);
 
-	QList< QSize > commonSizes;
-	commonSizes << QSize(8, 8);
-	commonSizes << QSize(16, 16);
-	commonSizes << QSize(22, 22); // Plasma notification area size
-	commonSizes << QSize(24, 24);
-	commonSizes << QSize(32, 32);
-	commonSizes << QSize(44, 44); // Plasma notification area size @x2
-	commonSizes << QSize(48, 48);
-	commonSizes << QSize(64, 64);
-	commonSizes << QSize(96, 96);
-	commonSizes << QSize(128, 128);
-	commonSizes << QSize(256, 256);
+public:
+	TextMessage(QWidget *parent = nullptr, QString title = tr("Enter text"), bool bChannel = false);
+	QString message();
+	bool bTreeMessage;
+};
 
-	foreach (QSize size, commonSizes) {
-		QPixmap pm(size);
-		pm.fill(Qt::transparent);
-
-		QPainter p(&pm);
-		p.setRenderHint(QPainter::Antialiasing);
-		p.setRenderHint(QPainter::TextAntialiasing);
-		p.setRenderHint(QPainter::SmoothPixmapTransform);
-		svg.render(&p);
-
-		icon.addPixmap(pm);
-	}
-}
+#endif
