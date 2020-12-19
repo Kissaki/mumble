@@ -4,75 +4,103 @@
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
 #include "Log.h"
-#include "MainWindow.h"
-#include "Settings.h"
 
-#ifdef USE_DBUS
-#	include <QtDBus/QDBusInterface>
-#endif
+#include <QtCore/QOperatingSystemVersion>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include <Foundation/Foundation.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-void Log::postNotification(MsgType mt, const QString &plain) {
-	// Message notification with balloon tooltips
-	QString qsIcon;
-	switch (mt) {
-		case DebugInfo:
-		case CriticalError:
-			qsIcon = QLatin1String("gtk-dialog-error");
-			break;
-		case Warning:
-			qsIcon = QLatin1String("gtk-dialog-warning");
-			break;
-		case TextMessage:
-			qsIcon = QLatin1String("gtk-edit");
-			break;
-		default:
-			qsIcon = QLatin1String("gtk-dialog-info");
-			break;
-	}
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
 
-#ifdef USE_DBUS
-	QDBusMessage response;
-	QVariantMap hints;
-	hints.insert(QLatin1String("desktop-entry"), QLatin1String("mumble"));
+@interface MUUserNotificationCenterDelegate : NSObject <NSUserNotificationCenterDelegate>
+@end
 
-	{
-		QDBusInterface kde(QLatin1String("org.kde.VisualNotifications"), QLatin1String("/VisualNotifications"),
-						   QLatin1String("org.kde.VisualNotifications"));
-		if (kde.isValid()) {
-			QList< QVariant > args;
-			args.append(QLatin1String("mumble"));
-			args.append(uiLastId);
-			args.append(QString());
-			args.append(QLatin1String("mumble"));
-			args.append(msgName(mt));
-			args.append(plain);
-			args.append(QStringList());
-			args.append(hints);
-			args.append(5000);
+@implementation MUUserNotificationCenterDelegate
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didDeliverNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
+}
 
-			response = kde.callWithArgumentList(QDBus::AutoDetect, QLatin1String("Notify"), args);
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
+	[center removeDeliveredNotification:notification];
+}
+
+- (BOOL) userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
+
+	return NO;
+}
+@end
+
+static NSString *Log_QString_to_NSString(const QString& string) {
+	return const_cast<NSString *>(reinterpret_cast<const NSString *>(CFStringCreateWithCharacters(kCFAllocatorDefault,
+	                                reinterpret_cast<const UniChar *>(string.unicode()), string.length())));
+}
+
+#endif
+
+#if QT_VERSION < 0x050800
+extern bool qt_mac_execute_apple_script(const QString &script, AEDesc *ret);
+
+static bool growl_available() {
+	static int isAvailable = -1;
+	if (isAvailable == -1)  {
+		OSStatus err = LSFindApplicationForInfo('GRRR', CFSTR("com.Growl.GrowlHelperApp"), CFSTR("GrowlHelperApp.app"), nullptr, nullptr);
+		isAvailable = (err != kLSApplicationNotFoundErr) ? 1 : 0;
+		if (isAvailable) {
+			QStringList qslAllEvents;
+			for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
+				Log::MsgType t = static_cast<Log::MsgType>(i);
+				qslAllEvents << QString::fromLatin1("\"%1\"").arg(g.l->msgName(t));
+			}
+			QString qsScript = QString::fromLatin1(
+				"tell application \"GrowlHelperApp\"\n"
+				"	set the allNotificationsList to {%1}\n"
+				"	set the enabledNotificationsList to {%1}\n"
+				"	register as application \"Mumble\""
+				"		all notifications allNotificationsList"
+				"		default notifications enabledNotificationsList"
+				"		icon of application \"Mumble\"\n"
+				"end tell\n").arg(qslAllEvents.join(QLatin1String(",")));
+			qt_mac_execute_apple_script(qsScript, nullptr);
 		}
 	}
+	return isAvailable == 1;
+}
+#endif // QT_VERSION
 
-	if (response.type() != QDBusMessage::ReplyMessage || response.arguments().at(0).toUInt() == 0) {
-		QDBusInterface gnome(QLatin1String("org.freedesktop.Notifications"),
-							 QLatin1String("/org/freedesktop/Notifications"),
-							 QLatin1String("org.freedesktop.Notifications"));
-		if (gnome.isValid())
-			response = gnome.call(QLatin1String("Notify"), QLatin1String("Mumble"), uiLastId, qsIcon, msgName(mt),
-								  plain, QStringList(), hints, -1);
-	}
-
-	if (response.type() == QDBusMessage::ReplyMessage && response.arguments().count() == 1) {
-		uiLastId = response.arguments().at(0).toUInt();
-	} else {
-#else
-	if (true) {
+void Log::postNotification(MsgType mt, const QString &plain) {
+	QString title = msgName(mt);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+# if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+	const QOperatingSystemVersion current = QOperatingSystemVersion::current();
+	if (current.majorVersion() > 10 || (current.majorVersion() == 10 && current.minorVersion() >= 8)) {
+# else
+	if (QSysInfo::MacintoshVersion >= QSysInfo::MV_MOUNTAINLION) {
+# endif
+		NSUserNotificationCenter *userNotificationCenter = [NSUserNotificationCenter defaultUserNotificationCenter];
+		if (userNotificationCenter.delegate == nil) {
+			// We hand the delegate property a delegate with a retain count of 1.  We don't keep
+			// a reference to the delegate anywhere else, so it's not really a leak.
+			userNotificationCenter.delegate = [[MUUserNotificationCenterDelegate alloc] init];
+		}
+		NSUserNotification *userNotification = [[[NSUserNotification alloc] init] autorelease];
+		userNotification.title = [Log_QString_to_NSString(title) autorelease];
+		userNotification.informativeText = [Log_QString_to_NSString(plain) autorelease];
+		[userNotificationCenter scheduleNotification:userNotification];
+	} else
 #endif
-		postQtNotification(mt, plain);
+	{
+#if QT_VERSION < 0x050800
+		QString qsScript = QString::fromLatin1(
+			"tell application \"GrowlHelperApp\"\n"
+			"	notify with name \"%1\" title \"%1\" description \"%2\" application name \"Mumble\"\n"
+			"end tell\n").arg(title).arg(plain);
+		if (growl_available())
+			qt_mac_execute_apple_script(qsScript, nullptr);
+#endif
 	}
 }
