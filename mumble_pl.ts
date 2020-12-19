@@ -3,166 +3,177 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-/* Copyright (C) 2005-2011, Thorvald Natvig <thorvald@natvig.com>
-   Copyright (C) 2007, Sebastian Schlingmann <mit_service@users.sourceforge.net>
-   Copyright (C) 2008-2011, Mikkel Krautz <mikkel@krautz.dk>
-   Copyright (C) 2014, Mayur Pawashe <zorgiepoo@gmail.com>
+#include "UserEdit.h"
 
-   All rights reserved.
+#include "Channel.h"
+#include "ServerHandler.h"
+#include "User.h"
+#include "UserListModel.h"
 
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions
-   are met:
+#include <QtCore/QItemSelectionModel>
+#include <QtWidgets/QMenu>
 
-   - Redistributions of source code must retain the above copyright notice,
-     this list of conditions and the following disclaimer.
-   - Redistributions in binary form must reproduce the above copyright notice,
-     this list of conditions and the following disclaimer in the documentation
-     and/or other materials provided with the distribution.
-   - Neither the name of the Mumble Developers nor the names of its
-     contributors may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
-   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-#import <AppKit/AppKit.h>
-
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
-#include "TextToSpeech.h"
 
-@interface MUSpeechSynthesizerPrivateHelper : NSObject {
-	NSMutableArray *m_messages;
-	NSSpeechSynthesizer *m_synthesizer;
-}
-- (NSSpeechSynthesizer *)synthesizer;
-- (void)appendMessage:(NSString *)message;
-- (void)processSpeech;
-@end
+UserEdit::UserEdit(const MumbleProto::UserList &userList, QWidget *p)
+	: QDialog(p), m_model(new UserListModel(userList, this)), m_filter(new UserListFilterProxyModel(this)) {
+	setupUi(this);
+	qlSearch->setAccessibleName(tr("Search"));
+	qcbInactive->setAccessibleName(tr("Inactive for"));
+	qsbInactive->setAccessibleName(tr("Inactive for"));
+	qtvUserList->setAccessibleName(tr("User list"));
 
-#if !defined(USE_MAC_UNIVERSAL) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
-@interface MUSpeechSynthesizerPrivateHelper () <NSSpeechSynthesizerDelegate>
-@end
-#endif
+	const int userCount = userList.users_size();
+	setWindowTitle(tr("Registered users: %n account(s)", "", userCount));
 
-@implementation MUSpeechSynthesizerPrivateHelper
+	m_filter->setSourceModel(m_model);
+	qtvUserList->setModel(m_filter);
 
-- (id)init {
-	if ((self = [super init])) {
-		m_synthesizer = [[NSSpeechSynthesizer alloc] initWithVoice:nil];
-		m_messages = [[NSMutableArray alloc] init];
-		[m_synthesizer setDelegate:self];
+	QItemSelectionModel *selectionModel = qtvUserList->selectionModel();
+	connect(selectionModel, SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this,
+			SLOT(onSelectionChanged(QItemSelection, QItemSelection)));
+	connect(selectionModel, SIGNAL(currentRowChanged(QModelIndex, QModelIndex)), this,
+			SLOT(onCurrentRowChanged(QModelIndex, QModelIndex)));
+
+	qtvUserList->setFocus();
+	qtvUserList->setContextMenuPolicy(Qt::CustomContextMenu);
+	qtvUserList->header()->setSectionResizeMode(UserListModel::COL_NICK, QHeaderView::Stretch);
+
+	if (!m_model->isLegacy()) {
+		qtvUserList->header()->setSectionResizeMode(UserListModel::COL_INACTIVEDAYS, QHeaderView::ResizeToContents);
+		qtvUserList->header()->setSectionResizeMode(UserListModel::COL_LASTCHANNEL, QHeaderView::Stretch);
 	}
-	return self;
-}
 
-- (void)dealloc {
-	[m_synthesizer release];
-	[m_messages release];
-	[super dealloc];
-}
-
-- (NSSpeechSynthesizer *)synthesizer {
-	return m_synthesizer;
-}
-
-- (void)appendMessage:(NSString *)message {
-	[m_messages insertObject:message atIndex:0];
-}
-
-- (void)processSpeech {
-	Q_ASSERT([m_messages count] == 0);
-	
-	NSString *poppedMessage = [m_messages lastObject];
-	[m_synthesizer startSpeakingString:poppedMessage];
-	[m_messages removeLastObject];
-}
-
-- (void)speechSynthesizer:(NSSpeechSynthesizer *)synthesizer didFinishSpeaking:(BOOL)success {
-	Q_UNUSED(synthesizer);
-	Q_UNUSED(success);
-
-	if ([m_messages count] != 0) {
-		[self processSpeech];
+	if (m_model->isLegacy()) {
+		qlInactive->hide();
+		qsbInactive->hide();
+		qcbInactive->hide();
 	}
+
+	qtvUserList->sortByColumn(UserListModel::COL_NICK, Qt::AscendingOrder);
 }
 
-@end
+void UserEdit::accept() {
+	if (m_model->isUserListDirty()) {
+		MumbleProto::UserList userList = m_model->getUserListUpdate();
+		g.sh->sendMessage(userList);
+	}
 
-class TextToSpeechPrivate {
-	public:
-		MUSpeechSynthesizerPrivateHelper *m_synthesizerHelper;
-
-		TextToSpeechPrivate();
-		~TextToSpeechPrivate();
-		void say(const QString &text);
-		void setVolume(int v);
-};
-
-TextToSpeechPrivate::TextToSpeechPrivate() {
-	m_synthesizerHelper = [[MUSpeechSynthesizerPrivateHelper alloc] init];
+	QDialog::accept();
 }
 
-TextToSpeechPrivate::~TextToSpeechPrivate() {
-	[m_synthesizerHelper release];
+void UserEdit::on_qlSearch_textChanged(QString pattern) {
+	m_filter->setFilterWildcard(pattern);
 }
 
-void TextToSpeechPrivate::say(const QString &text) {
-	QByteArray byteArray = text.toUtf8();
-	NSString *message = [[NSString alloc] initWithBytes:byteArray.constData() length:byteArray.size() encoding:NSUTF8StringEncoding];
 
-	if (message == nil) {
+void UserEdit::on_qpbRename_clicked() {
+	QModelIndex current = qtvUserList->selectionModel()->currentIndex();
+	if (!current.isValid())
 		return;
+
+	QModelIndex nickIndex = current.sibling(current.row(), UserListModel::COL_NICK);
+	qtvUserList->edit(nickIndex);
+}
+
+void UserEdit::on_qpbRemove_clicked() {
+	m_filter->removeRowsInSelection(qtvUserList->selectionModel()->selection());
+}
+
+void UserEdit::on_qtvUserList_customContextMenuRequested(const QPoint &point) {
+	QMenu *menu = new QMenu(this);
+
+	if (qtvUserList->selectionModel()->currentIndex().isValid()) {
+		QAction *renameAction = menu->addAction(tr("Rename"));
+		connect(renameAction, SIGNAL(triggered()), this, SLOT(on_qpbRename_clicked()));
+
+		menu->addSeparator();
 	}
 
-	[m_synthesizerHelper appendMessage:message];
-	[message release];
+	QAction *removeMenuAction = menu->addAction(tr("Remove"));
+	connect(removeMenuAction, SIGNAL(triggered()), this, SLOT(on_qpbRemove_clicked()));
 
-	if (![[m_synthesizerHelper synthesizer] isSpeaking]) {
-		[m_synthesizerHelper processSpeech];
+	menu->exec(qtvUserList->mapToGlobal(point));
+	delete menu;
+}
+
+void UserEdit::onSelectionChanged(const QItemSelection & /*selected*/, const QItemSelection & /*deselected*/) {
+	const bool somethingSelected = !(qtvUserList->selectionModel()->selection().empty());
+	qpbRemove->setEnabled(somethingSelected);
+}
+
+void UserEdit::onCurrentRowChanged(const QModelIndex &current, const QModelIndex &) {
+	qpbRename->setEnabled(current.isValid());
+}
+
+void UserEdit::on_qsbInactive_valueChanged(int) {
+	updateInactiveDaysFilter();
+}
+
+void UserEdit::on_qcbInactive_currentIndexChanged(int) {
+	updateInactiveDaysFilter();
+}
+
+void UserEdit::updateInactiveDaysFilter() {
+	const int timespanUnit  = qcbInactive->currentIndex();
+	const int timespanCount = qsbInactive->value();
+
+	int minimumInactiveDays = 0;
+	switch (timespanUnit) {
+		case TU_DAYS:
+			minimumInactiveDays = timespanCount;
+			break;
+		case TU_WEEKS:
+			minimumInactiveDays = timespanCount * 7;
+			break;
+		case TU_MONTHS:
+			minimumInactiveDays = timespanCount * 30;
+			break;
+		case TU_YEARS:
+			minimumInactiveDays = timespanCount * 365;
+			break;
+		default:
+			break;
 	}
+
+	m_filter->setFilterMinimumInactiveDays(minimumInactiveDays);
 }
 
-void TextToSpeechPrivate::setVolume(int volume) {
-	// Check for setVolume: availability. It's only available on 10.5+.
-	if ([[m_synthesizerHelper synthesizer] respondsToSelector:@selector(setVolume:)]) {
-		[[m_synthesizerHelper synthesizer] setVolume:volume / 100.0];
+
+UserListFilterProxyModel::UserListFilterProxyModel(QObject *parent_)
+	: QSortFilterProxyModel(parent_), m_minimumInactiveDays(0) {
+	setFilterKeyColumn(UserListModel::COL_NICK);
+	setFilterCaseSensitivity(Qt::CaseInsensitive);
+	setSortLocaleAware(true);
+	setDynamicSortFilter(true);
+}
+
+bool UserListFilterProxyModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const {
+	if (!QSortFilterProxyModel::filterAcceptsRow(source_row, source_parent)) {
+		return false;
 	}
+
+	const QModelIndex inactiveDaysIdx =
+		sourceModel()->index(source_row, UserListModel::COL_INACTIVEDAYS, source_parent);
+
+	bool ok;
+	const int inactiveDays = inactiveDaysIdx.data().toInt(&ok);
+
+	// If inactiveDaysIdx doesn't store an int the account hasn't been seen yet and mustn't be filtered
+	if (ok && inactiveDays < m_minimumInactiveDays)
+		return false;
+
+	return true;
 }
 
-TextToSpeech::TextToSpeech(QObject *) {
-	enabled = true;
-	d = new TextToSpeechPrivate();
+void UserListFilterProxyModel::setFilterMinimumInactiveDays(int minimumInactiveDays) {
+	m_minimumInactiveDays = minimumInactiveDays;
+	invalidateFilter();
 }
 
-TextToSpeech::~TextToSpeech() {
-	delete d;
-}
-
-void TextToSpeech::say(const QString &text) {
-	if (d && enabled)
-		d->say(text);
-}
-
-void TextToSpeech::setEnabled(bool e) {
-	enabled = e;
-}
-
-void TextToSpeech::setVolume(int volume) {
-	if (d && enabled)
-		d->setVolume(volume);
-}
-
-bool TextToSpeech::isEnabled() const {
-	return enabled;
+void UserListFilterProxyModel::removeRowsInSelection(const QItemSelection &selection) {
+	QItemSelection sourceSelection = mapSelectionToSource(selection);
+	qobject_cast< UserListModel * >(sourceModel())->removeRowsInSelection(sourceSelection);
 }
