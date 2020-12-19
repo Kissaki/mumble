@@ -1,21 +1,50 @@
-<RCC>
-    <qresource prefix="/">
-        <file alias="rec.svg">../../icons/rec.svg</file>
-        <file alias="mumble.svg">../../icons/mumble.svg</file>
-        <file alias="mumble.icns">../../icons/mumble.icns</file>
-        <file alias="wb_male.oga">../../samples/wb_male.oga</file>
-        <file alias="on.ogg">../../samples/on.ogg</file>
-        <file alias="off.ogg">../../samples/off.ogg</file>
-        <file alias="Critical.ogg">../../samples/Critical.ogg</file>
-        <file alias="PermissionDenied.ogg">../../samples/PermissionDenied.ogg</file>
-        <file alias="SelfMutedDeafened.ogg">../../samples/SelfMutedDeafened.ogg</file>
-        <file alias="ServerConnected.ogg">../../samples/ServerConnected.ogg</file>
-        <file alias="ServerDisconnected.ogg">../../samples/ServerDisconnected.ogg</file>
-        <file alias="TextMessage.ogg">../../samples/TextMessage.ogg</file>
-        <file alias="UserJoinedChannel.ogg">../../samples/UserJoinedChannel.ogg</file>
-        <file alias="UserKickedYouOrByYou.ogg">../../samples/UserKickedYouOrByYou.ogg</file>
-        <file alias="UserLeftChannel.ogg">../../samples/UserLeftChannel.ogg</file>
-        <file alias="UserMutedYouOrByYou.ogg">../../samples/UserMutedYouOrByYou.ogg</file>
-        <file alias="RecordingStateChanged.ogg">../../samples/RecordingStateChanged.ogg</file>
-    </qresource>
-</RCC>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#ifndef MUMBLE_MUMBLE_LOCKFILE_H_
+#define MUMBLE_MUMBLE_LOCKFILE_H_
+
+#include <QtCore/QtGlobal>
+
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
+
+#include <QtCore/QString>
+
+/// UserLockFile implements an atomic lock file
+/// that can be used as a mutex between different
+/// processes run by the same user.
+class UserLockFile {
+#if defined(Q_OS_WIN)
+	HANDLE m_handle;
+#endif
+	QString m_path;
+
+public:
+	/// Constructs a LockFile at path.
+	/// The path should be somewhere
+	/// owned by the current user, such
+	/// as inside the home directory of
+	/// the user. This is to avoid clashing
+	/// with other lock files.
+	UserLockFile(const QString &path);
+
+	/// Destroys the LockFile, and ensures
+	/// that it is released.
+	~UserLockFile();
+
+	/// Returns the path that the lock file
+	/// exists at.
+	QString path() const;
+
+	/// Acquires the lock file.
+	bool acquire();
+
+	/// Releases the lock file.
+	void release();
+};
+
+#endif
