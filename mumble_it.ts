@@ -1,37 +1,61 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2019-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_SHAREDMEMORY_H_
-#define MUMBLE_MUMBLE_SHAREDMEMORY_H_
+#include "Screen.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QString>
+#include "MumbleApplication.h"
 
-struct SharedMemory2Private;
-class SharedMemory2 : QObject {
-private:
-	Q_DISABLE_COPY(SharedMemory2)
-	Q_OBJECT
-protected:
-	QString qsName;
-	SharedMemory2Private *d;
-	unsigned char *a_ucData;
-	unsigned int uiSize;
-	static unsigned int uiIndex;
+#include <QScreen>
+#include <QWidget>
+#include <QWindow>
 
-public:
-	SharedMemory2(QObject *p, unsigned int minsize, const QString &name = QString());
-	~SharedMemory2() Q_DECL_OVERRIDE;
+QWindow *Screen::windowFromWidget(const QWidget &widget) {
+	QWindow *window = widget.windowHandle();
+	if (window) {
+		return window;
+	}
 
-	void erase();
-	void systemRelease();
+	const QWidget *parent = widget.nativeParentWidget();
+	if (parent) {
+		return parent->windowHandle();
+	}
 
-	QString name() const;
-	unsigned int size() const;
-	unsigned char *data();
-	const unsigned char *data() const;
-};
+	return nullptr;
+}
 
+QScreen *Screen::screenFromWidget(const QWidget &widget) {
+	const QWindow *window = windowFromWidget(widget);
+	if (window && window->screen()) {
+		return window->screen();
+	}
+
+	return qApp->primaryScreen();
+}
+
+QScreen *Screen::screenAt(const QPoint &point) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+	return qApp->screenAt(point);
+#else
+	// Adapted from qguiapplication.cpp (Qt)
+	QVarLengthArray< const QScreen *, 8 > visitedScreens;
+
+	for (const QScreen *screen : qApp->screens()) {
+		if (visitedScreens.contains(screen)) {
+			continue;
+		}
+
+		// The virtual siblings include the screen itself, so iterate directly
+		for (QScreen *sibling : screen->virtualSiblings()) {
+			if (sibling->geometry().contains(point)) {
+				return sibling;
+			}
+
+			visitedScreens.append(sibling);
+		}
+	}
+
+	return nullptr;
 #endif
+}
