@@ -3,52 +3,37 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_SOCKETRPC_H_
-#define MUMBLE_MUMBLE_SOCKETRPC_H_
+#include "SvgIcon.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QString>
-#include <QtCore/QVariant>
-#include <QtCore/QXmlStreamReader>
-#include <QtNetwork/QLocalSocket>
+#include <QPainter>
+#include <QSvgRenderer>
 
-class QBuffer;
-class QLocalServer;
+void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
+	QSvgRenderer svg(fn);
 
-class SocketRPCClient : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(SocketRPCClient)
-protected:
-	QLocalSocket *qlsSocket;
-	QXmlStreamReader qxsrReader;
-	QXmlStreamWriter qxswWriter;
-	QBuffer *qbBuffer;
-	QByteArray qbaOutput;
+	QList< QSize > commonSizes;
+	commonSizes << QSize(8, 8);
+	commonSizes << QSize(16, 16);
+	commonSizes << QSize(22, 22); // Plasma notification area size
+	commonSizes << QSize(24, 24);
+	commonSizes << QSize(32, 32);
+	commonSizes << QSize(44, 44); // Plasma notification area size @x2
+	commonSizes << QSize(48, 48);
+	commonSizes << QSize(64, 64);
+	commonSizes << QSize(96, 96);
+	commonSizes << QSize(128, 128);
+	commonSizes << QSize(256, 256);
 
-	void processXml();
+	foreach (QSize size, commonSizes) {
+		QPixmap pm(size);
+		pm.fill(Qt::transparent);
 
-public:
-	SocketRPCClient(QLocalSocket *s, QObject *p = nullptr);
-public slots:
-	void disconnected();
-	void error(QLocalSocket::LocalSocketError);
-	void readyRead();
-};
+		QPainter p(&pm);
+		p.setRenderHint(QPainter::Antialiasing);
+		p.setRenderHint(QPainter::TextAntialiasing);
+		p.setRenderHint(QPainter::SmoothPixmapTransform);
+		svg.render(&p);
 
-class SocketRPC : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(SocketRPC)
-protected:
-	QLocalServer *qlsServer;
-
-public:
-	typedef QMap< QString, QVariant > ParameterMap;
-	SocketRPC(const QString &basename, QObject *p = nullptr);
-	static bool send(const QString &basename, const QString &request, const ParameterMap &param = ParameterMap());
-public slots:
-	void newConnection();
-};
-
-#endif
+		icon.addPixmap(pm);
+	}
+}
