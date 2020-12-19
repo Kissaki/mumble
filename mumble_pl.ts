@@ -1,235 +1,87 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TalkingUIContainer.h"
-#include "TalkingUIEntry.h"
+#include "SharedMemory.h"
 
-#include <QGroupBox>
-#include <QVBoxLayout>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include <algorithm>
+#include <QDebug>
 
-
-struct entry_ptr_less {
-	bool operator()(const std::unique_ptr< TalkingUIEntry > &first, const std::unique_ptr< TalkingUIEntry > &second) {
-		return *first < *second;
-	}
+struct SharedMemory2Private {
+	int iShmemFD;
 };
 
+SharedMemory2::SharedMemory2(QObject *p, unsigned int minsize, const QString &memname) : QObject(p) {
+	a_ucData = nullptr;
 
+	d           = new SharedMemory2Private();
+	d->iShmemFD = -1;
 
-TalkingUIContainer::TalkingUIContainer(int associatedChannelID, TalkingUI &talkingUI)
-	: m_associatedChannelID(associatedChannelID), m_talkingUI(talkingUI) {
-}
+	int prot = PROT_READ;
 
-
-int TalkingUIContainer::find(unsigned int associatedUserSession, EntryType type) const {
-	for (std::size_t i = 0; i < m_entries.size(); i++) {
-		const std::unique_ptr< TalkingUIEntry > &currentEntry = m_entries[i];
-		if (currentEntry->getType() == type && currentEntry->getAssociatedUserSession() == associatedUserSession) {
-			return static_cast< int >(i);
+	if (memname.isEmpty()) {
+		prot |= PROT_WRITE;
+		for (int i = 0; i < 100; ++i) {
+			qsName      = QString::fromLatin1("/MumbleOverlayMemory%1").arg(++uiIndex);
+			d->iShmemFD = shm_open(qsName.toUtf8().constData(), O_RDWR | O_CREAT | O_EXCL, 0600);
+			if (d->iShmemFD != -1) {
+				if (ftruncate(d->iShmemFD, minsize) == 0) {
+					break;
+				} else {
+					close(d->iShmemFD);
+					d->iShmemFD = -1;
+					shm_unlink(qsName.toUtf8().constData());
+				}
+			}
 		}
-	}
-
-	return -1;
-}
-
-int TalkingUIContainer::getAssociatedChannelID() const {
-	return m_associatedChannelID;
-}
-
-void TalkingUIContainer::addEntry(std::unique_ptr< TalkingUIEntry > entry) {
-	// set container
-	entry->m_container = this;
-
-	m_entries.push_back(std::move(entry));
-}
-
-std::unique_ptr< TalkingUIEntry > TalkingUIContainer::removeEntry(const TalkingUIEntry *entry) {
-	return removeEntry(entry->getAssociatedUserSession(), entry->getType());
-}
-
-std::unique_ptr< TalkingUIEntry > TalkingUIContainer::removeEntry(unsigned int associatedUserSession, EntryType type) {
-	int index = find(associatedUserSession, type);
-
-	std::unique_ptr< TalkingUIEntry > entry(nullptr);
-
-	if (index >= 0) {
-		// Move the entry out of the vector
-		entry = std::move(m_entries[index]);
-		m_entries.erase(m_entries.begin() + index);
-
-		// reset container
-		entry->m_container = nullptr;
-	}
-
-	return entry;
-}
-
-std::vector< std::unique_ptr< TalkingUIEntry > > &TalkingUIContainer::getEntries() {
-	return m_entries;
-}
-
-const std::vector< std::unique_ptr< TalkingUIEntry > > &TalkingUIContainer::getEntries() const {
-	return m_entries;
-}
-
-bool TalkingUIContainer::contains(unsigned int associatedUserSession, EntryType type) const {
-	return find(associatedUserSession, type) >= 0;
-}
-
-std::size_t TalkingUIContainer::size() const {
-	return m_entries.size();
-}
-
-bool TalkingUIContainer::isEmpty() const {
-	return size() == 0;
-}
-
-void TalkingUIContainer::setPermanent(bool permanent) {
-	m_permanent = permanent;
-}
-
-bool TalkingUIContainer::isPermanent() const {
-	return m_permanent;
-}
-
-TalkingUIEntry *TalkingUIContainer::get(unsigned int associatedUserSession, EntryType type) {
-	int index = find(associatedUserSession, type);
-
-	if (index >= 0) {
-		return m_entries[index].get();
 	} else {
-		return nullptr;
+		qsName      = memname;
+		d->iShmemFD = shm_open(qsName.toUtf8().constData(), O_RDONLY, 0600);
 	}
-}
-
-bool TalkingUIContainer::operator==(const TalkingUIContainer &other) const {
-	return compare(other) == 0;
-}
-
-bool TalkingUIContainer::operator!=(const TalkingUIContainer &other) const {
-	return compare(other) != 0;
-}
-
-bool TalkingUIContainer::operator>(const TalkingUIContainer &other) const {
-	return compare(other) > 0;
-}
-
-bool TalkingUIContainer::operator>=(const TalkingUIContainer &other) const {
-	return compare(other) >= 0;
-}
-
-bool TalkingUIContainer::operator<(const TalkingUIContainer &other) const {
-	return compare(other) < 0;
-}
-
-bool TalkingUIContainer::operator<=(const TalkingUIContainer &other) const {
-	return compare(other) <= 0;
-}
-
-
-
-const int CHANNEL_LAYOUT_TOP_MARGIN = 10;
-
-TalkingUIChannel::TalkingUIChannel(int associatedChannelID, QString name, TalkingUI &talkingUI)
-	: TalkingUIContainer(associatedChannelID, talkingUI), m_channelBox(new QGroupBox()) {
-	// Set name
-	m_channelBox->setTitle(name);
-
-	// Set layout
-	QVBoxLayout *layout = new QVBoxLayout();
-	layout->setContentsMargins(0, CHANNEL_LAYOUT_TOP_MARGIN, 0, 0);
-	m_channelBox->setLayout(layout);
-}
-
-TalkingUIChannel::~TalkingUIChannel() {
-	m_channelBox->deleteLater();
-}
-
-void TalkingUIChannel::updatePriority() {
-	// First reset the priority to the lowest possible value as the loop below
-	// will only update it to be higher than the current priority
-	m_highestUserPriority = EntryPriority::LOWEST;
-
-	for (auto &currentEntry : m_entries) {
-		if (currentEntry->getPriority() > m_highestUserPriority) {
-			m_highestUserPriority = currentEntry->getPriority();
+	if (d->iShmemFD == -1) {
+		qWarning() << "SharedMemory2: Failed to open shared memory segment" << qsName;
+		return;
+	}
+	struct stat buf;
+	fstat(d->iShmemFD, &buf);
+	unsigned int memsize = static_cast< unsigned int >(buf.st_size);
+	if (memsize < minsize) {
+		qWarning() << "SharedMemory2: Segment too small" << memsize << minsize;
+	} else if (memsize > std::numeric_limits< unsigned int >::max()) {
+		qWarning() << "SharedMemory2: Segment too big" << memsize;
+	} else {
+		a_ucData = reinterpret_cast< unsigned char * >(mmap(nullptr, minsize, prot, MAP_SHARED, d->iShmemFD, 0));
+		if (a_ucData != reinterpret_cast< unsigned char * >(-1)) {
+			uiSize = memsize;
+			return;
 		}
+		qWarning() << "SharedMemory2: Failed to map shared memory segment" << qsName;
+		a_ucData = nullptr;
+	}
+
+	close(d->iShmemFD);
+	d->iShmemFD = -1;
+	shm_unlink(qsName.toUtf8().constData());
+}
+
+SharedMemory2::~SharedMemory2() {
+	systemRelease();
+	if (a_ucData) {
+		munmap(a_ucData, uiSize);
+		a_ucData = nullptr;
 	}
 }
 
-QString TalkingUIChannel::getName() const {
-	return m_channelBox->title();
-}
-
-void TalkingUIChannel::setName(const QString &name) {
-	m_channelBox->setTitle(name);
-}
-
-int TalkingUIChannel::compare(const TalkingUIContainer &other) const {
-	if (getType() != other.getType()) {
-		return static_cast< int >(other.getType()) - static_cast< int >(getType());
+void SharedMemory2::systemRelease() {
+	if (d->iShmemFD != -1) {
+		close(d->iShmemFD);
+		d->iShmemFD = -1;
+		shm_unlink(qsName.toUtf8().constData());
 	}
-
-	const TalkingUIChannel &otherChannel = static_cast< const TalkingUIChannel & >(other);
-
-	if (m_highestUserPriority != otherChannel.m_highestUserPriority) {
-		return m_highestUserPriority < otherChannel.m_highestUserPriority ? 1 : -1;
-	}
-
-	int res = getName().localeAwareCompare(otherChannel.getName());
-
-	if (res == 0) {
-		// Only consider channels to be the same if they have the same associated ID
-		res = otherChannel.getAssociatedChannelID() - getAssociatedChannelID();
-	}
-
-	return res;
-}
-
-QWidget *TalkingUIChannel::getWidget() {
-	return m_channelBox;
-}
-
-const QWidget *TalkingUIChannel::getWidget() const {
-	return m_channelBox;
-}
-
-ContainerType TalkingUIChannel::getType() const {
-	return ContainerType::CHANNEL;
-}
-
-void TalkingUIChannel::addEntry(std::unique_ptr< TalkingUIEntry > entry) {
-	if (entry->getPriority() > m_highestUserPriority) {
-		m_highestUserPriority = entry->getPriority();
-	}
-	TalkingUIContainer::addEntry(std::move(entry));
-
-	// Remove all entries from the layout
-	for (const auto &currentEntry : m_entries) {
-		m_channelBox->layout()->removeWidget(currentEntry->getWidget());
-	}
-
-	// Sort entries
-	std::sort(m_entries.begin(), m_entries.end(), entry_ptr_less());
-
-	// Add all entries again (including the new one) in order
-	for (auto &currentEntry : m_entries) {
-		m_channelBox->layout()->addWidget(currentEntry->getWidget());
-	}
-}
-
-std::unique_ptr< TalkingUIEntry > TalkingUIChannel::removeEntry(unsigned int associatedUserSession, EntryType type) {
-	std::unique_ptr< TalkingUIEntry > entry = TalkingUIContainer::removeEntry(associatedUserSession, type);
-
-	if (entry) {
-		m_channelBox->layout()->removeWidget(entry->getWidget());
-	}
-
-	updatePriority();
-
-	return entry;
 }
