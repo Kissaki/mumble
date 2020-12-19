@@ -3,869 +3,404 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayEditorScene.h"
-
-#include "Channel.h"
-#include "Database.h"
-#include "MainWindow.h"
-#include "Message.h"
-#include "NetworkConfig.h"
+#include "OverlayConfig.h"
 #include "OverlayClient.h"
-#include "OverlayText.h"
-#include "OverlayUser.h"
-#include "ServerHandler.h"
-#include "User.h"
-#include "Utils.h"
-#include "GlobalShortcut.h"
+#include "MainWindow.h"
 
-#include <QtGui/QImageReader>
-#include <QtWidgets/QColorDialog>
-#include <QtWidgets/QFontDialog>
-#include <QtWidgets/QGraphicsProxyWidget>
-#include <QtWidgets/QGraphicsSceneMouseEvent>
+#include <QtCore/QProcess>
+#include <QtCore/QXmlStreamReader>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#import <ScriptingBridge/ScriptingBridge.h>
+#import <Cocoa/Cocoa.h>
+#include <Carbon/Carbon.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-OverlayEditorScene::OverlayEditorScene(const OverlaySettings &srcos, QObject *p) : QGraphicsScene(p), os(srcos) {
-	tsColor = Settings::Talking;
-	uiZoom  = 2;
-
-	if (g.ocIntercept)
-		uiSize = g.ocIntercept->uiHeight;
-	else
-		uiSize = 1080.f;
-
-	qgiGroup = new OverlayGroup();
-	qgiGroup->setAcceptHoverEvents(true);
-	qgiGroup->setPos(0.0f, 0.0f);
-	addItem(qgiGroup);
-
-	qgpiMuted = new QGraphicsPixmapItem(qgiGroup);
-	qgpiMuted->hide();
-
-	qgpiAvatar = new QGraphicsPixmapItem(qgiGroup);
-	qgpiAvatar->hide();
-
-	qgpiName = new QGraphicsPixmapItem(qgiGroup);
-	qgpiName->hide();
-
-	qgpiChannel = new QGraphicsPixmapItem(qgiGroup);
-	qgpiChannel->hide();
-
-	qgpiBox = new QGraphicsPathItem(qgiGroup);
-	qgpiBox->hide();
-
-	qgpiSelected = nullptr;
-
-	qgriSelected = new QGraphicsRectItem;
-	qgriSelected->hide();
-
-	qgriSelected->setFlag(QGraphicsItem::ItemIgnoresParentOpacity, true);
-	qgriSelected->setOpacity(1.0f);
-	qgriSelected->setBrush(Qt::NoBrush);
-	qgriSelected->setPen(QPen(Qt::black, 4.0f));
-	qgriSelected->setZValue(5.0f);
-
-	addItem(qgriSelected);
-
-	qgpiChannel->setZValue(2.0f);
-	qgpiName->setZValue(1.0f);
-	qgpiMuted->setZValue(3.0f);
-
-	qgpiBox->setZValue(-1.0f);
-
-	resync();
+extern "C" {
+#include <xar/xar.h>
 }
 
-#define SCALESIZE(var) \
-	iroundf(uiSize *uiZoom *os.qrf##var.width() + 0.5f), iroundf(uiSize *uiZoom *os.qrf##var.height() + 0.5f)
+// Ignore deprecation warnings for the whole file, for now.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
-void OverlayEditorScene::updateMuted() {
-	QImageReader qir(QLatin1String("skin:muted_self.svg"));
-	QSize sz = qir.size();
-	sz.scale(SCALESIZE(MutedDeafened), Qt::KeepAspectRatio);
-	qir.setScaledSize(sz);
-	qgpiMuted->setPixmap(QPixmap::fromImage(qir.read()));
+static NSString *MumbleOverlayLoaderBundle = @"/Library/ScriptingAdditions/MumbleOverlay.osax";
+static NSString *MumbleOverlayLoaderBundleIdentifier = @"net.sourceforge.mumble.OverlayScriptingAddition";
 
-	moveMuted();
-}
-
-void OverlayEditorScene::moveMuted() {
-	qgpiMuted->setVisible(os.bMutedDeafened);
-	qgpiMuted->setPos(OverlayUser::alignedPosition(OverlayUser::scaledRect(os.qrfMutedDeafened, uiSize * uiZoom),
-												   qgpiMuted->boundingRect(), os.qaMutedDeafened));
-	qgpiMuted->setOpacity(os.fMutedDeafened);
-}
-
-void OverlayEditorScene::updateUserName() {
-	QString qsName;
-
-	switch (tsColor) {
-		case Settings::Passive:
-			qsName = Overlay::tr("Silent");
-			break;
-		case Settings::Talking:
-			qsName = Overlay::tr("Talking");
-			break;
-		case Settings::MutedTalking:
-			qsName = QObject::tr("Talking (muted)");
-			break;
-		case Settings::Whispering:
-			qsName = Overlay::tr("Whisper");
-			break;
-		case Settings::Shouting:
-			qsName = Overlay::tr("Shout");
-			break;
+pid_t getForegroundProcessId() {
+	NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+	if (app) {
+		return [app processIdentifier];
 	}
 
-	const QPixmap &pm =
-		OverlayTextLine(qsName, os.qfUserName).createPixmap(SCALESIZE(UserName), os.qcUserName[tsColor]);
-	qgpiName->setPixmap(pm);
-
-	moveUserName();
+	return 0;
 }
 
-void OverlayEditorScene::moveUserName() {
-	qgpiName->setVisible(os.bUserName);
-	qgpiName->setPos(OverlayUser::alignedPosition(OverlayUser::scaledRect(os.qrfUserName, uiSize * uiZoom),
-												  qgpiName->boundingRect(), os.qaUserName));
-	qgpiName->setOpacity(os.fUserName);
+@interface OverlayInjectorMac : NSObject {
+	BOOL active;
 }
+- (id) init;
+- (void) dealloc;
+- (void) appLaunched:(NSNotification *)notification;
+- (void) setActive:(BOOL)flag;
+- (void) eventDidFail:(const AppleEvent *)event withError:(NSError *)error;
+@end
 
-void OverlayEditorScene::updateChannel() {
-	const QPixmap &pm =
-		OverlayTextLine(Overlay::tr("Channel"), os.qfChannel).createPixmap(SCALESIZE(Channel), os.qcChannel);
-	qgpiChannel->setPixmap(pm);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+@interface OverlayInjectorMac () <SBApplicationDelegate>
+@end
+#endif
 
-	moveChannel();
-}
+@implementation OverlayInjectorMac
 
-void OverlayEditorScene::moveChannel() {
-	qgpiChannel->setVisible(os.bChannel);
-	qgpiChannel->setPos(OverlayUser::alignedPosition(OverlayUser::scaledRect(os.qrfChannel, uiSize * uiZoom),
-													 qgpiChannel->boundingRect(), os.qaChannel));
-	qgpiChannel->setOpacity(os.fChannel);
-}
+- (id) init {
+	self = [super init];
 
-void OverlayEditorScene::updateAvatar() {
-	QImage img;
-	QImageReader qir(QLatin1String("skin:default_avatar.svg"));
-	QSize sz = qir.size();
-	sz.scale(SCALESIZE(Avatar), Qt::KeepAspectRatio);
-	qir.setScaledSize(sz);
-	img = qir.read();
-	qgpiAvatar->setPixmap(QPixmap::fromImage(img));
-
-	moveAvatar();
-}
-
-void OverlayEditorScene::moveAvatar() {
-	qgpiAvatar->setVisible(os.bAvatar);
-	qgpiAvatar->setPos(OverlayUser::alignedPosition(OverlayUser::scaledRect(os.qrfAvatar, uiSize * uiZoom),
-													qgpiAvatar->boundingRect(), os.qaAvatar));
-	qgpiAvatar->setOpacity(os.fAvatar);
-}
-
-void OverlayEditorScene::moveBox() {
-	QRectF childrenBounds = os.qrfAvatar | os.qrfChannel | os.qrfMutedDeafened | os.qrfUserName;
-
-	bool haspen = (os.qcBoxPen != os.qcBoxFill) && (!qFuzzyCompare(os.qcBoxPen.alphaF(), static_cast< qreal >(0.0f)));
-	qreal pw    = haspen ? qMax< qreal >(1.0f, os.fBoxPenWidth * uiSize * uiZoom) : 0.0f;
-	qreal pad   = os.fBoxPad * uiSize * uiZoom;
-
-	QPainterPath pp;
-	pp.addRoundedRect(childrenBounds.x() * uiSize * uiZoom + -pw / 2.0f - pad,
-					  childrenBounds.y() * uiSize * uiZoom + -pw / 2.0f - pad,
-					  childrenBounds.width() * uiSize * uiZoom + pw + 2.0f * pad,
-					  childrenBounds.height() * uiSize * uiZoom + pw + 2.0f * pad, 2.0f * pw, 2.0f * pw);
-	qgpiBox->setPath(pp);
-	qgpiBox->setPos(0.0f, 0.0f);
-	qgpiBox->setPen(haspen ? QPen(os.qcBoxPen, pw) : Qt::NoPen);
-	qgpiBox->setBrush(qFuzzyCompare(os.qcBoxFill.alphaF(), static_cast< qreal >(0.0f)) ? Qt::NoBrush : os.qcBoxFill);
-	qgpiBox->setOpacity(1.0f);
-
-	qgpiBox->setVisible(os.bBox);
-}
-
-void OverlayEditorScene::updateSelected() {
-	if (qgpiSelected == qgpiAvatar)
-		updateAvatar();
-	else if (qgpiSelected == qgpiName)
-		updateUserName();
-	else if (qgpiSelected == qgpiMuted)
-		updateMuted();
-}
-
-void OverlayEditorScene::resync() {
-	QRadialGradient gradient(0, 0, 10 * uiZoom);
-	gradient.setSpread(QGradient::ReflectSpread);
-	gradient.setColorAt(0.0f, QColor(255, 255, 255, 64));
-	gradient.setColorAt(0.2f, QColor(0, 0, 0, 64));
-	gradient.setColorAt(0.4f, QColor(255, 128, 0, 64));
-	gradient.setColorAt(0.6f, QColor(0, 0, 0, 64));
-	gradient.setColorAt(0.8f, QColor(0, 128, 255, 64));
-	gradient.setColorAt(1.0f, QColor(0, 0, 0, 64));
-	setBackgroundBrush(gradient);
-
-	updateMuted();
-	updateUserName();
-	updateChannel();
-	updateAvatar();
-
-	moveMuted();
-	moveUserName();
-	moveChannel();
-	moveAvatar();
-
-	moveBox();
-
-	qgiGroup->setOpacity(os.fUser[tsColor]);
-
-	qgpiSelected = nullptr;
-	qgriSelected->setVisible(false);
-}
-
-void OverlayEditorScene::drawBackground(QPainter *p, const QRectF &rect) {
-	p->setBrushOrigin(0, 0);
-	p->fillRect(rect, backgroundBrush());
-
-	QRectF upscaled = OverlayUser::scaledRect(rect, 128.f / static_cast< float >(uiSize * uiZoom));
-
-	{
-		int min = iroundf(upscaled.left());
-		int max = iroundf(ceil(upscaled.right()));
-
-		for (int i = min; i <= max; ++i) {
-			qreal v = (i / 128) * static_cast< qreal >(uiSize * uiZoom);
-
-			if (i != 0)
-				p->setPen(QPen(QColor(128, 128, 128, 255), 0.0f));
-			else
-				p->setPen(QPen(QColor(0, 0, 0, 255), 2.0f));
-
-			p->drawLine(QPointF(v, rect.top()), QPointF(v, rect.bottom()));
-		}
+	if (self) {
+		active = NO;
+		NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+		[[workspace notificationCenter] addObserver:self
+		                                selector:@selector(appLaunched:)
+		                                name:NSWorkspaceDidLaunchApplicationNotification
+		                                object:workspace];
+		return self;
 	}
 
-	{
-		int min = iroundf(upscaled.top());
-		int max = iroundf(ceil(upscaled.bottom()));
-
-		for (int i = min; i <= max; ++i) {
-			qreal v = (i / 128) * static_cast< qreal >(uiSize * uiZoom);
-
-			if (i != 0)
-				p->setPen(QPen(QColor(128, 128, 128, 255), 0.0f));
-			else
-				p->setPen(QPen(QColor(0, 0, 0, 255), 2.0f));
-
-			p->drawLine(QPointF(rect.left(), v), QPointF(rect.right(), v));
-		}
-	}
+	return nil;
 }
 
-QGraphicsPixmapItem *OverlayEditorScene::childAt(const QPointF &pos) {
-	QGraphicsItem *item = nullptr;
+- (void) dealloc {
+	NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+	[[workspace notificationCenter] removeObserver:self
+		                                name:NSWorkspaceDidLaunchApplicationNotification
+		                                object:workspace];
 
-	if (qgriSelected->isVisible()) {
-		if (qgriSelected->rect().contains(pos)) {
-			return qgpiSelected;
-		}
-	}
-
-	foreach (QGraphicsItem *qgi, items(Qt::AscendingOrder)) {
-		if (!qgi->isVisible() || !qgraphicsitem_cast< QGraphicsPixmapItem * >(qgi))
-			continue;
-
-		QPointF qp = pos - qgi->pos();
-		if (qgi->contains(qp)) {
-			item = qgi;
-		}
-	}
-	return static_cast< QGraphicsPixmapItem * >(item);
+	[super dealloc];
 }
 
-QRectF OverlayEditorScene::selectedRect() const {
-	const QRectF *qrf = nullptr;
+- (void) appLaunched:(NSNotification *)notification {
+	if (active) {
+		BOOL overlayEnabled = NO;
+		NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
+		NSDictionary *userInfo = [notification userInfo];
 
-	if (qgpiSelected == qgpiMuted)
-		qrf = &os.qrfMutedDeafened;
-	else if (qgpiSelected == qgpiAvatar)
-		qrf = &os.qrfAvatar;
-	else if (qgpiSelected == qgpiChannel)
-		qrf = &os.qrfChannel;
-	else if (qgpiSelected == qgpiName)
-		qrf = &os.qrfUserName;
+		NSString *bundleId = [userInfo objectForKey:@"NSApplicationBundleIdentifier"];
+		if ([bundleId isEqualToString:[[NSBundle mainBundle] bundleIdentifier]])
+			return;
 
-	if (!qrf)
-		return QRectF();
+		QString qsBundleIdentifier = QString::fromUtf8([bundleId UTF8String]);
 
-	return OverlayUser::scaledRect(*qrf, uiSize * uiZoom).toAlignedRect();
-}
-
-
-void OverlayEditorScene::mousePressEvent(QGraphicsSceneMouseEvent *e) {
-	QGraphicsScene::mousePressEvent(e);
-
-	if (e->isAccepted())
-		return;
-
-	if (e->button() == Qt::LeftButton) {
-		e->accept();
-
-		if (wfsHover == Qt::NoSection) {
-			qgpiSelected = childAt(e->scenePos());
-			if (qgpiSelected) {
-				qgriSelected->setRect(selectedRect());
-				qgriSelected->show();
-			} else {
-				qgriSelected->hide();
+		switch (g.s.os.oemOverlayExcludeMode) {
+			case OverlaySettings::LauncherFilterExclusionMode: {
+				qWarning("Overlay_macx: launcher filter mode not implemented on macOS, allowing everything");
+				overlayEnabled = YES;
+				break;
+			}
+			case OverlaySettings::WhitelistExclusionMode: {
+				if (g.s.os.qslWhitelist.contains(qsBundleIdentifier)) {
+					overlayEnabled = YES;
+				}
+				break;
+			}
+			case OverlaySettings::BlacklistExclusionMode: {
+				if (! g.s.os.qslBlacklist.contains(qsBundleIdentifier)) {
+					overlayEnabled = YES;
+				}
+				break;
 			}
 		}
 
-		updateCursorShape(e->scenePos());
+		if (overlayEnabled) {
+			pid_t pid = [[userInfo objectForKey:@"NSApplicationProcessIdentifier"] intValue];
+			SBApplication *app = [SBApplication applicationWithProcessIdentifier:pid];
+			[app setDelegate:self];
+
+			// This timeout is specified in 'ticks'.
+			// A tick defined as: "[...] (a tick is approximately 1/60 of a second) [...]" in the
+			// Apple Event Manager Refernce documentation:
+			// http://developer.apple.com/legacy/mac/library/documentation/Carbon/reference/Event_Manager/Event_Manager.pdf
+			[app setTimeout:10*60];
+
+			[app setSendMode:kAEWaitReply];
+			[app sendEvent:kASAppleScriptSuite id:kGetAEUT parameters:0];
+
+			[app setSendMode:kAENoReply];
+			if (QSysInfo::MacintoshVersion == QSysInfo::MV_LEOPARD) {
+				[app sendEvent:'MUOL' id:'daol' parameters:0];
+			} else if (QSysInfo::MacintoshVersion >= QSysInfo::MV_SNOWLEOPARD) {
+				[app sendEvent:'MUOL' id:'load' parameters:0];
+			}
+		}
+
+		[pool release];
 	}
 }
 
-void OverlayEditorScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *e) {
-	QGraphicsScene::mouseReleaseEvent(e);
+- (void) setActive:(BOOL)flag {
+	active = flag;
+}
 
-	if (e->isAccepted())
-		return;
+// SBApplication delegate method
+- (void)eventDidFail:(const AppleEvent *)event withError:(NSError *)error {
+	Q_UNUSED(event);
+	Q_UNUSED(error);
 
-	if (e->button() == Qt::LeftButton) {
-		e->accept();
+	// Do nothing. This method is only here to avoid an exception.
+}
 
-		QRectF rect = qgriSelected->rect();
+@end
 
-		if (!qgpiSelected || (rect == selectedRect())) {
-			return;
-		}
+class OverlayPrivateMac : public OverlayPrivate {
+	protected:
+		OverlayInjectorMac *olm;
+	public:
+		void setActive(bool);
+		OverlayPrivateMac(QObject *);
+		~OverlayPrivateMac();
+};
 
-		QRectF scaled(rect.x() / (uiSize * uiZoom), rect.y() / (uiSize * uiZoom), rect.width() / (uiSize * uiZoom),
-					  rect.height() / (uiSize * uiZoom));
+OverlayPrivateMac::OverlayPrivateMac(QObject *p) : OverlayPrivate(p) {
+	olm = [[OverlayInjectorMac alloc] init];
+}
 
-		if (qgpiSelected == qgpiMuted) {
-			os.qrfMutedDeafened = scaled;
-			updateMuted();
-		} else if (qgpiSelected == qgpiAvatar) {
-			os.qrfAvatar = scaled;
-			updateAvatar();
-		} else if (qgpiSelected == qgpiChannel) {
-			os.qrfChannel = scaled;
-			updateChannel();
-		} else if (qgpiSelected == qgpiName) {
-			os.qrfUserName = scaled;
-			updateUserName();
-		}
+OverlayPrivateMac::~OverlayPrivateMac() {
+	[olm release];
+}
 
-		moveBox();
+void OverlayPrivateMac::setActive(bool act) {
+	[olm setActive:act];
+}
+
+void Overlay::platformInit() {
+	d = new OverlayPrivateMac(this);
+}
+
+void Overlay::setActiveInternal(bool act) {
+	if (d) {
+		/// Only act if the private instance has been created already
+		static_cast<OverlayPrivateMac *>(d)->setActive(act);
 	}
 }
 
-void OverlayEditorScene::mouseMoveEvent(QGraphicsSceneMouseEvent *e) {
-	QGraphicsScene::mouseMoveEvent(e);
-
-	if (e->isAccepted())
-		return;
-
-	if (qgpiSelected && (e->buttons() & Qt::LeftButton)) {
-		e->accept();
-
-		if (wfsHover == Qt::NoSection)
-			return;
-
-		QPointF delta = e->scenePos() - e->buttonDownScenePos(Qt::LeftButton);
-
-		bool square = e->modifiers() & Qt::ShiftModifier;
-
-		QRectF orig = selectedRect();
-		switch (wfsHover) {
-			case Qt::TitleBarArea:
-				orig.translate(delta);
-				break;
-			case Qt::TopSection:
-				orig.setTop(orig.top() + delta.y());
-				if (orig.height() < 8.0f)
-					orig.setTop(orig.bottom() - 8.0f);
-				if (square)
-					orig.setRight(orig.left() + orig.height());
-				break;
-			case Qt::BottomSection:
-				orig.setBottom(orig.bottom() + delta.y());
-				if (orig.height() < 8.0f)
-					orig.setBottom(orig.top() + 8.0f);
-				if (square)
-					orig.setRight(orig.left() + orig.height());
-				break;
-			case Qt::LeftSection:
-				orig.setLeft(orig.left() + delta.x());
-				if (orig.width() < 8.0f)
-					orig.setLeft(orig.right() - 8.0f);
-				if (square)
-					orig.setBottom(orig.top() + orig.width());
-				break;
-			case Qt::RightSection:
-				orig.setRight(orig.right() + delta.x());
-				if (orig.width() < 8.0f)
-					orig.setRight(orig.left() + 8.0f);
-				if (square)
-					orig.setBottom(orig.top() + orig.width());
-				break;
-			case Qt::TopLeftSection:
-				orig.setTopLeft(orig.topLeft() + delta);
-				if (orig.height() < 8.0f)
-					orig.setTop(orig.bottom() - 8.0f);
-				if (orig.width() < 8.0f)
-					orig.setLeft(orig.right() - 8.0f);
-				if (square) {
-					qreal size = qMin(orig.width(), orig.height());
-					QPointF sz(-size, -size);
-					orig.setTopLeft(orig.bottomRight() + sz);
-				}
-				break;
-			case Qt::TopRightSection:
-				orig.setTopRight(orig.topRight() + delta);
-				if (orig.height() < 8.0f)
-					orig.setTop(orig.bottom() - 8.0f);
-				if (orig.width() < 8.0f)
-					orig.setRight(orig.left() + 8.0f);
-				if (square) {
-					qreal size = qMin(orig.width(), orig.height());
-					QPointF sz(size, -size);
-					orig.setTopRight(orig.bottomLeft() + sz);
-				}
-				break;
-			case Qt::BottomLeftSection:
-				orig.setBottomLeft(orig.bottomLeft() + delta);
-				if (orig.height() < 8.0f)
-					orig.setBottom(orig.top() + 8.0f);
-				if (orig.width() < 8.0f)
-					orig.setLeft(orig.right() - 8.0f);
-				if (square) {
-					qreal size = qMin(orig.width(), orig.height());
-					QPointF sz(-size, size);
-					orig.setBottomLeft(orig.topRight() + sz);
-				}
-				break;
-			case Qt::BottomRightSection:
-				orig.setBottomRight(orig.bottomRight() + delta);
-				if (orig.height() < 8.0f)
-					orig.setBottom(orig.top() + 8.0f);
-				if (orig.width() < 8.0f)
-					orig.setRight(orig.left() + 8.0f);
-				if (square) {
-					qreal size = qMin(orig.width(), orig.height());
-					QPointF sz(size, size);
-					orig.setBottomRight(orig.topLeft() + sz);
-				}
-				break;
-			case Qt::NoSection:
-				// Handled above, but this makes the compiler happy.
-				return;
-		}
-
-		qgriSelected->setRect(orig);
-	} else {
-		updateCursorShape(e->scenePos());
-	}
+bool OverlayConfig::supportsInstallableOverlay() {
+	return true;
 }
 
-void OverlayEditorScene::updateCursorShape(const QPointF &point) {
-	Qt::CursorShape cs;
+void OverlayClient::updateMouse() {
+	QCursor c = qgv.viewport()->cursor();
+	NSCursor *cursor = nil;
+	Qt::CursorShape csShape = c.shape();
 
-	if (qgriSelected->isVisible()) {
-		wfsHover = rectSection(qgriSelected->rect(), point);
-	} else {
-		wfsHover = Qt::NoSection;
+	switch (csShape) {
+		case Qt::IBeamCursor:        cursor = [NSCursor IBeamCursor]; break;
+		case Qt::CrossCursor:        cursor = [NSCursor crosshairCursor]; break;
+		case Qt::ClosedHandCursor:   cursor = [NSCursor closedHandCursor]; break;
+		case Qt::OpenHandCursor:     cursor = [NSCursor openHandCursor]; break;
+		case Qt::PointingHandCursor: cursor = [NSCursor pointingHandCursor]; break;
+		case Qt::SizeVerCursor:      cursor = [NSCursor resizeUpDownCursor]; break;
+		case Qt::SplitVCursor:       cursor = [NSCursor resizeUpDownCursor]; break;
+		case Qt::SizeHorCursor:      cursor = [NSCursor resizeLeftRightCursor]; break;
+		case Qt::SplitHCursor:       cursor = [NSCursor resizeLeftRightCursor]; break;
+		default:                     cursor = [NSCursor arrowCursor]; break;
 	}
 
-	switch (wfsHover) {
-		case Qt::TopLeftSection:
-		case Qt::BottomRightSection:
-			cs = Qt::SizeFDiagCursor;
-			break;
-		case Qt::TopRightSection:
-		case Qt::BottomLeftSection:
-			cs = Qt::SizeBDiagCursor;
-			break;
-		case Qt::TopSection:
-		case Qt::BottomSection:
-			cs = Qt::SizeVerCursor;
-			break;
-		case Qt::LeftSection:
-		case Qt::RightSection:
-			cs = Qt::SizeHorCursor;
-			break;
-		case Qt::TitleBarArea:
-			cs = Qt::OpenHandCursor;
-			break;
-		default:
-			cs = Qt::ArrowCursor;
-			break;
-	}
-
-
-	foreach (QGraphicsView *v, views()) {
-		if (v->viewport()->cursor().shape() != cs) {
-			v->viewport()->setCursor(cs);
-
-			// But an embedded, injected GraphicsView doesn't propagage mouse cursors...
-			QWidget *p = v->parentWidget();
-			if (p) {
-				QGraphicsProxyWidget *qgpw = p->graphicsProxyWidget();
-				if (qgpw) {
-					qgpw->setCursor(cs);
-					if (g.ocIntercept)
-						g.ocIntercept->updateMouse();
-				}
+	QPixmap pm = qmCursors.value(csShape);
+	if (pm.isNull()) {
+		NSImage *img = [cursor image];
+		CGImageRef cgimg = nullptr;
+		NSArray *reps = [img representations];
+		for (NSUInteger i = 0; i < [reps count]; i++) {
+			NSImageRep *rep = [reps objectAtIndex:i];
+			if ([rep class] == [NSBitmapImageRep class]) {
+				cgimg = [(NSBitmapImageRep *)rep CGImage];
 			}
 		}
 	}
+
+	NSPoint p = [cursor hotSpot];
+	iOffsetX = (int) p.x;
+	iOffsetY = (int) p.y;
+
+	qgpiCursor->setPixmap(pm);
+	qgpiCursor->setPos(iMouseX - iOffsetX, iMouseY - iOffsetY);
 }
 
-void OverlayEditorScene::contextMenuEvent(QGraphicsSceneContextMenuEvent *e) {
-	QGraphicsScene::contextMenuEvent(e);
+QString installerPath() {
+	NSString *installerPath = [[NSBundle mainBundle] pathForResource:@"MumbleOverlay" ofType:@"pkg"];
+	if (installerPath) {
+		return QString::fromUtf8([installerPath UTF8String]);
+	}
+	return QString();
+}
 
-	if (e->isAccepted())
-		return;
+bool OverlayConfig::isInstalled() {
+	bool ret = false;
 
-	if (!e->widget())
-		return;
+	// Determine if the installed bundle is correctly installed (i.e. it's loadable)
+	NSBundle *bundle = [NSBundle bundleWithPath:MumbleOverlayLoaderBundle];
+	ret = [bundle preflightAndReturnError:nullptr];
 
-	QGraphicsPixmapItem *item = childAt(e->scenePos());
-
-	QMenu qm(e->widget());
-
-	QMenu *qmLayout              = qm.addMenu(tr("Layout preset"));
-	QAction *qaLayoutLargeAvatar = qmLayout->addAction(tr("Large square avatar"));
-	QAction *qaLayoutText        = qmLayout->addAction(tr("Avatar and Name"));
-
-	QMenu *qmTrans        = qm.addMenu(tr("User Opacity"));
-	QActionGroup *qagUser = new QActionGroup(&qm);
-	QAction *userOpacity[8];
-	for (int i = 0; i < 8; ++i) {
-		qreal o = (i + 1) / 8.0;
-
-		userOpacity[i] = new QAction(tr("%1%").arg(o * 100.0f, 0, 'f', 1), qagUser);
-		userOpacity[i]->setCheckable(true);
-		userOpacity[i]->setData(o);
-
-		if (qFuzzyCompare(qgiGroup->opacity(), o))
-			userOpacity[i]->setChecked(true);
-
-		qmTrans->addAction(userOpacity[i]);
+	// Do the bundle identifiers match?
+	if (ret) {
+		ret = [[bundle bundleIdentifier] isEqualToString:MumbleOverlayLoaderBundleIdentifier];
 	}
 
-	QAction *color      = nullptr;
-	QAction *fontAction = nullptr;
-	QAction *objectOpacity[8];
-	for (int i = 0; i < 8; ++i)
-		objectOpacity[i] = nullptr;
-	QAction *boxpen[4]    = { nullptr, nullptr, nullptr, nullptr };
-	QAction *boxpad[4]    = { nullptr, nullptr, nullptr, nullptr };
-	QAction *boxpencolor  = nullptr;
-	QAction *boxfillcolor = nullptr;
+	return ret;
+}
 
-	QAction *align[6];
-	for (int i = 0; i < 6; ++i)
-		align[i] = nullptr;
+// Check whether this installer installs something 'newer' than what we already have.
+// Also checks whether the new installer is compatiable with the current version of
+// Mumble.
+static bool isInstallerNewer(QString path, NSUInteger curVer) {
+	xar_t pkg = nullptr;
+	xar_iter_t iter = nullptr;
+	xar_file_t file = nullptr;
+	char *data = nullptr;
+	size_t size = 0;
+	bool ret = false;
+	QString qsMinVer, qsOverlayVer;
 
-	if (item) {
-		qm.addSeparator();
-		QMenu *qmObjTrans       = qm.addMenu(tr("Object Opacity"));
-		QActionGroup *qagObject = new QActionGroup(&qm);
-		for (int i = 0; i < 8; ++i) {
-			qreal o = (i + 1) / 8.0;
-
-			objectOpacity[i] = new QAction(tr("%1%").arg(o * 100.0f, 0, 'f', 1), qagObject);
-			objectOpacity[i]->setCheckable(true);
-			objectOpacity[i]->setData(o);
-			if (qFuzzyCompare(item->opacity(), o))
-				objectOpacity[i]->setChecked(true);
-			qmObjTrans->addAction(objectOpacity[i]);
-		}
-
-		QMenu *qmObjAlign = qm.addMenu(tr("Alignment"));
-		Qt::Alignment a;
-		if (item == qgpiAvatar)
-			a = os.qaAvatar;
-		else if (item == qgpiChannel)
-			a = os.qaChannel;
-		else if (item == qgpiMuted)
-			a = os.qaMutedDeafened;
-		else
-			a = os.qaUserName;
-
-		align[0] = qmObjAlign->addAction(tr("Left"));
-		align[0]->setCheckable(true);
-		align[0]->setData(Qt::AlignLeft);
-		if (a & Qt::AlignLeft)
-			align[0]->setChecked(true);
-		align[1] = qmObjAlign->addAction(tr("Center"));
-		align[1]->setCheckable(true);
-		align[1]->setData(Qt::AlignHCenter);
-		if (a & Qt::AlignHCenter)
-			align[1]->setChecked(true);
-		align[2] = qmObjAlign->addAction(tr("Right"));
-		align[2]->setCheckable(true);
-		align[2]->setData(Qt::AlignRight);
-		if (a & Qt::AlignRight)
-			align[2]->setChecked(true);
-
-		qmObjAlign->addSeparator();
-
-		align[3] = qmObjAlign->addAction(tr("Top"));
-		align[3]->setCheckable(true);
-		align[3]->setData(Qt::AlignTop);
-		if (a & Qt::AlignTop)
-			align[3]->setChecked(true);
-		align[4] = qmObjAlign->addAction(tr("Center"));
-		align[4]->setCheckable(true);
-		align[4]->setData(Qt::AlignVCenter);
-		if (a & Qt::AlignVCenter)
-			align[4]->setChecked(true);
-		align[5] = qmObjAlign->addAction(tr("Bottom"));
-		align[5]->setCheckable(true);
-		align[5]->setData(Qt::AlignBottom);
-		if (a & Qt::AlignBottom)
-			align[5]->setChecked(true);
-
-		if ((item != qgpiAvatar) && (item != qgpiMuted)) {
-			color      = qm.addAction(tr("Color..."));
-			fontAction = qm.addAction(tr("Font..."));
-		}
+	pkg = xar_open(path.toUtf8().constData(), READ);
+	if (!pkg) {
+		qWarning("isInstallerNewer: Unable to open pkg.");
+		goto out;
 	}
 
-	if (qgpiBox->isVisible()) {
-		qm.addSeparator();
-		QMenu *qmBox = qm.addMenu(tr("Bounding box"));
-		QMenu *qmPen = qmBox->addMenu(tr("Pen width"));
-		QMenu *qmPad = qmBox->addMenu(tr("Padding"));
-		boxpencolor  = qmBox->addAction(tr("Pen color"));
-		boxfillcolor = qmBox->addAction(tr("Fill color"));
-
-		QActionGroup *qagPen = new QActionGroup(qmPen);
-		QActionGroup *qagPad = new QActionGroup(qmPad);
-		for (int i = 0; i < 4; ++i) {
-			qreal v   = (i) ? powf(2.0f, static_cast< float >(-10 + i)) : 0.0f;
-			boxpen[i] = new QAction(QString::number(i), qagPen);
-			boxpen[i]->setData(v);
-			boxpen[i]->setCheckable(true);
-			if (qFuzzyCompare(os.fBoxPenWidth, v))
-				boxpen[i]->setChecked(true);
-			qmPen->addAction(boxpen[i]);
-
-			boxpad[i] = new QAction(QString::number(i), qagPad);
-			boxpad[i]->setData(v);
-			boxpad[i]->setCheckable(true);
-			if (qFuzzyCompare(os.fBoxPad, v))
-				boxpad[i]->setChecked(true);
-			qmPad->addAction(boxpad[i]);
-		}
+	iter = xar_iter_new();
+	if (!iter) {
+		qWarning("isInstallerNewer: Unable to allocate iter");
+		goto out;
 	}
 
-	QAction *act = qm.exec(e->screenPos());
-
-	if (!act)
-		return;
-
-	for (int i = 0; i < 8; ++i) {
-		if (userOpacity[i] == act) {
-			float o           = static_cast< float >(act->data().toReal());
-			os.fUser[tsColor] = o;
-
-			qgiGroup->setOpacity(o);
-		}
+	file = xar_file_first(pkg, iter);
+	while (file) {
+		if (!strcmp(xar_get_path(file), "upgrade.xml"))
+			break;
+		file = xar_file_next(iter);
 	}
 
-	for (int i = 0; i < 8; ++i) {
-		if (objectOpacity[i] == act) {
-			qreal o = act->data().toReal();
-
-			if (item == qgpiMuted)
-				os.fMutedDeafened = o;
-			else if (item == qgpiAvatar)
-				os.fAvatar = o;
-			else if (item == qgpiChannel)
-				os.fChannel = o;
-			else if (item == qgpiName)
-				os.fUserName = o;
-
-			item->setOpacity(o);
+	if (file) {
+		if (xar_extract_tobuffersz(pkg, file, &data, &size) == -1) {
+			goto out;
 		}
-	}
 
-	for (int i = 0; i < 4; ++i) {
-		if (boxpen[i] == act) {
-			os.fBoxPenWidth = act->data().toReal();
-			moveBox();
-		} else if (boxpad[i] == act) {
-			os.fBoxPad = act->data().toReal();
-			moveBox();
-		}
-	}
-
-	for (int i = 0; i < 6; ++i) {
-		if (align[i] == act) {
-			Qt::Alignment *aptr;
-			if (item == qgpiAvatar)
-				aptr = &os.qaAvatar;
-			else if (item == qgpiChannel)
-				aptr = &os.qaChannel;
-			else if (item == qgpiMuted)
-				aptr = &os.qaMutedDeafened;
-			else
-				aptr = &os.qaUserName;
-
-			Qt::Alignment a = static_cast< Qt::Alignment >(act->data().toInt());
-			if (a & Qt::AlignHorizontal_Mask) {
-				*aptr = (*aptr & ~Qt::AlignHorizontal_Mask) | a;
-			} else {
-				*aptr = (*aptr & ~Qt::AlignVertical_Mask) | a;
+		QXmlStreamReader reader(QByteArray::fromRawData(data, size));
+		while (! reader.atEnd()) {
+			QXmlStreamReader::TokenType tok = reader.readNext();
+			if (tok == QXmlStreamReader::StartElement) {
+				if (reader.name() == QLatin1String("upgrade")) {
+					qsOverlayVer = reader.attributes().value(QLatin1String("version")).toString();
+					qsMinVer = reader.attributes().value(QLatin1String("minclient")).toString();
+				}
 			}
-
-			updateSelected();
-		}
-	}
-
-	if (act == boxpencolor) {
-		QColor qc = QColorDialog::getColor(os.qcBoxPen, e->widget(), tr("Pick pen color"),
-										   QColorDialog::DontUseNativeDialog | QColorDialog::ShowAlphaChannel);
-		if (!qc.isValid())
-			return;
-		os.qcBoxPen = qc;
-		moveBox();
-	} else if (act == boxfillcolor) {
-		QColor qc = QColorDialog::getColor(os.qcBoxFill, e->widget(), tr("Pick fill color"),
-										   QColorDialog::DontUseNativeDialog | QColorDialog::ShowAlphaChannel);
-		if (!qc.isValid())
-			return;
-		os.qcBoxFill = qc;
-		moveBox();
-	} else if (act == color) {
-		QColor *col = nullptr;
-		if (item == qgpiChannel)
-			col = &os.qcChannel;
-		else if (item == qgpiName)
-			col = &os.qcUserName[tsColor];
-		if (!col)
-			return;
-
-		QColor qc = QColorDialog::getColor(*col, e->widget(), tr("Pick color"), QColorDialog::DontUseNativeDialog);
-		if (!qc.isValid())
-			return;
-		qc.setAlpha(255);
-
-		if (qc == *col)
-			return;
-
-		*col = qc;
-		updateSelected();
-	} else if (act == fontAction) {
-		QFont *fontptr = (item == qgpiChannel) ? &os.qfChannel : &os.qfUserName;
-
-		qgpiSelected = nullptr;
-		qgriSelected->hide();
-
-		// QFontDialog doesn't really like graphics view. At all.
-
-		QFontDialog qfd;
-		qfd.setOptions(QFontDialog::DontUseNativeDialog);
-		qfd.setCurrentFont(*fontptr);
-		qfd.setWindowTitle(tr("Pick font"));
-
-		int ret;
-		if (g.ocIntercept) {
-			QGraphicsProxyWidget *qgpw = new QGraphicsProxyWidget(nullptr, Qt::Window);
-			qgpw->setWidget(&qfd);
-
-			addItem(qgpw);
-
-			qgpw->setZValue(3.0f);
-			qgpw->setPanelModality(QGraphicsItem::PanelModal);
-			qgpw->setPos(-qgpw->boundingRect().width() / 2.0f, -qgpw->boundingRect().height() / 2.0f);
-			qgpw->show();
-
-			ret = qfd.exec();
-
-			qgpw->hide();
-			qgpw->setWidget(nullptr);
-			delete qgpw;
-		} else {
-			Qt::WindowFlags wf = g.mw->windowFlags();
-			if (wf.testFlag(Qt::WindowStaysOnTopHint))
-				qfd.setWindowFlags(qfd.windowFlags() | Qt::WindowStaysOnTopHint);
-			ret = qfd.exec();
 		}
 
-		if (!ret)
-			return;
-		*fontptr = qfd.selectedFont();
+		if (reader.hasError() || qsMinVer.isNull() || qsOverlayVer.isNull()) {
+			qWarning("isInstallerNewer: Error while parsing XML version info.");
+			goto out;
+		}
 
-		resync();
-	} else if (act == qaLayoutLargeAvatar) {
-		os.setPreset(OverlaySettings::LargeSquareAvatar);
-		resync();
-	} else if (act == qaLayoutText) {
-		os.setPreset(OverlaySettings::AvatarAndName);
-		resync();
+		NSUInteger newVer = qsOverlayVer.toUInt();
+
+		QRegExp rx(QLatin1String("(\\d+)\\.(\\d+)\\.(\\d+)"));
+		int major, minor, patch;
+		int minmajor, minminor, minpatch;
+		if (! rx.exactMatch(QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING))))
+			goto out;
+		major = rx.cap(1).toInt();
+		minor = rx.cap(2).toInt();
+		patch = rx.cap(3).toInt();
+		if (! rx.exactMatch(qsMinVer))
+			goto out;
+		minmajor = rx.cap(1).toInt();
+		minminor = rx.cap(2).toInt();
+		minpatch = rx.cap(3).toInt();
+
+		ret = (major >= minmajor) && (minor >= minminor) && (patch >= minpatch) && (newVer > curVer);
 	}
+
+out:
+	xar_close(pkg);
+	xar_iter_free(iter);
+	free(data);
+	return ret;
 }
 
-static qreal distancePointLine(const QPointF &a, const QPointF &b, const QPointF &p) {
-	qreal xda = a.x() - p.x();
-	qreal xdb = p.x() - b.x();
+bool OverlayConfig::needsUpgrade() {
+	NSDictionary *infoPlist = [NSDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"%@/Contents/Info.plist", MumbleOverlayLoaderBundle]];
+	if (infoPlist) {
+		NSUInteger curVersion = [[infoPlist objectForKey:@"MumbleOverlayVersion"] unsignedIntegerValue];
 
-	qreal xd = 0;
+		QString path = installerPath();
+		if (path.isEmpty())
+			return false;
 
-	if (xda > 0)
-		xd = xda;
-	if (xdb > 0)
-		xd = qMax(xd, xdb);
+		return isInstallerNewer(path, curVersion);
+	}
 
-	qreal yda = a.y() - p.y();
-	qreal ydb = p.y() - b.y();
-
-	qreal yd = 0;
-
-	if (yda > 0)
-		yd = yda;
-	if (ydb > 0)
-		yd = qMax(yd, ydb);
-
-	return qMax(xd, yd);
+	return false;
 }
 
-Qt::WindowFrameSection OverlayEditorScene::rectSection(const QRectF &qrf, const QPointF &qp, qreal dist) {
-	qreal left, right, top, bottom;
+static bool authExec(AuthorizationRef ref, const char **argv) {
+	OSStatus err = noErr;
+	int pid = 0, status = 0;
 
-	top    = distancePointLine(qrf.topLeft(), qrf.topRight(), qp);
-	bottom = distancePointLine(qrf.bottomLeft(), qrf.bottomRight(), qp);
-	left   = distancePointLine(qrf.topLeft(), qrf.bottomLeft(), qp);
-	right  = distancePointLine(qrf.topRight(), qrf.bottomRight(), qp);
-
-	if ((top < dist) && (top < bottom)) {
-		if ((left < dist) && (left < right))
-			return Qt::TopLeftSection;
-		else if (right < dist)
-			return Qt::TopRightSection;
-		return Qt::TopSection;
-	} else if (bottom < dist) {
-		if ((left < dist) && (left < right))
-			return Qt::BottomLeftSection;
-		else if (right < dist)
-			return Qt::BottomRightSection;
-		return Qt::BottomSection;
-	} else if (left < dist) {
-		return Qt::LeftSection;
-	} else if (right < dist) {
-		return Qt::RightSection;
+	err = AuthorizationExecuteWithPrivileges(ref, argv[0], kAuthorizationFlagDefaults, const_cast<char * const *>(&argv[1]), nullptr);
+	if (err == errAuthorizationSuccess) {
+		do {
+			pid = wait(&status);
+		} while (pid == -1 && errno == EINTR);
+		return (pid != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0);
 	}
-	if (qrf.contains(qp))
-		return Qt::TitleBarArea;
 
-	return Qt::NoSection;
+	qWarning("Overlay_macx: Failed to AuthorizeExecuteWithPrivileges. (err=%i)", err);
+	qWarning("Overlay_macx: Status: (pid=%i, exited=%u, exitStatus=%u)", pid, WIFEXITED(status), WEXITSTATUS(status));
+
+	return false;
+}
+
+bool OverlayConfig::installFiles() {
+	bool ret = false;
+
+	QString path = installerPath();
+	if (path.isEmpty()) {
+		qWarning("OverlayConfig: No installers found in search paths.");
+		return false;
+	}
+
+	QProcess installer(this);
+	QStringList args;
+	args << QString::fromLatin1("-W");
+	args << path;
+	installer.start(QLatin1String("/usr/bin/open"), args, QIODevice::ReadOnly);
+
+	while (!installer.waitForFinished(1000)) {
+		qApp->processEvents();
+	}
+
+	return ret;
+}
+
+bool OverlayConfig::uninstallFiles() {
+	AuthorizationRef auth;
+	NSBundle *loaderBundle;
+	bool ret = false, bundleOk = false;
+	OSStatus err;
+
+	// Load the installed loader bundle and check if it's something we're willing to uninstall.
+	loaderBundle = [NSBundle bundleWithPath:MumbleOverlayLoaderBundle];
+	bundleOk = [[loaderBundle bundleIdentifier] isEqualToString:MumbleOverlayLoaderBundleIdentifier];
+
+	// Perform uninstallation using Authorization Services. (Pops up a dialog asking for admin privileges)
+	if (bundleOk) {
+		err = AuthorizationCreate(nullptr, kAuthorizationEmptyEnvironment, kAuthorizationFlagDefaults, &auth);
+		if (err == errAuthorizationSuccess) {
+			QByteArray tmp = QString::fromLatin1("/tmp/%1_Uninstalled_MumbleOverlay.osax").arg(QDateTime::currentMSecsSinceEpoch()).toLocal8Bit();
+			const char *remove[] = { "/bin/mv", [MumbleOverlayLoaderBundle UTF8String], tmp.constData(), nullptr };
+			ret = authExec(auth, remove);
+		}
+		AuthorizationFree(auth, kAuthorizationFlagDefaults);
+	}
+
+	return ret;
 }
