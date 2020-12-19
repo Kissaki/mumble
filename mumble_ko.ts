@@ -1,133 +1,95 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>RichTextEditor</class>
- <widget class="QTabWidget" name="RichTextEditor">
+ <class>RichTextEditorLink</class>
+ <widget class="QDialog" name="RichTextEditorLink">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>700</width>
-    <height>518</height>
+    <width>295</width>
+    <height>95</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string notr="true">TabWidget</string>
+   <string>Add Link</string>
   </property>
-  <property name="tabPosition">
-   <enum>QTabWidget::South</enum>
-  </property>
-  <property name="currentIndex">
-   <number>0</number>
-  </property>
-  <widget class="QWidget" name="qwRich">
-   <attribute name="title">
-    <string>Display</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout_2">
-    <item>
-     <widget class="QToolBar" name="qtbToolBar"/>
-    </item>
-    <item>
-     <widget class="RichTextHtmlEdit" name="qteRichText">
-      <property name="autoFormatting">
-       <set>QTextEdit::AutoAll</set>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QWidget" name="qwPlain">
-   <attribute name="title">
-    <string>Source Text</string>
-   </attribute>
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <widget class="QPlainTextEdit" name="qptePlainText"/>
-    </item>
-   </layout>
-  </widget>
-  <action name="qaBold">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-bold.svg</normaloff>skin:actions/format-text-bold.svg</iconset>
-   </property>
-   <property name="text">
-    <string>&amp;Bold</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+B</string>
-   </property>
-  </action>
-  <action name="qaItalic">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-italic.svg</normaloff>skin:actions/format-text-italic.svg</iconset>
-   </property>
-   <property name="text">
-    <string>&amp;Italic</string>
-   </property>
-   <property name="toolTip">
-    <string>Italic</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+I</string>
-   </property>
-  </action>
-  <action name="qaUnderline">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:actions/format-text-underline.svg</normaloff>skin:actions/format-text-underline.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Underline</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+U</string>
-   </property>
-  </action>
-  <action name="qaColor">
-   <property name="text">
-    <string>Color</string>
-   </property>
-  </action>
-  <action name="qaLink">
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:mimetypes/text-html.svg</normaloff>skin:mimetypes/text-html.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Insert Link</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+L</string>
-   </property>
-  </action>
-  <action name="qaImage">
-   <property name="icon">
-    <iconset>
-     <normaloff>skin:mimetypes/image-x-generic.svg</normaloff>skin:mimetypes/image-x-generic.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Insert Image</string>
-   </property>
-  </action>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QLabel" name="qlUrl">
+     <property name="text">
+      <string>URL</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleUrl</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QLineEdit" name="qleUrl"/>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="qlText">
+     <property name="text">
+      <string>Text</string>
+     </property>
+     <property name="buddy">
+      <cstring>qleText</cstring>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QLineEdit" name="qleText"/>
+   </item>
+   <item row="2" column="0" colspan="2">
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>RichTextHtmlEdit</class>
-   <extends>QTextEdit</extends>
-   <header>RichTextEditor.h</header>
-  </customwidget>
- </customwidgets>
+ <tabstops>
+  <tabstop>qleUrl</tabstop>
+  <tabstop>qleText</tabstop>
+  <tabstop>buttonBox</tabstop>
+ </tabstops>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>RichTextEditorLink</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>227</x>
+     <y>228</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>RichTextEditorLink</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>295</x>
+     <y>234</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>
