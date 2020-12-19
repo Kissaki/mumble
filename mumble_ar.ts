@@ -1,146 +1,223 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_GLOBAL_H_
-#define MUMBLE_MUMBLE_GLOBAL_H_
-
-#include <QtCore/QDir>
-#include <boost/shared_ptr.hpp>
-
-#include "ACL.h"
-#include "Settings.h"
-#include "Timer.h"
-#include "Version.h"
-
-// Global helper class to spread variables around across threads.
-
-class MainWindow;
-class ServerHandler;
-class AudioInput;
-class AudioOutput;
-class Database;
-class Log;
-class Plugins;
-class QSettings;
-class Overlay;
-class LCD;
-class Zeroconf;
-class OverlayClient;
-class CELTCodec;
-class OpusCodec;
-class LogEmitter;
-class DeveloperConsole;
-class TalkingUI;
-
-class QNetworkAccessManager;
-
-struct Global Q_DECL_FINAL {
-private:
-	Q_DISABLE_COPY(Global)
-public:
-	static Global *g_global_struct;
-	MainWindow *mw;
-	Settings s;
-	boost::shared_ptr< ServerHandler > sh;
-	boost::shared_ptr< AudioInput > ai;
-	boost::shared_ptr< AudioOutput > ao;
-	/**
-	 * @remark Must only be accessed from the main event loop
-	 */
-	Database *db;
-	Log *l;
-	Plugins *p;
-	QSettings *qs;
-#ifdef USE_OVERLAY
-	Overlay *o;
-#endif
-	LCD *lcd;
-	Zeroconf *zeroconf;
-	QNetworkAccessManager *nam;
-	QSharedPointer< LogEmitter > le;
-	DeveloperConsole *c;
-	TalkingUI *talkingUI;
-	int iPushToTalk;
-	Timer tDoublePush;
-	quint64 uiDoublePush;
-	/// Holds the current VoiceTarget ID to send audio to
-	int iTarget;
-	/// Holds the value of iTarget before its last change until the current
-	/// audio-stream ends (and it has a value > 0). See the comment in
-	/// AudioInput::flushCheck for further details on this.
-	int iPrevTarget;
-	bool bPushToMute;
-	bool bCenterPosition;
-	bool bPosTest;
-	bool bInAudioWizard;
-#ifdef USE_OVERLAY
-	OverlayClient *ocIntercept;
-#endif
-	int iAudioPathTime;
-	/// A unique ID for the current user. It is being assigned by the server right
-	/// after connecting to it. An ID of 0 indicates that the user currently isn't
-	/// connected to a server.
-	unsigned int uiSession;
-	ChanACL::Permissions pPermissions;
-	int iMaxBandwidth;
-	int iAudioBandwidth;
-	QDir qdBasePath;
-	QMap< int, CELTCodec * > qmCodecs;
-	OpusCodec *oCodec;
-	int iCodecAlpha, iCodecBeta;
-	bool bPreferAlpha;
-	bool bOpus;
-	bool bAttenuateOthers;
-	/// If set the AudioOutput::mix will forcefully adjust the volume of all
-	/// non-priority speakers.
-	bool prioritySpeakerActiveOverride;
-	bool bAllowHTML;
-	unsigned int uiMessageLength;
-	unsigned int uiImageLength;
-	unsigned int uiMaxUsers;
-	bool bQuit;
-	QString windowTitlePostfix;
-	bool bDebugDumpInput;
-	bool bDebugPrintQueue;
-
-	bool bHappyEaster;
-	static const char ccHappyEaster[];
-
-	Global(const QString &qsConfigPath = QString());
-	~Global();
-};
-
-// Class to handle ordered initialization of globals.
-// This allows the same link-time magic as used everywhere else
-// for globals that need an init before the GUI starts, but
-// after we reach main().
-
-class DeferInit {
-private:
-	Q_DISABLE_COPY(DeferInit)
-protected:
-	static QMultiMap< int, DeferInit * > *qmDeferers;
-	void add(int priority);
-
-public:
-	DeferInit(int priority) { add(priority); };
-	DeferInit() { add(0); };
-	virtual ~DeferInit();
-	virtual void initialize(){};
-	virtual void destroy(){};
-	static void run_initializers();
-	static void run_destroyers();
-};
-
-/// Special exit code which causes mumble to restart itself. The outward facing return code with be 0
-const int MUMBLE_EXIT_CODE_RESTART = 64738;
-
-// -Wshadow is bugged. If an inline function of a class uses a variable or
-// parameter named 'g', that will generate a warning even if the class header
-// is included long before this definition.
-
-#define g (*Global::g_global_struct)
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ConnectDialog</class>
+ <widget class="QDialog" name="ConnectDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>574</width>
+    <height>366</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Mumble Server Connect</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="2" column="0" colspan="3">
+    <widget class="QDialogButtonBox" name="qdbbButtonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="0" colspan="3">
+    <widget class="ServerView" name="qtwServers">
+     <property name="contextMenuPolicy">
+      <enum>Qt::CustomContextMenu</enum>
+     </property>
+     <property name="dragEnabled">
+      <bool>true</bool>
+     </property>
+     <property name="dragDropMode">
+      <enum>QAbstractItemView::DragDrop</enum>
+     </property>
+     <property name="alternatingRowColors">
+      <bool>true</bool>
+     </property>
+     <property name="autoExpandDelay">
+      <number>250</number>
+     </property>
+     <property name="rootIsDecorated">
+      <bool>true</bool>
+     </property>
+     <property name="uniformRowHeights">
+      <bool>true</bool>
+     </property>
+     <property name="sortingEnabled">
+      <bool>true</bool>
+     </property>
+     <attribute name="headerStretchLastSection">
+      <bool>false</bool>
+     </attribute>
+     <column>
+      <property name="text">
+       <string>Servername</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Ping</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Users</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item row="1" column="0" colspan="3">
+    <widget class="QGroupBox" name="qgbSearch">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="title">
+      <string>Search</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="1" column="0">
+       <widget class="QLabel" name="qlSearchServername">
+        <property name="text">
+         <string>Servername</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLineEdit" name="qleSearchServername">
+        <property name="placeholderText">
+         <string>Servername</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="qlSearchLocation">
+        <property name="text">
+         <string>Location</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QComboBox" name="qcbSearchLocation"/>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="qlFilter">
+        <property name="text">
+         <string>Filter</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QComboBox" name="qcbFilter">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <item>
+         <property name="text">
+          <string>Show All</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Show Populated</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Show Reachable</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+  <action name="qaFavoriteRemove">
+   <property name="text">
+    <string>Remove from Favorites</string>
+   </property>
+  </action>
+  <action name="qaFavoriteEdit">
+   <property name="text">
+    <string>&amp;Edit...</string>
+   </property>
+  </action>
+  <action name="qaFavoriteAddNew">
+   <property name="text">
+    <string>&amp;Add New...</string>
+   </property>
+   <property name="toolTip">
+    <string>Add custom server</string>
+   </property>
+  </action>
+  <action name="qaFavoriteAdd">
+   <property name="text">
+    <string>Add to &amp;Favorites</string>
+   </property>
+  </action>
+  <action name="qaUrl">
+   <property name="text">
+    <string>Open &amp;Webpage</string>
+   </property>
+  </action>
+  <action name="qaFavoriteCopy">
+   <property name="text">
+    <string>&amp;Copy</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy favorite link to clipboard</string>
+   </property>
+  </action>
+  <action name="qaFavoritePaste">
+   <property name="text">
+    <string>&amp;Paste</string>
+   </property>
+   <property name="toolTip">
+    <string>Paste favorite from clipboard</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ServerView</class>
+   <extends>QTreeWidget</extends>
+   <header>ConnectDialog.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>qdbbButtonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>ConnectDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>365</x>
+     <y>270</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>365</x>
+     <y>513</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qdbbButtonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>ConnectDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>459</x>
+     <y>275</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>456</x>
+     <y>494</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
