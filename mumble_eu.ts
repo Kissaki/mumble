@@ -3,99 +3,85 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "MumbleApplication.h"
+#include "OverlayPositionableItem.h"
 
-#include "EnvUtils.h"
-#include "MainWindow.h"
-#include "GlobalShortcut.h"
+#include "Utils.h"
 
-#if defined(Q_OS_WIN)
-#	include "GlobalShortcut_win.h"
-#endif
+#include <QtCore/QEvent>
+#include <QtGui/QPen>
+#include <QtWidgets/QGraphicsScene>
 
-#include <QtGui/QFileOpenEvent>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-MumbleApplication *MumbleApplication::instance() {
-	return static_cast< MumbleApplication * >(QCoreApplication::instance());
+OverlayPositionableItem::OverlayPositionableItem(QRectF *posPtr, const bool isPositionable)
+	: m_position(posPtr), m_isPositionEditable(isPositionable), m_qgeiHandle(nullptr) {
 }
 
-MumbleApplication::MumbleApplication(int &pargc, char **pargv) : QApplication(pargc, pargv) {
-	connect(this, SIGNAL(commitDataRequest(QSessionManager &)), SLOT(onCommitDataRequest(QSessionManager &)),
-			Qt::DirectConnection);
+OverlayPositionableItem::~OverlayPositionableItem() {
+	delete m_qgeiHandle;
+	m_qgeiHandle = nullptr;
 }
 
-QString MumbleApplication::applicationVersionRootPath() {
-	QString versionRoot = EnvUtils::getenv(QLatin1String("MUMBLE_VERSION_ROOT"));
-	if (versionRoot.count() > 0) {
-		return versionRoot;
+void OverlayPositionableItem::createPositioningHandle() {
+	m_qgeiHandle = new QGraphicsEllipseItem(QRectF(-4.0f, -4.0f, 8.0f, 8.0f));
+	m_qgeiHandle->setPen(QPen(Qt::darkRed, 0.0f));
+	m_qgeiHandle->setBrush(Qt::red);
+	m_qgeiHandle->setZValue(0.5f);
+	m_qgeiHandle->setFlag(QGraphicsItem::ItemIsMovable);
+	m_qgeiHandle->setFlag(QGraphicsItem::ItemIsSelectable);
+	scene()->addItem(m_qgeiHandle);
+	m_qgeiHandle->installSceneEventFilter(this);
+}
+
+bool OverlayPositionableItem::sceneEventFilter(QGraphicsItem *watched, QEvent *e) {
+	switch (e->type()) {
+		case QEvent::GraphicsSceneMouseMove:
+		case QEvent::GraphicsSceneMouseRelease:
+			QMetaObject::invokeMethod(this, "onMove", Qt::QueuedConnection);
+			break;
+		default:
+			break;
 	}
-	return this->applicationDirPath();
+	return QGraphicsItem::sceneEventFilter(watched, e);
 }
 
-void MumbleApplication::onCommitDataRequest(QSessionManager &) {
-	// Make sure the config is saved and supress the ask on quit message
-	if (g.mw) {
-		g.s.save();
-		g.mw->bSuppressAskOnQuit = true;
-		qWarning() << "Session likely ending. Suppressing ask on quit";
+void OverlayPositionableItem::onMove() {
+	if (!m_qgeiHandle) {
+		return;
 	}
+
+	const QRectF &sr = scene()->sceneRect();
+	const QPointF &p = m_qgeiHandle->pos();
+
+	m_position->setX(qBound< qreal >(0.0f, p.x() / sr.width(), 1.0f));
+	m_position->setY(qBound< qreal >(0.0f, p.y() / sr.height(), 1.0f));
+
+	m_qgeiHandle->setPos(m_position->x() * sr.width(), m_position->y() * sr.height());
+
+	updateRender();
 }
 
-bool MumbleApplication::event(QEvent *e) {
-	if (e->type() == QEvent::FileOpen) {
-		QFileOpenEvent *foe = static_cast< QFileOpenEvent * >(e);
-		if (!g.mw) {
-			this->quLaunchURL = foe->url();
-		} else {
-			g.mw->openUrl(foe->url());
+void OverlayPositionableItem::updateRender() {
+	const QRectF &sr = scene()->sceneRect();
+	// Translate the 0..1 float position to the real scene coordinates (relative to absolute position)
+	QPoint absPos(iroundf(sr.width() * m_position->x() + 0.5f), iroundf(sr.height() * m_position->y() + 0.5f));
+
+	if (m_isPositionEditable) {
+		if (!m_qgeiHandle) {
+			createPositioningHandle();
 		}
-		return true;
+		m_qgeiHandle->setPos(absPos.x(), absPos.y());
 	}
-	return QApplication::event(e);
+
+	QRectF br = boundingRect();
+	// Limit the position by the elements width (to make sure it is right-/bottom-bound rather than outside of the scene
+	QPoint maxPos(iroundf(sr.width() - br.width() + 0.5f), iroundf(sr.height() - br.height() + 0.5f));
+	int basex = qBound< int >(0, absPos.x(), maxPos.x());
+	int basey = qBound< int >(0, absPos.y(), maxPos.y());
+	setPos(basex, basey);
 }
 
-#ifdef Q_OS_WIN
-/// gswForward forwards a native Windows keyboard/mouse message
-/// into GlobalShortcutWin's event stream.
-///
-/// @return  Returns true if the forwarded event was suppressed
-///          by GlobalShortcutWin. Otherwise, returns false.
-static bool gswForward(MSG *msg) {
-	GlobalShortcutWin *gsw = static_cast< GlobalShortcutWin * >(GlobalShortcutEngine::engine);
-	if (!gsw) {
-		return false;
+void OverlayPositionableItem::setItemVisible(const bool &visible) {
+	setVisible(visible);
+	if (m_qgeiHandle) {
+		m_qgeiHandle->setVisible(visible);
 	}
-	switch (msg->message) {
-		case WM_LBUTTONDOWN:
-		case WM_LBUTTONUP:
-		case WM_RBUTTONDOWN:
-		case WM_RBUTTONUP:
-		case WM_MBUTTONDOWN:
-		case WM_MBUTTONUP:
-		case WM_XBUTTONDOWN:
-		case WM_XBUTTONUP:
-			return gsw->injectMouseMessage(msg);
-		case WM_KEYDOWN:
-		case WM_KEYUP:
-		case WM_SYSKEYDOWN:
-		case WM_SYSKEYUP:
-			return gsw->injectKeyboardMessage(msg);
-	}
-	return false;
 }
-
-bool MumbleApplication::nativeEventFilter(const QByteArray &, void *message, long *) {
-	MSG *msg = reinterpret_cast< MSG * >(message);
-	if (QThread::currentThread() == thread()) {
-		bool suppress = gswForward(msg);
-		if (suppress) {
-			return true;
-		}
-	}
-	return false;
-}
-#endif
