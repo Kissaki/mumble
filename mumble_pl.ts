@@ -3,14 +3,23 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TASK_LIST_H_
-#define MUMBLE_MUMBLE_TASK_LIST_H_
+#include "TextMessage.h"
 
-class QString;
+TextMessage::TextMessage(QWidget *p, QString title, bool bChannel) : QDialog(p) {
+	setupUi(this);
+	rteMessage->setAccessibleName(tr("Message"));
+	if (!bChannel)
+		qcbTreeMessage->setHidden(true);
+	setWindowTitle(title);
+	bTreeMessage = false;
 
-class TaskList {
-public:
-	static void addToRecentList(QString name, QString user, QString host, int port);
-};
+	QObject::connect(rteMessage, SIGNAL(accept()), this, SLOT(accept()));
+}
 
-#endif // TASK_LIST_H_
+void TextMessage::on_qcbTreeMessage_stateChanged(int s) {
+	bTreeMessage = s == Qt::Checked ? true : false;
+}
+
+QString TextMessage::message() {
+	return rteMessage->text();
+}
