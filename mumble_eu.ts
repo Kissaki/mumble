@@ -3,25 +3,31 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TOKENS_H_
-#define MUMBLE_MUMBLE_TOKENS_H_
+#ifndef MUMBLE_MUMBLE_USAGE_H_
+#define MUMBLE_MUMBLE_USAGE_H_
 
-#include "ui_Tokens.h"
+#include <QtCore/QBuffer>
+#include <QtCore/QDataStream>
+#include <QtCore/QObject>
 
-class Tokens : public QDialog, public Ui::Tokens {
-private:
+class ClientUser;
+
+/// This class is used to send usage information to the mumble.info website.
+///
+/// During instantiation of this class a ten minute timer will be started. After that
+/// the object's registerUsage function will be called that sends the respective
+/// information to the server.
+class Usage : public QObject {
 	Q_OBJECT
-	Q_DISABLE_COPY(Tokens)
 protected:
-	QByteArray qbaDigest;
+	QBuffer qbReport;
+	QDataStream qdsReport;
 
 public:
-	Tokens(QWidget *p = nullptr);
+	Usage(QObject *p = nullptr);
 public slots:
-	void accept() Q_DECL_OVERRIDE;
-public slots:
-	void on_qpbAdd_clicked();
-	void on_qpbRemove_clicked();
+	/// Performs the actual registration.
+	void registerUsage();
 };
 
 #endif
