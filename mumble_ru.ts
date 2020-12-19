@@ -3,44 +3,94 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_DBUS_H_
-#define MUMBLE_MUMBLE_DBUS_H_
+#ifndef MUMBLE_MUMBLE_COREAUDIO_H_
+#	define MUMBLE_MUMBLE_COREAUDIO_H_
 
-#include <QtDBus/QDBusAbstractAdaptor>
+#	include "AudioInput.h"
+#	include "AudioOutput.h"
 
-class QDBusMessage;
+#	include <AudioToolbox/AudioToolbox.h>
+#	include <Carbon/Carbon.h>
 
-class MumbleDBus : public QDBusAbstractAdaptor {
+#	include "Global.h"
+
+class CoreAudioSystem : public QObject {
 private:
 	Q_OBJECT
-	Q_CLASSINFO("D-Bus Interface", "net.sourceforge.mumble.Mumble")
-	Q_DISABLE_COPY(MumbleDBus)
-	Q_PROPERTY(bool mute READ isSelfMuted WRITE setSelfMuted)
-	Q_PROPERTY(bool deaf READ isSelfDeaf WRITE setSelfDeaf)
+	Q_DISABLE_COPY(CoreAudioSystem)
 public:
-	MumbleDBus(QObject *parent);
-public slots:
-	void openUrl(const QString &url, const QDBusMessage &);
-	void getCurrentUrl(const QDBusMessage &);
-	void getTalkingUsers(const QDBusMessage &);
-	void focus();
-
-	/// Change when Mumble transmits voice.
-	///
-	/// @param mode The new transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
-	void setTransmitMode(unsigned int mode, const QDBusMessage &);
-
-	/// Get the current transmit mode.
-	///
-	/// @return The current transmit mode (0 = continous, 1 = voice activity, 2 = push-to-talk)
-	unsigned int getTransmitMode();
-
-	void setSelfMuted(bool mute);
-	void setSelfDeaf(bool deafen);
-	bool isSelfMuted();
-	bool isSelfDeaf();
-	void startTalking();
-	void stopTalking();
+	static CFStringRef QStringToCFString(const QString &str);
+	static const QHash< QString, QString > getDevices(bool input);
+	static const QList< audioDevice > getDeviceChoices(bool input);
 };
 
+class CoreAudioInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CoreAudioInput)
+protected:
+	AudioUnit au;
+	AUEventListenerRef el;
+	AudioBufferList buflist;
+	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+							   AudioUnitElement element);
+	static OSStatus inputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+								  UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
+
+public:
+	CoreAudioInput();
+	~CoreAudioInput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
+class CoreAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CoreAudioOutput)
+protected:
+	AudioUnit au;
+	AUEventListenerRef el;
+	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+							   AudioUnitElement element);
+	static OSStatus outputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+								   UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
+
+public:
+	CoreAudioOutput();
+	~CoreAudioOutput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
+class CoreAudioInputRegistrar : public AudioInputRegistrar {
+public:
+	CoreAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("CoreAudio"), 10) {}
+	virtual AudioInput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	virtual bool canEcho(const QString &) const;
+};
+
+class CoreAudioOutputRegistrar : public AudioOutputRegistrar {
+public:
+	CoreAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("CoreAudio"), 10) {}
+	virtual AudioOutput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	bool canMuteOthers() const;
+};
+
+class CoreAudioInit : public DeferInit {
+	CoreAudioInputRegistrar *cairReg;
+	CoreAudioOutputRegistrar *caorReg;
+
+public:
+	CoreAudioInit() : cairReg(nullptr), caorReg(nullptr) {}
+	void initialize();
+	void destroy();
+};
+
+#else
+class CoreAudioSystem;
+class CoreAudioInput;
+class CoreAudioOutput;
 #endif
