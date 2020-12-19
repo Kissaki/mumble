@@ -3,85 +3,31 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayPositionableItem.h"
+#ifndef MUMBLE_MUMBLE_OVERLAYPOSITIONABLEITEM_H
+#define MUMBLE_MUMBLE_OVERLAYPOSITIONABLEITEM_H
 
-#include "Utils.h"
+#include <QtCore/QtGlobal>
+#include <QtWidgets/QGraphicsItem>
 
-#include <QtCore/QEvent>
-#include <QtGui/QPen>
-#include <QtWidgets/QGraphicsScene>
+class OverlayPositionableItem : public QObject, public QGraphicsPixmapItem {
+	Q_OBJECT
+	Q_DISABLE_COPY(OverlayPositionableItem);
 
-OverlayPositionableItem::OverlayPositionableItem(QRectF *posPtr, const bool isPositionable)
-	: m_position(posPtr), m_isPositionEditable(isPositionable), m_qgeiHandle(nullptr) {
-}
+public:
+	OverlayPositionableItem(QRectF *posPtr, const bool isPositionable = false);
+	virtual ~OverlayPositionableItem();
+	void updateRender();
+	void setItemVisible(const bool &visible);
 
-OverlayPositionableItem::~OverlayPositionableItem() {
-	delete m_qgeiHandle;
-	m_qgeiHandle = nullptr;
-}
+private:
+	/// Float value between 0 and 1 where 0,0 is top left, and 1,1 is bottom right
+	QRectF *m_position;
+	const bool m_isPositionEditable;
+	QGraphicsEllipseItem *m_qgeiHandle;
+	void createPositioningHandle();
+	bool sceneEventFilter(QGraphicsItem *, QEvent *) Q_DECL_OVERRIDE;
+private slots:
+	void onMove();
+};
 
-void OverlayPositionableItem::createPositioningHandle() {
-	m_qgeiHandle = new QGraphicsEllipseItem(QRectF(-4.0f, -4.0f, 8.0f, 8.0f));
-	m_qgeiHandle->setPen(QPen(Qt::darkRed, 0.0f));
-	m_qgeiHandle->setBrush(Qt::red);
-	m_qgeiHandle->setZValue(0.5f);
-	m_qgeiHandle->setFlag(QGraphicsItem::ItemIsMovable);
-	m_qgeiHandle->setFlag(QGraphicsItem::ItemIsSelectable);
-	scene()->addItem(m_qgeiHandle);
-	m_qgeiHandle->installSceneEventFilter(this);
-}
-
-bool OverlayPositionableItem::sceneEventFilter(QGraphicsItem *watched, QEvent *e) {
-	switch (e->type()) {
-		case QEvent::GraphicsSceneMouseMove:
-		case QEvent::GraphicsSceneMouseRelease:
-			QMetaObject::invokeMethod(this, "onMove", Qt::QueuedConnection);
-			break;
-		default:
-			break;
-	}
-	return QGraphicsItem::sceneEventFilter(watched, e);
-}
-
-void OverlayPositionableItem::onMove() {
-	if (!m_qgeiHandle) {
-		return;
-	}
-
-	const QRectF &sr = scene()->sceneRect();
-	const QPointF &p = m_qgeiHandle->pos();
-
-	m_position->setX(qBound< qreal >(0.0f, p.x() / sr.width(), 1.0f));
-	m_position->setY(qBound< qreal >(0.0f, p.y() / sr.height(), 1.0f));
-
-	m_qgeiHandle->setPos(m_position->x() * sr.width(), m_position->y() * sr.height());
-
-	updateRender();
-}
-
-void OverlayPositionableItem::updateRender() {
-	const QRectF &sr = scene()->sceneRect();
-	// Translate the 0..1 float position to the real scene coordinates (relative to absolute position)
-	QPoint absPos(iroundf(sr.width() * m_position->x() + 0.5f), iroundf(sr.height() * m_position->y() + 0.5f));
-
-	if (m_isPositionEditable) {
-		if (!m_qgeiHandle) {
-			createPositioningHandle();
-		}
-		m_qgeiHandle->setPos(absPos.x(), absPos.y());
-	}
-
-	QRectF br = boundingRect();
-	// Limit the position by the elements width (to make sure it is right-/bottom-bound rather than outside of the scene
-	QPoint maxPos(iroundf(sr.width() - br.width() + 0.5f), iroundf(sr.height() - br.height() + 0.5f));
-	int basex = qBound< int >(0, absPos.x(), maxPos.x());
-	int basey = qBound< int >(0, absPos.y(), maxPos.y());
-	setPos(basex, basey);
-}
-
-void OverlayPositionableItem::setItemVisible(const bool &visible) {
-	setVisible(visible);
-	if (m_qgeiHandle) {
-		m_qgeiHandle->setVisible(visible);
-	}
-}
+#endif
