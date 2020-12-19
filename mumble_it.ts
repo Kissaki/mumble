@@ -3,24 +3,57 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "AudioOutputUser.h"
+#ifndef MUMBLE_MUMBLE_AUDIO_H_
+#define MUMBLE_MUMBLE_AUDIO_H_
 
-AudioOutputUser::AudioOutputUser(const QString &name) : qsName(name) {
-}
+#include <QtCore/QByteArray>
+#include <QtCore/QElapsedTimer>
+#include <QtCore/QMultiMap>
+#include <QtCore/QMutex>
+#include <QtCore/QString>
+#include <QtCore/QVariant>
 
-AudioOutputUser::~AudioOutputUser() {
-	delete[] pfBuffer;
-	delete[] pfVolume;
-}
+#include "ClientUser.h"
 
-void AudioOutputUser::resizeBuffer(unsigned int newsize) {
-	if (newsize > iBufferSize) {
-		float *n = new float[newsize];
-		if (pfBuffer) {
-			memcpy(n, pfBuffer, sizeof(float) * iBufferSize);
-			delete[] pfBuffer;
-		}
-		pfBuffer    = n;
-		iBufferSize = newsize;
-	}
-}
+#define SAMPLE_RATE 48000
+
+typedef QPair< QString, QVariant > audioDevice;
+
+class LoopUser : public ClientUser {
+private:
+	Q_DISABLE_COPY(LoopUser)
+protected:
+	QMutex qmLock;
+	QElapsedTimer qetTicker;
+	QElapsedTimer qetLastFetch;
+	QMultiMap< float, QByteArray > qmPackets;
+	LoopUser();
+
+public:
+	static LoopUser lpLoopy;
+	virtual void addFrame(const QByteArray &packet);
+	void fetchFrames();
+};
+
+class RecordUser : public LoopUser {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(RecordUser)
+public:
+	RecordUser();
+	~RecordUser() Q_DECL_OVERRIDE;
+	void addFrame(const QByteArray &packet) Q_DECL_OVERRIDE;
+};
+
+namespace Audio {
+void startInput(const QString &input = QString());
+void stopInput();
+
+void startOutput(const QString &output = QString());
+void stopOutput();
+
+void start(const QString &input = QString(), const QString &output = QString());
+void stop();
+} // namespace Audio
+
+#endif
