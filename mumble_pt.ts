@@ -1,68 +1,106 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_THEMES_H_
-#define MUMBLE_MUMBLE_THEMES_H_
-
-#include <Settings.h>
-#include <ThemeInfo.h>
-#ifndef Q_MOC_RUN
-#	include <boost/optional.hpp>
-#endif
-
-class Themes {
-public:
-	/// Returns the style configured in the given settings structure
-	static boost::optional< ThemeInfo::StyleInfo > getConfiguredStyle(const Settings &settings);
-
-	/// Updates the given settings object to be configured to the given style
-	///
-	/// @note Does not apply the theme @see apply
-	///
-	/// @param settings Settings object to update
-	/// @param style Style to set
-	/// @param outChanged Will be set to true if the style in settings actually changed. Will not be changed otherwise.
-	static void setConfiguredStyle(Settings &settings, boost::optional< ThemeInfo::StyleInfo > style, bool &outChanged);
-
-	/// Applies the theme
-	///
-	/// @note Can only apply a theme before MainWindow etc. is opened
-	static bool apply();
-
-	/// Return a theme name to theme map
-	static ThemeMap getThemes();
-
-	/// Returns the per user themes directory
-	static QDir getUserThemesDirectory();
-
-private:
-	/// Applies the fallback stylesheet
-	static void applyFallback();
-
-	/// Tries to apply the configured theme.
-	/// @return True on success. False on failure.
-	static bool applyConfigured();
-
-	// Sets the theme to a QSS theme
-	static void setTheme(QString &themeQss, QStringList &skinPaths);
-
-	/// Returns list of theme search directories ordered ascending by priorty (lowest first)
-	static QVector< QDir > getSearchDirectories();
-
-	/// Returns default style-sheet used for fall-backs
-	static QString getDefaultStylesheet();
-
-	/// userStylesheetPath returns the absolute path to the
-	/// user.qss file.
-	static QString userStylesheetPath();
-
-	/// readStylesheet fills stylesheetContent with the content
-	/// of the file at stylesheetFn, if available.
-	/// If a the file is is available, the function returns true.
-	/// If no file is available, it returns false.
-	static bool readStylesheet(const QString &stylesheetFn, QString &stylesheetContent);
-};
-
-#endif // MUMBLE_MUMBLE_THEMES_H_
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>UserLocalVolumeDialog</class>
+ <widget class="QDialog" name="UserLocalVolumeDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>500</width>
+    <height>224</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>500</width>
+    <height>224</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>16777215</width>
+    <height>224</height>
+   </size>
+  </property>
+  <layout class="QGridLayout">
+   <item row="0" column="0">
+    <widget class="QSlider" name="qsUserLocalVolume">
+     <property name="toolTip">
+      <string>Local volume for other users</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</string>
+     </property>
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
+     <property name="minimum">
+      <number>-60</number>
+     </property>
+     <property name="maximum">
+      <number>30</number>
+     </property>
+     <property name="value">
+      <number>0</number>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="tickPosition">
+      <enum>QSlider::TicksBelow</enum>
+     </property>
+     <property name="tickInterval">
+      <number>10</number>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0" colspan="2" alignment="Qt::AlignBottom">
+    <widget class="QDialogButtonBox" name="qbbUserLocalVolume">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::Reset</set>
+     </property>
+     <property name="centerButtons">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QSpinBox" name="qsbUserLocalVolume">
+     <property name="toolTip">
+      <string>Local volume for other users</string>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</string>
+     </property>
+     <property name="suffix">
+      <string> dB</string>
+     </property>
+     <property name="minimum">
+      <number>-60</number>
+     </property>
+     <property name="maximum">
+      <number>30</number>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0" colspan="2">
+    <widget class="QLabel" name="qlUserLocalVolume">
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use the slider or the text box to change the volume of the user.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-weight:600;&quot;&gt;Attention!&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Increasing the volume of a user too much can permanently damage your hearing. It may also increase the background noise of the user.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
