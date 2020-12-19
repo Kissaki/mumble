@@ -1,50 +1,37 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_LOCKFILE_H_
-#define MUMBLE_MUMBLE_LOCKFILE_H_
-
-#include <QtCore/QtGlobal>
-
-#ifdef Q_OS_WIN
-#	include "win.h"
-#endif
-
-#include <QtCore/QString>
-
-/// UserLockFile implements an atomic lock file
-/// that can be used as a mutex between different
-/// processes run by the same user.
-class UserLockFile {
-#if defined(Q_OS_WIN)
-	HANDLE m_handle;
-#endif
-	QString m_path;
-
-public:
-	/// Constructs a LockFile at path.
-	/// The path should be somewhere
-	/// owned by the current user, such
-	/// as inside the home directory of
-	/// the user. This is to avoid clashing
-	/// with other lock files.
-	UserLockFile(const QString &path);
-
-	/// Destroys the LockFile, and ensures
-	/// that it is released.
-	~UserLockFile();
-
-	/// Returns the path that the lock file
-	/// exists at.
-	QString path() const;
-
-	/// Acquires the lock file.
-	bool acquire();
-
-	/// Releases the lock file.
-	void release();
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>Mumble</string>
+	<key>CFBundleGetInfoString</key>
+	<string>An open source, low-latency, high quality voice chat software primarily intended for use while gaming.</string>
+	<key>CFBundleIconFile</key>
+	<string>mumble.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>net.sourceforge.mumble.Mumble</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>MBLE</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Mumble Server URL</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mumble</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright (c) 2005-@MUMBLE_BUILD_YEAR@ The Mumble Developers</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>
