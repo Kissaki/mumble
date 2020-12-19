@@ -3,428 +3,308 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "CustomElements.h"
-
 #include "ClientUser.h"
-#include "Log.h"
-#include "MainWindow.h"
-#include "Utils.h"
 
-#include <QMimeData>
-#include <QtCore/QTimer>
-#include <QtGui/QAbstractTextDocumentLayout>
-#include <QtGui/QClipboard>
-#include <QtGui/QContextMenuEvent>
-#include <QtGui/QKeyEvent>
-#include <QtWidgets/QScrollBar>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "AudioOutput.h"
+#include "Channel.h"
 #include "Global.h"
 
-LogTextBrowser::LogTextBrowser(QWidget *p) : QTextBrowser(p) {
+QHash< unsigned int, ClientUser * > ClientUser::c_qmUsers;
+QReadWriteLock ClientUser::c_qrwlUsers;
+
+QList< ClientUser * > ClientUser::c_qlTalking;
+QReadWriteLock ClientUser::c_qrwlTalking;
+
+ClientUser::ClientUser(QObject *p)
+	: QObject(p), tsState(Settings::Passive), tLastTalkStateChange(false), bLocalIgnore(false), bLocalIgnoreTTS(false),
+	  bLocalMute(false), fPowerMin(0.0f), fPowerMax(0.0f), fAverageAvailable(0.0f), iFrames(0), iSequence(0) {
 }
 
-void LogTextBrowser::resizeEvent(QResizeEvent *e) {
-	scrollLogToBottom();
-	QTextBrowser::resizeEvent(e);
+float ClientUser::getLocalVolumeAdjustments() const {
+	return m_localVolume;
 }
 
-bool LogTextBrowser::event(QEvent *e) {
-	if (e->type() == LogDocumentResourceAddedEvent::Type) {
-		scrollLogToBottom();
+ClientUser *ClientUser::get(unsigned int uiSession) {
+	QReadLocker lock(&c_qrwlUsers);
+	ClientUser *p = c_qmUsers.value(uiSession);
+	return p;
+}
+
+QList< ClientUser * > ClientUser::getTalking() {
+	QReadLocker lock(&c_qrwlTalking);
+	return c_qlTalking;
+}
+
+QList< ClientUser * > ClientUser::getActive() {
+	QReadLocker lock(&c_qrwlUsers);
+	QList< ClientUser * > activeUsers;
+	foreach (ClientUser *cu, c_qmUsers) {
+		if (cu->isActive())
+			activeUsers << cu;
 	}
-	return QTextBrowser::event(e);
+	return activeUsers;
 }
 
-int LogTextBrowser::getLogScroll() {
-	return verticalScrollBar()->value();
+bool ClientUser::isValid(unsigned int uiSession) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	return c_qmUsers.contains(uiSession);
 }
 
-int LogTextBrowser::getLogScrollMaximum() {
-	return verticalScrollBar()->maximum();
+ClientUser *ClientUser::add(unsigned int uiSession, QObject *po) {
+	QWriteLocker lock(&c_qrwlUsers);
+
+	ClientUser *p        = new ClientUser(po);
+	p->uiSession         = uiSession;
+	c_qmUsers[uiSession] = p;
+	return p;
 }
 
-void LogTextBrowser::setLogScroll(int scroll_pos) {
-	verticalScrollBar()->setValue(scroll_pos);
-}
+ClientUser *ClientUser::match(const ClientUser *other, bool matchname) {
+	QReadLocker lock(&c_qrwlUsers);
 
-void LogTextBrowser::scrollLogToBottom() {
-	verticalScrollBar()->setValue(verticalScrollBar()->maximum());
-}
-
-
-void ChatbarTextEdit::focusInEvent(QFocusEvent *qfe) {
-	inFocus(true);
-	QTextEdit::focusInEvent(qfe);
-}
-
-void ChatbarTextEdit::focusOutEvent(QFocusEvent *qfe) {
-	inFocus(false);
-	QTextEdit::focusOutEvent(qfe);
-}
-
-void ChatbarTextEdit::inFocus(bool focus) {
-	if (focus) {
-		if (bDefaultVisible) {
-			QFont f = font();
-			f.setItalic(false);
-			setFont(f);
-			setPlainText(QString());
-			bDefaultVisible = false;
-		}
-	} else {
-		if (toPlainText().trimmed().isEmpty() || bDefaultVisible) {
-			QFont f = font();
-			f.setItalic(true);
-			setFont(f);
-			setHtml(qsDefaultText);
-			bDefaultVisible = true;
-		} else {
-			bDefaultVisible = false;
-		}
+	ClientUser *p;
+	foreach (p, c_qmUsers) {
+		if (p == other)
+			continue;
+		if ((p->iId >= 0) && (p->iId == other->iId))
+			return p;
+		if (matchname && (p->qsName == other->qsName))
+			return p;
 	}
+	return nullptr;
 }
 
-void ChatbarTextEdit::contextMenuEvent(QContextMenuEvent *qcme) {
-	QMenu *menu = createStandardContextMenu();
+void ClientUser::remove(unsigned int uiSession) {
+	ClientUser *p;
+	{
+		QWriteLocker lock(&c_qrwlUsers);
+		p = c_qmUsers.take(uiSession);
 
-	QAction *action = new QAction(tr("Paste and &Send") + QLatin1Char('\t'), menu);
-	action->setShortcut(Qt::CTRL + Qt::Key_Shift + Qt::Key_V);
-	action->setEnabled(!QApplication::clipboard()->text().isEmpty());
-	connect(action, SIGNAL(triggered()), this, SLOT(pasteAndSend_triggered()));
-	if (menu->actions().count() > 6)
-		menu->insertAction(menu->actions()[6], action);
-	else
-		menu->addAction(action);
+		if (p) {
+			if (p->cChannel)
+				p->cChannel->removeUser(p);
 
-	menu->exec(qcme->globalPos());
-	delete menu;
-}
-
-void ChatbarTextEdit::dragEnterEvent(QDragEnterEvent *evt) {
-	inFocus(true);
-	evt->acceptProposedAction();
-}
-
-void ChatbarTextEdit::dragMoveEvent(QDragMoveEvent *evt) {
-	inFocus(true);
-	evt->acceptProposedAction();
-}
-
-void ChatbarTextEdit::dropEvent(QDropEvent *evt) {
-	inFocus(true);
-	if (sendImagesFromMimeData(evt->mimeData())) {
-		evt->acceptProposedAction();
-	} else {
-		QTextEdit::dropEvent(evt);
-	}
-}
-
-ChatbarTextEdit::ChatbarTextEdit(QWidget *p) : QTextEdit(p), iHistoryIndex(-1) {
-	setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-	setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	setMinimumHeight(0);
-	connect(this, SIGNAL(textChanged()), SLOT(doResize()));
-
-	bDefaultVisible = true;
-	setDefaultText(tr("<center>Type chat message here</center>"));
-	setAcceptDrops(true);
-}
-
-QSize ChatbarTextEdit::minimumSizeHint() const {
-	return QSize(0, fontMetrics().height());
-}
-
-QSize ChatbarTextEdit::sizeHint() const {
-	QSize sh                 = QTextEdit::sizeHint();
-	const int minHeight      = minimumSizeHint().height();
-	const int documentHeight = document()->documentLayout()->documentSize().height();
-	sh.setHeight(std::max(minHeight, documentHeight));
-	const_cast< ChatbarTextEdit * >(this)->setMaximumHeight(sh.height());
-	return sh;
-}
-
-void ChatbarTextEdit::resizeEvent(QResizeEvent *e) {
-	QTextEdit::resizeEvent(e);
-	QTimer::singleShot(0, this, SLOT(doScrollbar()));
-}
-
-void ChatbarTextEdit::doResize() {
-	updateGeometry();
-	QTimer::singleShot(0, this, SLOT(doScrollbar()));
-}
-
-void ChatbarTextEdit::doScrollbar() {
-	setVerticalScrollBarPolicy(sizeHint().height() > height() ? Qt::ScrollBarAlwaysOn : Qt::ScrollBarAlwaysOff);
-	ensureCursorVisible();
-}
-
-void ChatbarTextEdit::setDefaultText(const QString &new_default, bool force) {
-	qsDefaultText = new_default;
-
-	if (bDefaultVisible || force) {
-		QFont f = font();
-		f.setItalic(true);
-		setFont(f);
-		setHtml(qsDefaultText);
-		bDefaultVisible = true;
-	}
-}
-
-void ChatbarTextEdit::insertFromMimeData(const QMimeData *source) {
-	if (!sendImagesFromMimeData(source)) {
-		QTextEdit::insertFromMimeData(source);
-	}
-}
-
-bool ChatbarTextEdit::sendImagesFromMimeData(const QMimeData *source) {
-	if (source->hasImage()) {
-		// Process the image pasted onto the chatbar.
-		if (g.bAllowHTML) {
-			QImage image = qvariant_cast< QImage >(source->imageData());
-
-			QString imgHtml = QLatin1String("<br />") + Log::imageToImg(image);
-
-			if ((g.uiImageLength == 0) || static_cast< unsigned int >(imgHtml.length()) < g.uiImageLength) {
-				emit pastedImage(imgHtml);
-				return true;
-			} else {
-				g.l->log(Log::Information, tr("Unable to send image: too large."));
+			if (p->tsState != Settings::Passive) {
+				QWriteLocker writeLock(&c_qrwlTalking);
+				c_qlTalking.removeAll(p);
 			}
 		}
-	} else if (source->hasUrls()) {
-		// Process the files dropped onto the chatbar. URLs here should be understood as the URIs of files.
-		QList< QUrl > urlList = source->urls();
-
-		int count = 0;
-		for (int i = 0; i < urlList.size(); ++i) {
-			QString path = urlList[i].toLocalFile();
-			QImage image(path);
-
-			if (image.isNull())
-				continue;
-
-			QString imgHtml = QLatin1String("<br />") + Log::imageToImg(image);
-
-			if (static_cast< unsigned int >(imgHtml.length()) < g.uiImageLength) {
-				emit pastedImage(imgHtml);
-				++count;
-			} else {
-				g.l->log(Log::Information, tr("Unable to send image %1: too large.").arg(path));
-			}
-		}
-
-		return (count > 0);
 	}
-	return false;
+
+	if (p) {
+		AudioOutputPtr ao = g.ao;
+		if (ao) {
+			// It is safe to call this function and to give the ClientUser pointer
+			// to it even though we don't hold the lock anymore as it will only take
+			// the pointer to use as the key in a HashMap lookup. At no point in the
+			// code triggered by this function call will the ClientUser pointer be
+			// dereferenced.
+			// Furthermore ClientUser objects are deleted in UserModel::removeUser which
+			// calls this very function before doing so. Thus the object shouldn't be
+			// deleted before this function returns anyways.
+			ao->removeBuffer(p);
+		}
+	}
 }
 
-bool ChatbarTextEdit::event(QEvent *evt) {
-	if (evt->type() == QEvent::ShortcutOverride) {
+void ClientUser::remove(ClientUser *p) {
+	remove(p->uiSession);
+}
+
+QString ClientUser::getFlagsString() const {
+	QStringList flags;
+
+	if (!qsFriendName.isEmpty())
+		flags << ClientUser::tr("Friend");
+	if (iId >= 0)
+		flags << ClientUser::tr("Authenticated");
+	if (bPrioritySpeaker)
+		flags << ClientUser::tr("Priority speaker");
+	if (bRecording)
+		flags << ClientUser::tr("Recording");
+	if (bMute)
+		flags << ClientUser::tr("Muted (server)");
+	if (bDeaf)
+		flags << ClientUser::tr("Deafened (server)");
+	if (bLocalIgnore)
+		flags << ClientUser::tr("Local Ignore (Text messages)");
+	if (bLocalIgnoreTTS)
+		flags << ClientUser::tr("Local Ignore (Text-To-Speech)");
+	if (bLocalMute)
+		flags << ClientUser::tr("Local Mute");
+	if (bSelfMute)
+		flags << ClientUser::tr("Muted (self)");
+	if (bSelfDeaf)
+		flags << ClientUser::tr("Deafened (self)");
+
+	return flags.join(QLatin1String(", "));
+}
+
+void ClientUser::setTalking(Settings::TalkState ts) {
+	if (tsState == ts)
+		return;
+
+	bool nstate = false;
+	if (ts == Settings::Passive)
+		nstate = true;
+	else if (tsState == Settings::Passive)
+		nstate = true;
+
+	tsState = ts;
+	tLastTalkStateChange.restart();
+	emit talkingStateChanged();
+
+	if (nstate && cChannel) {
+		QWriteLocker lock(&c_qrwlTalking);
+		if (ts == Settings::Passive)
+			c_qlTalking.removeAll(this);
+		else
+			c_qlTalking << this;
+	}
+}
+
+void ClientUser::setMute(bool mute) {
+	if (bMute == mute)
+		return;
+	bMute = mute;
+	if (!bMute)
+		bDeaf = false;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setSuppress(bool suppress) {
+	if (bSuppress == suppress)
+		return;
+	bSuppress = suppress;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setLocalIgnore(bool ignore) {
+	if (bLocalIgnore == ignore)
+		return;
+	bLocalIgnore = ignore;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setLocalIgnoreTTS(bool ignoreTTS) {
+	bLocalIgnoreTTS = ignoreTTS;
+}
+
+void ClientUser::setLocalMute(bool mute) {
+	if (bLocalMute == mute)
+		return;
+	bLocalMute = mute;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setDeaf(bool deaf) {
+	bDeaf = deaf;
+	if (bDeaf)
+		bMute = true;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setSelfMute(bool mute) {
+	bSelfMute = mute;
+	if (!mute)
+		bSelfDeaf = false;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setSelfDeaf(bool deaf) {
+	bSelfDeaf = deaf;
+	if (deaf)
+		bSelfMute = true;
+	emit muteDeafStateChanged();
+}
+
+void ClientUser::setPrioritySpeaker(bool priority) {
+	if (bPrioritySpeaker == priority)
+		return;
+	bPrioritySpeaker = priority;
+	emit prioritySpeakerStateChanged();
+}
+
+void ClientUser::setRecording(bool recording) {
+	if (bRecording == recording)
+		return;
+	bRecording = recording;
+	emit recordingStateChanged();
+}
+
+void ClientUser::setLocalVolumeAdjustment(float adjustment) {
+	float oldAdjustment = m_localVolume;
+	m_localVolume       = adjustment;
+
+	emit localVolumeAdjustmentsChanged(m_localVolume, oldAdjustment);
+}
+
+bool ClientUser::lessThanOverlay(const ClientUser *first, const ClientUser *second) {
+	if (g.s.os.osSort == OverlaySettings::LastStateChange) {
+		// Talkers above non-talkers
+		if (first->tsState != Settings::Passive && second->tsState == Settings::Passive)
+			return true;
+		if (first->tsState == Settings::Passive && second->tsState != Settings::Passive)
+			return false;
+
+		// Valid time above invalid time (possible when there wasn't a state-change yet)
+		if (first->tLastTalkStateChange.isStarted() && !second->tLastTalkStateChange.isStarted())
+			return true;
+		if (!first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted())
+			return false;
+
+		// If both have a valid time
+		if (first->tLastTalkStateChange.isStarted() && second->tLastTalkStateChange.isStarted()) {
+			// Among talkers, long > short
+			// (if two clients are talking, the client that started first is above the other)
+			if (first->tsState != Settings::Passive && second->tsState != Settings::Passive)
+				return first->tLastTalkStateChange > second->tLastTalkStateChange;
+
+			// Among non-talkers, short -> long
+			// (if two clients are passive, the client that most recently stopped talking is above)
+			if (first->tsState == Settings::Passive && second->tsState == Settings::Passive)
+				return first->tLastTalkStateChange < second->tLastTalkStateChange;
+		}
+
+		// If both times are invalid, fall back to alphabetically (continuing below)
+	}
+
+	if (first->cChannel == second->cChannel || !first->cChannel || !second->cChannel)
+		return lessThan(first, second);
+
+	// When sorting for the overlay always place the local users
+	// channel above the others
+	ClientUser *self = c_qmUsers.value(g.uiSession);
+	if (self) {
+		if (self->cChannel == first->cChannel)
+			return true;
+		else if (self->cChannel == second->cChannel)
+			return false;
+	}
+
+	return Channel::lessThan(first->cChannel, second->cChannel);
+}
+
+void ClientUser::sortUsersOverlay(QList< ClientUser * > &list) {
+	QReadLocker lock(&c_qrwlUsers);
+
+	std::sort(list.begin(), list.end(), ClientUser::lessThanOverlay);
+}
+
+bool ClientUser::isActive() {
+	if (tsState != Settings::Passive)
+		return true;
+
+	if (!tLastTalkStateChange.isStarted())
 		return false;
-	}
 
-	if (evt->type() == QEvent::KeyPress) {
-		QKeyEvent *kev = static_cast< QKeyEvent * >(evt);
-		if ((kev->key() == Qt::Key_Enter || kev->key() == Qt::Key_Return) && !(kev->modifiers() & Qt::ShiftModifier)) {
-			const QString msg = toPlainText();
-			if (!msg.isEmpty()) {
-				addToHistory(msg);
-				emit entered(msg);
-			}
-			return true;
-		}
-		if (kev->key() == Qt::Key_Tab) {
-			emit tabPressed();
-			return true;
-		} else if (kev->key() == Qt::Key_Backtab) {
-			emit backtabPressed();
-			return true;
-		} else if (kev->key() == Qt::Key_Space && kev->modifiers() == Qt::ControlModifier) {
-			emit ctrlSpacePressed();
-			return true;
-		} else if (kev->key() == Qt::Key_Up && kev->modifiers() == Qt::ControlModifier) {
-			historyUp();
-			return true;
-		} else if (kev->key() == Qt::Key_Down && kev->modifiers() == Qt::ControlModifier) {
-			historyDown();
-			return true;
-		} else if (kev->key() == Qt::Key_V && (kev->modifiers() & Qt::ControlModifier) && (kev->modifiers() & Qt::ShiftModifier)) {
-			pasteAndSend_triggered();
-			return true;
-		}
-	}
-	return QTextEdit::event(evt);
+	return tLastTalkStateChange.elapsed() < g.s.os.uiActiveTime * 1000000U;
 }
 
-/**
- * The bar will try to complete the username, if the nickname
- * is already complete it will try to find a longer match. If
- * there is none it will cycle the nicknames alphabetically.
- * Nothing is done on mismatch.
+/* From Channel.h
  */
-unsigned int ChatbarTextEdit::completeAtCursor() {
-	// Get an alphabetically sorted list of usernames
-	unsigned int id = 0;
-
-	QList< QString > qlsUsernames;
-
-	if (ClientUser::c_qmUsers.empty())
-		return id;
-	foreach (ClientUser *usr, ClientUser::c_qmUsers) { qlsUsernames.append(usr->qsName); }
-	std::sort(qlsUsernames.begin(), qlsUsernames.end());
-
-	QString target = QString();
-	QTextCursor tc = textCursor();
-
-	if (toPlainText().isEmpty() || tc.position() == 0) {
-		target = qlsUsernames.first();
-		tc.insertText(target);
-	} else {
-		bool bBaseIsName = false;
-		int iend         = tc.position();
-		int istart       = toPlainText().lastIndexOf(QLatin1Char(' '), iend - 1) + 1;
-		QString base     = toPlainText().mid(istart, iend - istart);
-		tc.setPosition(istart);
-		tc.setPosition(iend, QTextCursor::KeepAnchor);
-
-		if (qlsUsernames.last() == base) {
-			bBaseIsName = true;
-			target      = qlsUsernames.first();
-		} else {
-			if (qlsUsernames.contains(base)) {
-				// Prevent to complete to what's already there
-				while (qlsUsernames.takeFirst() != base) {
-				}
-				bBaseIsName = true;
-			}
-
-			foreach (QString name, qlsUsernames) {
-				if (name.startsWith(base, Qt::CaseInsensitive)) {
-					target = name;
-					break;
-				}
-			}
-		}
-
-		if (bBaseIsName && target.isEmpty() && !qlsUsernames.empty()) {
-			// If autocomplete failed and base was a name get the next one
-			target = qlsUsernames.first();
-		}
-
-		if (!target.isEmpty()) {
-			tc.insertText(target);
-		}
-	}
-
-	if (!target.isEmpty()) {
-		setTextCursor(tc);
-
-		foreach (ClientUser *usr, ClientUser::c_qmUsers) {
-			if (usr->qsName == target) {
-				id = usr->uiSession;
-				break;
-			}
-		}
-	}
-	return id;
-}
-
-void ChatbarTextEdit::addToHistory(const QString &str) {
-	iHistoryIndex = -1;
-	qslHistory.push_front(str);
-	if (qslHistory.length() > MAX_HISTORY) {
-		qslHistory.pop_back();
-	}
-}
-
-void ChatbarTextEdit::historyUp() {
-	if (qslHistory.length() == 0)
-		return;
-
-	if (iHistoryIndex == -1) {
-		qsHistoryTemp = toPlainText();
-	}
-
-	if (iHistoryIndex < qslHistory.length() - 1) {
-		setPlainText(qslHistory[++iHistoryIndex]);
-		moveCursor(QTextCursor::End);
-	}
-}
-
-void ChatbarTextEdit::historyDown() {
-	if (iHistoryIndex < 0) {
-		return;
-	} else if (iHistoryIndex == 0) {
-		setPlainText(qsHistoryTemp);
-		iHistoryIndex--;
-	} else {
-		setPlainText(qslHistory[--iHistoryIndex]);
-	}
-	moveCursor(QTextCursor::End);
-}
-
-void ChatbarTextEdit::pasteAndSend_triggered() {
-	paste();
-	addToHistory(toPlainText());
-	emit entered(toPlainText());
-}
-
-DockTitleBar::DockTitleBar() : QLabel(tr("Drag here")) {
-	setAlignment(Qt::AlignCenter);
-	setEnabled(false);
-	qtTick = new QTimer(this);
-	qtTick->setSingleShot(true);
-	connect(qtTick, SIGNAL(timeout()), this, SLOT(tick()));
-	size = newsize = 0;
-}
-
-QSize DockTitleBar::sizeHint() const {
-	return minimumSizeHint();
-}
-
-QSize DockTitleBar::minimumSizeHint() const {
-	return QSize(size, size);
-}
-
-bool DockTitleBar::eventFilter(QObject *, QEvent *evt) {
-	QDockWidget *qdw = qobject_cast< QDockWidget * >(parentWidget());
-
-	if (!this->isEnabled())
-		return false;
-
-	switch (evt->type()) {
-		case QEvent::Leave:
-		case QEvent::Enter:
-		case QEvent::MouseMove:
-		case QEvent::MouseButtonRelease: {
-			newsize  = 0;
-			QPoint p = qdw->mapFromGlobal(QCursor::pos());
-			if ((p.x() >= iroundf(static_cast< float >(qdw->width()) * 0.1f + 0.5f))
-				&& (p.x() < iroundf(static_cast< float >(qdw->width()) * 0.9f + 0.5f)) && (p.y() >= 0) && (p.y() < 15))
-				newsize = 15;
-			if (newsize > 0 && !qtTick->isActive())
-				qtTick->start(500);
-			else if ((newsize == size) && qtTick->isActive())
-				qtTick->stop();
-			else if (newsize == 0)
-				tick();
-		}
-		default:
-			break;
-	}
-
-	return false;
-}
-
-void DockTitleBar::tick() {
-	QDockWidget *qdw = qobject_cast< QDockWidget * >(parentWidget());
-
-	if (newsize == size)
-		return;
-
-	size = newsize;
-	qdw->setTitleBarWidget(this);
+void Channel::addClientUser(ClientUser *p) {
+	addUser(p);
+	p->setParent(this);
 }
