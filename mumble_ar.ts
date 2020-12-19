@@ -3,90 +3,52 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "PathListWidget.h"
+#include "Tokens.h"
 
-#include "Overlay.h"
+#include "Database.h"
+#include "ServerHandler.h"
 
-#include <QtCore/QDir>
-#include <QtCore/QFile>
-#include <QtCore/QMimeData>
-#include <QtGui/QDragEnterEvent>
-#include <QtGui/QDragMoveEvent>
-#include <QtGui/QDropEvent>
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-PathListWidget::PathListWidget(QWidget *parent) : QListWidget(parent), pathType(FILE_EXE) {
-	setAcceptDrops(true);
-}
+Tokens::Tokens(QWidget *p) : QDialog(p) {
+	setupUi(this);
+	qlwTokens->setAccessibleName(tr("Tokens"));
 
-void PathListWidget::setPathType(PathType type) {
-	pathType = type;
-}
-
-void PathListWidget::addFilePath(const QString &path) {
-	QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(path);
-	QStringList qslIdentifiers;
-	for (int i = 0; i < count(); i++) {
-		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
-	}
-	if (!qslIdentifiers.contains(qsAppIdentifier)) {
-		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
-		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, this);
-		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
-		setCurrentItem(qlwiApplication);
+	qbaDigest          = g.sh->qbaDigest;
+	QStringList tokens = g.db->getTokens(qbaDigest);
+	tokens.sort();
+	foreach (const QString &qs, tokens) {
+		QListWidgetItem *qlwi = new QListWidgetItem(qs);
+		qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
+		qlwTokens->addItem(qlwi);
 	}
 }
 
-void PathListWidget::addFolderPath(const QString &path) {
-	QString dir = QDir::toNativeSeparators(path);
-	QStringList qslIdentifiers;
-	for (int i = 0; i < count(); i++) {
-		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
+void Tokens::accept() {
+	QStringList qsl;
+
+	QList< QListWidgetItem * > items = qlwTokens->findItems(QString(), Qt::MatchStartsWith);
+	foreach (QListWidgetItem *qlwi, items) {
+		const QString &text = qlwi->text().trimmed();
+		if (!text.isEmpty())
+			qsl << text;
 	}
-	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
-		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), QDir(dir).path(), this);
-		qlwiPath->setData(Qt::UserRole, QVariant(dir));
-		setCurrentItem(qlwiPath);
-	}
+	g.db->setTokens(qbaDigest, qsl);
+	g.sh->setTokens(qsl);
+	QDialog::accept();
 }
 
-void PathListWidget::checkAcceptDragEvent(QDropEvent *event, bool store) {
-	if (event->mimeData()->hasUrls()) {
-		foreach (QUrl url, event->mimeData()->urls()) {
-			if (url.isLocalFile()) {
-				QFileInfo info(url.toLocalFile());
-				switch (pathType) {
-					case FILE_EXE:
-						if (info.isFile() && info.isExecutable()) {
-							if (store) {
-								addFilePath(info.filePath());
-							}
-							event->setDropAction(Qt::LinkAction);
-							event->accept();
-						}
-						break;
-					case FOLDER:
-						if (info.isDir()) {
-							if (store) {
-								addFolderPath(url.toLocalFile());
-							}
-							event->setDropAction(Qt::LinkAction);
-							event->accept();
-						}
-						break;
-				}
-			}
-		}
-	}
+void Tokens::on_qpbAdd_clicked() {
+	QListWidgetItem *qlwi = new QListWidgetItem(tr("Empty Token"));
+	qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
+
+	qlwTokens->addItem(qlwi);
+	qlwTokens->editItem(qlwi);
 }
 
-void PathListWidget::dragEnterEvent(QDragEnterEvent *event) {
-	checkAcceptDragEvent(event, false);
-}
-
-void PathListWidget::dragMoveEvent(QDragMoveEvent *event) {
-	checkAcceptDragEvent(event, false);
-}
-
-void PathListWidget::dropEvent(QDropEvent *event) {
-	checkAcceptDragEvent(event, true);
+void Tokens::on_qpbRemove_clicked() {
+	foreach (QListWidgetItem *qlwi, qlwTokens->selectedItems())
+		delete qlwi;
 }
