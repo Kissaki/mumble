@@ -3,93 +3,48 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-// See scripts/generate-ApplicationPalette-class.py
+#ifndef MUMBLE_MUMBLE_CONFIGDIALOG_H_
+#define MUMBLE_MUMBLE_CONFIGDIALOG_H_
 
-% (warning) s
-#ifndef APPLICATIONPALETTE_H
-#define APPLICATIONPALETTE_H
+#include "ConfigWidget.h"
+#include "Settings.h"
 
-#include <QTimer>
-#include <QWidget>
-#ifndef Q_MOC_RUN
-#	include <boost/optional.hpp>
-#endif
-#include <QApplication>
-#include <QDebug>
+#include "ui_ConfigDialog.h"
 
-	///
-	/// Class enabling theming of QApplication::palette from stylesheets.
-	///
-	/// QPalette cannot be styled which creates issues as not all
-	/// GUI elements in Qt can be styled. This class works around
-	/// that by offering a QPROPERTY for each color role and group
-	/// combination in QPalette. As you can set custom QPROPERTYs
-	/// from stylesheet this allows the user to set all relevant
-	/// palette brushes from the stylesheet.
-	///
-	/// Due to restrictions on allowed property names as well as a
-	/// mandatory prefix the attributes are exposed as lower cased:
-	/// "qproperty-<role>_<group>".
-	///
-	/// So a group of QPalette::Active and QPalette::Text role
-	/// would be styled by:
-	///
-	/// ApplicationPalette {
-	///     qproperty-text_active: #ff0000; /* Set color for active group */
-	/// }
-	///
-	/// See http://qt-project.org/doc/qt-4.8/qpalette.html#ColorGroup-enum
-	/// for the available groups and roles.
-	///
-	/// You can also use the shorthand "qproperty-<role>" to set all groups
-	/// to the same brush.
-	///
-	/// The class will automatically pick up style changes on itself
-	/// and update the application palette accordingly. To use the class
-	/// simply instantiate it before setting the theme and keep it around
-	/// till the application terminates.
-	///
-	class ApplicationPalette : public QWidget {
-	Q_OBJECT
-		% (properties) s public : explicit ApplicationPalette(QWidget *p = 0)
-		: QWidget(p),
-	m_originalPalette(QApplication::palette()){
-		// Empty
-	}
+#include <QtCore/QMutex>
 
-		% (getterssetters) s
-
-		private slots : void updateApplicationPalette() {
-		qWarning() << "Updating application palette";
-
-		QPalette newPalette = m_originalPalette; // Do not re-use potentially already styled palette. Might not pick up
-												 // system style changes though.
-
-		% (paletteupdates) s
-
-				QApplication::setPalette(newPalette);
-		resetAllProperties();
-	}
-
-	void resetAllProperties() { % (propertyresets) s }
-
-protected:
-	bool event(QEvent *e) Q_DECL_OVERRIDE {
-		bool result = QWidget::event(e);
-
-		if (e->type() == QEvent::StyleChange) {
-			// Update global palette. Have to defer it
-			// as property updates are also signals.
-			QTimer::singleShot(0, this, SLOT(updateApplicationPalette()));
-		}
-
-		return result;
-	}
-
+class ConfigDialog : public QDialog, public Ui::ConfigDialog {
 private:
-	const QPalette m_originalPalette;
+	Q_OBJECT
+	Q_DISABLE_COPY(ConfigDialog)
+protected:
+	static QMutex s_existingWidgetsMutex;
+	static QHash< QString, ConfigWidget * > s_existingWidgets;
+	QHash< ConfigWidget *, QWidget * > qhPages;
+	QMap< unsigned int, ConfigWidget * > qmWidgets;
+	QMap< QListWidgetItem *, ConfigWidget * > qmIconWidgets;
+	void updateListView();
+	void addPage(ConfigWidget *aw, unsigned int idx);
+	Settings s;
 
-	% (variables) s
+public:
+	ConfigDialog(QWidget *p = nullptr);
+	~ConfigDialog() Q_DECL_OVERRIDE;
+
+	/// @returns The pointer to the existing ConfigWidget with the given name or nullptr,
+	/// 	if no such widget exists.
+	static ConfigWidget *getConfigWidget(const QString &name);
+
+signals:
+	/// Emitted whenever the settings dialog has been accepted. For potential slots this
+	/// means that the settings potentially have changed.
+	void settingsAccepted();
+public slots:
+	void on_pageButtonBox_clicked(QAbstractButton *);
+	void on_dialogButtonBox_clicked(QAbstractButton *);
+	void on_qlwIcons_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous);
+	void apply();
+	void accept() Q_DECL_OVERRIDE;
 };
 
-#endif // APPLICATIONPALETTE_H
+#endif
