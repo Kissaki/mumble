@@ -1,36 +1,31 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+Mumble uses Qt translations created by the VirtualBox community
+under the MIT license. Files and copyright were obtained from:
+https://www.virtualbox.org/ticket/2018
 
-#include "MUComboBox.h"
+Turkish Qt translation (serdar, BouRock):
+  Copyright (c) 2007-2009 Serdar Soytetir
+  Copyright (c) 2012 Burak Yavuz
+Italian Qt translation (smart2128):
+  Copyright (c) 2009-2012 Vincenzo Reale
+Dutch Qt translation (geertseb, lxndr, nippur):
+  Copyright (c) 2009-2011 Ebel Geertsema
+  Copyright (c) 2007 Alexander L. de Goeij
+  Copyright (c) 2012 Richard E van der Luit
 
-#include <QtWidgets/QListView>
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
 
-MUComboBox::MUComboBox(QWidget *parent) : QComboBox(parent) {
-	// Set the QComboBox to be backed by a QListView.
-	// By default on macOS, QComboBoxes are backed by
-	// something that tries to emulate a native macOS
-	// menu.
-	//
-	// However, that QAbstractItemView behaves
-	// inconsistently when styled. For example, it does
-	// not seem possible to set the size of individual
-	// items, because they're restricted to the height
-	// of a normal macOS menu item.
-	// Also, at least for this QComboBox (which lives
-	// inside a QToolbar), the height of the QAbstractItemView
-	// was also wrong when styled. This caused the combo box
-	// to always scroll, even though it seemingly was sized
-	// correctly.
-	//
-	// To get consistent behavior, we use QListView instead.
-	QListView *lv = new QListView();
-	// Don't show ellipses. In this combo box, the
-	// text does fit -- and is resized automatically to fit.
-	// But ellipses are added anyway.
-	// So, forcefully disable them.
-	lv->setTextElideMode(Qt::ElideNone);
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-	this->setView(lv);
-}
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
