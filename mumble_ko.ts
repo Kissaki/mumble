@@ -3,124 +3,190 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-/* Copyright (C) 2015, Fredrik Nordin <freedick@ludd.ltu.se>
+#ifndef MUMBLE_MUMBLE_SERVERHANDLER_H_
+#define MUMBLE_MUMBLE_SERVERHANDLER_H_
 
-   All rights reserved.
+#include <QtCore/QtGlobal>
 
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions
-   are met:
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
 
-   - Redistributions of source code must retain the above copyright notice,
-	 this list of conditions and the following disclaimer.
-   - Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-   - Neither the name of the Mumble Developers nor the names of its
-	 contributors may be used to endorse or promote products derived from this
-	 software without specific prior written permission.
+#ifndef Q_MOC_RUN
+#	include <boost/accumulators/accumulators.hpp>
+#	include <boost/accumulators/statistics/mean.hpp>
+#	include <boost/accumulators/statistics/stats.hpp>
+#	include <boost/accumulators/statistics/variance.hpp>
+#	include <boost/shared_ptr.hpp>
+#endif
 
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
-   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+#include <QtCore/QEvent>
+#include <QtCore/QMutex>
+#include <QtCore/QObject>
+#include <QtCore/QStringList>
+#include <QtCore/QThread>
+#include <QtCore/QTimer>
+#include <QtNetwork/QHostAddress>
+#include <QtNetwork/QSslCipher>
+#include <QtNetwork/QSslError>
 
+#define SERVERSEND_EVENT 3501
 
-#include "UserLocalVolumeDialog.h"
-#include "ClientUser.h"
-#include "Database.h"
-#include "MainWindow.h"
+#include "Message.h"
+#include "Mumble.pb.h"
+#include "ServerAddress.h"
+#include "Timer.h"
 
-#include <QtGui/QCloseEvent>
-#include <QtWidgets/QPushButton>
+class Connection;
+class Database;
+class Message;
+class PacketDataStream;
+class QUdpSocket;
+class QSslSocket;
+class VoiceRecorder;
 
-#include <cmath>
+class ServerHandlerMessageEvent : public QEvent {
+public:
+	unsigned int uiType;
+	QByteArray qbaMsg;
+	bool bFlush;
+	ServerHandlerMessageEvent(const QByteArray &msg, unsigned int type, bool flush = false);
+};
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+typedef boost::shared_ptr< Connection > ConnectionPtr;
 
-UserLocalVolumeDialog::UserLocalVolumeDialog(unsigned int sessionId,
-											 QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker)
-	: QDialog(nullptr), m_clientSession(sessionId), m_qmUserVolTracker(qmUserVolTracker) {
-	setupUi(this);
-	qsUserLocalVolume->setAccessibleName(tr("User volume"));
-	qsbUserLocalVolume->setAccessibleName(tr("User volume"));
+class ServerHandler : public QThread {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ServerHandler)
 
-	ClientUser *user = ClientUser::get(sessionId);
-	if (user) {
-		QString title = tr("Adjusting local volume for %1").arg(user->qsName);
-		setWindowTitle(title);
-		qsUserLocalVolume->setValue(qRound(log2(user->getLocalVolumeAdjustments()) * 6.0));
-		m_originalVolumeAdjustmentDecibel = qsUserLocalVolume->value();
-	}
+	Database *database;
 
-	if (g.mw && g.mw->windowFlags() & Qt::WindowStaysOnTopHint) {
-		// If the main window is set to always be on top of other windows, we should make the
-		// volume dialog behave the same in order for it to not get hidden behind the main window.
-		setWindowFlags(Qt::WindowStaysOnTopHint);
-	}
-}
+protected:
+	QString qsHostName;
+	QString qsUserName;
+	QString qsPassword;
+	unsigned short usPort;
+	unsigned short usResolvedPort;
+	bool bUdp;
+	bool bStrong;
 
-void UserLocalVolumeDialog::closeEvent(QCloseEvent *event) {
-	m_qmUserVolTracker->remove(m_clientSession);
-	event->accept();
-}
+	/// Flag indicating whether the server we are currently connected to has
+	/// finished synchronizing already.
+	bool serverSynchronized = false;
 
-void UserLocalVolumeDialog::present(unsigned int sessionId,
-									QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker) {
-	if (qmUserVolTracker->contains(sessionId)) {
-		qmUserVolTracker->value(sessionId)->raise();
-	} else {
-		UserLocalVolumeDialog *uservol = new UserLocalVolumeDialog(sessionId, qmUserVolTracker);
-		uservol->show();
-		qmUserVolTracker->insert(sessionId, uservol);
-	}
-}
+#ifdef Q_OS_WIN
+	HANDLE hQoS;
+	DWORD dwFlowUDP;
+#endif
 
-void UserLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
-	qsbUserLocalVolume->setValue(value);
-	ClientUser *user = ClientUser::get(m_clientSession);
-	if (user) {
-		// Decibel formula: +6db = *2
-		user->setLocalVolumeAdjustment(static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
-	}
-}
+	QHostAddress qhaRemote;
+	QHostAddress qhaLocal;
+	QUdpSocket *qusUdp;
+	QMutex qmUdp;
 
-void UserLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
-	qsUserLocalVolume->setValue(value);
-}
+	void handleVoicePacket(unsigned int msgFlags, PacketDataStream &pds, MessageHandler::UDPMessageType type);
 
-void UserLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
-		qsUserLocalVolume->setValue(0);
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
-		ClientUser *user = ClientUser::get(m_clientSession);
-		if (user) {
-			if (!user->qsHash.isEmpty()) {
-				g.db->setUserLocalVolume(user->qsHash, user->getLocalVolumeAdjustments());
-			} else {
-				g.mw->logChangeNotPermanent(QObject::tr("Local Volume Adjustment..."), user);
-			}
-		}
-		UserLocalVolumeDialog::close();
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
-		qsUserLocalVolume->setValue(m_originalVolumeAdjustmentDecibel);
-		UserLocalVolumeDialog::close();
-	}
-}
+public:
+	Timer tTimestamp;
+	int iInFlightTCPPings;
+	QTimer *tConnectionTimeoutTimer;
+	QList< QSslError > qlErrors;
+	QList< QSslCertificate > qscCert;
+	QSslCipher qscCipher;
+	ConnectionPtr cConnection;
+	QByteArray qbaDigest;
+	boost::shared_ptr< VoiceRecorder > recorder;
+	QSslSocket *qtsSock;
+	QList< ServerAddress > qlAddresses;
+	ServerAddress saTargetServer;
 
-void UserLocalVolumeDialog::reject() {
-	m_qmUserVolTracker->remove(m_clientSession);
-	UserLocalVolumeDialog::close();
-}
+	unsigned int uiVersion;
+	QString qsRelease;
+	QString qsOS;
+	QString qsOSVersion;
+
+	boost::accumulators::accumulator_set<
+		double, boost::accumulators::stats< boost::accumulators::tag::mean, boost::accumulators::tag::variance,
+											boost::accumulators::tag::count > >
+		accTCP, accUDP, accClean;
+
+	ServerHandler();
+	~ServerHandler();
+	void setConnectionInfo(const QString &host, unsigned short port, const QString &username, const QString &pw);
+	void getConnectionInfo(QString &host, unsigned short &port, QString &username, QString &pw) const;
+	bool isStrong() const;
+	void customEvent(QEvent *evt) Q_DECL_OVERRIDE;
+
+	void sendProtoMessage(const ::google::protobuf::Message &msg, unsigned int msgType);
+	void sendMessage(const char *data, int len, bool force = false);
+
+	/// @returns Whether this handler is currently connected to a server.
+	bool isConnected() const;
+
+	/// @returns Whether the server this handler is currently connected to, has finished
+	/// 	synchronizing yet.
+	bool hasSynchronized() const;
+
+	/// @param synchronized Whether the server has finished synchronization
+	void setServerSynchronized(bool synchronized);
+
+#define MUMBLE_MH_MSG(x) \
+	void sendMessage(const MumbleProto::x &msg) { sendProtoMessage(msg, MessageHandler::x); }
+	MUMBLE_MH_ALL
+#undef MUMBLE_MH_MSG
+
+	void requestUserStats(unsigned int uiSession, bool statsOnly);
+	void joinChannel(unsigned int uiSession, unsigned int channel);
+	void joinChannel(unsigned int uiSession, unsigned int channel, const QStringList &temporaryAccessTokens);
+	void startListeningToChannel(int channel);
+	void startListeningToChannels(const QList< int > &channelIDs);
+	void stopListeningToChannel(int channel);
+	void stopListeningToChannels(const QList< int > &channelIDs);
+	void createChannel(unsigned int parent_id, const QString &name, const QString &description, unsigned int position,
+					   bool temporary, unsigned int maxUsers);
+	void requestBanList();
+	void requestUserList();
+	void requestACL(unsigned int channel);
+	void registerUser(unsigned int uiSession);
+	void kickBanUser(unsigned int uiSession, const QString &reason, bool ban);
+	void sendUserTextMessage(unsigned int uiSession, const QString &message_);
+	void sendChannelTextMessage(unsigned int channel, const QString &message_, bool tree);
+	void setUserComment(unsigned int uiSession, const QString &comment);
+	void setUserTexture(unsigned int uiSession, const QByteArray &qba);
+	void setTokens(const QStringList &tokens);
+	void removeChannel(unsigned int channel);
+	void addChannelLink(unsigned int channel, unsigned int link);
+	void removeChannelLink(unsigned int channel, unsigned int link);
+	void requestChannelPermissions(unsigned int channel);
+	void setSelfMuteDeafState(bool mute, bool deaf);
+	void announceRecordingState(bool recording);
+
+	/// Return connection information as a URL
+	QUrl getServerURL(bool withPassword = false) const;
+
+	void disconnect();
+	void run() Q_DECL_OVERRIDE;
+signals:
+	void error(QAbstractSocket::SocketError, QString reason);
+	void disconnected(QAbstractSocket::SocketError, QString reason);
+	void connected();
+	void pingRequested();
+protected slots:
+	void message(unsigned int, const QByteArray &);
+	void serverConnectionConnected();
+	void serverConnectionTimeoutOnConnect();
+	void serverConnectionStateChanged(QAbstractSocket::SocketState);
+	void serverConnectionClosed(QAbstractSocket::SocketError, const QString &);
+	void setSslErrors(const QList< QSslError > &);
+	void udpReady();
+	void hostnameResolved();
+private slots:
+	void sendPingInternal();
+public slots:
+	void sendPing();
+};
+
+typedef boost::shared_ptr< ServerHandler > ServerHandlerPtr;
+
+#endif
