@@ -3,134 +3,157 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "DBus.h"
+#include "G15LCDEngine_lglcd.h"
 
-#include "Channel.h"
-#include "ClientUser.h"
-#include "MainWindow.h"
-#include "ServerHandler.h"
+#define G15_MAX_DEV 5
+#define G15_MAX_WIDTH 160
+#define G15_MAX_HEIGHT 43
+#define G15_MAX_BPP 1
+#define G15_MAX_FBMEM (G15_MAX_WIDTH * G15_MAX_HEIGHT * G15_MAX_BPP)
+#define G15_MAX_FBMEM_BITS (G15_MAX_FBMEM / 8)
+#if defined(WIN32)
+#	define G15_WIDGET_NAME L"Mumble G15 Display"
+#elif defined(APPLE)
+#	define G15_WIDGET_NAME CFSTR("Mumble G15 Display")
+#endif
 
-#include <QtCore/QUrlQuery>
-#include <QtDBus/QDBusConnection>
-#include <QtDBus/QDBusMessage>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-MumbleDBus::MumbleDBus(QObject *mw) : QDBusAbstractAdaptor(mw) {
+static LCDEngine *G15LCDEngineNew() {
+	return new G15LCDEngineLGLCD();
 }
 
-void MumbleDBus::openUrl(const QString &url, const QDBusMessage &msg) {
-	QUrl u     = QUrl::fromEncoded(url.toLatin1());
-	bool valid = u.isValid();
-	valid      = valid && (u.scheme() == QLatin1String("mumble"));
-	if (!valid) {
-		QDBusConnection::sessionBus().send(
-			msg.createErrorReply(QLatin1String("net.sourceforge.mumble.Error.url"), QLatin1String("Invalid URL")));
-	} else {
-		g.mw->openUrl(u);
-	}
-}
+static LCDEngineRegistrar registrar(G15LCDEngineNew);
 
-void MumbleDBus::getCurrentUrl(const QDBusMessage &msg) {
-	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
-		QDBusConnection::sessionBus().send(msg.createErrorReply(
-			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
+G15LCDEngineLGLCD::G15LCDEngineLGLCD() : LCDEngine() {
+	DWORD dwErr;
+
+	ZeroMemory(&llcceConnect, sizeof(llcceConnect));
+	ZeroMemory(&llcContext, sizeof(llcContext));
+
+	llcceConnect.appFriendlyName               = G15_WIDGET_NAME;
+	llcceConnect.isAutostartable               = FALSE;
+	llcceConnect.isPersistent                  = FALSE;
+	llcceConnect.dwAppletCapabilitiesSupported = LGLCD_APPLET_CAP_BASIC | LGLCD_APPLET_CAP_BW;
+	llcceConnect.connection                    = LGLCD_INVALID_CONNECTION;
+
+	llcContext.device = LGLCD_INVALID_DEVICE;
+
+	dwErr = lgLcdInit();
+	if (dwErr != ERROR_SUCCESS) {
+		qWarning() << "LGLCD: Unable to initialize Logitech LCD library" << dwErr;
 		return;
 	}
-	QString host, user, pw;
-	unsigned short port;
-	QUrl u;
 
-	g.sh->getConnectionInfo(host, port, user, pw);
-	u.setScheme(QLatin1String("mumble"));
-	u.setHost(host);
-	u.setPort(port);
-	u.setUserName(user);
-
-	QUrlQuery query;
-	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
-	u.setQuery(query);
-
-	QStringList path;
-	Channel *c = ClientUser::get(g.uiSession)->cChannel;
-	while (c->cParent) {
-		path.prepend(c->qsName);
-		c = c->cParent;
-	}
-	QString fullpath = path.join(QLatin1String("/"));
-	// Make sure fullpath starts with a slash for non-empty paths. Setting
-	// a path without a leading slash clears the whole QUrl.
-	if (!fullpath.isEmpty()) {
-		fullpath.prepend(QLatin1String("/"));
-	}
-	u.setPath(fullpath);
-	QDBusConnection::sessionBus().send(msg.createReply(QString::fromLatin1(u.toEncoded())));
-}
-
-void MumbleDBus::getTalkingUsers(const QDBusMessage &msg) {
-	if (!g.sh || !g.sh->isRunning() || !g.uiSession) {
-		QDBusConnection::sessionBus().send(msg.createErrorReply(
-			QLatin1String("net.sourceforge.mumble.Error.connection"), QLatin1String("Not connected")));
+	dwErr = lgLcdConnectEx(&llcceConnect);
+	if (dwErr != ERROR_SUCCESS) {
+		qWarning() << "LGLCD: Unable to connect to Logitech LCD manager" << dwErr;
 		return;
 	}
-	QStringList names;
-	foreach (ClientUser *cu, ClientUser::getTalking()) { names.append(cu->qsName); }
-	QDBusConnection::sessionBus().send(msg.createReply(names));
+
+
+	qlDevices << new G15LCDDeviceLGLCD(this);
+
+	QMetaObject::connectSlotsByName(this);
 }
 
-void MumbleDBus::focus() {
-	g.mw->show();
-	g.mw->raise();
-	g.mw->activateWindow();
-}
-
-void MumbleDBus::setTransmitMode(unsigned int mode, const QDBusMessage &msg) {
-	switch (mode) {
-		case 0:
-			g.s.atTransmit = Settings::Continuous;
-			break;
-		case 1:
-			g.s.atTransmit = Settings::VAD;
-			break;
-		case 2:
-			g.s.atTransmit = Settings::PushToTalk;
-			break;
-		default:
-			QDBusConnection::sessionBus().send(msg.createErrorReply(
-				QLatin1String("net.sourceforge.mumble.Error.transmitMode"), QLatin1String("Invalid transmit mode")));
-			return;
+G15LCDEngineLGLCD::~G15LCDEngineLGLCD() {
+	if (llcContext.device != LGLCD_INVALID_DEVICE) {
+		lgLcdClose(llcContext.device);
+		llcContext.device = LGLCD_INVALID_DEVICE;
 	}
-	QMetaObject::invokeMethod(g.mw, "updateTransmitModeComboBox", Qt::QueuedConnection);
+	if (llcceConnect.connection != LGLCD_INVALID_CONNECTION) {
+		lgLcdDisconnect(llcceConnect.connection);
+		llcceConnect.connection = LGLCD_INVALID_CONNECTION;
+	}
+	lgLcdDeInit();
 }
 
-unsigned int MumbleDBus::getTransmitMode() {
-	return g.s.atTransmit;
+QList< LCDDevice * > G15LCDEngineLGLCD::devices() const {
+	return qlDevices;
 }
 
-void MumbleDBus::setSelfMuted(bool mute) {
-	g.mw->qaAudioMute->setChecked(!mute);
-	g.mw->qaAudioMute->trigger();
+/* -- */
+
+G15LCDDeviceLGLCD::G15LCDDeviceLGLCD(G15LCDEngineLGLCD *e) : LCDDevice(), bEnabled(false) {
+	engine = e;
 }
 
-void MumbleDBus::setSelfDeaf(bool deafen) {
-	g.mw->qaAudioDeaf->setChecked(!deafen);
-	g.mw->qaAudioDeaf->trigger();
+G15LCDDeviceLGLCD::~G15LCDDeviceLGLCD() {
 }
 
-bool MumbleDBus::isSelfMuted() {
-	return g.s.bMute;
+bool G15LCDDeviceLGLCD::enabled() {
+	return bEnabled;
 }
 
-bool MumbleDBus::isSelfDeaf() {
-	return g.s.bDeaf;
+void G15LCDDeviceLGLCD::setEnabled(bool b) {
+	bEnabled = b;
+
+	if (bEnabled && (engine->llcContext.device == LGLCD_INVALID_DEVICE)) {
+		ZeroMemory(&engine->llcContext, sizeof(engine->llcContext));
+		engine->llcContext.connection = engine->llcceConnect.connection;
+		engine->llcContext.device     = LGLCD_INVALID_DEVICE;
+		engine->llcContext.deviceType = LGLCD_DEVICE_BW;
+
+		DWORD dwErr = lgLcdOpenByType(&engine->llcContext);
+
+	} else if (!bEnabled && (engine->llcContext.device != LGLCD_INVALID_DEVICE)) {
+		lgLcdClose(engine->llcContext.device);
+		engine->llcContext.device = LGLCD_INVALID_DEVICE;
+	}
 }
 
-void MumbleDBus::startTalking() {
-	g.mw->on_PushToTalk_triggered(true, QVariant());
+void G15LCDDeviceLGLCD::blitImage(QImage *img, bool alert) {
+	Q_ASSERT(img);
+	int len    = G15_MAX_FBMEM_BITS;
+	uchar *tmp = img->bits();
+
+	lgLcdBitmap160x43x1 bitmap;
+	unsigned char *buf = bitmap.pixels;
+
+	if (engine->llcContext.device == LGLCD_INVALID_DEVICE)
+		return;
+
+	if (!bEnabled)
+		return;
+
+	/*
+	 * The amount of copying/conversion we're doing is hideous.
+	 *
+	 * To draw to the LCD display using Logitech's SDK, we need to pass
+	 * it a byte array (in which each byte represents a single pixel on
+	 * the LCD.)
+	 *
+	 * Unfortunately, there's no way out, really.  We *could* perhaps draw
+	 * directly to a monochrome "bytemap" (via Format_Indexed8, and a mono-
+	 * chrome colormap), but QPainter simply doesn't want to draw to a
+	 * QImage of Format_Indexed8.
+	 *
+	 * (What's even worse is that the byte array passed to the Logitech SDK
+	 * isn't even the native format of the LCD. It has to convert it once
+	 * more, when it receives a frame.)
+	 */
+	for (int i = 0; i < len; i++) {
+		int idx      = i * 8;
+		buf[idx + 7] = tmp[i] & 0x80 ? 0xff : 0x00;
+		buf[idx + 6] = tmp[i] & 0x40 ? 0xff : 0x00;
+		buf[idx + 5] = tmp[i] & 0x20 ? 0xff : 0x00;
+		buf[idx + 4] = tmp[i] & 0x10 ? 0xff : 0x00;
+		buf[idx + 3] = tmp[i] & 0x08 ? 0xff : 0x00;
+		buf[idx + 2] = tmp[i] & 0x04 ? 0xff : 0x00;
+		buf[idx + 1] = tmp[i] & 0x02 ? 0xff : 0x00;
+		buf[idx + 0] = tmp[i] & 0x01 ? 0xff : 0x00;
+	}
+
+	bitmap.hdr.Format = LGLCD_BMP_FORMAT_160x43x1;
+
+	DWORD dwErr =
+		lgLcdUpdateBitmap(engine->llcContext.device, &bitmap.hdr,
+						  alert ? LGLCD_SYNC_UPDATE(LGLCD_PRIORITY_ALERT) : LGLCD_SYNC_UPDATE(LGLCD_PRIORITY_NORMAL));
 }
 
-void MumbleDBus::stopTalking() {
-	g.mw->on_PushToTalk_triggered(false, QVariant());
+QString G15LCDDeviceLGLCD::name() const {
+	return QString::fromLatin1("Logitech Gamepanel");
+}
+
+QSize G15LCDDeviceLGLCD::size() const {
+	return QSize(G15_MAX_WIDTH, G15_MAX_HEIGHT);
 }
