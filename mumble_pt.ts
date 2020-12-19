@@ -1,874 +1,262 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifdef USE_OVERLAY
-#	include "Overlay.h"
-#endif
-#include "AudioInput.h"
-#include "AudioOutput.h"
-#include "AudioWizard.h"
-#include "Cert.h"
-#include "Database.h"
-#include "DeveloperConsole.h"
-#include "LCD.h"
-#include "Log.h"
-#include "LogEmitter.h"
-#include "MainWindow.h"
-#include "Plugins.h"
-#include "ServerHandler.h"
-#ifdef USE_ZEROCONF
-#	include "Zeroconf.h"
-#endif
-#ifdef USE_DBUS
-#	include "DBus.h"
-#endif
-#ifdef USE_VLD
-#	include "vld.h"
-#endif
-#include "ApplicationPalette.h"
-#include "Channel.h"
-#include "ChannelListener.h"
-#include "ClientUser.h"
-#include "CrashReporter.h"
-#include "EnvUtils.h"
-#include "License.h"
-#include "MumbleApplication.h"
-#include "NetworkConfig.h"
-#include "SSL.h"
-#include "SocketRPC.h"
-#include "TalkingUI.h"
-#include "Themes.h"
-#include "UserLockFile.h"
-#include "VersionCheck.h"
-
-#include <QtCore/QLibraryInfo>
-#include <QtCore/QProcess>
-#include <QtCore/QStandardPaths>
-#include <QtCore/QTranslator>
-#include <QtGui/QDesktopServices>
-#include <QtWidgets/QMessageBox>
-#include <QScreen>
-
-#ifdef USE_DBUS
-#	include <QtDBus/QDBusInterface>
-#endif
-
-#ifdef Q_OS_WIN
-#	include <shellapi.h>
-#endif
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-#ifdef BOOST_NO_EXCEPTIONS
-namespace boost {
-void throw_exception(std::exception const &) {
-	qFatal("Boost exception caught!");
-}
-} // namespace boost
-#endif
-
-extern void os_init();
-extern char *os_lang;
-
-QScreen *screenAt(QPoint point) {
-#if QT_VERSION >= QT_VERSION_CHECK(5,10,0)
-	// screenAt was only introduced in Qt 5.10
-	return QGuiApplication::screenAt(point);
-#else
-	for (QScreen *currentScreen : QGuiApplication::screens()) {
-		if (currentScreen->availableGeometry().contains(point)) {
-			return currentScreen;
-		}
-	}
-
-	return nullptr;
-#endif
-}
-
-bool positionIsOnScreen(QPoint point) {
-	return screenAt(point) != nullptr;
-}
-
-QPoint getTalkingUIPosition() {
-	QPoint talkingUIPos = QPoint(0, 0);
-	if (g.s.qpTalkingUI_Position != Settings::UNSPECIFIED_POSITION && positionIsOnScreen(g.s.qpTalkingUI_Position)) {
-		// Restore last position
-		talkingUIPos = g.s.qpTalkingUI_Position;
-	} else {
-		// Place the TalkingUI next to the MainWindow by default
-		const QPoint mainWindowPos = g.mw->pos();
-		const int horizontalBuffer = 10;
-		const QPoint defaultPos = QPoint(mainWindowPos.x() + g.mw->size().width() + horizontalBuffer, mainWindowPos.y());
-
-		if (positionIsOnScreen(defaultPos)) {
-			talkingUIPos = defaultPos;
-		}
-	}
-
-	// We have to ask the TalkingUI to adjust its size in order to get a proper
-	// size from it (instead of a random default one).
-	g.talkingUI->adjustSize();
-	const QSize talkingUISize = g.talkingUI->size();
-
-	// The screen should always be found at this point as we have chosen to pos to be on a screen
-	const QScreen *screen = screenAt(talkingUIPos);
-	const QRect screenGeom = screen ? screen->availableGeometry() : QRect(0,0,0,0);
-	
-	// Check whether the TalkingUI fits on the screen in x-direction
-	if (!positionIsOnScreen(talkingUIPos + QPoint(talkingUISize.width(), 0))) {
-		int overlap = talkingUIPos.x() + talkingUISize.width() - screenGeom.x() - screenGeom.width();
-
-		// Correct the x coordinate but don't move it below 0
-		talkingUIPos.setX(std::max(talkingUIPos.x() - overlap, 0));
-	}
-	// Check whether the TalkingUI fits on the screen in y-direction
-	if (!positionIsOnScreen(talkingUIPos + QPoint(0, talkingUISize.height()))) {
-		int overlap = talkingUIPos.y() + talkingUISize.height() - screenGeom.y() - screenGeom.height();
-
-		// Correct the x coordinate but don't move it below 0
-		talkingUIPos.setY(std::max(talkingUIPos.x() - overlap, 0));
-	}
-
-	return talkingUIPos;
-}
-
-#ifdef Q_OS_WIN
-// from os_early_win.cpp
-extern int os_early_init();
-// from os_win.cpp
-extern HWND mumble_mw_hwnd;
-#endif // Q_OS_WIN
-
-#if defined(Q_OS_WIN) && !defined(MUMBLEAPP_DLL)
-extern "C" __declspec(dllexport) int main(int argc, char **argv) {
-#else
-int main(int argc, char **argv) {
-#endif
-	int res = 0;
-
-#if defined(Q_OS_WIN)
-	int ret = os_early_init();
-	if (ret != 0) {
-		return ret;
-	}
-#endif
-
-	QT_REQUIRE_VERSION(argc, argv, "4.4.0");
-
-#if defined(Q_OS_WIN)
-	SetDllDirectory(L"");
-#else
-#	ifndef Q_OS_MAC
-	EnvUtils::setenv(QLatin1String("AVAHI_COMPAT_NOWARN"), QLatin1String("1"));
-#	endif
-#endif
-
-	// Initialize application object.
-	MumbleApplication a(argc, argv);
-	a.setApplicationName(QLatin1String("Mumble"));
-	a.setOrganizationName(QLatin1String("Mumble"));
-	a.setOrganizationDomain(QLatin1String("mumble.sourceforge.net"));
-	a.setQuitOnLastWindowClosed(false);
-
-#if QT_VERSION >= 0x050100
-	a.setAttribute(Qt::AA_UseHighDpiPixmaps);
-#endif
-
-#ifdef Q_OS_WIN
-	a.installNativeEventFilter(&a);
-#endif
-
-	MumbleSSL::initialize();
-
-#ifdef USE_SBCELT
-	{
-		QDir d(a.applicationVersionRootPath());
-		QString helper = d.absoluteFilePath(QString::fromLatin1("sbcelt-helper"));
-		EnvUtils::setenv(QLatin1String("SBCELT_HELPER_BINARY"), helper.toUtf8().constData());
-	}
-#endif
-
-	// This argument has to be parsed first, since it's value is needed to create the global struct,
-	// which other switches are modifying. If it is parsed first, the order of the arguments does not matter.
-	QStringList args = a.arguments();
-	const int index  = std::max(args.lastIndexOf(QLatin1String("-c")), args.lastIndexOf(QLatin1String("--config")));
-	if (index >= 0) {
-		if (index + 1 < args.count()) {
-			QFile inifile(args.at(index + 1));
-			if (inifile.exists() && inifile.permissions().testFlag(QFile::WriteUser)) {
-				Global::g_global_struct = new Global(args.at(index + 1));
-			} else {
-				printf("%s", qPrintable(MainWindow::tr("Configuration file %1 does not exist or is not writable.\n")
-											.arg(args.at(index + 1))));
-				return 1;
-			}
-		} else {
-			qCritical("Missing argument for --config!");
-			return 1;
-		}
-	} else {
-		Global::g_global_struct = new Global();
-	}
-
-#if QT_VERSION < QT_VERSION_CHECK(5, 10, 0)
-	// For Qt >= 5.10 we use QRandomNumberGenerator that is seeded automatically
-	qsrand(QDateTime::currentDateTime().toTime_t());
-#endif
-
-	g.le = QSharedPointer< LogEmitter >(new LogEmitter());
-	g.c  = new DeveloperConsole();
-
-	os_init();
-
-	bool bAllowMultiple       = false;
-	bool suppressIdentity     = false;
-	bool customJackClientName = false;
-	bool bRpcMode             = false;
-	QString rpcCommand;
-	QUrl url;
-
-	if (a.arguments().count() > 1) {
-		for (int i = 1; i < args.count(); ++i) {
-			if (args.at(i) == QLatin1String("-h") || args.at(i) == QLatin1String("--help")
-#if defined(Q_OS_WIN)
-				|| args.at(i) == QLatin1String("/?")
-#endif
-			) {
-				QString helpMessage =
-					MainWindow::tr("Usage: mumble [options] [<url>]\n"
-								   "\n"
-								   "<url> specifies a URL to connect to after startup instead of showing\n"
-								   "the connection window, and has the following form:\n"
-								   "mumble://[<username>[:<password>]@]<host>[:<port>][/<channel>[/"
-								   "<subchannel>...]][?version=<x.y.z>]\n"
-								   "\n"
-								   "The version query parameter has to be set in order to invoke the\n"
-								   "correct client version. It currently defaults to 1.2.0.\n"
-								   "\n"
-								   "Valid options are:\n"
-								   "  -h, --help    Show this help text and exit.\n"
-								   "  -m, --multiple\n"
-								   "                Allow multiple instances of the client to be started.\n"
-								   "  -c, --config\n"
-								   "                Specify an alternative configuration file.\n"
-								   "                If you use this to run multiple instances of Mumble at once,\n"
-								   "                make sure to set an alternative 'database' value in the config.\n"
-								   "  -n, --noidentity\n"
-								   "                Suppress loading of identity files (i.e., certificates.)\n"
-								   "  -jn, --jackname <arg>\n"
-								   "                Set custom Jack client name.\n"
-								   "  --license\n"
-								   "                Show the Mumble license.\n"
-								   "  --authors\n"
-								   "                Show the Mumble authors.\n"
-								   "  --third-party-licenses\n"
-								   "                Show licenses for third-party software used by Mumble.\n"
-								   "  --window-title-ext <arg>\n"
-								   "                Sets a custom window title extension.\n"
-								   "  --dump-input-streams\n"
-								   "                Dump PCM streams at various parts of the input chain\n"
-								   "                (useful for debugging purposes)\n"
-								   "                - raw microphone input\n"
-								   "                - speaker readback for echo cancelling\n"
-								   "                - processed microphone input\n"
-								   "  --print-echocancel-queue\n"
-								   "                Print on stdout the echo cancellation queue state\n"
-								   "                (useful for debugging purposes)\n"
-								   "\n");
-				QString rpcHelpBanner = MainWindow::tr("Remote controlling Mumble:\n"
-													   "\n");
-				QString rpcHelpMessage =
-					MainWindow::tr("Usage: mumble rpc <action> [options]\n"
-								   "\n"
-								   "It is possible to remote control a running instance of Mumble by using\n"
-								   "the 'mumble rpc' command.\n"
-								   "\n"
-								   "Valid actions are:\n"
-								   "  mute\n"
-								   "                Mute self\n"
-								   "  unmute\n"
-								   "                Unmute self\n"
-								   "  togglemute\n"
-								   "                Toggle self-mute status\n"
-								   "  deaf\n"
-								   "                Deafen self\n"
-								   "  undeaf\n"
-								   "                Undeafen self\n"
-								   "  toggledeaf\n"
-								   "                Toggle self-deafen status\n"
-								   "\n");
-
-				QString helpOutput = helpMessage + rpcHelpBanner + rpcHelpMessage;
-				if (bRpcMode) {
-					helpOutput = rpcHelpMessage;
-				}
-
-#if defined(Q_OS_WIN)
-				QMessageBox::information(nullptr, MainWindow::tr("Invocation"), helpOutput);
-#else
-				printf("%s", qPrintable(helpOutput));
-#endif
-				return 1;
-			} else if (args.at(i) == QLatin1String("-m") || args.at(i) == QLatin1String("--multiple")) {
-				bAllowMultiple = true;
-			} else if (args.at(i) == QLatin1String("-n") || args.at(i) == QLatin1String("--noidentity")) {
-				suppressIdentity      = true;
-				g.s.bSuppressIdentity = true;
-			} else if (args.at(i) == QLatin1String("-jn") || args.at(i) == QLatin1String("--jackname")) {
-				if (i + 1 < args.count()) {
-					g.s.qsJackClientName = QString(args.at(i + 1));
-					customJackClientName = true;
-					++i;
-				} else {
-					qCritical("Missing argument for --jackname!");
-					return 1;
-				}
-			} else if (args.at(i) == QLatin1String("--window-title-ext")) {
-				if (i + 1 < args.count()) {
-					g.windowTitlePostfix = QString(args.at(i + 1));
-					++i;
-				} else {
-					qCritical("Missing argument for --window-title-ext!");
-					return 1;
-				}
-			} else if (args.at(i) == QLatin1String("-license") || args.at(i) == QLatin1String("--license")) {
-				printf("%s\n", qPrintable(License::license()));
-				return 0;
-			} else if (args.at(i) == QLatin1String("-authors") || args.at(i) == QLatin1String("--authors")) {
-				printf("%s\n", qPrintable(License::authors()));
-				return 0;
-			} else if (args.at(i) == QLatin1String("-third-party-licenses")
-					   || args.at(i) == QLatin1String("--third-party-licenses")) {
-				printf("%s", qPrintable(License::printableThirdPartyLicenseInfo()));
-				return 0;
-			} else if (args.at(i) == QLatin1String("rpc")) {
-				bRpcMode = true;
-				if (args.count() - 1 > i) {
-					rpcCommand = QString(args.at(i + 1));
-				} else {
-					QString rpcError = MainWindow::tr("Error: No RPC command specified");
-#if defined(Q_OS_WIN)
-					QMessageBox::information(nullptr, MainWindow::tr("RPC"), rpcError);
-#else
-					printf("%s\n", qPrintable(rpcError));
-#endif
-					return 1;
-				}
-			} else if (args.at(i) == QLatin1String("--dump-input-streams")) {
-				g.bDebugDumpInput = true;
-			} else if (args.at(i) == QLatin1String("--print-echocancel-queue")) {
-				g.bDebugPrintQueue = true;
-			} else {
-				if (!bRpcMode) {
-					QUrl u = QUrl::fromEncoded(args.at(i).toUtf8());
-					if (u.isValid() && (u.scheme() == QLatin1String("mumble"))) {
-						url = u;
-					} else {
-						QFile f(args.at(i));
-						if (f.exists()) {
-							url = QUrl::fromLocalFile(f.fileName());
-						}
-					}
-				}
-			}
-		}
-	}
-
-#ifdef USE_DBUS
-#	ifdef Q_OS_WIN
-	// By default, windbus expects the path to dbus-daemon to be in PATH, and the path
-	// should contain bin\\, and the path to the config is hardcoded as ..\etc
-
-	{
-		size_t reqSize;
-		if (_wgetenv_s(&reqSize, nullptr, 0, L"PATH") != 0) {
-			qWarning() << "Failed to get PATH. Not adding application directory to PATH. DBus bindings may not work.";
-		} else if (reqSize > 0) {
-			STACKVAR(wchar_t, buff, reqSize + 1);
-			if (_wgetenv_s(&reqSize, buff, reqSize, L"PATH") != 0) {
-				qWarning()
-					<< "Failed to get PATH. Not adding application directory to PATH. DBus bindings may not work.";
-			} else {
-				QString path =
-					QString::fromLatin1("%1;%2")
-						.arg(QDir::toNativeSeparators(MumbleApplication::instance()->applicationVersionRootPath()))
-						.arg(QString::fromWCharArray(buff));
-				STACKVAR(wchar_t, buffout, path.length() + 1);
-				path.toWCharArray(buffout);
-				if (_wputenv_s(L"PATH", buffout) != 0) {
-					qWarning() << "Failed to set PATH. DBus bindings may not work.";
-				}
-			}
-		}
-	}
-#	endif
-#endif
-
-	if (bRpcMode) {
-		bool sent = false;
-		QMap< QString, QVariant > param;
-		param.insert(rpcCommand, rpcCommand);
-		sent = SocketRPC::send(QLatin1String("Mumble"), QLatin1String("self"), param);
-		if (sent) {
-			return 0;
-		} else {
-			return 1;
-		}
-	}
-
-	if (!bAllowMultiple) {
-		if (url.isValid()) {
-#ifndef USE_DBUS
-			QMap< QString, QVariant > param;
-			param.insert(QLatin1String("href"), url);
-#endif
-			bool sent = false;
-#ifdef USE_DBUS
-			QDBusInterface qdbi(QLatin1String("net.sourceforge.mumble.mumble"), QLatin1String("/"),
-								QLatin1String("net.sourceforge.mumble.Mumble"));
-
-			QDBusMessage reply = qdbi.call(QLatin1String("openUrl"), QLatin1String(url.toEncoded()));
-			sent               = (reply.type() == QDBusMessage::ReplyMessage);
-#else
-			sent = SocketRPC::send(QLatin1String("Mumble"), QLatin1String("url"), param);
-#endif
-			if (sent)
-				return 0;
-		} else {
-			bool sent = false;
-#ifdef USE_DBUS
-			QDBusInterface qdbi(QLatin1String("net.sourceforge.mumble.mumble"), QLatin1String("/"),
-								QLatin1String("net.sourceforge.mumble.Mumble"));
-
-			QDBusMessage reply = qdbi.call(QLatin1String("focus"));
-			sent               = (reply.type() == QDBusMessage::ReplyMessage);
-#else
-			sent = SocketRPC::send(QLatin1String("Mumble"), QLatin1String("focus"));
-#endif
-			if (sent)
-				return 0;
-		}
-	}
-
-#ifdef Q_OS_WIN
-	// The code above this block is somewhat racy, in that it might not
-	// be possible to do RPC/DBus if two processes start at almost the
-	// same time.
-	//
-	// In order to be completely sure we don't open multiple copies of
-	// Mumble, we open a lock file. The file is opened without any sharing
-	// modes enabled. This gives us exclusive access to the file.
-	// If another Mumble instance attempts to open the file, it will fail,
-	// and that instance will know to terminate itself.
-	UserLockFile userLockFile(g.qdBasePath.filePath(QLatin1String("mumble.lock")));
-	if (!bAllowMultiple) {
-		if (!userLockFile.acquire()) {
-			qWarning("Another process has already acquired the lock file at '%s'. Terminating...",
-					 qPrintable(userLockFile.path()));
-			return 1;
-		}
-	}
-#endif
-
-	// Load preferences
-	g.s.load();
-
-	// Check whether we need to enable accessibility features
-#ifdef Q_OS_WIN
-	// Only windows for now. Could not find any information on how to query this for osx or linux
-	{
-		HIGHCONTRAST hc;
-		hc.cbSize = sizeof(HIGHCONTRAST);
-		SystemParametersInfo(SPI_GETHIGHCONTRAST, sizeof(HIGHCONTRAST), &hc, 0);
-
-		if (hc.dwFlags & HCF_HIGHCONTRASTON)
-			g.s.bHighContrast = true;
-	}
-#endif
-
-	DeferInit::run_initializers();
-
-	ApplicationPalette applicationPalette;
-
-	Themes::apply();
-
-	QString qsSystemLocale = QLocale::system().name();
-
-#ifdef Q_OS_MAC
-	if (os_lang) {
-		qWarning("Using Mac OS X system language as locale name");
-		qsSystemLocale = QLatin1String(os_lang);
-	}
-#endif
-
-	const QString locale = g.s.qsLanguage.isEmpty() ? qsSystemLocale : g.s.qsLanguage;
-	qWarning("Locale is \"%s\" (System: \"%s\")", qPrintable(locale), qPrintable(qsSystemLocale));
-
-	QTranslator translator;
-	if (translator.load(QLatin1String(":mumble_") + locale))
-		a.installTranslator(&translator);
-
-	QTranslator loctranslator;
-	if (loctranslator.load(QLatin1String("mumble_") + locale, a.applicationDirPath()))
-		a.installTranslator(&loctranslator); // Can overwrite strings from bundled mumble translation
-
-	// With modularization of Qt 5 some - but not all - of the qt_<locale>.ts files have become
-	// so-called meta catalogues which no longer contain actual translations but refer to other
-	// more specific ts files like qtbase_<locale>.ts . To successfully load a meta catalogue all
-	// of its referenced translations must be available. As we do not want to bundle them all
-	// we now try to load the old qt_<locale>.ts file first and then fall back to loading
-	// qtbase_<locale>.ts if that failed.
-	//
-	// See http://doc.qt.io/qt-5/linguist-programmers.html#deploying-translations for more information
-	QTranslator qttranslator;
-	// First we try and see if there is a translation packaged with Mumble that shall overwrite any potentially existing
-	// Qt translations. If not, we try to load the qt-translations installed on the host-machine and if that fails as
-	// well, we try to load translations bundled in Mumble. Note: Resource starting with :/ are bundled resources
-	// specified in a .qrc file
-	if (qttranslator.load(QLatin1String(":/mumble_overwrite_qt_") + locale)) {
-		a.installTranslator(&qttranslator);
-	} else if (qttranslator.load(QLatin1String(":/mumble_overwrite_qtbase_") + locale)) {
-		a.installTranslator(&qttranslator);
-	} else if (qttranslator.load(QLatin1String("qt_") + locale,
-								 QLibraryInfo::location(QLibraryInfo::TranslationsPath))) {
-		a.installTranslator(&qttranslator);
-	} else if (qttranslator.load(QLatin1String("qtbase_") + locale,
-								 QLibraryInfo::location(QLibraryInfo::TranslationsPath))) {
-		a.installTranslator(&qttranslator);
-	} else if (qttranslator.load(QLatin1String(":/qt_") + locale)) {
-		a.installTranslator(&qttranslator);
-	} else if (qttranslator.load(QLatin1String(":/qtbase_") + locale)) {
-		a.installTranslator(&qttranslator);
-	}
-
-	// Initialize proxy settings
-	NetworkConfig::SetupProxy();
-
-	g.nam = new QNetworkAccessManager();
-
-#ifndef NO_CRASH_REPORT
-	CrashReporter *cr = new CrashReporter();
-	cr->run();
-	delete cr;
-#endif
-
-	// Initialize database
-	g.db = new Database(QLatin1String("main"));
-
-#ifdef USE_ZEROCONF
-	// Initialize zeroconf
-	g.zeroconf = new Zeroconf();
-#endif
-
-#ifdef USE_OVERLAY
-	g.o = new Overlay();
-	g.o->setActive(g.s.os.bEnable);
-#endif
-
-	g.lcd = new LCD();
-
-	// Process any waiting events before initializing our MainWindow.
-	// The mumble:// URL support for Mac OS X happens through AppleEvents,
-	// so we need to loop a little before we begin.
-	a.processEvents();
-
-	// Main Window
-	g.mw = new MainWindow(nullptr);
-	g.mw->show();
-
-	g.talkingUI = new TalkingUI();
-
-	// Set TalkingUI's position
-	g.talkingUI->move(getTalkingUIPosition());
-
-	// By setting the TalkingUI's position **before** making it visible tends to more reliably include the
-	// window's frame to be included in the positioning calculation on X11 (at least using KDE Plasma)
-	g.talkingUI->setVisible(g.s.bShowTalkingUI);
-
-	QObject::connect(g.mw, &MainWindow::userAddedChannelListener, g.talkingUI, &TalkingUI::on_channelListenerAdded);
-	QObject::connect(g.mw, &MainWindow::userRemovedChannelListener, g.talkingUI, &TalkingUI::on_channelListenerRemoved);
-	QObject::connect(&ChannelListener::get(), &ChannelListener::localVolumeAdjustmentsChanged, g.talkingUI,
-					 &TalkingUI::on_channelListenerLocalVolumeAdjustmentChanged);
-
-	QObject::connect(g.mw, &MainWindow::serverSynchronized, g.talkingUI, &TalkingUI::on_serverSynchronized);
-
-	// Initialize logger
-	// Log::log() needs the MainWindow to already exist. Thus creating the Log instance
-	// before the MainWindow one, does not make sense. if you need logging before this
-	// point, use Log::logOrDefer()
-	g.l = new Log();
-	g.l->processDeferredLogs();
-
-#ifdef Q_OS_WIN
-	// Set mumble_mw_hwnd in os_win.cpp.
-	// Used by APIs in ASIOInput and GlobalShortcut_win that require a HWND.
-	mumble_mw_hwnd = GetForegroundWindow();
-#endif
-
-#ifdef USE_DBUS
-	new MumbleDBus(g.mw);
-	QDBusConnection::sessionBus().registerObject(QLatin1String("/"), g.mw);
-	QDBusConnection::sessionBus().registerService(QLatin1String("net.sourceforge.mumble.mumble"));
-#endif
-
-	SocketRPC *srpc = new SocketRPC(QLatin1String("Mumble"));
-
-	g.l->log(Log::Information, MainWindow::tr("Welcome to Mumble."));
-
-	// Plugins
-	g.p = new Plugins(nullptr);
-	g.p->rescanPlugins();
-
-	Audio::start();
-
-	a.setQuitOnLastWindowClosed(false);
-
-	// Configuration updates
-	bool runaudiowizard = false;
-	if (g.s.uiUpdateCounter == 0) {
-		// Previous version was an pre 1.2.3 release or this is the first run
-		runaudiowizard = true;
-
-	} else if (g.s.uiUpdateCounter == 1) {
-		// Previous versions used old idle action style, convert it
-
-		if (g.s.iIdleTime == 5 * 60) { // New default
-			g.s.iaeIdleAction = Settings::Nothing;
-		} else {
-			g.s.iIdleTime     = 60 * qRound(g.s.iIdleTime / 60.); // Round to minutes
-			g.s.iaeIdleAction = Settings::Deafen;                 // Old behavior
-		}
-	}
-
-	if (runaudiowizard) {
-		AudioWizard *aw = new AudioWizard(g.mw);
-		aw->exec();
-		delete aw;
-	}
-
-	g.s.uiUpdateCounter = 2;
-
-	if (!CertWizard::validateCert(g.s.kpCertificate)) {
-		QDir qd(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-		QFile qf(qd.absoluteFilePath(QLatin1String("MumbleAutomaticCertificateBackup.p12")));
-		if (qf.open(QIODevice::ReadOnly | QIODevice::Unbuffered)) {
-			Settings::KeyPair kp = CertWizard::importCert(qf.readAll());
-			qf.close();
-			if (CertWizard::validateCert(kp))
-				g.s.kpCertificate = kp;
-		}
-		if (!CertWizard::validateCert(g.s.kpCertificate)) {
-			CertWizard *cw = new CertWizard(g.mw);
-			cw->exec();
-			delete cw;
-
-			if (!CertWizard::validateCert(g.s.kpCertificate)) {
-				g.s.kpCertificate = CertWizard::generateNewCert();
-				if (qf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Unbuffered)) {
-					qf.write(CertWizard::exportCert(g.s.kpCertificate));
-					qf.close();
-				}
-			}
-		}
-	}
-
-	if (QDateTime::currentDateTime().daysTo(g.s.kpCertificate.first.first().expiryDate()) < 14)
-		g.l->log(Log::Warning,
-				 CertWizard::tr("<b>Certificate Expiry:</b> Your certificate is about to expire. You need to renew it, "
-								"or you will no longer be able to connect to servers you are registered on."));
-
-#ifdef QT_NO_DEBUG
-	// Only perform the version-check for non-debug builds
-	if (g.s.bUpdateCheck) {
-		// Use different settings for the version checks depending on whether this is a snapshot build
-		// or a normal release build
-#	ifndef SNAPSHOT_BUILD
-		// release build
-		new VersionCheck(true, g.mw);
-#	else
-		// snapshot build
-		new VersionCheck(false, g.mw, true);
-#	endif
-	}
-#else
-	g.mw->msgBox(MainWindow::tr("Skipping version check in debug mode."));
-#endif
-	if (g.s.bPluginCheck) {
-		g.p->checkUpdates();
-	}
-
-	if (url.isValid()) {
-		OpenURLEvent *oue = new OpenURLEvent(url);
-		qApp->postEvent(g.mw, oue);
-#ifdef Q_OS_MAC
-	} else if (!a.quLaunchURL.isEmpty()) {
-		OpenURLEvent *oue = new OpenURLEvent(a.quLaunchURL);
-		qApp->postEvent(g.mw, oue);
-#endif
-	} else {
-		g.mw->on_qaServerConnect_triggered(true);
-	}
-
-	if (!g.bQuit)
-		res = a.exec();
-
-	g.s.save();
-
-	url.clear();
-
-	ServerHandlerPtr sh = g.sh;
-	if (sh) {
-		if (sh->isRunning()) {
-			url = sh->getServerURL();
-			sh->disconnect();
-		}
-
-		// Wait for the ServerHandler thread to exit before proceeding shutting down. This is so that
-		// all events that the ServerHandler might emit are enqueued into Qt's event loop before we
-		// ask it to pocess all of them below.
-		if (!sh->wait(2000)) {
-			qCritical("main: ServerHandler did not exit within specified time interval");
-		}
-	}
-
-	QCoreApplication::processEvents();
-
-	// Only start deleting items once all pending events have been processed (Audio::stop deletes the audio
-	// input and output)
-	Audio::stop();
-
-	delete srpc;
-
-	g.sh.reset();
-	while (sh && !sh.unique())
-		QThread::yieldCurrentThread();
-	sh.reset();
-
-	delete g.talkingUI;
-	delete g.mw;
-
-	delete g.nam;
-	delete g.lcd;
-
-	delete g.db;
-	delete g.p;
-	delete g.l;
-
-#ifdef USE_ZEROCONF
-	delete g.zeroconf;
-#endif
-
-#ifdef USE_OVERLAY
-	delete g.o;
-#endif
-
-	delete g.c;
-	g.le.clear();
-
-	DeferInit::run_destroyers();
-
-	delete Global::g_global_struct;
-	Global::g_global_struct = nullptr;
-
-#ifndef QT_NO_DEBUG
-#	if (GOOGLE_PROTOBUF_VERSION >= 2001000)
-	// Release global protobuf memory allocations.
-	google::protobuf::ShutdownProtobufLibrary();
-#	endif
-#endif
-
-#ifdef Q_OS_WIN
-	// Release the userLockFile.
-	//
-	// It is important that we release it before we attempt to
-	// restart Mumble (if requested). If we do not release it
-	// before that, the new instance might not be able to start
-	// correctly.
-	userLockFile.release();
-#endif
-
-	// Tear down OpenSSL state.
-	MumbleSSL::destroy();
-
-	// At this point termination of our process is immenent. We can safely
-	// launch another version of Mumble. The reason we do an actual
-	// restart instead of re-creating our data structures is that making
-	// sure we won't leave state is quite tricky. Mumble has quite a
-	// few spots which might not consider seeing to basic initializations.
-	// Until we invest the time to verify this, rather be safe (and a bit slower)
-	// than sorry (and crash/bug out). Also take care to reconnect if possible.
-	if (res == MUMBLE_EXIT_CODE_RESTART) {
-		QStringList arguments;
-
-		if (bAllowMultiple)
-			arguments << QLatin1String("--multiple");
-		if (suppressIdentity)
-			arguments << QLatin1String("--noidentity");
-		if (customJackClientName)
-			arguments << QLatin1String("--jackname ") + g.s.qsJackClientName;
-		if (!url.isEmpty())
-			arguments << url.toString();
-
-		qWarning() << "Triggering restart of Mumble with arguments: " << arguments;
-
-#ifdef Q_OS_WIN
-		// Work around bug related to QTBUG-7645. Mumble has uiaccess=true set
-		// on windows which makes normal CreateProcess calls (like Qt uses in
-		// startDetached) fail unless they specifically enable additional priviledges.
-		// Note that we do not actually require user interaction by UAC nor full admin
-		// rights but only the right token on launch. Here we use ShellExecuteEx
-		// which handles this transparently for us.
-		const std::wstring applicationFilePath = qApp->applicationFilePath().toStdWString();
-		const std::wstring argumentsString     = arguments.join(QLatin1String(" ")).toStdWString();
-
-		SHELLEXECUTEINFO si;
-		ZeroMemory(&si, sizeof(SHELLEXECUTEINFO));
-		si.cbSize       = sizeof(SHELLEXECUTEINFO);
-		si.lpFile       = applicationFilePath.data();
-		si.lpParameters = argumentsString.data();
-
-		bool ok = (ShellExecuteEx(&si) == TRUE);
-#else
-		bool ok = QProcess::startDetached(qApp->applicationFilePath(), arguments);
-#endif
-		if (!ok) {
-			QMessageBox::warning(nullptr, QApplication::tr("Failed to restart mumble"),
-								 QApplication::tr("Mumble failed to restart itself. Please restart it manually."));
-			return 1;
-		}
-		return 0;
-	}
-	return res;
-}
-
-#if defined(Q_OS_WIN) && defined(MUMBLEAPP_DLL)
-extern "C" __declspec(dllexport) int MumbleMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdArg, int cmdShow) {
-	Q_UNUSED(instance)
-	Q_UNUSED(prevInstance)
-	Q_UNUSED(cmdArg)
-	Q_UNUSED(cmdShow)
-
-	int argc;
-	wchar_t **argvW = CommandLineToArgvW(GetCommandLineW(), &argc);
-	if (!argvW) {
-		return -1;
-	}
-
-	QVector< QByteArray > argvS;
-	argvS.reserve(argc);
-
-	QVector< char * > argvV(argc, nullptr);
-	for (int i = 0; i < argc; ++i) {
-		argvS.append(QString::fromWCharArray(argvW[i]).toLocal8Bit());
-		argvV[i] = argvS.back().data();
-	}
-
-	LocalFree(argvW);
-
-	return main(argc, argvV.data());
-}
-#endif
+<!DOCTYPE RCC>
+<RCC version="1.0">
+<qresource>
+<file alias="flags/jp.svg">../../../icons/flags/jp.svg</file>
+<file alias="flags/pw.svg">../../../icons/flags/pw.svg</file>
+<file alias="flags/ch.svg">../../../icons/flags/ch.svg</file>
+<file alias="flags/bd.svg">../../../icons/flags/bd.svg</file>
+<file alias="flags/vn.svg">../../../icons/flags/vn.svg</file>
+<file alias="flags/mc.svg">../../../icons/flags/mc.svg</file>
+<file alias="flags/so.svg">../../../icons/flags/so.svg</file>
+<file alias="flags/ua.svg">../../../icons/flags/ua.svg</file>
+<file alias="flags/pl.svg">../../../icons/flags/pl.svg</file>
+<file alias="flags/id.svg">../../../icons/flags/id.svg</file>
+<file alias="flags/lc.svg">../../../icons/flags/lc.svg</file>
+<file alias="flags/to.svg">../../../icons/flags/to.svg</file>
+<file alias="flags/co.svg">../../../icons/flags/co.svg</file>
+<file alias="flags/mg.svg">../../../icons/flags/mg.svg</file>
+<file alias="flags/bj.svg">../../../icons/flags/bj.svg</file>
+<file alias="flags/bf.svg">../../../icons/flags/bf.svg</file>
+<file alias="flags/at.svg">../../../icons/flags/at.svg</file>
+<file alias="flags/cz.svg">../../../icons/flags/cz.svg</file>
+<file alias="flags/pe.svg">../../../icons/flags/pe.svg</file>
+<file alias="flags/ng.svg">../../../icons/flags/ng.svg</file>
+<file alias="flags/nl.svg">../../../icons/flags/nl.svg</file>
+<file alias="flags/am.svg">../../../icons/flags/am.svg</file>
+<file alias="flags/bg.svg">../../../icons/flags/bg.svg</file>
+<file alias="flags/hu.svg">../../../icons/flags/hu.svg</file>
+<file alias="flags/lt.svg">../../../icons/flags/lt.svg</file>
+<file alias="flags/sl.svg">../../../icons/flags/sl.svg</file>
+<file alias="flags/ye.svg">../../../icons/flags/ye.svg</file>
+<file alias="flags/be.svg">../../../icons/flags/be.svg</file>
+<file alias="flags/ee.svg">../../../icons/flags/ee.svg</file>
+<file alias="flags/lu.svg">../../../icons/flags/lu.svg</file>
+<file alias="flags/ci.svg">../../../icons/flags/ci.svg</file>
+<file alias="flags/cl.svg">../../../icons/flags/cl.svg</file>
+<file alias="flags/cp.svg">../../../icons/flags/cp.svg</file>
+<file alias="flags/gn.svg">../../../icons/flags/gn.svg</file>
+<file alias="flags/mf.svg">../../../icons/flags/mf.svg</file>
+<file alias="flags/ml.svg">../../../icons/flags/ml.svg</file>
+<file alias="flags/ro.svg">../../../icons/flags/ro.svg</file>
+<file alias="flags/td.svg">../../../icons/flags/td.svg</file>
+<file alias="flags/tn.svg">../../../icons/flags/tn.svg</file>
+<file alias="flags/wf.svg">../../../icons/flags/wf.svg</file>
+<file alias="flags/mr.svg">../../../icons/flags/mr.svg</file>
+<file alias="flags/de.svg">../../../icons/flags/de.svg</file>
+<file alias="flags/fr.svg">../../../icons/flags/fr.svg</file>
+<file alias="flags/ie.svg">../../../icons/flags/ie.svg</file>
+<file alias="flags/it.svg">../../../icons/flags/it.svg</file>
+<file alias="flags/ga.svg">../../../icons/flags/ga.svg</file>
+<file alias="flags/bh.svg">../../../icons/flags/bh.svg</file>
+<file alias="flags/gl.svg">../../../icons/flags/gl.svg</file>
+<file alias="flags/ru.svg">../../../icons/flags/ru.svg</file>
+<file alias="flags/gf.svg">../../../icons/flags/gf.svg</file>
+<file alias="flags/ne.svg">../../../icons/flags/ne.svg</file>
+<file alias="flags/la.svg">../../../icons/flags/la.svg</file>
+<file alias="flags/ma.svg">../../../icons/flags/ma.svg</file>
+<file alias="flags/ae.svg">../../../icons/flags/ae.svg</file>
+<file alias="flags/mu.svg">../../../icons/flags/mu.svg</file>
+<file alias="flags/gw.svg">../../../icons/flags/gw.svg</file>
+<file alias="flags/tr.svg">../../../icons/flags/tr.svg</file>
+<file alias="flags/cg.svg">../../../icons/flags/cg.svg</file>
+<file alias="flags/lv.svg">../../../icons/flags/lv.svg</file>
+<file alias="flags/dj.svg">../../../icons/flags/dj.svg</file>
+<file alias="flags/fm.svg">../../../icons/flags/fm.svg</file>
+<file alias="flags/cm.svg">../../../icons/flags/cm.svg</file>
+<file alias="flags/gh.svg">../../../icons/flags/gh.svg</file>
+<file alias="flags/mm.svg">../../../icons/flags/mm.svg</file>
+<file alias="flags/sn.svg">../../../icons/flags/sn.svg</file>
+<file alias="flags/bw.svg">../../../icons/flags/bw.svg</file>
+<file alias="flags/mv.svg">../../../icons/flags/mv.svg</file>
+<file alias="flags/tl.svg">../../../icons/flags/tl.svg</file>
+<file alias="flags/dk.svg">../../../icons/flags/dk.svg</file>
+<file alias="flags/fi.svg">../../../icons/flags/fi.svg</file>
+<file alias="flags/tw.svg">../../../icons/flags/tw.svg</file>
+<file alias="flags/th.svg">../../../icons/flags/th.svg</file>
+<file alias="flags/bs.svg">../../../icons/flags/bs.svg</file>
+<file alias="flags/pk.svg">../../../icons/flags/pk.svg</file>
+<file alias="flags/se.svg">../../../icons/flags/se.svg</file>
+<file alias="flags/vc.svg">../../../icons/flags/vc.svg</file>
+<file alias="flags/pa.svg">../../../icons/flags/pa.svg</file>
+<file alias="flags/ps.svg">../../../icons/flags/ps.svg</file>
+<file alias="flags/sd.svg">../../../icons/flags/sd.svg</file>
+<file alias="flags/cr.svg">../../../icons/flags/cr.svg</file>
+<file alias="flags/qa.svg">../../../icons/flags/qa.svg</file>
+<file alias="flags/kw.svg">../../../icons/flags/kw.svg</file>
+<file alias="flags/dz.svg">../../../icons/flags/dz.svg</file>
+<file alias="flags/cw.svg">../../../icons/flags/cw.svg</file>
+<file alias="flags/jo.svg">../../../icons/flags/jo.svg</file>
+<file alias="flags/cn.svg">../../../icons/flags/cn.svg</file>
+<file alias="flags/jm.svg">../../../icons/flags/jm.svg</file>
+<file alias="flags/sy.svg">../../../icons/flags/sy.svg</file>
+<file alias="flags/gm.svg">../../../icons/flags/gm.svg</file>
+<file alias="flags/gg.svg">../../../icons/flags/gg.svg</file>
+<file alias="flags/ag.svg">../../../icons/flags/ag.svg</file>
+<file alias="flags/nr.svg">../../../icons/flags/nr.svg</file>
+<file alias="flags/sc.svg">../../../icons/flags/sc.svg</file>
+<file alias="flags/ws.svg">../../../icons/flags/ws.svg</file>
+<file alias="flags/sr.svg">../../../icons/flags/sr.svg</file>
+<file alias="flags/tg.svg">../../../icons/flags/tg.svg</file>
+<file alias="flags/aw.svg">../../../icons/flags/aw.svg</file>
+<file alias="flags/kp.svg">../../../icons/flags/kp.svg</file>
+<file alias="flags/pr.svg">../../../icons/flags/pr.svg</file>
+<file alias="flags/cu.svg">../../../icons/flags/cu.svg</file>
+<file alias="flags/ly.svg">../../../icons/flags/ly.svg</file>
+<file alias="flags/cf.svg">../../../icons/flags/cf.svg</file>
+<file alias="flags/tt.svg">../../../icons/flags/tt.svg</file>
+<file alias="flags/re.svg">../../../icons/flags/re.svg</file>
+<file alias="flags/tz.svg">../../../icons/flags/tz.svg</file>
+<file alias="flags/bb.svg">../../../icons/flags/bb.svg</file>
+<file alias="flags/st.svg">../../../icons/flags/st.svg</file>
+<file alias="flags/ls.svg">../../../icons/flags/ls.svg</file>
+<file alias="flags/aq.svg">../../../icons/flags/aq.svg</file>
+<file alias="flags/az.svg">../../../icons/flags/az.svg</file>
+<file alias="flags/eh.svg">../../../icons/flags/eh.svg</file>
+<file alias="flags/cd.svg">../../../icons/flags/cd.svg</file>
+<file alias="flags/ge.svg">../../../icons/flags/ge.svg</file>
+<file alias="flags/gy.svg">../../../icons/flags/gy.svg</file>
+<file alias="flags/ca.svg">../../../icons/flags/ca.svg</file>
+<file alias="flags/ss.svg">../../../icons/flags/ss.svg</file>
+<file alias="flags/bv.svg">../../../icons/flags/bv.svg</file>
+<file alias="flags/sj.svg">../../../icons/flags/sj.svg</file>
+<file alias="flags/fo.svg">../../../icons/flags/fo.svg</file>
+<file alias="flags/il.svg">../../../icons/flags/il.svg</file>
+<file alias="flags/is.svg">../../../icons/flags/is.svg</file>
+<file alias="flags/no.svg">../../../icons/flags/no.svg</file>
+<file alias="flags/ax.svg">../../../icons/flags/ax.svg</file>
+<file alias="flags/ba.svg">../../../icons/flags/ba.svg</file>
+<file alias="flags/bq.svg">../../../icons/flags/bq.svg</file>
+<file alias="flags/hn.svg">../../../icons/flags/hn.svg</file>
+<file alias="flags/np.svg">../../../icons/flags/np.svg</file>
+<file alias="flags/sg.svg">../../../icons/flags/sg.svg</file>
+<file alias="flags/kn.svg">../../../icons/flags/kn.svg</file>
+<file alias="flags/tk.svg">../../../icons/flags/tk.svg</file>
+<file alias="flags/mh.svg">../../../icons/flags/mh.svg</file>
+<file alias="flags/sk.svg">../../../icons/flags/sk.svg</file>
+<file alias="flags/sb.svg">../../../icons/flags/sb.svg</file>
+<file alias="flags/au.svg">../../../icons/flags/au.svg</file>
+<file alias="flags/lr.svg">../../../icons/flags/lr.svg</file>
+<file alias="flags/rw.svg">../../../icons/flags/rw.svg</file>
+<file alias="flags/km.svg">../../../icons/flags/km.svg</file>
+<file alias="flags/et.svg">../../../icons/flags/et.svg</file>
+<file alias="flags/za.svg">../../../icons/flags/za.svg</file>
+<file alias="flags/gr.svg">../../../icons/flags/gr.svg</file>
+<file alias="flags/om.svg">../../../icons/flags/om.svg</file>
+<file alias="flags/gu.svg">../../../icons/flags/gu.svg</file>
+<file alias="flags/ve.svg">../../../icons/flags/ve.svg</file>
+<file alias="flags/na.svg">../../../icons/flags/na.svg</file>
+<file alias="flags/mk.svg">../../../icons/flags/mk.svg</file>
+<file alias="flags/xk.svg">../../../icons/flags/xk.svg</file>
+<file alias="flags/br.svg">../../../icons/flags/br.svg</file>
+<file alias="flags/ai.svg">../../../icons/flags/ai.svg</file>
+<file alias="flags/mo.svg">../../../icons/flags/mo.svg</file>
+<file alias="flags/eu.svg">../../../icons/flags/eu.svg</file>
+<file alias="flags/hm.svg">../../../icons/flags/hm.svg</file>
+<file alias="flags/lb.svg">../../../icons/flags/lb.svg</file>
+<file alias="flags/tf.svg">../../../icons/flags/tf.svg</file>
+<file alias="flags/bi.svg">../../../icons/flags/bi.svg</file>
+<file alias="flags/bn.svg">../../../icons/flags/bn.svg</file>
+<file alias="flags/tv.svg">../../../icons/flags/tv.svg</file>
+<file alias="flags/my.svg">../../../icons/flags/my.svg</file>
+<file alias="flags/vu.svg">../../../icons/flags/vu.svg</file>
+<file alias="flags/cv.svg">../../../icons/flags/cv.svg</file>
+<file alias="flags/ug.svg">../../../icons/flags/ug.svg</file>
+<file alias="flags/nz.svg">../../../icons/flags/nz.svg</file>
+<file alias="flags/ao.svg">../../../icons/flags/ao.svg</file>
+<file alias="flags/ph.svg">../../../icons/flags/ph.svg</file>
+<file alias="flags/hk.svg">../../../icons/flags/hk.svg</file>
+<file alias="flags/gi.svg">../../../icons/flags/gi.svg</file>
+<file alias="flags/im.svg">../../../icons/flags/im.svg</file>
+<file alias="flags/mn.svg">../../../icons/flags/mn.svg</file>
+<file alias="flags/nc.svg">../../../icons/flags/nc.svg</file>
+<file alias="flags/gd.svg">../../../icons/flags/gd.svg</file>
+<file alias="flags/si.svg">../../../icons/flags/si.svg</file>
+<file alias="flags/ni.svg">../../../icons/flags/ni.svg</file>
+<file alias="flags/kr.svg">../../../icons/flags/kr.svg</file>
+<file alias="flags/ke.svg">../../../icons/flags/ke.svg</file>
+<file alias="flags/uz.svg">../../../icons/flags/uz.svg</file>
+<file alias="flags/iq.svg">../../../icons/flags/iq.svg</file>
+<file alias="flags/ck.svg">../../../icons/flags/ck.svg</file>
+<file alias="flags/tj.svg">../../../icons/flags/tj.svg</file>
+<file alias="flags/tm.svg">../../../icons/flags/tm.svg</file>
+<file alias="flags/ms.svg">../../../icons/flags/ms.svg</file>
+<file alias="flags/gb.svg">../../../icons/flags/gb.svg</file>
+<file alias="flags/mz.svg">../../../icons/flags/mz.svg</file>
+<file alias="flags/cx.svg">../../../icons/flags/cx.svg</file>
+<file alias="flags/pg.svg">../../../icons/flags/pg.svg</file>
+<file alias="flags/gq.svg">../../../icons/flags/gq.svg</file>
+<file alias="flags/dm.svg">../../../icons/flags/dm.svg</file>
+<file alias="flags/al.svg">../../../icons/flags/al.svg</file>
+<file alias="flags/nu.svg">../../../icons/flags/nu.svg</file>
+<file alias="flags/sh.svg">../../../icons/flags/sh.svg</file>
+<file alias="flags/zw.svg">../../../icons/flags/zw.svg</file>
+<file alias="flags/lk.svg">../../../icons/flags/lk.svg</file>
+<file alias="flags/sz.svg">../../../icons/flags/sz.svg</file>
+<file alias="flags/um.svg">../../../icons/flags/um.svg</file>
+<file alias="flags/us.svg">../../../icons/flags/us.svg</file>
+<file alias="flags/cc.svg">../../../icons/flags/cc.svg</file>
+<file alias="flags/er.svg">../../../icons/flags/er.svg</file>
+<file alias="flags/ki.svg">../../../icons/flags/ki.svg</file>
+<file alias="flags/eg.svg">../../../icons/flags/eg.svg</file>
+<file alias="flags/sx.svg">../../../icons/flags/sx.svg</file>
+<file alias="flags/in.svg">../../../icons/flags/in.svg</file>
+<file alias="flags/uy.svg">../../../icons/flags/uy.svg</file>
+<file alias="flags/zm.svg">../../../icons/flags/zm.svg</file>
+<file alias="flags/li.svg">../../../icons/flags/li.svg</file>
+<file alias="flags/bm.svg">../../../icons/flags/bm.svg</file>
+<file alias="flags/fk.svg">../../../icons/flags/fk.svg</file>
+<file alias="flags/mt.svg">../../../icons/flags/mt.svg</file>
+<file alias="flags/py.svg">../../../icons/flags/py.svg</file>
+<file alias="flags/tc.svg">../../../icons/flags/tc.svg</file>
+<file alias="flags/pf.svg">../../../icons/flags/pf.svg</file>
+<file alias="flags/hr.svg">../../../icons/flags/hr.svg</file>
+<file alias="flags/ht.svg">../../../icons/flags/ht.svg</file>
+<file alias="flags/rs.svg">../../../icons/flags/rs.svg</file>
+<file alias="flags/mw.svg">../../../icons/flags/mw.svg</file>
+<file alias="flags/cy.svg">../../../icons/flags/cy.svg</file>
+<file alias="flags/mq.svg">../../../icons/flags/mq.svg</file>
+<file alias="flags/ec.svg">../../../icons/flags/ec.svg</file>
+<file alias="flags/va.svg">../../../icons/flags/va.svg</file>
+<file alias="flags/ky.svg">../../../icons/flags/ky.svg</file>
+<file alias="flags/kg.svg">../../../icons/flags/kg.svg</file>
+<file alias="flags/sv.svg">../../../icons/flags/sv.svg</file>
+<file alias="flags/me.svg">../../../icons/flags/me.svg</file>
+<file alias="flags/fj.svg">../../../icons/flags/fj.svg</file>
+<file alias="flags/mx.svg">../../../icons/flags/mx.svg</file>
+<file alias="flags/sm.svg">../../../icons/flags/sm.svg</file>
+<file alias="flags/md.svg">../../../icons/flags/md.svg</file>
+<file alias="flags/gt.svg">../../../icons/flags/gt.svg</file>
+<file alias="flags/kz.svg">../../../icons/flags/kz.svg</file>
+<file alias="flags/bt.svg">../../../icons/flags/bt.svg</file>
+<file alias="flags/ad.svg">../../../icons/flags/ad.svg</file>
+<file alias="flags/ir.svg">../../../icons/flags/ir.svg</file>
+<file alias="flags/kh.svg">../../../icons/flags/kh.svg</file>
+<file alias="flags/af.svg">../../../icons/flags/af.svg</file>
+<file alias="flags/je.svg">../../../icons/flags/je.svg</file>
+<file alias="flags/as.svg">../../../icons/flags/as.svg</file>
+<file alias="flags/sa.svg">../../../icons/flags/sa.svg</file>
+<file alias="flags/do.svg">../../../icons/flags/do.svg</file>
+<file alias="flags/ea.svg">../../../icons/flags/ea.svg</file>
+<file alias="flags/es.svg">../../../icons/flags/es.svg</file>
+<file alias="flags/pn.svg">../../../icons/flags/pn.svg</file>
+<file alias="flags/dg.svg">../../../icons/flags/dg.svg</file>
+<file alias="flags/io.svg">../../../icons/flags/io.svg</file>
+<file alias="flags/nf.svg">../../../icons/flags/nf.svg</file>
+<file alias="flags/bo.svg">../../../icons/flags/bo.svg</file>
+<file alias="flags/ar.svg">../../../icons/flags/ar.svg</file>
+<file alias="flags/ic.svg">../../../icons/flags/ic.svg</file>
+<file alias="flags/vi.svg">../../../icons/flags/vi.svg</file>
+<file alias="flags/by.svg">../../../icons/flags/by.svg</file>
+<file alias="flags/bz.svg">../../../icons/flags/bz.svg</file>
+<file alias="flags/gp.svg">../../../icons/flags/gp.svg</file>
+<file alias="flags/ac.svg">../../../icons/flags/ac.svg</file>
+<file alias="flags/mp.svg">../../../icons/flags/mp.svg</file>
+<file alias="flags/pt.svg">../../../icons/flags/pt.svg</file>
+<file alias="flags/ta.svg">../../../icons/flags/ta.svg</file>
+<file alias="flags/gs.svg">../../../icons/flags/gs.svg</file>
+<file alias="flags/yt.svg">../../../icons/flags/yt.svg</file>
+<file alias="flags/bl.svg">../../../icons/flags/bl.svg</file>
+<file alias="flags/vg.svg">../../../icons/flags/vg.svg</file>
+<file alias="flags/pm.svg">../../../icons/flags/pm.svg</file>
+</qresource>
+</RCC>
