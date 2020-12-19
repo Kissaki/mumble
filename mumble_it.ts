@@ -1,100 +1,97 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
-#define MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+#include "SharedMemory.h"
 
-#include "TalkingUIComponent.h"
-#include "TalkingUIEntry.h"
+#include "win.h"
 
-#include <QString>
+#include <QtCore/QDebug>
 
-#include <memory>
-
-class QWidget;
-class QGroupBox;
-class TalkingUI;
-
-enum class ContainerType { CHANNEL };
-
-class TalkingUIContainer : public TalkingUIComponent {
-	friend class TalkingUIUser;
-
-protected:
-	std::vector< std::unique_ptr< TalkingUIEntry > > m_entries;
-
-	int m_associatedChannelID = -1;
-
-	bool m_permanent = false;
-
-	TalkingUI &m_talkingUI;
-
-	virtual int find(unsigned int associatedUserSession, EntryType type) const;
-
-public:
-	TalkingUIContainer(int associatedChannelID, TalkingUI &talkingUI);
-	virtual ~TalkingUIContainer() = default;
-
-	virtual QString getName() const = 0;
-
-	virtual int compare(const TalkingUIContainer &other) const = 0;
-
-	virtual ContainerType getType() const = 0;
-
-	virtual int getAssociatedChannelID() const;
-
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(const TalkingUIEntry *entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type);
-
-	virtual std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries();
-	virtual const std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries() const;
-
-	virtual bool contains(unsigned int associatedUserSession, EntryType type) const;
-
-	virtual std::size_t size() const;
-	virtual bool isEmpty() const;
-
-	virtual void setPermanent(bool permanent);
-	virtual bool isPermanent() const;
-
-	virtual TalkingUIEntry *get(unsigned int associatedUserSession, EntryType type);
-
-	bool operator==(const TalkingUIContainer &other) const;
-	bool operator!=(const TalkingUIContainer &other) const;
-	bool operator>(const TalkingUIContainer &other) const;
-	bool operator>=(const TalkingUIContainer &other) const;
-	bool operator<(const TalkingUIContainer &other) const;
-	bool operator<=(const TalkingUIContainer &other) const;
+struct SharedMemory2Private {
+	HANDLE hMemory;
 };
 
+SharedMemory2::SharedMemory2(QObject *p, unsigned int minsize, const QString &memname) : QObject(p) {
+	a_ucData = nullptr;
 
-class TalkingUIChannel : public TalkingUIContainer {
-protected:
-	QGroupBox *m_channelBox;
+	d          = new SharedMemory2Private();
+	d->hMemory = nullptr;
 
-	EntryPriority m_highestUserPriority = EntryPriority::LOWEST;
+	if (memname.isEmpty()) {
+		// Create a new segment
 
-	void updatePriority();
+		for (int i = 0; i < 100; ++i) {
+			qsName     = QString::fromLatin1("Local\\MumbleOverlayMemory%1").arg(++uiIndex);
+			d->hMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, minsize,
+											qsName.toStdWString().c_str());
+			if (d->hMemory && GetLastError() != ERROR_ALREADY_EXISTS) {
+				break;
+			}
 
-public:
-	TalkingUIChannel(int associatedChannelID, QString name, TalkingUI &talkingUI);
-	virtual ~TalkingUIChannel();
+			if (d->hMemory)
+				CloseHandle(d->hMemory);
+			d->hMemory = nullptr;
+		}
+	} else {
+		// Open existing segment
 
-	virtual QString getName() const override;
-	virtual void setName(const QString &name);
+		qsName     = memname;
+		d->hMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, minsize,
+										qsName.toStdWString().c_str());
+		qWarning("%p %lx", d->hMemory, GetLastError());
+		if (GetLastError() != ERROR_ALREADY_EXISTS) {
+			qWarning() << "SharedMemory2: Memory doesn't exist" << qsName;
+			if (d->hMemory) {
+				CloseHandle(d->hMemory);
+				d->hMemory = nullptr;
+			}
+		}
+	}
 
-	virtual int compare(const TalkingUIContainer &other) const override;
+	if (!d->hMemory) {
+		qWarning() << "SharedMemory2: CreateFileMapping failed for" << qsName;
+	} else {
+		a_ucData = reinterpret_cast< unsigned char * >(MapViewOfFile(d->hMemory, FILE_MAP_ALL_ACCESS, 0, 0, 0));
 
-	virtual QWidget *getWidget() override;
-	virtual const QWidget *getWidget() const override;
+		if (!a_ucData) {
+			qWarning() << "SharedMemory2: Failed to map memory" << qsName;
+		} else {
+			MEMORY_BASIC_INFORMATION mbi;
+			memset(&mbi, 0, sizeof(mbi));
+			if ((VirtualQuery(a_ucData, &mbi, sizeof(mbi)) == 0) || (mbi.RegionSize < minsize)) {
+				qWarning() << "SharedMemory2: Memory too small" << qsName << mbi.RegionSize;
+			} else {
+				uiSize = mbi.RegionSize;
+				return;
+			}
+		}
+	}
 
-	virtual ContainerType getType() const override;
+	if (a_ucData) {
+		UnmapViewOfFile(a_ucData);
+		a_ucData = nullptr;
+	}
+	if (d->hMemory) {
+		CloseHandle(d->hMemory);
+		d->hMemory = nullptr;
+	}
+}
 
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry) override;
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type) override;
-};
+SharedMemory2::~SharedMemory2() {
+	if (a_ucData)
+		UnmapViewOfFile(a_ucData);
+	if (d->hMemory)
+		CloseHandle(d->hMemory);
 
-#endif // MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+	delete d;
+}
+
+void SharedMemory2::systemRelease() {
+	// This doesn't really do anything on Win32, since it has delete-on-close semantics anyway
+	if (d->hMemory) {
+		CloseHandle(d->hMemory);
+		d->hMemory = nullptr;
+	}
+}
