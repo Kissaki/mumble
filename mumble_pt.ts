@@ -3,44 +3,101 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_LOOKCONFIG_H_
-#define MUMBLE_MUMBLE_LOOKCONFIG_H_
+#ifndef MUMBLE_MUMBLE_LCD_H_
+#define MUMBLE_MUMBLE_LCD_H_
 
 #include "ConfigDialog.h"
-#include "ThemeInfo.h"
+#include "Timer.h"
 
-#include "ui_LookConfig.h"
+#include "ui_LCD.h"
 
-class QFileSystemWatcher;
-class QTimer;
+class User;
+class LCDDevice;
 
-class LookConfig : public ConfigWidget, Ui::LookConfig {
+class LCDConfig : public ConfigWidget, public Ui::LCDConfig {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(LookConfig)
+	Q_DISABLE_COPY(LCDConfig)
 public:
 	/// The unique name of this ConfigWidget
 	static const QString name;
-	LookConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	virtual const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
-
+	LCDConfig(Settings &st);
+	QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	QIcon icon() const Q_DECL_OVERRIDE;
 public slots:
+	void on_qsMinColWidth_valueChanged(int v);
+	void on_qsSplitterWidth_valueChanged(int v);
 	void accept() const Q_DECL_OVERRIDE;
 	void save() const Q_DECL_OVERRIDE;
 	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void themeDirectoryChanged();
-	void on_qcbAbbreviateChannelNames_stateChanged(int state);
-
-private:
-	/// Reload themes combobox and select given configuredStyle in it
-	void reloadThemes(const boost::optional< ThemeInfo::StyleInfo > configuredStyle);
-
-	/// Timer to prevent change event floods from triggering theme reloads
-	QTimer *m_themeDirectoryDebouncer;
-	/// Watcher to keep theme list up to date with user theme directory
-	QFileSystemWatcher *m_themeDirectoryWatcher;
 };
+
+class LCDEngine : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(LCDEngine)
+protected:
+	QList< LCDDevice * > qlDevices;
+
+public:
+	LCDEngine();
+	virtual ~LCDEngine() Q_DECL_OVERRIDE;
+	virtual QList< LCDDevice * > devices() const = 0;
+};
+
+class LCDDevice {
+public:
+	LCDDevice();
+	virtual ~LCDDevice();
+	virtual bool enabled()                                  = 0;
+	virtual void setEnabled(bool e)                         = 0;
+	virtual void blitImage(QImage *img, bool alert = false) = 0;
+	virtual QString name() const                            = 0;
+	virtual QSize size() const                              = 0;
+};
+
+typedef LCDEngine *(*LCDEngineNew)(void);
+
+class LCDEngineRegistrar Q_DECL_FINAL {
+protected:
+	LCDEngineNew n;
+
+public:
+	static QList< LCDEngineNew > *qlInitializers;
+	LCDEngineRegistrar(LCDEngineNew n);
+	~LCDEngineRegistrar();
+};
+
+class LCD : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(LCD)
+protected:
+	QFont qfNormal, qfBold, qfItalic, qfItalicBold;
+	QMap< unsigned int, Timer > qmSpeaking;
+	QMap< unsigned int, Timer > qmNew;
+	QMap< unsigned int, Timer > qmOld;
+	QMap< unsigned int, QString > qmNameCache;
+
+	int iFontHeight;
+	int iFrameIndex;
+	QHash< QSize, unsigned char * > qhImageBuffers;
+	QHash< QSize, QImage * > qhImages;
+	void initBuffers();
+	void destroyBuffers();
+	QImage qiLogo;
+	QTimer *qtTimer;
+public slots:
+	void tick();
+
+public:
+	LCD();
+	~LCD() Q_DECL_OVERRIDE;
+	void updateUserView();
+	bool hasDevices();
+};
+
+uint qHash(const QSize &size);
 
 #endif
