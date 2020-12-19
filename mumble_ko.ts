@@ -3,76 +3,67 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_ZEROCONF_H_
-#define MUMBLE_MUMBLE_ZEROCONF_H_
+#include "XboxInput.h"
 
-#include "BonjourServiceBrowser.h"
-#include "BonjourServiceResolver.h"
+#include <QtCore/QStringList>
 
-#include <memory>
+const QUuid XboxInput::s_XboxInputGuid = QUuid(QString::fromLatin1("ca3937e3-640c-4d9e-9ef3-903f8b4fbcab"));
 
-#ifdef Q_OS_WIN64
-#	include <windns.h>
-#endif
+XboxInput::XboxInput()
+	: GetState(nullptr), m_getStateFunc(nullptr), m_getStateExFunc(nullptr), m_xinputlib(nullptr), m_valid(false) {
+	// Load the most suitable XInput DLL available.
+	//
+	// We prefer 1_4 and 1_3 over the others because they provide
+	// XInputGetStateEx(), which allows us to query the state of
+	// the guide button.
+	//
+	// See https://msdn.microsoft.com/en-us/library/windows/desktop/hh405051(v=vs.85).aspx
+	// for more information.
+	QStringList alternatives;
+	alternatives << QLatin1String("XInput1_4.dll");
+	alternatives << QLatin1String("xinput1_3.dll");
+	alternatives << QLatin1String("XInput9_1_0.dll");
+	alternatives << QLatin1String("xinput1_2.dll");
+	alternatives << QLatin1String("xinput1_1.dll");
 
-class Zeroconf : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(Zeroconf)
-protected:
-#ifdef Q_OS_WIN64
-	struct Resolver {
-		Zeroconf *m_zeroconf;
-		BonjourRecord m_record;
-		DNS_SERVICE_CANCEL m_cancel;
-
-		bool operator==(const Resolver &other) const { return m_record == other.m_record; }
-
-		Resolver(Zeroconf *zeroconf, const BonjourRecord &record) : m_zeroconf(zeroconf), m_record(record){};
-	};
-#endif
-	bool m_ok;
-	QList< BonjourRecord > m_records;
-	std::unique_ptr< BonjourServiceBrowser > m_helperBrowser;
-	std::unique_ptr< BonjourServiceResolver > m_helperResolver;
-#ifdef Q_OS_WIN64
-	QList< Resolver > m_resolvers;
-	std::unique_ptr< DNS_SERVICE_CANCEL > m_cancelBrowser;
-
-	bool stopResolver(Resolver &resolver);
-
-	static void WINAPI callbackBrowseComplete(const DWORD status, void *context, DNS_RECORD *records);
-	static void WINAPI callbackResolveComplete(const DWORD status, void *context, DNS_SERVICE_INSTANCE *instance);
-#endif
-	void resetHelperBrowser();
-	void resetHelperResolver();
-
-	void helperBrowserRecordsChanged(const QList< BonjourRecord > &records);
-	void helperResolverRecordResolved(const BonjourRecord record, const QString hostname, const int port);
-	void helperBrowserError(const DNSServiceErrorType error) const;
-	void helperResolverError(const BonjourRecord record, const DNSServiceErrorType error);
-
-public:
-	inline bool isOk() const { return m_ok; }
-	inline QList< BonjourRecord > currentRecords() const {
-		return m_helperBrowser ? m_helperBrowser->currentRecords() : m_records;
+	foreach (const QString &lib, alternatives) {
+		m_xinputlib = LoadLibraryW(reinterpret_cast< const wchar_t * >(lib.utf16()));
+		if (m_xinputlib) {
+			qWarning("XboxInput: using XInput DLL '%s'", qPrintable(lib));
+			m_valid = true;
+			break;
+		}
 	}
 
-	bool startBrowser(const QString &serviceType);
-	bool stopBrowser();
+	if (!m_valid) {
+		qWarning("XboxInput: no valid XInput DLL was found on the system.");
+		return;
+	}
 
-	bool startResolver(const BonjourRecord &record);
-#ifdef Q_OS_WIN64
-	bool stopResolver(const BonjourRecord &record);
-#endif
-	bool cleanupResolvers();
+	m_getStateFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, "XInputGetState"));
+	// Undocumented XInputGetStateEx -- ordinal 100. It is available in XInput 1.3 and greater.
+	// It provides access to the state of the guide button.
+	// For reference, see SDL's XInput support: http://www.libsdl.org/tmp/SDL/src/core/windows/SDL_xinput.c
+	m_getStateExFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, (char *) 100));
 
-	Zeroconf();
-	~Zeroconf();
-signals:
-	void recordsChanged(const QList< BonjourRecord > &records);
-	void recordResolved(const BonjourRecord record, const QString hostname, const uint16_t port);
-	void resolveError(const BonjourRecord record);
-};
+	if (m_getStateExFunc) {
+		GetState = m_getStateExFunc;
+		qWarning("XboxInput: using XInputGetStateEx() as querying function.");
+	} else if (m_getStateFunc) {
+		GetState = m_getStateFunc;
+		qWarning("XboxInput: using XInputGetState() as querying function.");
+	} else {
+		m_valid = false;
+		qWarning("XboxInput: no valid querying function found.");
+	}
+}
 
-#endif
+XboxInput::~XboxInput() {
+	if (m_xinputlib) {
+		FreeLibrary(m_xinputlib);
+	}
+}
+
+bool XboxInput::isValid() const {
+	return m_valid;
+}
