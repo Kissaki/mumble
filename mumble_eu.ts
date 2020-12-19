@@ -1,63 +1,177 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "ListenerLocalVolumeDialog.h"
-#include "Channel.h"
-#include "ChannelListener.h"
-#include "ClientUser.h"
-
-#include <QtWidgets/QPushButton>
-
-#include <cmath>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-ListenerLocalVolumeDialog::ListenerLocalVolumeDialog(ClientUser *user, Channel *channel, QWidget *parent)
-	: QDialog(parent), m_user(user), m_channel(channel) {
-	setupUi(this);
-
-	m_initialAdjustemt = ChannelListener::getListenerLocalVolumeAdjustment(m_channel);
-
-	// Decibel formula: +6db = *2
-	// Calculate the db-shift from the set volume-faactor
-	float fdbShift = log2f(m_initialAdjustemt) * 6;
-	qsUserLocalVolume->setValue(static_cast< int >(roundf(fdbShift)));
-
-	setWindowTitle(tr("Adjusting local volume for listening to %1").arg(channel->qsName));
-}
-
-void ListenerLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
-	qsbUserLocalVolume->setValue(value);
-}
-
-void ListenerLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
-	qsUserLocalVolume->setValue(value);
-
-	// Decibel formula: +6db = *2
-	// Calculate the volume-factor for the set db-shift
-	ChannelListener::setListenerLocalVolumeAdjustment(m_channel,
-													  static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
-}
-
-void ListenerLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
-		qsUserLocalVolume->setValue(0);
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
-		ListenerLocalVolumeDialog::accept();
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
-		ListenerLocalVolumeDialog::close();
-	}
-}
-
-void ListenerLocalVolumeDialog::reject() {
-	// Restore to what has been set before the dialog
-	ChannelListener::setListenerLocalVolumeAdjustment(m_channel, m_initialAdjustemt);
-
-	QDialog::reject();
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LCDConfig</class>
+ <widget class="QWidget" name="LCDConfig">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>426</width>
+    <height>694</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>LCD</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <item>
+    <widget class="QGroupBox" name="qgbDevices">
+     <property name="minimumSize">
+      <size>
+       <width>160</width>
+       <height>43</height>
+      </size>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;p&gt;This is the list of available LCD devices on your system.  It lists devices by name, but also includes the size of the display. Mumble supports outputting to several LCD devices at a time.&lt;/p&gt;
+&lt;h3&gt;Size:&lt;/h3&gt;
+&lt;p&gt;
+This field describes the size of an LCD device. The size is given either in pixels (for Graphic LCDs) or in characters (for Character LCDs).&lt;/p&gt;
+&lt;h3&gt;Enabled:&lt;/h3&gt;
+&lt;p&gt;This decides whether Mumble should draw to a particular LCD device.&lt;/p&gt;</string>
+     </property>
+     <property name="title">
+      <string>Devices</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QTreeWidget" name="qtwDevices">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="itemsExpandable">
+         <bool>false</bool>
+        </property>
+        <column>
+         <property name="text">
+          <string>Name</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Size</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Enabled</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbViews">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Views</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qliMinColWidth">
+        <property name="text">
+         <string>Minimum Column Width</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSlider" name="qsMinColWidth">
+        <property name="whatsThis">
+         <string>&lt;p&gt;This option decides the minimum width a column in the User View.&lt;/p&gt;
+&lt;p&gt;If too many people are speaking at once, the User View will split itself into columns. You can use this option to pick a compromise between number of users shown on the LCD, and width of user names.&lt;/p&gt;
+</string>
+        </property>
+        <property name="minimum">
+         <number>40</number>
+        </property>
+        <property name="maximum">
+         <number>200</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QLabel" name="qlMinColWidth">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="qliSplitterWidth">
+        <property name="text">
+         <string>Splitter Width</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSlider" name="qsSplitterWidth">
+        <property name="whatsThis">
+         <string>This setting decides the width of column splitter.</string>
+        </property>
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>5</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="qlSplitterWidth">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Expanding</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
