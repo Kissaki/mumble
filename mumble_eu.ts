@@ -3,52 +3,23 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_SOCKETRPC_H_
-#define MUMBLE_MUMBLE_SOCKETRPC_H_
+#include "TextMessage.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QString>
-#include <QtCore/QVariant>
-#include <QtCore/QXmlStreamReader>
-#include <QtNetwork/QLocalSocket>
+TextMessage::TextMessage(QWidget *p, QString title, bool bChannel) : QDialog(p) {
+	setupUi(this);
+	rteMessage->setAccessibleName(tr("Message"));
+	if (!bChannel)
+		qcbTreeMessage->setHidden(true);
+	setWindowTitle(title);
+	bTreeMessage = false;
 
-class QBuffer;
-class QLocalServer;
+	QObject::connect(rteMessage, SIGNAL(accept()), this, SLOT(accept()));
+}
 
-class SocketRPCClient : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(SocketRPCClient)
-protected:
-	QLocalSocket *qlsSocket;
-	QXmlStreamReader qxsrReader;
-	QXmlStreamWriter qxswWriter;
-	QBuffer *qbBuffer;
-	QByteArray qbaOutput;
+void TextMessage::on_qcbTreeMessage_stateChanged(int s) {
+	bTreeMessage = s == Qt::Checked ? true : false;
+}
 
-	void processXml();
-
-public:
-	SocketRPCClient(QLocalSocket *s, QObject *p = nullptr);
-public slots:
-	void disconnected();
-	void error(QLocalSocket::LocalSocketError);
-	void readyRead();
-};
-
-class SocketRPC : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(SocketRPC)
-protected:
-	QLocalServer *qlsServer;
-
-public:
-	typedef QMap< QString, QVariant > ParameterMap;
-	SocketRPC(const QString &basename, QObject *p = nullptr);
-	static bool send(const QString &basename, const QString &request, const ParameterMap &param = ParameterMap());
-public slots:
-	void newConnection();
-};
-
-#endif
+QString TextMessage::message() {
+	return rteMessage->text();
+}
