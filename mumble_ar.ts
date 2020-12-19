@@ -1,103 +1,177 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_LCD_H_
-#define MUMBLE_MUMBLE_LCD_H_
-
-#include "ConfigDialog.h"
-#include "Timer.h"
-
-#include "ui_LCD.h"
-
-class User;
-class LCDDevice;
-
-class LCDConfig : public ConfigWidget, public Ui::LCDConfig {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDConfig)
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	LCDConfig(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void on_qsMinColWidth_valueChanged(int v);
-	void on_qsSplitterWidth_valueChanged(int v);
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-};
-
-class LCDEngine : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDEngine)
-protected:
-	QList< LCDDevice * > qlDevices;
-
-public:
-	LCDEngine();
-	virtual ~LCDEngine() Q_DECL_OVERRIDE;
-	virtual QList< LCDDevice * > devices() const = 0;
-};
-
-class LCDDevice {
-public:
-	LCDDevice();
-	virtual ~LCDDevice();
-	virtual bool enabled()                                  = 0;
-	virtual void setEnabled(bool e)                         = 0;
-	virtual void blitImage(QImage *img, bool alert = false) = 0;
-	virtual QString name() const                            = 0;
-	virtual QSize size() const                              = 0;
-};
-
-typedef LCDEngine *(*LCDEngineNew)(void);
-
-class LCDEngineRegistrar Q_DECL_FINAL {
-protected:
-	LCDEngineNew n;
-
-public:
-	static QList< LCDEngineNew > *qlInitializers;
-	LCDEngineRegistrar(LCDEngineNew n);
-	~LCDEngineRegistrar();
-};
-
-class LCD : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCD)
-protected:
-	QFont qfNormal, qfBold, qfItalic, qfItalicBold;
-	QMap< unsigned int, Timer > qmSpeaking;
-	QMap< unsigned int, Timer > qmNew;
-	QMap< unsigned int, Timer > qmOld;
-	QMap< unsigned int, QString > qmNameCache;
-
-	int iFontHeight;
-	int iFrameIndex;
-	QHash< QSize, unsigned char * > qhImageBuffers;
-	QHash< QSize, QImage * > qhImages;
-	void initBuffers();
-	void destroyBuffers();
-	QImage qiLogo;
-	QTimer *qtTimer;
-public slots:
-	void tick();
-
-public:
-	LCD();
-	~LCD() Q_DECL_OVERRIDE;
-	void updateUserView();
-	bool hasDevices();
-};
-
-uint qHash(const QSize &size);
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LCDConfig</class>
+ <widget class="QWidget" name="LCDConfig">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>426</width>
+    <height>694</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>LCD</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <item>
+    <widget class="QGroupBox" name="qgbDevices">
+     <property name="minimumSize">
+      <size>
+       <width>160</width>
+       <height>43</height>
+      </size>
+     </property>
+     <property name="whatsThis">
+      <string>&lt;p&gt;This is the list of available LCD devices on your system.  It lists devices by name, but also includes the size of the display. Mumble supports outputting to several LCD devices at a time.&lt;/p&gt;
+&lt;h3&gt;Size:&lt;/h3&gt;
+&lt;p&gt;
+This field describes the size of an LCD device. The size is given either in pixels (for Graphic LCDs) or in characters (for Character LCDs).&lt;/p&gt;
+&lt;h3&gt;Enabled:&lt;/h3&gt;
+&lt;p&gt;This decides whether Mumble should draw to a particular LCD device.&lt;/p&gt;</string>
+     </property>
+     <property name="title">
+      <string>Devices</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QTreeWidget" name="qtwDevices">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="itemsExpandable">
+         <bool>false</bool>
+        </property>
+        <column>
+         <property name="text">
+          <string>Name</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Size</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Enabled</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbViews">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Views</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qliMinColWidth">
+        <property name="text">
+         <string>Minimum Column Width</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSlider" name="qsMinColWidth">
+        <property name="whatsThis">
+         <string>&lt;p&gt;This option decides the minimum width a column in the User View.&lt;/p&gt;
+&lt;p&gt;If too many people are speaking at once, the User View will split itself into columns. You can use this option to pick a compromise between number of users shown on the LCD, and width of user names.&lt;/p&gt;
+</string>
+        </property>
+        <property name="minimum">
+         <number>40</number>
+        </property>
+        <property name="maximum">
+         <number>200</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QLabel" name="qlMinColWidth">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="qliSplitterWidth">
+        <property name="text">
+         <string>Splitter Width</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSlider" name="qsSplitterWidth">
+        <property name="whatsThis">
+         <string>This setting decides the width of column splitter.</string>
+        </property>
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>5</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="qlSplitterWidth">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Expanding</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
