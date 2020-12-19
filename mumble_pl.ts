@@ -1,1283 +1,996 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "AudioInput.h"
-
-#include "AudioOutput.h"
-#include "CELTCodec.h"
-#ifdef USE_OPUS
-#	include "OpusCodec.h"
-#endif
-#include "MainWindow.h"
-#include "Message.h"
-#include "NetworkConfig.h"
-#include "PacketDataStream.h"
-#include "Plugins.h"
-#include "ServerHandler.h"
-#include "User.h"
-#include "Utils.h"
-#include "VoiceRecorder.h"
-#include "Global.h"
-
-#ifdef USE_RNNOISE
-extern "C" {
-#	include "rnnoise.h"
-}
-#endif
-
-void Resynchronizer::addMic(short *mic) {
-	bool drop = false;
-	{
-		std::unique_lock< std::mutex > l(m);
-		micQueue.push_back(mic);
-		switch (state) {
-			case S0:
-				state = S1a;
-				break;
-			case S1a:
-				state = S2;
-				break;
-			case S1b:
-				state = S2;
-				break;
-			case S2:
-				state = S3;
-				break;
-			case S3:
-				state = S4a;
-				break;
-			case S4a:
-				state = S5;
-				break;
-			case S4b:
-				drop = true;
-				break;
-			case S5:
-				drop = true;
-				break;
-		}
-		if (drop) {
-			delete[] micQueue.front();
-			micQueue.pop_front();
-		}
-	}
-	if (bDebugPrintQueue) {
-		if (drop)
-			qWarning("Resynchronizer::addMic(): dropped microphone chunk due to overflow");
-		printQueue('+');
-	}
-}
-
-AudioChunk Resynchronizer::addSpeaker(short *speaker) {
-	AudioChunk result;
-	bool drop = false;
-	{
-		std::unique_lock< std::mutex > l(m);
-		switch (state) {
-			case S0:
-				drop = true;
-				break;
-			case S1a:
-				drop = true;
-				break;
-			case S1b:
-				state = S0;
-				break;
-			case S2:
-				state = S1b;
-				break;
-			case S3:
-				state = S2;
-				break;
-			case S4a:
-				state = S3;
-				break;
-			case S4b:
-				state = S3;
-				break;
-			case S5:
-				state = S4b;
-				break;
-		}
-		if (drop == false) {
-			result = AudioChunk(micQueue.front(), speaker);
-			micQueue.pop_front();
-		}
-	}
-	if (drop)
-		delete[] speaker;
-	if (bDebugPrintQueue) {
-		if (drop)
-			qWarning("Resynchronizer::addSpeaker(): dropped speaker chunk due to underflow");
-		printQueue('-');
-	}
-	return result;
-}
-
-void Resynchronizer::reset() {
-	if (bDebugPrintQueue)
-		qWarning("Resetting echo queue");
-	std::unique_lock< std::mutex > l(m);
-	state = S0;
-	while (!micQueue.empty()) {
-		delete[] micQueue.front();
-		micQueue.pop_front();
-	}
-}
-
-Resynchronizer::~Resynchronizer() {
-	reset();
-}
-
-void Resynchronizer::printQueue(char who) {
-	unsigned int mic;
-	{
-		std::unique_lock< std::mutex > l(m);
-		mic = static_cast< unsigned int >(micQueue.size());
-	}
-	std::string line;
-	line.reserve(32);
-	line += who;
-	line += " Echo queue [";
-	for (unsigned int i = 0; i < 5; i++)
-		line += i < mic ? '#' : ' ';
-	line += "]\r";
-	// This relies on \r to retrace always on the same line, can't use qWarining
-	printf("%s", line.c_str());
-	fflush(stdout);
-}
-
-// Remember that we cannot use static member classes that are not pointers, as the constructor
-// for AudioInputRegistrar() might be called before they are initialized, as the constructor
-// is called from global initialization.
-// Hence, we allocate upon first call.
-
-QMap< QString, AudioInputRegistrar * > *AudioInputRegistrar::qmNew;
-QString AudioInputRegistrar::current = QString();
-
-AudioInputRegistrar::AudioInputRegistrar(const QString &n, int p) : name(n), priority(p) {
-	if (!qmNew)
-		qmNew = new QMap< QString, AudioInputRegistrar * >();
-	qmNew->insert(name, this);
-}
-
-AudioInputRegistrar::~AudioInputRegistrar() {
-	qmNew->remove(name);
-}
-
-AudioInputPtr AudioInputRegistrar::newFromChoice(QString choice) {
-	if (!qmNew)
-		return AudioInputPtr();
-
-	if (!choice.isEmpty() && qmNew->contains(choice)) {
-		g.s.qsAudioInput = choice;
-		current          = choice;
-		return AudioInputPtr(qmNew->value(current)->create());
-	}
-	choice = g.s.qsAudioInput;
-	if (qmNew->contains(choice)) {
-		current = choice;
-		return AudioInputPtr(qmNew->value(choice)->create());
-	}
-
-	AudioInputRegistrar *r = nullptr;
-	foreach (AudioInputRegistrar *air, *qmNew)
-		if (!r || (air->priority > r->priority))
-			r = air;
-	if (r) {
-		current = r->name;
-		return AudioInputPtr(r->create());
-	}
-	return AudioInputPtr();
-}
-
-bool AudioInputRegistrar::canExclusive() const {
-	return false;
-}
-
-AudioInput::AudioInput() : opusBuffer(g.s.iFramesPerPacket * (SAMPLE_RATE / 100)) {
-	bDebugDumpInput         = g.bDebugDumpInput;
-	resync.bDebugPrintQueue = g.bDebugPrintQueue;
-	if (bDebugDumpInput) {
-		outMic.open("raw_microphone_dump", std::ios::binary);
-		outSpeaker.open("speaker_dump", std::ios::binary);
-		outProcessed.open("processed_microphone_dump", std::ios::binary);
-	}
-
-	adjustBandwidth(g.iMaxBandwidth, iAudioQuality, iAudioFrames, bAllowLowDelay);
-
-	g.iAudioBandwidth = getNetworkBandwidth(iAudioQuality, iAudioFrames);
-
-	umtType = MessageHandler::UDPVoiceCELTAlpha;
-
-	activityState = ActivityStateActive;
-	oCodec        = nullptr;
-	opusState     = nullptr;
-	cCodec        = nullptr;
-	ceEncoder     = nullptr;
-
-#ifdef USE_OPUS
-	oCodec = g.oCodec;
-	if (oCodec) {
-		if (bAllowLowDelay && iAudioQuality >= 64000) { // > 64 kbit/s bitrate and low delay allowed
-			opusState = oCodec->opus_encoder_create(SAMPLE_RATE, 1, OPUS_APPLICATION_RESTRICTED_LOWDELAY, nullptr);
-			qWarning("AudioInput: Opus encoder set for low delay");
-		} else if (iAudioQuality >= 32000) { // > 32 kbit/s bitrate
-			opusState = oCodec->opus_encoder_create(SAMPLE_RATE, 1, OPUS_APPLICATION_AUDIO, nullptr);
-			qWarning("AudioInput: Opus encoder set for high quality speech");
-		} else {
-			opusState = oCodec->opus_encoder_create(SAMPLE_RATE, 1, OPUS_APPLICATION_VOIP, nullptr);
-			qWarning("AudioInput: Opus encoder set for low quality speech");
-		}
-
-		oCodec->opus_encoder_ctl(opusState, OPUS_SET_VBR(0)); // CBR
-	}
-#endif
-
-#ifdef USE_RNNOISE
-	denoiseState = rnnoise_create();
-#endif
-
-	qWarning("AudioInput: %d bits/s, %d hz, %d sample", iAudioQuality, iSampleRate, iFrameSize);
-	iEchoFreq = iMicFreq = iSampleRate;
-
-	iFrameCounter   = 0;
-	iSilentFrames   = 0;
-	iHoldFrames     = 0;
-	iBufferedFrames = 0;
-
-	bResetProcessor = true;
-
-	bEchoMulti = false;
-
-	sppPreprocess = nullptr;
-	sesEcho       = nullptr;
-	srsMic = srsEcho = nullptr;
-
-	iEchoChannels = iMicChannels = 0;
-	iEchoFilled = iMicFilled = 0;
-	eMicFormat = eEchoFormat = SampleFloat;
-	iMicSampleSize = iEchoSampleSize = 0;
-
-	bPreviousVoice = false;
-
-	bResetEncoder = true;
-
-	pfMicInput = pfEchoInput = nullptr;
-
-	iBitrate    = 0;
-	dPeakSignal = dPeakSpeaker = dPeakMic = dPeakCleanMic = 0.0;
-
-	if (g.uiSession) {
-		setMaxBandwidth(g.iMaxBandwidth);
-	}
-
-	bRunning = true;
-
-	connect(this, SIGNAL(doDeaf()), g.mw->qaAudioDeaf, SLOT(trigger()), Qt::QueuedConnection);
-	connect(this, SIGNAL(doMute()), g.mw->qaAudioMute, SLOT(trigger()), Qt::QueuedConnection);
-}
-
-AudioInput::~AudioInput() {
-	bRunning = false;
-	wait();
-
-#ifdef USE_OPUS
-	if (opusState) {
-		oCodec->opus_encoder_destroy(opusState);
-	}
-#endif
-
-#ifdef USE_RNNOISE
-	if (denoiseState) {
-		rnnoise_destroy(denoiseState);
-	}
-#endif
-
-	if (ceEncoder) {
-		cCodec->celt_encoder_destroy(ceEncoder);
-	}
-
-	if (sppPreprocess)
-		speex_preprocess_state_destroy(sppPreprocess);
-	if (sesEcho)
-		speex_echo_state_destroy(sesEcho);
-
-	if (srsMic)
-		speex_resampler_destroy(srsMic);
-	if (srsEcho)
-		speex_resampler_destroy(srsEcho);
-
-	delete[] pfMicInput;
-	delete[] pfEchoInput;
-}
-
-bool AudioInput::isTransmitting() const {
-	return bPreviousVoice;
-};
-
-#define IN_MIXER_FLOAT(channels)                                                                             \
-	static void inMixerFloat##channels(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, \
-									   unsigned int N, quint64 mask) {                                       \
-		const float *RESTRICT input = reinterpret_cast< const float * >(ipt);                                \
-		const float m               = 1.0f / static_cast< float >(channels);                                 \
-		Q_UNUSED(N);                                                                                         \
-		Q_UNUSED(mask);                                                                                      \
-		for (unsigned int i = 0; i < nsamp; ++i) {                                                           \
-			float v = 0.0f;                                                                                  \
-			for (unsigned int j = 0; j < channels; ++j)                                                      \
-				v += input[i * channels + j];                                                                \
-			buffer[i] = v * m;                                                                               \
-		}                                                                                                    \
-	}
-
-#define IN_MIXER_SHORT(channels)                                                                             \
-	static void inMixerShort##channels(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, \
-									   unsigned int N, quint64 mask) {                                       \
-		const short *RESTRICT input = reinterpret_cast< const short * >(ipt);                                \
-		const float m               = 1.0f / (32768.f * static_cast< float >(channels));                     \
-		Q_UNUSED(N);                                                                                         \
-		Q_UNUSED(mask);                                                                                      \
-		for (unsigned int i = 0; i < nsamp; ++i) {                                                           \
-			float v = 0.0f;                                                                                  \
-			for (unsigned int j = 0; j < channels; ++j)                                                      \
-				v += static_cast< float >(input[i * channels + j]);                                          \
-			buffer[i] = v * m;                                                                               \
-		}                                                                                                    \
-	}
-
-static void inMixerFloatMask(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, unsigned int N,
-							 quint64 mask) {
-	const float *RESTRICT input = reinterpret_cast< const float * >(ipt);
-
-	unsigned int chancount = 0;
-	STACKVAR(unsigned int, chanindex, N);
-	for (unsigned int j = 0; j < N; ++j) {
-		if ((mask & (1ULL << j)) == 0) {
-			continue;
-		}
-		chanindex[chancount] = j; // Use chancount as index into chanindex.
-		++chancount;
-	}
-
-	const float m = 1.0f / static_cast< float >(chancount);
-	for (unsigned int i = 0; i < nsamp; ++i) {
-		float v = 0.0f;
-		for (unsigned int j = 0; j < chancount; ++j) {
-			v += input[i * N + chanindex[j]];
-		}
-		buffer[i] = v * m;
-	}
-}
-
-static void inMixerShortMask(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, unsigned int N,
-							 quint64 mask) {
-	const short *RESTRICT input = reinterpret_cast< const short * >(ipt);
-
-	unsigned int chancount = 0;
-	STACKVAR(unsigned int, chanindex, N);
-	for (unsigned int j = 0; j < N; ++j) {
-		if ((mask & (1ULL << j)) == 0) {
-			continue;
-		}
-		chanindex[chancount] = j; // Use chancount as index into chanindex.
-		++chancount;
-	}
-
-	const float m = 1.0f / static_cast< float >(chancount);
-	for (unsigned int i = 0; i < nsamp; ++i) {
-		float v = 0.0f;
-		for (unsigned int j = 0; j < chancount; ++j) {
-			v += static_cast< float >(input[i * N + chanindex[j]]);
-		}
-		buffer[i] = v * m;
-	}
-}
-
-IN_MIXER_FLOAT(1)
-IN_MIXER_FLOAT(2)
-IN_MIXER_FLOAT(3)
-IN_MIXER_FLOAT(4)
-IN_MIXER_FLOAT(5)
-IN_MIXER_FLOAT(6)
-IN_MIXER_FLOAT(7)
-IN_MIXER_FLOAT(8)
-IN_MIXER_FLOAT(N)
-
-IN_MIXER_SHORT(1)
-IN_MIXER_SHORT(2)
-IN_MIXER_SHORT(3)
-IN_MIXER_SHORT(4)
-IN_MIXER_SHORT(5)
-IN_MIXER_SHORT(6)
-IN_MIXER_SHORT(7)
-IN_MIXER_SHORT(8)
-IN_MIXER_SHORT(N)
-
-AudioInput::inMixerFunc AudioInput::chooseMixer(const unsigned int nchan, SampleFormat sf, quint64 chanmask) {
-	inMixerFunc r = nullptr;
-
-	if (chanmask != 0xffffffffffffffffULL) {
-		if (sf == SampleFloat) {
-			r = inMixerFloatMask;
-		} else if (sf == SampleShort) {
-			r = inMixerShortMask;
-		}
-		return r;
-	}
-
-	if (sf == SampleFloat) {
-		switch (nchan) {
-			case 1:
-				r = inMixerFloat1;
-				break;
-			case 2:
-				r = inMixerFloat2;
-				break;
-			case 3:
-				r = inMixerFloat3;
-				break;
-			case 4:
-				r = inMixerFloat4;
-				break;
-			case 5:
-				r = inMixerFloat5;
-				break;
-			case 6:
-				r = inMixerFloat6;
-				break;
-			case 7:
-				r = inMixerFloat7;
-				break;
-			case 8:
-				r = inMixerFloat8;
-				break;
-			default:
-				r = inMixerFloatN;
-				break;
-		}
-	} else {
-		switch (nchan) {
-			case 1:
-				r = inMixerShort1;
-				break;
-			case 2:
-				r = inMixerShort2;
-				break;
-			case 3:
-				r = inMixerShort3;
-				break;
-			case 4:
-				r = inMixerShort4;
-				break;
-			case 5:
-				r = inMixerShort5;
-				break;
-			case 6:
-				r = inMixerShort6;
-				break;
-			case 7:
-				r = inMixerShort7;
-				break;
-			case 8:
-				r = inMixerShort8;
-				break;
-			default:
-				r = inMixerShortN;
-				break;
-		}
-	}
-	return r;
-}
-
-void AudioInput::initializeMixer() {
-	int err;
-
-	if (srsMic)
-		speex_resampler_destroy(srsMic);
-	if (srsEcho)
-		speex_resampler_destroy(srsEcho);
-	delete[] pfMicInput;
-	delete[] pfEchoInput;
-
-	if (iMicFreq != iSampleRate)
-		srsMic = speex_resampler_init(1, iMicFreq, iSampleRate, 3, &err);
-
-	iMicLength = (iFrameSize * iMicFreq) / iSampleRate;
-
-	pfMicInput = new float[iMicLength];
-
-	if (iEchoChannels > 0) {
-		bEchoMulti = g.s.bEchoMulti;
-		if (iEchoFreq != iSampleRate)
-			srsEcho = speex_resampler_init(bEchoMulti ? iEchoChannels : 1, iEchoFreq, iSampleRate, 3, &err);
-		iEchoLength    = (iFrameSize * iEchoFreq) / iSampleRate;
-		iEchoMCLength  = bEchoMulti ? iEchoLength * iEchoChannels : iEchoLength;
-		iEchoFrameSize = bEchoMulti ? iFrameSize * iEchoChannels : iFrameSize;
-		pfEchoInput    = new float[iEchoMCLength];
-	} else {
-		srsEcho     = nullptr;
-		pfEchoInput = nullptr;
-	}
-
-	uiMicChannelMask = g.s.uiAudioInputChannelMask;
-
-	// There is no channel mask setting for the echo canceller, so allow all channels.
-	uiEchoChannelMask = 0xffffffffffffffffULL;
-
-	imfMic  = chooseMixer(iMicChannels, eMicFormat, uiMicChannelMask);
-	imfEcho = chooseMixer(iEchoChannels, eEchoFormat, uiEchoChannelMask);
-
-	iMicSampleSize = static_cast< int >(iMicChannels * ((eMicFormat == SampleFloat) ? sizeof(float) : sizeof(short)));
-	iEchoSampleSize =
-		static_cast< int >(iEchoChannels * ((eEchoFormat == SampleFloat) ? sizeof(float) : sizeof(short)));
-
-	bResetProcessor = true;
-
-	qWarning("AudioInput: Initialized mixer for %d channel %d hz mic and %d channel %d hz echo", iMicChannels, iMicFreq,
-			 iEchoChannels, iEchoFreq);
-	if (uiMicChannelMask != 0xffffffffffffffffULL) {
-		qWarning("AudioInput: using mic channel mask 0x%llx", static_cast< unsigned long long >(uiMicChannelMask));
-	}
-}
-
-void AudioInput::addMic(const void *data, unsigned int nsamp) {
-	while (nsamp > 0) {
-		// Make sure we don't overrun the frame buffer
-		const unsigned int left = qMin(nsamp, iMicLength - iMicFilled);
-
-		// Append mix into pfMicInput frame buffer (converts 16bit pcm->float if necessary)
-		imfMic(pfMicInput + iMicFilled, data, left, iMicChannels, uiMicChannelMask);
-
-		iMicFilled += left;
-		nsamp -= left;
-
-		// If new samples are left offset data pointer to point at the first one for next iteration
-		if (nsamp > 0) {
-			if (eMicFormat == SampleFloat)
-				data = reinterpret_cast< const float * >(data) + left * iMicChannels;
-			else
-				data = reinterpret_cast< const short * >(data) + left * iMicChannels;
-		}
-
-		if (iMicFilled == iMicLength) {
-			// Frame complete
-			iMicFilled = 0;
-
-			// If needed resample frame
-			float *pfOutput = srsMic ? (float *) alloca(iFrameSize * sizeof(float)) : nullptr;
-			float *ptr      = srsMic ? pfOutput : pfMicInput;
-
-			if (srsMic) {
-				spx_uint32_t inlen  = iMicLength;
-				spx_uint32_t outlen = iFrameSize;
-				speex_resampler_process_float(srsMic, 0, pfMicInput, &inlen, pfOutput, &outlen);
-			}
-
-			// If echo cancellation is enabled the pointer ends up in the resynchronizer queue
-			// and may need to outlive this function's frame
-			short *psMic = iEchoChannels > 0 ? new short[iFrameSize] : (short *) alloca(iFrameSize * sizeof(short));
-
-			// Convert float to 16bit PCM
-			const float mul = 32768.f;
-			for (int j = 0; j < iFrameSize; ++j)
-				psMic[j] = static_cast< short >(qBound(-32768.f, (ptr[j] * mul), 32767.f));
-
-			// If we have echo cancellation enabled...
-			if (iEchoChannels > 0) {
-				resync.addMic(psMic);
-			} else {
-				encodeAudioFrame(AudioChunk(psMic));
-			}
-		}
-	}
-}
-
-void AudioInput::addEcho(const void *data, unsigned int nsamp) {
-	while (nsamp > 0) {
-		// Make sure we don't overrun the echo frame buffer
-		const unsigned int left = qMin(nsamp, iEchoLength - iEchoFilled);
-
-		if (bEchoMulti) {
-			const unsigned int samples = left * iEchoChannels;
-
-			if (eEchoFormat == SampleFloat) {
-				for (unsigned int i = 0; i < samples; ++i)
-					pfEchoInput[i + iEchoFilled * iEchoChannels] = reinterpret_cast< const float * >(data)[i];
-			} else {
-				// 16bit PCM -> float
-				for (unsigned int i = 0; i < samples; ++i)
-					pfEchoInput[i + iEchoFilled * iEchoChannels] =
-						static_cast< float >(reinterpret_cast< const short * >(data)[i]) * (1.0f / 32768.f);
-			}
-		} else {
-			// Mix echo channels (converts 16bit PCM -> float if needed)
-			imfEcho(pfEchoInput + iEchoFilled, data, left, iEchoChannels, uiEchoChannelMask);
-		}
-
-		iEchoFilled += left;
-		nsamp -= left;
-
-		// If new samples are left offset data pointer to point at the first one for next iteration
-		if (nsamp > 0) {
-			if (eEchoFormat == SampleFloat)
-				data = reinterpret_cast< const float * >(data) + left * iEchoChannels;
-			else
-				data = reinterpret_cast< const short * >(data) + left * iEchoChannels;
-		}
-
-		if (iEchoFilled == iEchoLength) {
-			// Frame complete
-
-			iEchoFilled = 0;
-
-			// Resample if necessary
-			float *pfOutput = srsEcho ? (float *) alloca(iEchoFrameSize * sizeof(float)) : nullptr;
-			float *ptr      = srsEcho ? pfOutput : pfEchoInput;
-
-			if (srsEcho) {
-				spx_uint32_t inlen  = iEchoLength;
-				spx_uint32_t outlen = iFrameSize;
-				speex_resampler_process_interleaved_float(srsEcho, pfEchoInput, &inlen, pfOutput, &outlen);
-			}
-
-			short *outbuff = new short[iEchoFrameSize];
-
-			// float -> 16bit PCM
-			const float mul = 32768.f;
-			for (int j = 0; j < iEchoFrameSize; ++j) {
-				outbuff[j] = static_cast< short >(qBound(-32768.f, (ptr[j] * mul), 32767.f));
-			}
-
-			auto chunk = resync.addSpeaker(outbuff);
-			if (!chunk.empty()) {
-				encodeAudioFrame(chunk);
-				delete[] chunk.mic;
-				delete[] chunk.speaker;
-			}
-		}
-	}
-}
-
-void AudioInput::adjustBandwidth(int bitspersec, int &bitrate, int &frames, bool &allowLowDelay) {
-	frames        = g.s.iFramesPerPacket;
-	bitrate       = g.s.iQuality;
-	allowLowDelay = g.s.bAllowLowDelay;
-
-	if (bitspersec == -1) {
-		// No limit
-	} else {
-		if (getNetworkBandwidth(bitrate, frames) > bitspersec) {
-			if ((frames <= 4) && (bitspersec <= 32000))
-				frames = 4;
-			else if ((frames == 1) && (bitspersec <= 64000))
-				frames = 2;
-			else if ((frames == 2) && (bitspersec <= 48000))
-				frames = 4;
-			if (getNetworkBandwidth(bitrate, frames) > bitspersec) {
-				do {
-					bitrate -= 1000;
-				} while ((bitrate > 8000) && (getNetworkBandwidth(bitrate, frames) > bitspersec));
-			}
-		}
-	}
-	if (bitrate <= 8000)
-		bitrate = 8000;
-}
-
-void AudioInput::setMaxBandwidth(int bitspersec) {
-	if (bitspersec == g.iMaxBandwidth)
-		return;
-
-	int frames;
-	int bitrate;
-	bool allowLowDelay;
-	adjustBandwidth(bitspersec, bitrate, frames, allowLowDelay);
-
-	g.iMaxBandwidth = bitspersec;
-
-	if (bitspersec != -1) {
-		if ((bitrate != g.s.iQuality) || (frames != g.s.iFramesPerPacket))
-			g.mw->msgBox(tr("Server maximum network bandwidth is only %1 kbit/s. Audio quality auto-adjusted to %2 "
-							"kbit/s (%3 ms)")
-							 .arg(bitspersec / 1000)
-							 .arg(bitrate / 1000)
-							 .arg(frames * 10));
-	}
-
-	AudioInputPtr ai = g.ai;
-	if (ai) {
-		g.iAudioBandwidth  = getNetworkBandwidth(bitrate, frames);
-		ai->iAudioQuality  = bitrate;
-		ai->iAudioFrames   = frames;
-		ai->bAllowLowDelay = allowLowDelay;
-		return;
-	}
-
-	ai.reset();
-
-	Audio::stopInput();
-	Audio::startInput();
-}
-
-int AudioInput::getNetworkBandwidth(int bitrate, int frames) {
-	int overhead =
-		20 + 8 + 4 + 1 + 2 + (g.s.bTransmitPosition ? 12 : 0) + (NetworkConfig::TcpModeEnabled() ? 12 : 0) + frames;
-	overhead *= (800 / frames);
-	int bw = overhead + bitrate;
-
-	return bw;
-}
-
-void AudioInput::resetAudioProcessor() {
-	if (!bResetProcessor)
-		return;
-
-	int iArg;
-
-	if (sppPreprocess)
-		speex_preprocess_state_destroy(sppPreprocess);
-	if (sesEcho)
-		speex_echo_state_destroy(sesEcho);
-
-	sppPreprocess = speex_preprocess_state_init(iFrameSize, iSampleRate);
-	resync.reset();
-	selectNoiseCancel();
-
-	iArg = 1;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_VAD, &iArg);
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC, &iArg);
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_DEREVERB, &iArg);
-
-	iArg = 30000;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_TARGET, &iArg);
-
-	float v = 30000.0f / static_cast< float >(g.s.iMinLoudness);
-	iArg    = iroundf(floorf(20.0f * log10f(v)));
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_MAX_GAIN, &iArg);
-
-	iArg = -60;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_DECREMENT, &iArg);
-
-	if (noiseCancel == Settings::NoiseCancelSpeex) {
-		iArg = g.s.iSpeexNoiseCancelStrength;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_NOISE_SUPPRESS, &iArg);
-	}
-
-	if (iEchoChannels > 0) {
-		int filterSize = iFrameSize * (10 + resync.getNominalLag());
-		sesEcho        = speex_echo_state_init_mc(iFrameSize, filterSize, 1, bEchoMulti ? iEchoChannels : 1);
-		iArg           = iSampleRate;
-		speex_echo_ctl(sesEcho, SPEEX_ECHO_SET_SAMPLING_RATE, &iArg);
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_ECHO_STATE, sesEcho);
-
-		qWarning("AudioInput: ECHO CANCELLER ACTIVE");
-	} else {
-		sesEcho = nullptr;
-	}
-
-	bResetEncoder = true;
-
-	bResetProcessor = false;
-}
-
-bool AudioInput::selectCodec() {
-	bool useOpus = false;
-
-	// Currently talking, use previous Opus status.
-	if (bPreviousVoice) {
-		useOpus = (umtType == MessageHandler::UDPVoiceOpus);
-	} else {
-#ifdef USE_OPUS
-		if (g.bOpus || (g.s.lmLoopMode == Settings::Local)) {
-			useOpus = true;
-		}
-#endif
-	}
-
-	if (!useOpus) {
-		CELTCodec *switchto = nullptr;
-		if ((!g.uiSession || (g.s.lmLoopMode == Settings::Local)) && (!g.qmCodecs.isEmpty())) {
-			// Use latest for local loopback
-			QMap< int, CELTCodec * >::const_iterator i = g.qmCodecs.constEnd();
-			--i;
-			switchto = i.value();
-		} else {
-			// Currently talking, don't switch unless you must.
-			if (cCodec && bPreviousVoice) {
-				int v = cCodec->bitstreamVersion();
-				if ((v == g.iCodecAlpha) || (v == g.iCodecBeta))
-					switchto = cCodec;
-			}
-		}
-		if (!switchto) {
-			switchto = g.qmCodecs.value(g.bPreferAlpha ? g.iCodecAlpha : g.iCodecBeta);
-			if (!switchto)
-				switchto = g.qmCodecs.value(g.bPreferAlpha ? g.iCodecBeta : g.iCodecAlpha);
-		}
-		if (switchto != cCodec) {
-			if (cCodec && ceEncoder) {
-				cCodec->celt_encoder_destroy(ceEncoder);
-				ceEncoder = nullptr;
-			}
-			cCodec = switchto;
-			if (cCodec)
-				ceEncoder = cCodec->encoderCreate();
-		}
-
-		if (!cCodec)
-			return false;
-	}
-
-	MessageHandler::UDPMessageType previousType = umtType;
-	if (useOpus) {
-		umtType = MessageHandler::UDPVoiceOpus;
-	} else {
-		if (!g.uiSession) {
-			umtType = MessageHandler::UDPVoiceCELTAlpha;
-		} else {
-			int v = cCodec->bitstreamVersion();
-			if (v == g.iCodecAlpha)
-				umtType = MessageHandler::UDPVoiceCELTAlpha;
-			else if (v == g.iCodecBeta)
-				umtType = MessageHandler::UDPVoiceCELTBeta;
-			else {
-				qWarning() << "Couldn't find message type for codec version" << v;
-			}
-		}
-	}
-
-	if (umtType != previousType) {
-		iBufferedFrames = 0;
-		qlFrames.clear();
-		opusBuffer.clear();
-	}
-
-	return true;
-}
-
-void AudioInput::selectNoiseCancel() {
-	noiseCancel = g.s.noiseCancelMode;
-
-	if (noiseCancel == Settings::NoiseCancelRNN || noiseCancel == Settings::NoiseCancelBoth) {
-#ifdef USE_RNNOISE
-		if (!denoiseState || iFrameSize != 480) {
-			qWarning("AudioInput: Ignoring request to enable RNNoise: internal error");
-			noiseCancel = Settings::NoiseCancelSpeex;
-		}
-#else
-		qWarning("AudioInput: Ignoring request to enable RNNoise: Mumble was built without support for it");
-		noiseCancel = Settings::NoiseCancelSpeex;
-#endif
-	}
-
-	int iArg = 0;
-	switch (noiseCancel) {
-		case Settings::NoiseCancelOff:
-			qWarning("AudioInput: Noise canceller disabled");
-			break;
-		case Settings::NoiseCancelSpeex:
-			qWarning("AudioInput: Using Speex as noise canceller");
-			iArg = 1;
-			break;
-		case Settings::NoiseCancelRNN:
-			qWarning("AudioInput: Using RNNoise as noise canceller");
-			break;
-		case Settings::NoiseCancelBoth:
-			iArg = 1;
-			qWarning("AudioInput: Using RNNoise and Speex as noise canceller");
-			break;
-	}
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_DENOISE, &iArg);
-}
-
-int AudioInput::encodeOpusFrame(short *source, int size, EncodingOutputBuffer &buffer) {
-#ifdef USE_OPUS
-	int len;
-	if (!oCodec) {
-		return 0;
-	}
-
-	if (bResetEncoder) {
-		oCodec->opus_encoder_ctl(opusState, OPUS_RESET_STATE, nullptr);
-		bResetEncoder = false;
-	}
-
-	oCodec->opus_encoder_ctl(opusState, OPUS_SET_BITRATE(iAudioQuality));
-
-	len = oCodec->opus_encode(opusState, source, size, &buffer[0], static_cast< opus_int32 >(buffer.size()));
-	const int tenMsFrameCount = (size / iFrameSize);
-	iBitrate                  = (len * 100 * 8) / tenMsFrameCount;
-	return len;
-#else
-	return 0;
-#endif
-}
-
-int AudioInput::encodeCELTFrame(short *psSource, EncodingOutputBuffer &buffer) {
-	int len;
-	if (!cCodec)
-		return 0;
-
-	if (bResetEncoder) {
-		cCodec->celt_encoder_ctl(ceEncoder, CELT_RESET_STATE);
-		bResetEncoder = false;
-	}
-
-	cCodec->celt_encoder_ctl(ceEncoder, CELT_SET_PREDICTION(0));
-
-	cCodec->celt_encoder_ctl(ceEncoder, CELT_SET_VBR_RATE(iAudioQuality));
-	len      = cCodec->encode(ceEncoder, psSource, &buffer[0],
-                         qMin< int >(iAudioQuality / (8 * 100), static_cast< int >(buffer.size())));
-	iBitrate = len * 100 * 8;
-
-	return len;
-}
-
-void AudioInput::encodeAudioFrame(AudioChunk chunk) {
-	int iArg;
-	int i;
-	float sum;
-	short max;
-
-	short *psSource;
-
-	iFrameCounter++;
-
-	// As g.iTarget is not protected by any locks, we avoid race-conditions by
-	// copying it once at this point and stick to whatever value it is here. Thus
-	// if the value of g.iTarget changes during the execution of this function,
-	// it won't cause any inconsistencies and the change is reflected once this
-	// function is called again.
-	int voiceTargetID = g.iTarget;
-
-	if (!bRunning)
-		return;
-
-	sum = 1.0f;
-	max = 1;
-	for (i = 0; i < iFrameSize; i++) {
-		sum += static_cast< float >(chunk.mic[i] * chunk.mic[i]);
-		max = std::max(static_cast< short >(abs(chunk.mic[i])), max);
-	}
-	dPeakMic = qMax(20.0f * log10f(sqrtf(sum / static_cast< float >(iFrameSize)) / 32768.0f), -96.0f);
-	dMaxMic  = max;
-
-	if (chunk.speaker && (iEchoChannels > 0)) {
-		sum = 1.0f;
-		for (i = 0; i < iEchoFrameSize; ++i) {
-			sum += static_cast< float >(chunk.speaker[i] * chunk.speaker[i]);
-		}
-		dPeakSpeaker = qMax(20.0f * log10f(sqrtf(sum / static_cast< float >(iFrameSize)) / 32768.0f), -96.0f);
-	} else {
-		dPeakSpeaker = 0.0;
-	}
-
-	QMutexLocker l(&qmSpeex);
-	resetAudioProcessor();
-
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_GET_AGC_GAIN, &iArg);
-	float gainValue = static_cast< float >(iArg);
-	if (noiseCancel == Settings::NoiseCancelSpeex || noiseCancel == Settings::NoiseCancelBoth) {
-		iArg = g.s.iSpeexNoiseCancelStrength - iArg;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_NOISE_SUPPRESS, &iArg);
-	}
-
-	short psClean[iFrameSize];
-	if (sesEcho && chunk.speaker) {
-		speex_echo_cancellation(sesEcho, chunk.mic, chunk.speaker, psClean);
-		psSource = psClean;
-	} else {
-		psSource = chunk.mic;
-	}
-
-#ifdef USE_RNNOISE
-	// At the time of writing this code, RNNoise only supports a sample rate of 48000 Hz.
-	if (noiseCancel == Settings::NoiseCancelRNN || noiseCancel == Settings::NoiseCancelBoth) {
-		float denoiseFrames[480];
-		for (int i = 0; i < 480; i++) {
-			denoiseFrames[i] = psSource[i];
-		}
-
-		rnnoise_process_frame(denoiseState, denoiseFrames, denoiseFrames);
-
-		for (int i = 0; i < 480; i++) {
-			psSource[i] = denoiseFrames[i];
-		}
-	}
-#endif
-
-	speex_preprocess_run(sppPreprocess, psSource);
-
-	sum = 1.0f;
-	for (i = 0; i < iFrameSize; i++)
-		sum += static_cast< float >(psSource[i] * psSource[i]);
-	float micLevel = sqrtf(sum / static_cast< float >(iFrameSize));
-	dPeakSignal    = qMax(20.0f * log10f(micLevel / 32768.0f), -96.0f);
-
-	if (bDebugDumpInput) {
-		outMic.write(reinterpret_cast< const char * >(chunk.mic), iFrameSize * sizeof(short));
-		if (chunk.speaker) {
-			outSpeaker.write(reinterpret_cast< const char * >(chunk.speaker), iEchoFrameSize * sizeof(short));
-		}
-		outProcessed.write(reinterpret_cast< const char * >(psSource), iFrameSize * sizeof(short));
-	}
-
-	spx_int32_t prob = 0;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_GET_PROB, &prob);
-	fSpeechProb = static_cast< float >(prob) / 100.0f;
-
-	// clean microphone level: peak of filtered signal attenuated by AGC gain
-	dPeakCleanMic = qMax(dPeakSignal - gainValue, -96.0f);
-	float level   = (g.s.vsVAD == Settings::SignalToNoise) ? fSpeechProb : (1.0f + dPeakCleanMic / 96.0f);
-
-	bool bIsSpeech = false;
-
-	if (level > g.s.fVADmax) {
-		// Voice-activation threshold has been reached
-		bIsSpeech = true;
-	} else if (level > g.s.fVADmin && bPreviousVoice) {
-		// Voice-deactivation threshold has not yet been reached
-		bIsSpeech = true;
-	}
-
-	if (!bIsSpeech) {
-		iHoldFrames++;
-		if (iHoldFrames < g.s.iVoiceHold)
-			bIsSpeech = true;
-	} else {
-		iHoldFrames = 0;
-	}
-
-	if (g.s.atTransmit == Settings::Continuous) {
-		// Continous transmission is enabled
-		bIsSpeech = true;
-	} else if (g.s.atTransmit == Settings::PushToTalk) {
-		// PTT is enabled, so check if it is currently active
-		bIsSpeech =
-			g.s.uiDoublePush && ((g.uiDoublePush < g.s.uiDoublePush) || (g.tDoublePush.elapsed() < g.s.uiDoublePush));
-	}
-
-	// If g.iPushToTalk > 0 that means that we are currently in some sort of PTT action. For
-	// instance this could mean we're currently whispering
-	bIsSpeech = bIsSpeech || (g.iPushToTalk > 0);
-
-	ClientUser *p = ClientUser::get(g.uiSession);
-	if (g.s.bMute || ((g.s.lmLoopMode != Settings::Local) && p && (p->bMute || p->bSuppress)) || g.bPushToMute
-		|| (voiceTargetID < 0)) {
-		bIsSpeech = false;
-	}
-
-	if (bIsSpeech) {
-		iSilentFrames = 0;
-	} else {
-		iSilentFrames++;
-		if (iSilentFrames > 500)
-			iFrameCounter = 0;
-	}
-
-	if (p) {
-		if (!bIsSpeech)
-			p->setTalking(Settings::Passive);
-		else if (voiceTargetID == 0)
-			p->setTalking(Settings::Talking);
-		else
-			p->setTalking(Settings::Shouting);
-	}
-
-	if (g.s.bTxAudioCue && g.uiSession != 0) {
-		AudioOutputPtr ao = g.ao;
-		if (bIsSpeech && !bPreviousVoice && ao)
-			ao->playSample(g.s.qsTxAudioCueOn);
-		else if (ao && !bIsSpeech && bPreviousVoice)
-			ao->playSample(g.s.qsTxAudioCueOff);
-	}
-
-	if (!bIsSpeech && !bPreviousVoice) {
-		iBitrate = 0;
-
-		if ((tIdle.elapsed() / 1000000ULL) > g.s.iIdleTime) {
-			activityState = ActivityStateIdle;
-			tIdle.restart();
-			if (g.s.iaeIdleAction == Settings::Deafen && !g.s.bDeaf) {
-				emit doDeaf();
-			} else if (g.s.iaeIdleAction == Settings::Mute && !g.s.bMute) {
-				emit doMute();
-			}
-		}
-
-		if (activityState == ActivityStateReturnedFromIdle) {
-			activityState = ActivityStateActive;
-			if (g.s.iaeIdleAction != Settings::Nothing && g.s.bUndoIdleActionUponActivity) {
-				if (g.s.iaeIdleAction == Settings::Deafen && g.s.bDeaf) {
-					emit doDeaf();
-				} else if (g.s.iaeIdleAction == Settings::Mute && g.s.bMute) {
-					emit doMute();
-				}
-			}
-		}
-
-		spx_int32_t increment = 0;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_INCREMENT, &increment);
-		return;
-	} else {
-		spx_int32_t increment = 12;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_INCREMENT, &increment);
-	}
-
-	if (bIsSpeech && !bPreviousVoice) {
-		bResetEncoder = true;
-	}
-
-	tIdle.restart();
-
-	EncodingOutputBuffer buffer;
-	Q_ASSERT(buffer.size() >= static_cast< size_t >(iAudioQuality / 100 * iAudioFrames / 8));
-
-	int len = 0;
-
-	bool encoded = true;
-	if (!selectCodec())
-		return;
-
-	if (umtType == MessageHandler::UDPVoiceCELTAlpha || umtType == MessageHandler::UDPVoiceCELTBeta) {
-		len = encodeCELTFrame(psSource, buffer);
-		if (len <= 0) {
-			iBitrate = 0;
-			qWarning() << "encodeCELTFrame failed" << iBufferedFrames << iFrameSize << len;
-			return;
-		}
-		++iBufferedFrames;
-	} else if (umtType == MessageHandler::UDPVoiceOpus) {
-		encoded = false;
-		opusBuffer.insert(opusBuffer.end(), psSource, psSource + iFrameSize);
-		++iBufferedFrames;
-
-		if (!bIsSpeech || iBufferedFrames >= iAudioFrames) {
-			if (iBufferedFrames < iAudioFrames) {
-				// Stuff frame to framesize if speech ends and we don't have enough audio
-				// this way we are guaranteed to have a valid framecount and won't cause
-				// a codec configuration switch by suddenly using a wildly different
-				// framecount per packet.
-				const int missingFrames = iAudioFrames - iBufferedFrames;
-				opusBuffer.insert(opusBuffer.end(), iFrameSize * missingFrames, 0);
-				iBufferedFrames += missingFrames;
-				iFrameCounter += missingFrames;
-			}
-
-			Q_ASSERT(iBufferedFrames == iAudioFrames);
-
-			len = encodeOpusFrame(&opusBuffer[0], iBufferedFrames * iFrameSize, buffer);
-			opusBuffer.clear();
-			if (len <= 0) {
-				iBitrate = 0;
-				qWarning() << "encodeOpusFrame failed" << iBufferedFrames << iFrameSize << len;
-				iBufferedFrames = 0; // These are lost. Make sure not to mess up our sequence counter next flushCheck.
-				return;
-			}
-			encoded = true;
-		}
-	}
-
-	if (encoded) {
-		flushCheck(QByteArray(reinterpret_cast< char * >(&buffer[0]), len), !bIsSpeech, voiceTargetID);
-	}
-
-	if (!bIsSpeech)
-		iBitrate = 0;
-
-	bPreviousVoice = bIsSpeech;
-}
-
-static void sendAudioFrame(const char *data, PacketDataStream &pds) {
-	ServerHandlerPtr sh = g.sh;
-	if (sh) {
-		VoiceRecorderPtr recorder(sh->recorder);
-		if (recorder)
-			recorder->getRecordUser().addFrame(QByteArray(data, pds.size() + 1));
-	}
-
-	if (g.s.lmLoopMode == Settings::Local)
-		LoopUser::lpLoopy.addFrame(QByteArray(data, pds.size() + 1));
-	else if (sh)
-		sh->sendMessage(data, pds.size() + 1);
-}
-
-void AudioInput::flushCheck(const QByteArray &frame, bool terminator, int voiceTargetID) {
-	qlFrames << frame;
-
-	if (!terminator && iBufferedFrames < iAudioFrames)
-		return;
-
-	int flags = 0;
-	if (voiceTargetID > 0) {
-		flags = voiceTargetID;
-	}
-	if (terminator && g.iPrevTarget > 0) {
-		// If we have been whispering to some target but have just ended, terminator will be true. However
-		// in the case of whispering this means that we just released the whisper key so this here is the
-		// last audio frame that is sent for whispering. The whisper key being released means that g.iTarget
-		// is reset to 0 by now. In order to send the last whisper frame correctly, we have to use
-		// g.iPrevTarget which is set to whatever g.iTarget has been before its last change.
-
-		flags = g.iPrevTarget;
-
-		// We reset g.iPrevTarget as it has fulfilled its purpose for this whisper-action. It'll be set
-		// accordingly once the client whispers for the next time.
-		g.iPrevTarget = 0;
-	}
-
-	if (g.s.lmLoopMode == Settings::Server)
-		flags = 0x1f; // Server loopback
-
-	flags |= (umtType << 5);
-
-	char data[1024];
-	data[0] = static_cast< unsigned char >(flags);
-
-	int frames      = iBufferedFrames;
-	iBufferedFrames = 0;
-
-	PacketDataStream pds(data + 1, 1023);
-	// Sequence number
-	pds << iFrameCounter - frames;
-
-	if (umtType == MessageHandler::UDPVoiceOpus) {
-		const QByteArray &qba = qlFrames.takeFirst();
-		int size              = qba.size();
-		if (terminator)
-			size |= 1 << 13;
-		pds << size;
-		pds.append(qba.constData(), qba.size());
-	} else {
-		if (terminator) {
-			qlFrames << QByteArray();
-			++frames;
-		}
-
-		for (int i = 0; i < frames; ++i) {
-			const QByteArray &qba = qlFrames.takeFirst();
-			unsigned char head    = static_cast< unsigned char >(qba.size());
-			if (i < frames - 1)
-				head |= 0x80;
-			pds.append(head);
-			pds.append(qba.constData(), qba.size());
-		}
-	}
-
-	if (g.s.bTransmitPosition && g.p && !g.bCenterPosition && g.p->fetch()) {
-		pds << g.p->fPosition[0];
-		pds << g.p->fPosition[1];
-		pds << g.p->fPosition[2];
-	}
-
-	sendAudioFrame(data, pds);
-
-	Q_ASSERT(qlFrames.isEmpty());
-}
-
-bool AudioInput::isAlive() const {
-	return isRunning();
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AudioInput</class>
+ <widget class="QWidget" name="AudioInput">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>588</width>
+    <height>940</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Audio input</string>
+  </property>
+  <layout class="QVBoxLayout">
+   <item>
+    <widget class="QGroupBox" name="qgbInterfaces">
+     <property name="title">
+      <string>Interface</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qliSystem">
+        <property name="text">
+         <string>System</string>
+        </property>
+        <property name="buddy">
+         <cstring>qcbSystem</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="MUComboBox" name="qcbSystem">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Input method for audio</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <spacer>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Maximum</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>24</width>
+          <height>16</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="0" column="3">
+       <widget class="QLabel" name="qliDevice">
+        <property name="text">
+         <string>Device</string>
+        </property>
+        <property name="buddy">
+         <cstring>qcbDevice</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="4">
+       <widget class="MUComboBox" name="qcbDevice">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Input device for audio</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This is the input device to use for audio.&lt;/b&gt;</string>
+        </property>
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::AdjustToContents</enum>
+        </property>
+        <property name="minimumContentsLength">
+         <number>16</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="4">
+       <widget class="QCheckBox" name="qcbExclusive">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>27</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Exclusive mode</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</string>
+        </property>
+        <property name="text">
+         <string>Exclusive</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbTransmission">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Transmission</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qliTransmit">
+        <property name="text">
+         <string>&amp;Transmit</string>
+        </property>
+        <property name="buddy">
+         <cstring>qcbTransmit</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="2">
+       <widget class="MUComboBox" name="qcbTransmit">
+        <property name="toolTip">
+         <string>When to transmit your speech</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This sets when speech should be transmitted.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;Continuous&lt;/i&gt; - All the time&lt;br /&gt;&lt;i&gt;Voice Activity&lt;/i&gt; - When you are speaking clearly.&lt;br /&gt;&lt;i&gt;Push To Talk&lt;/i&gt; - When you hold down the hotkey set under &lt;i&gt;Shortcuts&lt;/i&gt;.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="3">
+       <widget class="QStackedWidget" name="qswTransmit">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="currentIndex">
+         <number>1</number>
+        </property>
+        <widget class="QWidget" name="qwPTT">
+         <layout class="QGridLayout" columnstretch="0,1,0,0">
+          <item row="0" column="0">
+           <widget class="QLabel" name="qliDoublePush">
+            <property name="text">
+             <string>DoublePush Time</string>
+            </property>
+            <property name="buddy">
+             <cstring>qsDoublePush</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QLabel" name="qlDoublePush">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string notr="true">TextLabel</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QCheckBox" name="qcbPushWindow">
+            <property name="toolTip">
+             <string>Displays an always on top window with a push to talk button in it</string>
+            </property>
+            <property name="text">
+             <string>Display push to talk window</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <spacer name="verticalSpacer">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="0" column="1" colspan="2">
+           <widget class="QSlider" name="qsDoublePush">
+            <property name="toolTip">
+             <string>If you press the PTT key twice in this time it will get locked.</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;DoublePush Time&lt;/b&gt;&lt;br /&gt;If you press the push-to-talk key twice during the configured interval of time it will be locked. Mumble will keep transmitting until you hit the key once more to unlock PTT again.</string>
+            </property>
+            <property name="maximum">
+             <number>1000</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+            <property name="pageStep">
+             <number>100</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="qliPTTHold">
+            <property name="text">
+             <string>Hold Time</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QLabel" name="qlPTTHold">
+            <property name="text">
+             <string notr="true">TextLabel</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSlider" name="qsPTTHold">
+            <property name="toolTip">
+             <string>Time the microphone stays open after the PTT key is released</string>
+            </property>
+            <property name="maximum">
+             <number>5000</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="qwVAD">
+         <layout class="QGridLayout">
+          <item row="1" column="2">
+           <widget class="QLabel" name="qlTransmitHold">
+            <property name="minimumSize">
+             <size>
+              <width>40</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="qliTransmitMin">
+            <property name="text">
+             <string>Silence Below</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSlider" name="qsTransmitHold">
+            <property name="toolTip">
+             <string>How long to keep transmitting after silence</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;This selects how long after a perceived stop in speech transmission should continue.&lt;/b&gt;&lt;br /&gt;Set this higher if your voice breaks up when you speak (seen by a rapidly blinking voice icon next to your name).</string>
+            </property>
+            <property name="minimum">
+             <number>20</number>
+            </property>
+            <property name="maximum">
+             <number>250</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="AudioBar" name="abSpeech" native="true">
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>10</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>Current speech detection chance</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="qliTransmitHold">
+            <property name="text">
+             <string>Voice &amp;Hold</string>
+            </property>
+            <property name="buddy">
+             <cstring>qsTransmitHold</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="3">
+           <layout class="QHBoxLayout">
+            <item>
+             <widget class="QRadioButton" name="qrbAmplitude">
+              <property name="toolTip">
+               <string>Use Amplitude based speech detection</string>
+              </property>
+              <property name="whatsThis">
+               <string>&lt;b&gt;This sets speech detection to use Amplitude.&lt;/b&gt;&lt;br /&gt;In this mode, the raw strength of the input signal is used to detect speech.</string>
+              </property>
+              <property name="text">
+               <string>Amplitude</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="qrbSNR">
+              <property name="toolTip">
+               <string>Use SNR based speech detection</string>
+              </property>
+              <property name="whatsThis">
+               <string>&lt;b&gt;This sets speech detection to use Signal to Noise ratio.&lt;/b&gt;&lt;br /&gt;In this mode, the input is analyzed for something resembling a clear signal, and the clarity of that signal is used to trigger speech detection.</string>
+              </property>
+              <property name="text">
+               <string>Signal to Noise</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="qliTransmitMax">
+            <property name="text">
+             <string>Speech Above</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QSlider" name="qsTransmitMin">
+            <property name="toolTip">
+             <string>Signal values below this count as silence</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;This sets the trigger values for voice detection.&lt;/b&gt;&lt;br /&gt;Use this together with the Audio Statistics window to manually tune the trigger values for detecting speech. Input values below &quot;Silence Below&quot; always count as silence. Values above &quot;Speech Above&quot; always count as voice. Values in between will count as voice if you're already talking, but will not trigger a new detection.</string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>32767</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="pageStep">
+             <number>1000</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QSlider" name="qsTransmitMax">
+            <property name="toolTip">
+             <string>Signal values above this count as voice</string>
+            </property>
+            <property name="whatsThis">
+             <string>&lt;b&gt;This sets the trigger values for voice detection.&lt;/b&gt;&lt;br /&gt;Use this together with the Audio Statistics window to manually tune the trigger values for detecting speech. Input values below &quot;Silence Below&quot; always count as silence. Values above &quot;Speech Above&quot; always count as voice. Values in between will count as voice if you're already talking, but will not trigger a new detection.</string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>32767</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="pageStep">
+             <number>1000</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="qwContinuous"/>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbCompression">
+     <property name="title">
+      <string>Compression</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="1" column="0">
+       <widget class="QLabel" name="qliFrames">
+        <property name="text">
+         <string>Audio per packet</string>
+        </property>
+        <property name="buddy">
+         <cstring>qsFrames</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSlider" name="qsFrames">
+        <property name="toolTip">
+         <string>How many audio frames to send per packet</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This selects how many audio frames should be put in one packet.&lt;/b&gt;&lt;br /&gt;Increasing this will increase the latency of your voice, but will also reduce bandwidth requirements.</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>4</number>
+        </property>
+        <property name="pageStep">
+         <number>2</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QLabel" name="qlQuality">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="qlFrames">
+        <property name="minimumSize">
+         <size>
+          <width>40</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSlider" name="qsQuality">
+        <property name="toolTip">
+         <string>Quality of compression (peak bandwidth)</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This sets the quality of compression.&lt;/b&gt;&lt;br /&gt;This determines how much bandwidth Mumble is allowed to use for outgoing audio.</string>
+        </property>
+        <property name="minimum">
+         <number>8000</number>
+        </property>
+        <property name="maximum">
+         <number>192000</number>
+        </property>
+        <property name="singleStep">
+         <number>1000</number>
+        </property>
+        <property name="pageStep">
+         <number>5000</number>
+        </property>
+        <property name="value">
+         <number>32000</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="3">
+       <widget class="QLabel" name="qlBitrate">
+        <property name="font">
+         <font>
+          <italic>true</italic>
+         </font>
+        </property>
+        <property name="toolTip">
+         <string>Maximum bandwidth used for sending audio</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This shows peak outgoing bandwidth used.&lt;/b&gt;&lt;br /&gt;This shows the peak amount of bandwidth sent out from your machine. Audio bitrate is the maximum bitrate (as we use VBR) for the audio data alone. Position is the bitrate used for positional information. Overhead is our framing and the IP packet headers (IP and UDP is 75% of this overhead).</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="qliQuality">
+        <property name="text">
+         <string>&amp;Quality</string>
+        </property>
+        <property name="buddy">
+         <cstring>qsQuality</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="QCheckBox" name="qcbAllowLowDelay">
+        <property name="toolTip">
+         <string>Enable Opus' low-delay mode when the quality is set to &lt;b&gt;64 kb/s&lt;/b&gt; or higher. </string>
+        </property>
+        <property name="whatsThis">
+         <string>If checked, Mumble will enable Opus' low-delay mode when the quality is set to &lt;b&gt;64 kbit/s&lt;/b&gt; or higher. Low-delay mode decreases latency by &lt;b&gt;~15 milliseconds&lt;/b&gt; in the round trip. This mode may require an higher bitrate to preserve the same quality, in comparison with the music and VOIP modes.</string>
+        </property>
+        <property name="text">
+         <string>Allow low delay mode</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbAudio">
+     <property name="title">
+      <string>Audio Processing</string>
+     </property>
+     <layout class="QGridLayout">
+      <item row="2" column="1">
+       <widget class="QSlider" name="qsAmp">
+        <property name="toolTip">
+         <string>Maximum amplification of input sound</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Maximum amplification of input.&lt;/b&gt;&lt;br /&gt;Mumble normalizes the input volume before compressing, and this sets how much it's allowed to amplify.&lt;br /&gt;The actual level is continually updated based on your current speech pattern, but it will never go above the level specified here.&lt;br /&gt;If the &lt;i&gt;Microphone loudness&lt;/i&gt; level of the audio statistics hover around 100%, you probably want to set this to 2.0 or so, but if, like most people, you are unable to reach 100%, set this to something much higher.&lt;br /&gt;Ideally, set it so &lt;i&gt;Microphone Loudness * Amplification Factor &gt;= 100&lt;/i&gt;, even when you're speaking really soft.&lt;br /&gt;&lt;br /&gt;Note that there is no harm in setting this to maximum, but Mumble will start picking up other conversations if you leave it to auto-tune to that level.</string>
+        </property>
+        <property name="maximum">
+         <number>19500</number>
+        </property>
+        <property name="singleStep">
+         <number>500</number>
+        </property>
+        <property name="pageStep">
+         <number>2000</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="qliAmp">
+        <property name="text">
+         <string>Max. Amplification</string>
+        </property>
+        <property name="buddy">
+         <cstring>qsAmp</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QLabel" name="qlAmp">
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="qliEcho">
+        <property name="toolTip">
+         <string/>
+        </property>
+        <property name="text">
+         <string>Echo Cancellation</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="3">
+       <widget class="QGroupBox" name="groupBox">
+        <property name="title">
+         <string>Noise suppression</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <widget class="QRadioButton" name="qrbNoiseSupDeactivated">
+             <property name="toolTip">
+              <string>Don't use noise suppression.</string>
+             </property>
+             <property name="text">
+              <string>Disabled</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="qrbNoiseSupSpeex">
+             <property name="toolTip">
+              <string>Use the noise suppression algorithm provided by Speex.</string>
+             </property>
+             <property name="text">
+              <string notr="true">Speex</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="qrbNoiseSupRNNoise">
+             <property name="toolTip">
+              <string>Use the noise suppression algorithm provided by RNNoise.</string>
+             </property>
+             <property name="text">
+              <string notr="true">RNNoise</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="qrbNoiseSupBoth">
+             <property name="toolTip">
+              <string>Use a combination of Speex and RNNoise to do noise suppression.</string>
+             </property>
+             <property name="text">
+              <string>Both</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <item>
+            <widget class="QLabel" name="qlSpeexNoiseSup">
+             <property name="toolTip">
+              <string>This controls the amount by which Speex will suppress noise.</string>
+             </property>
+             <property name="text">
+              <string>Speex suppression strength</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSlider" name="qsSpeexNoiseSupStrength">
+             <property name="toolTip">
+              <string>This controls the amount by which Speex will suppress noise.</string>
+             </property>
+             <property name="whatsThis">
+              <string>&lt;b&gt;This sets the amount of noise suppression to apply.&lt;/b&gt;&lt;br /&gt;The higher this value, the more aggressively stationary noise will be suppressed.</string>
+             </property>
+             <property name="minimum">
+              <number>15</number>
+             </property>
+             <property name="maximum">
+              <number>60</number>
+             </property>
+             <property name="pageStep">
+              <number>5</number>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="qlSpeexNoiseSupStrength">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>30</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="toolTip">
+              <string>This controls the amount by which Speex will suppress noise.</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="2">
+       <widget class="MUComboBox" name="qcbEcho">
+        <property name="toolTip">
+         <string/>
+        </property>
+        <property name="whatsThis">
+         <string>Enabling this will cancel the echo from your speakers. Mixed has low CPU impact, but only works well if your speakers are equally loud and equidistant from the microphone. Multichannel echo cancellation provides much better echo cancellation, but at a higher CPU cost.</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Disabled</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Mixed echo cancellation</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Multichannel echo cancellation</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="qgbMisc">
+     <property name="title">
+      <string>Misc</string>
+     </property>
+     <layout class="QGridLayout" name="_2">
+      <item row="2" column="5">
+       <widget class="QPushButton" name="qpbPushClickBrowseOff">
+        <property name="toolTip">
+         <string>Browse for off audio file</string>
+        </property>
+        <property name="text">
+         <string>B&amp;rowse...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="3">
+       <widget class="QLabel" name="qlPushClickOff">
+        <property name="text">
+         <string>Off</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QLabel" name="qlPushClickOn">
+        <property name="text">
+         <string>On</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="6">
+       <widget class="QPushButton" name="qpbPushClickPreview">
+        <property name="toolTip">
+         <string>Preview the audio cues</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Preview&lt;/b&gt;&lt;br/&gt;Plays the current &lt;i&gt;on&lt;/i&gt; sound followed by the current &lt;i&gt;off&lt;/i&gt; sound.</string>
+        </property>
+        <property name="text">
+         <string>&amp;Preview</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="6">
+       <widget class="QPushButton" name="qpbPushClickReset">
+        <property name="toolTip">
+         <string>Reset audio cue to default</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;Reset&lt;/b&gt;&lt;br/&gt;Reset the paths for the files to their default.</string>
+        </property>
+        <property name="text">
+         <string>R&amp;eset</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="5">
+       <widget class="QPushButton" name="qpbPushClickBrowseOn">
+        <property name="toolTip">
+         <string>Browse for on audio file</string>
+        </property>
+        <property name="text">
+         <string>&amp;Browse...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="4">
+       <widget class="QLineEdit" name="qlePushClickPathOn">
+        <property name="toolTip">
+         <string>Gets played when starting to transmit</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="4">
+       <widget class="QLineEdit" name="qlePushClickPathOff">
+        <property name="toolTip">
+         <string>Gets played when stopping to transmit</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="qcbPushClick">
+        <property name="toolTip">
+         <string>Audible audio cue when starting or stopping to transmit</string>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;b&gt;This enables transmission audio cues.&lt;/b&gt;&lt;br /&gt;Setting this will give you a short audio beep when you start and stop transmitting.</string>
+        </property>
+        <property name="text">
+         <string>Audio cue</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="QLabel" name="qliIdle">
+        <property name="text">
+         <string>Idle action</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="4">
+       <widget class="QCheckBox" name="qcbUndoIdleAction">
+        <property name="toolTip">
+         <string>The idle action will be reversed upon any key or mouse button input</string>
+        </property>
+        <property name="text">
+         <string>Undo Idle action upon activity</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="4">
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QSpinBox" name="qsbIdle">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>5000</number>
+          </property>
+          <property name="value">
+           <number>5</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="qlIdle">
+          <property name="minimumSize">
+           <size>
+            <width>30</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>minutes do</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="MUComboBox" name="qcbIdleAction">
+          <item>
+           <property name="text">
+            <string>nothing</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>deafen</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>mute</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item row="3" column="3">
+       <widget class="QLabel" name="qlIdle2">
+        <property name="text">
+         <string>after</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>1</width>
+       <height>151</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>AudioBar</class>
+   <extends>QWidget</extends>
+   <header>AudioStats.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>MUComboBox</class>
+   <extends>QComboBox</extends>
+   <header>widgets/MUComboBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <tabstops>
+  <tabstop>qcbSystem</tabstop>
+  <tabstop>qcbDevice</tabstop>
+  <tabstop>qcbTransmit</tabstop>
+  <tabstop>qsDoublePush</tabstop>
+  <tabstop>qrbSNR</tabstop>
+  <tabstop>qsTransmitHold</tabstop>
+  <tabstop>qsTransmitMin</tabstop>
+  <tabstop>qsTransmitMax</tabstop>
+  <tabstop>qsQuality</tabstop>
+  <tabstop>qsFrames</tabstop>
+  <tabstop>qsAmp</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>
