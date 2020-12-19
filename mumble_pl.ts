@@ -1,283 +1,106 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>LogConfig</class>
- <widget class="QWidget" name="LogConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>554</width>
-    <height>414</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Messages</string>
-  </property>
-  <layout class="QVBoxLayout">
-   <item>
-    <widget class="QTreeWidget" name="qtwMessages">
-     <property name="alternatingRowColors">
-      <bool>true</bool>
-     </property>
-     <property name="selectionMode">
-      <enum>QAbstractItemView::SingleSelection</enum>
-     </property>
-     <property name="rootIsDecorated">
-      <bool>false</bool>
-     </property>
-     <property name="uniformRowHeights">
-      <bool>true</bool>
-     </property>
-     <property name="itemsExpandable">
-      <bool>false</bool>
-     </property>
-     <column>
-      <property name="text">
-       <string>Message</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Console</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Notification</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Highlight</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Text-To-Speech</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Soundfile</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Path</string>
-      </property>
-     </column>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbTTS">
-     <property name="title">
-      <string>Text To Speech</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlVolume">
-        <property name="text">
-         <string>Volume</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsVolume</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="3">
-       <widget class="QSlider" name="qsVolume">
-        <property name="toolTip">
-         <string>Volume of Text-To-Speech Engine</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</string>
-        </property>
-        <property name="maximum">
-         <number>100</number>
-        </property>
-        <property name="singleStep">
-         <number>5</number>
-        </property>
-        <property name="pageStep">
-         <number>20</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="tickPosition">
-         <enum>QSlider::TicksBelow</enum>
-        </property>
-        <property name="tickInterval">
-         <number>5</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlThreshold">
-        <property name="text">
-         <string>Length threshold</string>
-        </property>
-        <property name="buddy">
-         <cstring>qsbThreshold</cstring>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QSpinBox" name="qsbThreshold">
-        <property name="toolTip">
-         <string>Message length threshold for Text-To-Speech Engine</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</string>
-        </property>
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::PlusMinus</enum>
-        </property>
-        <property name="suffix">
-         <string> Characters</string>
-        </property>
-        <property name="maximum">
-         <number>5000</number>
-        </property>
-        <property name="singleStep">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QCheckBox" name="qcbReadBackOwn">
-        <property name="toolTip">
-         <string>If enabled text messages you send will be read back to you with TTS</string>
-        </property>
-        <property name="text">
-         <string>Read back own messages</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QCheckBox" name="qcbNoScope">
-        <property name="toolTip">
-         <string>If enabled, TTS will not dictate the message scope.</string>
-        </property>
-        <property name="text">
-         <string>Omit Message Scope</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QCheckBox" name="qcbNoAuthor">
-        <property name="toolTip">
-         <string>If enabled, TTS will not dictate the message author.</string>
-        </property>
-        <property name="text">
-         <string>Omit Message Author</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbWhisper">
-     <property name="title">
-      <string>Whisper</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbWhisperFriends">
-        <property name="toolTip">
-         <string>If checked you will only hear whispers from users you added to your friend list.</string>
-        </property>
-        <property name="text">
-         <string>Only accept whispers from friends</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbMaxBlocks">
-     <property name="title">
-      <string>Chat Log</string>
-     </property>
-     <layout class="QGridLayout" name="_2">
-      <item row="1" column="0">
-       <widget class="QCheckBox" name="qcb24HourClock">
-        <property name="toolTip">
-         <string>If checked the time at the beginning of a message will be displayed in the 24-hour format.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-The setting only applies for new messages, the already shown ones will retain the previous time format.</string>
-        </property>
-        <property name="text">
-         <string>Use 24-hour clock</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSpinBox" name="qsbMaxBlocks">
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::PlusMinus</enum>
-        </property>
-        <property name="specialValueText">
-         <string>Unlimited</string>
-        </property>
-        <property name="suffix">
-         <string> Lines</string>
-        </property>
-        <property name="maximum">
-         <number>1000000</number>
-        </property>
-        <property name="singleStep">
-         <number>100</number>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlMaxBlocks">
-        <property name="text">
-         <string>Maximum chat length</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <spacer name="horizontalSpacer">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>8</width>
-          <height>16</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlChatMessageMargins">
-        <property name="toolTip">
-         <string>How far individual messages are spaced out from one another.</string>
-        </property>
-        <property name="text">
-         <string>Message margins</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QSpinBox" name="qsbChatMessageMargins">
-        <property name="toolTip">
-         <string>How far individual messages are spaced out from one another.</string>
-        </property>
-        <property name="frame">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+#include "Log.h"
+
+#include <QtCore/QOperatingSystemVersion>
+
+#include <Foundation/Foundation.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+
+@interface MUUserNotificationCenterDelegate : NSObject <NSUserNotificationCenterDelegate>
+@end
+
+@implementation MUUserNotificationCenterDelegate
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didDeliverNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
+}
+
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
+	[center removeDeliveredNotification:notification];
+}
+
+- (BOOL) userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
+
+	return NO;
+}
+@end
+
+static NSString *Log_QString_to_NSString(const QString& string) {
+	return const_cast<NSString *>(reinterpret_cast<const NSString *>(CFStringCreateWithCharacters(kCFAllocatorDefault,
+	                                reinterpret_cast<const UniChar *>(string.unicode()), string.length())));
+}
+
+#endif
+
+#if QT_VERSION < 0x050800
+extern bool qt_mac_execute_apple_script(const QString &script, AEDesc *ret);
+
+static bool growl_available() {
+	static int isAvailable = -1;
+	if (isAvailable == -1)  {
+		OSStatus err = LSFindApplicationForInfo('GRRR', CFSTR("com.Growl.GrowlHelperApp"), CFSTR("GrowlHelperApp.app"), nullptr, nullptr);
+		isAvailable = (err != kLSApplicationNotFoundErr) ? 1 : 0;
+		if (isAvailable) {
+			QStringList qslAllEvents;
+			for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
+				Log::MsgType t = static_cast<Log::MsgType>(i);
+				qslAllEvents << QString::fromLatin1("\"%1\"").arg(g.l->msgName(t));
+			}
+			QString qsScript = QString::fromLatin1(
+				"tell application \"GrowlHelperApp\"\n"
+				"	set the allNotificationsList to {%1}\n"
+				"	set the enabledNotificationsList to {%1}\n"
+				"	register as application \"Mumble\""
+				"		all notifications allNotificationsList"
+				"		default notifications enabledNotificationsList"
+				"		icon of application \"Mumble\"\n"
+				"end tell\n").arg(qslAllEvents.join(QLatin1String(",")));
+			qt_mac_execute_apple_script(qsScript, nullptr);
+		}
+	}
+	return isAvailable == 1;
+}
+#endif // QT_VERSION
+
+void Log::postNotification(MsgType mt, const QString &plain) {
+	QString title = msgName(mt);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+# if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+	const QOperatingSystemVersion current = QOperatingSystemVersion::current();
+	if (current.majorVersion() > 10 || (current.majorVersion() == 10 && current.minorVersion() >= 8)) {
+# else
+	if (QSysInfo::MacintoshVersion >= QSysInfo::MV_MOUNTAINLION) {
+# endif
+		NSUserNotificationCenter *userNotificationCenter = [NSUserNotificationCenter defaultUserNotificationCenter];
+		if (userNotificationCenter.delegate == nil) {
+			// We hand the delegate property a delegate with a retain count of 1.  We don't keep
+			// a reference to the delegate anywhere else, so it's not really a leak.
+			userNotificationCenter.delegate = [[MUUserNotificationCenterDelegate alloc] init];
+		}
+		NSUserNotification *userNotification = [[[NSUserNotification alloc] init] autorelease];
+		userNotification.title = [Log_QString_to_NSString(title) autorelease];
+		userNotification.informativeText = [Log_QString_to_NSString(plain) autorelease];
+		[userNotificationCenter scheduleNotification:userNotification];
+	} else
+#endif
+	{
+#if QT_VERSION < 0x050800
+		QString qsScript = QString::fromLatin1(
+			"tell application \"GrowlHelperApp\"\n"
+			"	notify with name \"%1\" title \"%1\" description \"%2\" application name \"Mumble\"\n"
+			"end tell\n").arg(title).arg(plain);
+		if (growl_available())
+			qt_mac_execute_apple_script(qsScript, nullptr);
+#endif
+	}
+}
