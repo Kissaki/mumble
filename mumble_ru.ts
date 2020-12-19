@@ -1,54 +1,61 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2019-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_SOCKETRPC_H_
-#define MUMBLE_MUMBLE_SOCKETRPC_H_
+#include "Screen.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QString>
-#include <QtCore/QVariant>
-#include <QtCore/QXmlStreamReader>
-#include <QtNetwork/QLocalSocket>
+#include "MumbleApplication.h"
 
-class QBuffer;
-class QLocalServer;
+#include <QScreen>
+#include <QWidget>
+#include <QWindow>
 
-class SocketRPCClient : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(SocketRPCClient)
-protected:
-	QLocalSocket *qlsSocket;
-	QXmlStreamReader qxsrReader;
-	QXmlStreamWriter qxswWriter;
-	QBuffer *qbBuffer;
-	QByteArray qbaOutput;
+QWindow *Screen::windowFromWidget(const QWidget &widget) {
+	QWindow *window = widget.windowHandle();
+	if (window) {
+		return window;
+	}
 
-	void processXml();
+	const QWidget *parent = widget.nativeParentWidget();
+	if (parent) {
+		return parent->windowHandle();
+	}
 
-public:
-	SocketRPCClient(QLocalSocket *s, QObject *p = nullptr);
-public slots:
-	void disconnected();
-	void error(QLocalSocket::LocalSocketError);
-	void readyRead();
-};
+	return nullptr;
+}
 
-class SocketRPC : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(SocketRPC)
-protected:
-	QLocalServer *qlsServer;
+QScreen *Screen::screenFromWidget(const QWidget &widget) {
+	const QWindow *window = windowFromWidget(widget);
+	if (window && window->screen()) {
+		return window->screen();
+	}
 
-public:
-	typedef QMap< QString, QVariant > ParameterMap;
-	SocketRPC(const QString &basename, QObject *p = nullptr);
-	static bool send(const QString &basename, const QString &request, const ParameterMap &param = ParameterMap());
-public slots:
-	void newConnection();
-};
+	return qApp->primaryScreen();
+}
 
+QScreen *Screen::screenAt(const QPoint &point) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+	return qApp->screenAt(point);
+#else
+	// Adapted from qguiapplication.cpp (Qt)
+	QVarLengthArray< const QScreen *, 8 > visitedScreens;
+
+	for (const QScreen *screen : qApp->screens()) {
+		if (visitedScreens.contains(screen)) {
+			continue;
+		}
+
+		// The virtual siblings include the screen itself, so iterate directly
+		for (QScreen *sibling : screen->virtualSiblings()) {
+			if (sibling->geometry().contains(point)) {
+				return sibling;
+			}
+
+			visitedScreens.append(sibling);
+		}
+	}
+
+	return nullptr;
 #endif
+}
