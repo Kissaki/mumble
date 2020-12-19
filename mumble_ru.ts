@@ -3,111 +3,91 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "WebFetch.h"
+#ifndef MUMBLE_MUMBLE_WEBFETCH_H_
+#define MUMBLE_MUMBLE_WEBFETCH_H_
 
-#include "NetworkConfig.h"
+#include <QtCore/QByteArray>
+#include <QtCore/QMap>
+#include <QtCore/QObject>
+#include <QtCore/QUrl>
 
-#include <QtNetwork/QNetworkReply>
+class QNetworkReply;
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+/// WebFetch is a utility class to download data from Mumble services.
+class WebFetch : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(WebFetch)
+protected:
+	QObject *qoObject;
+	const char *cpSlot;
+	QNetworkReply *qnr;
+	QString m_service;
 
-WebFetch::WebFetch(QString service, QUrl url, QObject *obj, const char *slot)
-	: QObject(), qoObject(obj), cpSlot(slot), m_service(service) {
-	url.setScheme(QLatin1String("https"));
+	QString prefixedServiceHost() const;
+	QString serviceHost() const;
 
-	if (!g.s.qsServicePrefix.isEmpty()) {
-		url.setHost(prefixedServiceHost());
-	} else {
-		url.setHost(serviceHost());
-	}
+	WebFetch(QString service, QUrl url, QObject *obj, const char *slot);
+signals:
+	void fetched(QByteArray data, QUrl url, QMap< QString, QString > headers);
+protected slots:
+	void finished();
 
-	qnr = Network::get(url);
-	connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
-	connect(this, SIGNAL(fetched(QByteArray, QUrl, QMap< QString, QString >)), obj, slot);
-}
+public:
+	/// The fetch function downloads the resource specified by the url parameter from the
+	/// Mumble service given in the service parameter. Once the download completes, the
+	/// function invokes the slot specified via the slot parameter.
+	///
+	/// Only the path part of the url parameter
+	/// is used to construct the final, fully-qualified URL from which the resource is
+	/// downloaded.
+	///
+	/// By default, the service parameter and the url parameter are combined to create
+	/// a service as follows:
+	///
+	///     fullyQualifiedURL = https://${service}.mumble.info/${url.path}
+	///
+	/// When a resource is downloaded from a Mumble service, the service may optionally
+	/// specify a service prefix to use for future requests to all Mumble services. This
+	/// is communicated via the Use-Service-Prefix HTTP header in HTTP responses from
+	/// Mumble services. When this function encounters such a response header, it stores
+	/// the service prefix in the "net/serviceprefix" Mumble setting. If this setting
+	/// is non-empty, the fully-qualified URL is instead constructed as such:
+	///
+	///     fullyQualifiedURL = https://${serivcePrefixSetting}-${service}.mumble.info/${url.path}
+	///
+	/// The service prefix must only contain ASCII characters 'A' through 'Z' (upper case)
+	/// or 'a' through 'z (lower case).
+	///
+	/// @param  service  The Mumble service name to use for this request.
+	///
+	///                  The service name specified is used to create base URL
+	///                  used by the final, fully-qualified URL as follows:
+	///
+	///                      baseURL = https://${service}.mumble.info
+	///
+	///                  If the Mumble setting "net/serviceprefix" is non-empty,
+	///                  it will be used as a prefix to the base URL. In this case,
+	///                  the base URL will be constructed as follows:
+	///
+	///                      baseURL = https://${servicePrefixSetting}-${service}.mumble.info
+	///
+	/// @param  url      The path to the endpoint that the request is targetted at.
+	///                  Only the path of the URL will be used. The specified path is
+	///                  used in combination with the base URL constructed by the service
+	///                  parameter to construct the fully-qualified URL for the HTTP request
+	///                  that will be sent by this function.
+	///                  The path is used in combination with the base URL from the service
+	///                  parameter as follows:
+	///
+	///                      fullyQualifiedURL = ${baseURL}/${url.path}
+	///
+	/// @param  slot     A Qt slot of the form fetched(QByteArray data, QUrl url,
+	///                                                QMap<QString,QString> httpHeaders)
+	///                  If the download initiated by the function was succesful, the data
+	///                  parameter will be a non-null QByteArray.
+	///                  If the download failed, the data parameter will be a null QByteArray.
+	static void fetch(const QString &service, const QUrl &url, QObject *obj, const char *slot);
+};
 
-QString WebFetch::prefixedServiceHost() const {
-	if (g.s.qsServicePrefix.isEmpty()) {
-		return serviceHost();
-	}
-	return QString::fromLatin1("%1-%2.mumble.info").arg(g.s.qsServicePrefix, m_service);
-}
-
-QString WebFetch::serviceHost() const {
-	return QString::fromLatin1("%1.mumble.info").arg(m_service);
-}
-
-static QString fromUtf8(const QByteArray &qba) {
-	if (qba.isEmpty())
-		return QString();
-	return QString::fromUtf8(qba.constData(), qba.length());
-}
-
-void WebFetch::finished() {
-	// Note that if this functions succeeds, it should deleteLater() itself, as this is a temporary object.
-	Q_ASSERT(qobject_cast< QNetworkReply * >(sender()) == qnr);
-	qnr->disconnect();
-	qnr->deleteLater();
-
-	QUrl url = qnr->request().url();
-
-	if (qnr->error() == QNetworkReply::NoError) {
-		QByteArray a = qnr->readAll();
-
-		// empty response is not an error
-		if (a.isNull())
-			a.append("");
-
-		QMap< QString, QString > headers;
-
-		foreach (const QByteArray &headerName, qnr->rawHeaderList()) {
-			QString name  = fromUtf8(headerName);
-			QString value = fromUtf8(qnr->rawHeader(headerName));
-			if (!name.isEmpty() && !value.isEmpty()) {
-				headers.insert(name, value);
-				if (name == QLatin1String("Use-Service-Prefix")) {
-					QRegExp servicePrefixRegExp(QLatin1String("^[a-zA-Z]+$"));
-					if (servicePrefixRegExp.exactMatch(value)) {
-						g.s.qsServicePrefix = value.toLower();
-					}
-				}
-			}
-		}
-
-		emit fetched(a, url, headers);
-		deleteLater();
-	} else if (url.host() == prefixedServiceHost() && url.host() != serviceHost()) {
-		// We have tried to fetch from a local service domain (e.g. de-update.mumble.info)
-		// which has failed, so naturally we want to try the non-local one (update.mumble.info)
-		// as well as maybe that one will work.
-		// This of course only makes sense, if prefixedServiceHost() and serviceHost() are in fact
-		// different hosts.
-		url.setHost(serviceHost());
-
-		qnr = Network::get(url);
-		connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
-	} else {
-		emit fetched(QByteArray(), url, QMap< QString, QString >());
-		deleteLater();
-	}
-}
-
-/**
- * @brief Fetch URL from mumble servers.
- *
- * If fetching fails, the slot is invoked with a null QByteArray.
- * @param url URL to fetch. Hostname and scheme must be blank.
- * @param obj Object to invoke slot on.
- * @param slot Slot to be triggered, invoked with the signature of \link fetched.
- */
-void WebFetch::fetch(const QString &service, const QUrl &url, QObject *obj, const char *slot) {
-	Q_ASSERT(!service.isEmpty());
-	Q_ASSERT(url.scheme().isEmpty());
-	Q_ASSERT(url.host().isEmpty());
-	Q_ASSERT(obj);
-	Q_ASSERT(slot);
-
-	new WebFetch(service, url, obj, slot);
-}
+#endif
