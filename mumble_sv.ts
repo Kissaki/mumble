@@ -3,29 +3,24 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "PTTButtonWidget.h"
+#ifndef MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
+#define MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
 
-#include "Global.h"
+#include "ui_PTTButtonWidget.h"
 
-PTTButtonWidget::PTTButtonWidget(QWidget *p) : QWidget(p) {
-	setupUi(this);
+class PTTButtonWidget : public QWidget, public Ui::qwPTTButtonWidget {
+	Q_OBJECT
+	Q_DISABLE_COPY(PTTButtonWidget)
+protected:
+	void closeEvent(QCloseEvent *e) Q_DECL_OVERRIDE;
 
-	setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint);
+public:
+	PTTButtonWidget(QWidget *p = 0);
+public slots:
+	void on_qpbPushToTalk_pressed();
+	void on_qpbPushToTalk_released();
+signals:
+	void triggered(bool checked, QVariant);
+};
 
-	if (!g.s.qbaPTTButtonWindowGeometry.isEmpty()) {
-		restoreGeometry(g.s.qbaPTTButtonWindowGeometry);
-	}
-}
-
-void PTTButtonWidget::closeEvent(QCloseEvent *e) {
-	g.s.qbaPTTButtonWindowGeometry = saveGeometry();
-	QWidget::closeEvent(e);
-}
-
-void PTTButtonWidget::on_qpbPushToTalk_pressed() {
-	emit triggered(true, QVariant());
-}
-
-void PTTButtonWidget::on_qpbPushToTalk_released() {
-	emit triggered(false, QVariant());
-}
+#endif // PTTBUTTONWIDGET_H_
