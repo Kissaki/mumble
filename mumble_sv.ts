@@ -1,63 +1,51 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ListenerLocalVolumeDialog.h"
-#include "Channel.h"
-#include "ChannelListener.h"
-#include "ClientUser.h"
+#ifndef MUMBLE_MUMBLE_GLOBALSHORTCUT_MACX_H_
+#define MUMBLE_MUMBLE_GLOBALSHORTCUT_MACX_H_
 
-#include <QtWidgets/QPushButton>
+#include <QtCore/QObject>
+#include <stdlib.h>
 
-#include <cmath>
+#include <ApplicationServices/ApplicationServices.h>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
+#include "GlobalShortcut.h"
 
-ListenerLocalVolumeDialog::ListenerLocalVolumeDialog(ClientUser *user, Channel *channel, QWidget *parent)
-	: QDialog(parent), m_user(user), m_channel(channel) {
-	setupUi(this);
+class GlobalShortcutMac : public GlobalShortcutEngine {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(GlobalShortcutMac)
+public:
+	GlobalShortcutMac();
+	~GlobalShortcutMac() Q_DECL_OVERRIDE;
+	QString buttonName(const QVariant &) Q_DECL_OVERRIDE;
+	void dumpEventTaps();
+	void needRemap() Q_DECL_OVERRIDE;
+	bool handleModButton(CGEventFlags newmask);
+	bool canSuppress() Q_DECL_OVERRIDE;
 
-	m_initialAdjustemt = ChannelListener::getListenerLocalVolumeAdjustment(m_channel);
+	void setEnabled(bool) Q_DECL_OVERRIDE;
+	bool enabled() Q_DECL_OVERRIDE;
+	bool canDisable() Q_DECL_OVERRIDE;
 
-	// Decibel formula: +6db = *2
-	// Calculate the db-shift from the set volume-faactor
-	float fdbShift = log2f(m_initialAdjustemt) * 6;
-	qsUserLocalVolume->setValue(static_cast< int >(roundf(fdbShift)));
+public slots:
+	void forwardEvent(void *evt);
 
-	setWindowTitle(tr("Adjusting local volume for listening to %1").arg(channel->qsName));
-}
+protected:
+	CFRunLoopRef loop;
+	CFMachPortRef port;
+	CGEventFlags modmask;
+	UCKeyboardLayout *kbdLayout;
 
-void ListenerLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
-	qsbUserLocalVolume->setValue(value);
-}
+	void run() Q_DECL_OVERRIDE;
 
-void ListenerLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
-	qsUserLocalVolume->setValue(value);
+	static CGEventRef callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *udata);
+	QString translateMouseButton(const unsigned int keycode) const;
+	QString translateModifierKey(const unsigned int keycode) const;
+	QString translateKeyName(const unsigned int keycode) const;
+};
 
-	// Decibel formula: +6db = *2
-	// Calculate the volume-factor for the set db-shift
-	ChannelListener::setListenerLocalVolumeAdjustment(m_channel,
-													  static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
-}
-
-void ListenerLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
-		qsUserLocalVolume->setValue(0);
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
-		ListenerLocalVolumeDialog::accept();
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
-		ListenerLocalVolumeDialog::close();
-	}
-}
-
-void ListenerLocalVolumeDialog::reject() {
-	// Restore to what has been set before the dialog
-	ChannelListener::setListenerLocalVolumeAdjustment(m_channel, m_initialAdjustemt);
-
-	QDialog::reject();
-}
+#endif
