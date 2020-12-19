@@ -3,341 +3,464 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Overlay.h"
-
-#include "Channel.h"
-#include "MainWindow.h"
-#include "MumbleApplication.h"
-#include "OverlayConfig.h"
-#include "User.h"
-
-#include "Overlay_win.h"
-
-#include "../../overlay/overlay_exe/overlay_exe.h"
+#include "PAAudio.h"
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-// Used by the overlay to detect whether we injected into ourselves.
-//
-// A similar declaration can be found in mumble_exe's Overlay.cpp,
-// for the overlay's self-detection checks to continue working in a
-// mumble_app.dll world.
-extern "C" __declspec(dllexport) void mumbleSelfDetection(){};
-
-// Determine if the current Mumble client is able to host
-// x64 programs.
-//
-// If we're on x86, we use use the IsWoW64Process function
-// to determine this.  If we're on x64, we already know we're
-// capable, so we simply return TRUE.
-static bool canRun64BitPrograms() {
-#if defined(_M_X64)
-	return TRUE;
-#elif defined(_M_IX86)
-	typedef BOOL(WINAPI * IsWow64ProcessPtr)(HANDLE, BOOL *);
-	IsWow64ProcessPtr wow64check = (IsWow64ProcessPtr) GetProcAddress(GetModuleHandle(L"kernel32"), "IsWow64Process");
-	if (wow64check) {
-		BOOL isWoW64 = FALSE;
-		wow64check(GetCurrentProcess(), &isWoW64);
-		return isWoW64;
-	}
-	return FALSE;
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                          \
+		{                                                                         \
+			var = reinterpret_cast< __typeof__(var) >(qlPortAudio.resolve(#var)); \
+			if (!var)                                                             \
+				return;                                                           \
+		}
+#else
+#	define RESOLVE(var)                                                                           \
+		{                                                                                          \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlPortAudio.resolve(#var)); \
+			if (!var)                                                                              \
+				return;                                                                            \
+		}
 #endif
+
+static std::unique_ptr< PortAudioSystem > pas;
+
+class PortAudioInputRegistrar : public AudioInputRegistrar {
+private:
+	AudioInput *create() Q_DECL_OVERRIDE;
+	const QList< audioDevice > getDeviceChoices() Q_DECL_OVERRIDE;
+	void setDeviceChoice(const QVariant &, Settings &) Q_DECL_OVERRIDE;
+	bool canEcho(const QString &) const Q_DECL_OVERRIDE;
+
+public:
+	PortAudioInputRegistrar();
+};
+
+class PortAudioOutputRegistrar : public AudioOutputRegistrar {
+private:
+	AudioOutput *create() Q_DECL_OVERRIDE;
+	const QList< audioDevice > getDeviceChoices() Q_DECL_OVERRIDE;
+	void setDeviceChoice(const QVariant &, Settings &) Q_DECL_OVERRIDE;
+
+public:
+	PortAudioOutputRegistrar();
+};
+
+class PortAudioInit : public DeferInit {
+private:
+	std::unique_ptr< PortAudioInputRegistrar > airPortAudio;
+	std::unique_ptr< PortAudioOutputRegistrar > aorPortAudio;
+	void initialize();
+	void destroy();
+};
+
+PortAudioInputRegistrar::PortAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("PortAudio")) {
 }
 
-OverlayPrivateWin::OverlayPrivateWin(QObject *p)
-	: OverlayPrivate(p), m_helper_enabled(true), m_helper64_enabled(true), m_mumble_handle(0), m_active(false) {
-	// Acquire a handle to ourselves and duplicate it. We duplicate it because
-	// want it to be inheritable by our helper processes, and the handle returned
-	// by GetCurrentProcess is not inheritable. Duplicating it makes it inheritable.
-	// This allows our helper processes to access the handle.
-	//
-	// The helper processes need a handle to us, their parent, to be able to listen
-	// detect when our process dies.
-	//
-	// The value of the handle is passed as an argument to the helper processes via
-	// the command line as a number. The HANDLE type in Windows is typedef'd to LPVOID,
-	// but for handles that are supposed to be shared between processes (like a process
-	// handle that we are using), only the lower 32-bits of the HANDLE are considered:
-	//
-	//   "When sharing a handle between 32-bit and 64-bit applications, only the lower
-	//    32 bits are significant [...]"
-	//
-	// from https://msdn.microsoft.com/en-us/library/aa384203.aspx
-	HANDLE curproc = GetCurrentProcess();
-	if (!DuplicateHandle(curproc, curproc, curproc, &m_mumble_handle, 0, TRUE, DUPLICATE_SAME_ACCESS)) {
-		qFatal("OverlayPrivateWin: unable to duplicate handle to the Mumble process.");
-		return;
-	}
-
-	m_helper_exe_path =
-		QString::fromLatin1("%1/mumble_ol_helper.exe").arg(MumbleApplication::instance()->applicationVersionRootPath());
-	m_helper_exe_args << QString::number(OVERLAY_MAGIC_NUMBER)
-					  << QString::number(reinterpret_cast< quintptr >(m_mumble_handle));
-	m_helper_process = new QProcess(this);
-
-	connect(m_helper_process, SIGNAL(started()), this, SLOT(onHelperProcessStarted()));
-
-	connect(m_helper_process, SIGNAL(error(QProcess::ProcessError)), this,
-			SLOT(onHelperProcessError(QProcess::ProcessError)));
-
-	connect(m_helper_process, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-			SLOT(onHelperProcessExited(int, QProcess::ExitStatus)));
-
-	m_helper_restart_timer = new QTimer(this);
-	m_helper_restart_timer->setSingleShot(true);
-	connect(m_helper_restart_timer, SIGNAL(timeout()), this, SLOT(onDelayedRestartTimerTriggered()));
-
-	if (!g.s.bOverlayWinHelperX86Enable) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper.exe (32-bit overlay helper) disabled via "
-				 "'overlay_win/enable_x86_helper' config option.");
-		m_helper_enabled = false;
-	}
-
-	m_helper64_exe_path = QString::fromLatin1("%1/mumble_ol_helper_x64.exe")
-							  .arg(MumbleApplication::instance()->applicationVersionRootPath());
-	m_helper64_exe_args = m_helper_exe_args;
-	m_helper64_process  = new QProcess(this);
-
-	connect(m_helper64_process, SIGNAL(started()), this, SLOT(onHelperProcessStarted()));
-
-	connect(m_helper64_process, SIGNAL(error(QProcess::ProcessError)), this,
-			SLOT(onHelperProcessError(QProcess::ProcessError)));
-
-	connect(m_helper64_process, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-			SLOT(onHelperProcessExited(int, QProcess::ExitStatus)));
-
-	m_helper64_restart_timer = new QTimer(this);
-	m_helper64_restart_timer->setSingleShot(true);
-	connect(m_helper64_restart_timer, SIGNAL(timeout()), this, SLOT(onDelayedRestartTimerTriggered()));
-
-	if (!canRun64BitPrograms()) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper_x64.exe (64-bit overlay helper) disabled because the host is not "
-				 "x64 capable.");
-		m_helper64_enabled = false;
-	} else if (!g.s.bOverlayWinHelperX64Enable) {
-		qWarning("OverlayPrivateWin: mumble_ol_helper_x64.exe (64-bit overlay helper) disabled via "
-				 "'overlay_win/enable_x64_helper' config option.");
-		m_helper64_enabled = false;
-	}
+AudioInput *PortAudioInputRegistrar::create() {
+	return new PortAudioInput();
 }
 
-OverlayPrivateWin::~OverlayPrivateWin() {
-	m_active = false;
-
-	if (!CloseHandle(m_mumble_handle)) {
-		qFatal("OverlayPrivateWin: unable to close Mumble process handle.");
-		return;
-	}
-
-	// Remove all signals, so they don't
-	// interfere with our calls to waitForFinished
-	// below.
-	m_helper_process->disconnect();
-	m_helper64_process->disconnect();
-
-	m_helper_process->terminate();
-	m_helper64_process->terminate();
-
-	m_helper_process->waitForFinished();
-	m_helper64_process->waitForFinished();
+const QList< audioDevice > PortAudioInputRegistrar::getDeviceChoices() {
+	return pas->enumerateDevices(true, g.s.iPortAudioInput);
 }
 
-void OverlayPrivateWin::startHelper(QProcess *helper) {
-	if (helper->state() == QProcess::NotRunning) {
-		if (helper == m_helper_process) {
-			helper->start(m_helper_exe_path, m_helper_exe_args);
-			m_helper_start_time.restart();
-		} else if (helper == m_helper64_process) {
-			helper->start(m_helper64_exe_path, m_helper64_exe_args);
-			m_helper64_start_time.restart();
-		} else {
-			qFatal("OverlayPrivateWin: invalid helper passed to startHelper().");
-		}
-	} else {
-		qWarning("OverlayPrivateWin: startHelper() called while process is already running. skipping.");
-	}
+void PortAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.iPortAudioInput = choice.toInt();
 }
 
-void OverlayPrivateWin::setActive(bool active) {
-	if (m_active != active) {
-		m_active = active;
-
-		if (m_active) {
-			if (m_helper_enabled) {
-				startHelper(m_helper_process);
-			}
-			if (m_helper64_enabled) {
-				startHelper(m_helper64_process);
-			}
-		} else {
-			if (m_helper_enabled) {
-				m_helper_process->terminate();
-			}
-			if (m_helper64_enabled) {
-				m_helper64_process->terminate();
-			}
-		}
-	}
-}
-
-static const char *exitStatusString(QProcess::ExitStatus exitStatus) {
-	switch (exitStatus) {
-		case QProcess::NormalExit:
-			return "normal exit";
-		case QProcess::CrashExit:
-			return "crash";
-	}
-
-	return "unknown";
-}
-
-static const char *processErrorString(QProcess::ProcessError processError) {
-	switch (processError) {
-		case QProcess::FailedToStart:
-			return "process failed to start";
-		case QProcess::Crashed:
-			return "process crashed";
-		case QProcess::Timedout:
-			return "process wait operation timed out";
-		case QProcess::WriteError:
-			return "an error occurred when attempting to write to the process";
-		case QProcess::ReadError:
-			return "an error occurred when attempting to read from the process";
-		case QProcess::UnknownError:
-			return "an unknown error occurred";
-	}
-
-	return "unknown";
-}
-
-void OverlayPrivateWin::onHelperProcessStarted() {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-	QString path;
-	if (helper == m_helper_process) {
-		path = m_helper_exe_path;
-	} else if (helper == m_helper64_process) {
-		path = m_helper64_exe_path;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessStarted().");
-	}
-
-	PROCESS_INFORMATION *pi = helper->pid();
-	qWarning("OverlayPrivateWin: overlay helper process '%s' started with PID %llu.", qPrintable(path),
-			 static_cast< unsigned long long >(pi->dwProcessId));
-}
-
-void OverlayPrivateWin::onHelperProcessError(QProcess::ProcessError processError) {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-	QString path;
-	if (helper == m_helper_process) {
-		path = m_helper_exe_path;
-	} else if (helper == m_helper64_process) {
-		path = m_helper64_exe_path;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessError().");
-	}
-
-	qWarning("OverlayPrivateWin: an error occured for overlay helper process '%s': %s", qPrintable(path),
-			 processErrorString(processError));
-}
-
-void OverlayPrivateWin::onHelperProcessExited(int exitCode, QProcess::ExitStatus exitStatus) {
-	QProcess *helper = qobject_cast< QProcess * >(sender());
-
-	QString path;
-	qint64 elapsedMsec   = 0;
-	QTimer *restartTimer = nullptr;
-	if (helper == m_helper_process) {
-		path         = m_helper_exe_path;
-		elapsedMsec  = m_helper_start_time.elapsed();
-		restartTimer = m_helper_restart_timer;
-	} else if (helper == m_helper64_process) {
-		path         = m_helper64_exe_path;
-		elapsedMsec  = m_helper64_start_time.elapsed();
-		restartTimer = m_helper64_restart_timer;
-	} else {
-		qFatal("OverlayPrivateWin: unknown QProcess found in onHelperProcessExited().");
-	}
-
-	const char *helperErrString = OverlayHelperErrorToString(static_cast< OverlayHelperError >(exitCode));
-	qWarning("OverlayPrivateWin: overlay helper process '%s' exited (%s) with status code %s.", qPrintable(path),
-			 exitStatusString(exitStatus), helperErrString ? helperErrString : qPrintable(QString::number(exitCode)));
-
-	// If the helper process exited while we're in 'active'
-	// mode, restart it.
-	if (m_active) {
-		// If the helper was only recently started, be
-		// a little more patient with restarting it.
-		// We could be hitting a crash bug in the helper,
-		// and we don't want to do too much harm in that
-		// case by spawning thousands of processes.
-		qint64 cooldownMsec = (qint64) g.s.iOverlayWinHelperRestartCooldownMsec;
-		if (elapsedMsec < cooldownMsec) {
-			qint64 delayMsec = cooldownMsec - elapsedMsec;
-			qWarning("OverlayPrivateWin: waiting %llu seconds until restarting helper process '%s'. last restart was "
-					 "%llu seconds ago.",
-					 (unsigned long long) delayMsec / 1000ULL, qPrintable(path),
-					 (unsigned long long) elapsedMsec / 1000ULL);
-			if (!restartTimer->isActive()) {
-				restartTimer->start(delayMsec);
-			}
-		} else {
-			startHelper(helper);
-		}
-	}
-}
-
-void OverlayPrivateWin::onDelayedRestartTimerTriggered() {
-	if (!m_active) {
-		return;
-	}
-
-	QTimer *timer = qobject_cast< QTimer * >(sender());
-
-	QProcess *helper = nullptr;
-	if (timer == m_helper_restart_timer) {
-		helper = m_helper_process;
-	} else if (timer == m_helper64_restart_timer) {
-		helper = m_helper64_process;
-	} else {
-		qFatal("OverlayPrivateWin: unknown timer found in onDelayedRestartTimerTriggered().");
-	}
-
-	if (helper->state() == QProcess::NotRunning) {
-		startHelper(helper);
-	}
-}
-
-void Overlay::platformInit() {
-	d = new OverlayPrivateWin(this);
-}
-
-void Overlay::setActiveInternal(bool act) {
-	if (d) {
-		// Only act if the private instance has been created already
-		static_cast< OverlayPrivateWin * >(d)->setActive(act);
-	}
-}
-
-bool OverlayConfig::supportsInstallableOverlay() {
+bool PortAudioInputRegistrar::canEcho(const QString &) const {
 	return false;
 }
 
-bool OverlayConfig::isInstalled() {
+PortAudioOutputRegistrar::PortAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("PortAudio")) {
+}
+
+AudioOutput *PortAudioOutputRegistrar::create() {
+	return new PortAudioOutput();
+}
+
+const QList< audioDevice > PortAudioOutputRegistrar::getDeviceChoices() {
+	return pas->enumerateDevices(false, g.s.iPortAudioOutput);
+}
+
+void PortAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.iPortAudioOutput = choice.toInt();
+}
+
+void PortAudioInit::initialize() {
+	pas.reset(new PortAudioSystem());
+
+	pas->qmWait.lock();
+	pas->qwcWait.wait(&pas->qmWait, 1000);
+	pas->qmWait.unlock();
+
+	if (pas->bOk) {
+		airPortAudio.reset(new PortAudioInputRegistrar());
+		aorPortAudio.reset(new PortAudioOutputRegistrar());
+	} else {
+		pas.reset();
+	}
+}
+
+void PortAudioInit::destroy() {
+	airPortAudio.reset();
+	aorPortAudio.reset();
+	pas.reset();
+}
+
+// Instantiate PortAudioSystem, PortAudioInputRegistrar and PortAudioOutputRegistrar
+static PortAudioInit pai;
+
+PortAudioSystem::PortAudioSystem() : bOk(false) {
+	QStringList alternatives;
+#ifdef Q_OS_WIN
+	alternatives << QLatin1String("portaudio_x64.dll");
+	alternatives << QLatin1String("portaudio_x86.dll");
+#elif defined(Q_OS_MAC)
+	alternatives << QLatin1String("libportaudio.dylib");
+	alternatives << QLatin1String("libportaudio.2.dylib");
+#else
+	alternatives << QLatin1String("libportaudio.so");
+	alternatives << QLatin1String("libportaudio.so.2");
+#endif
+	for (const auto &lib : alternatives) {
+		qlPortAudio.setFileName(lib);
+		if (qlPortAudio.load()) {
+			break;
+		}
+	}
+
+	if (!qlPortAudio.isLoaded()) {
+		return;
+	}
+
+	RESOLVE(Pa_GetVersionText)
+	RESOLVE(Pa_GetErrorText)
+	RESOLVE(Pa_Initialize)
+	RESOLVE(Pa_Terminate)
+	RESOLVE(Pa_OpenStream)
+	RESOLVE(Pa_CloseStream)
+	RESOLVE(Pa_StartStream)
+	RESOLVE(Pa_StopStream)
+	RESOLVE(Pa_IsStreamActive)
+	RESOLVE(Pa_GetDefaultInputDevice)
+	RESOLVE(Pa_GetDefaultOutputDevice)
+	RESOLVE(Pa_HostApiDeviceIndexToDeviceIndex)
+	RESOLVE(Pa_GetHostApiCount)
+	RESOLVE(Pa_GetHostApiInfo)
+	RESOLVE(Pa_GetDeviceInfo)
+
+	const auto ret = Pa_Initialize();
+	if (ret != paNoError) {
+		qWarning("PortAudioSystem: failed to initialize library - Pa_Initialize() returned: %s", Pa_GetErrorText(ret));
+		return;
+	}
+
+	bOk = true;
+
+	qDebug("%s from %s", Pa_GetVersionText(), qPrintable(qlPortAudio.fileName()));
+}
+
+PortAudioSystem::~PortAudioSystem() {
+	if (bOk) {
+		const auto ret = Pa_Terminate();
+		if (ret != paNoError) {
+			qWarning("PortAudioSystem: failed to terminate library - Pa_Terminate() returned: %s",
+					 Pa_GetErrorText(ret));
+		}
+	}
+}
+
+const QList< audioDevice > PortAudioSystem::enumerateDevices(const bool input, const PaDeviceIndex current) {
+	QList< audioDevice > audioDevices;
+
+	if (!bOk) {
+		return audioDevices;
+	}
+
+	audioDevices << audioDevice(tr("Default device"), -1);
+
+	for (PaHostApiIndex apiIndex = 0; apiIndex < Pa_GetHostApiCount(); ++apiIndex) {
+		const auto *apiInfo = Pa_GetHostApiInfo(apiIndex);
+		if (!apiInfo) {
+			continue;
+		}
+
+		for (PaDeviceIndex apiDeviceIndex = 0; apiDeviceIndex < apiInfo->deviceCount; ++apiDeviceIndex) {
+			const auto deviceIndex = Pa_HostApiDeviceIndexToDeviceIndex(apiIndex, apiDeviceIndex);
+			const auto *deviceInfo = Pa_GetDeviceInfo(deviceIndex);
+			if (!deviceInfo) {
+				continue;
+			}
+
+			if ((input && (deviceInfo->maxInputChannels > 0)) || (!input && (deviceInfo->maxOutputChannels > 0))) {
+				audioDevices << audioDevice(
+					QLatin1String(apiInfo->name) + QLatin1String(": ") + QLatin1String(deviceInfo->name), deviceIndex);
+			}
+		}
+	}
+
+	for (auto i = 0; i < audioDevices.count(); ++i) {
+		if (audioDevices.at(i).second == current) {
+			// We want the current device to appear at the top of the list
+			audioDevice audioDevice = audioDevices.takeAt(i);
+			audioDevices.prepend(audioDevice);
+			break;
+		}
+	}
+
+	return audioDevices;
+}
+
+bool PortAudioSystem::isStreamRunning(PaStream *stream) {
+	if (!bOk || !stream) {
+		return false;
+	}
+
+	const auto ret = Pa_IsStreamActive(stream);
+	if (ret == 1) {
+		return true;
+	} else if (ret != 0) {
+		qWarning("PortAudioSystem: failed to determine stream status - Pa_IsStreamActive() returned: %s",
+				 Pa_GetErrorText(ret));
+	}
+
+	return false;
+}
+
+int PortAudioSystem::openStream(PaStream **stream, PaDeviceIndex device, const uint32_t frameSize, const bool isInput) {
+	if (!bOk || !stream) {
+		return 0;
+	}
+
+	QMutexLocker lock(&qmWait);
+
+	// -1 is the default device
+	if (device == -1) {
+		device = (isInput ? Pa_GetDefaultInputDevice() : Pa_GetDefaultOutputDevice());
+	}
+
+	const auto *devInfo = Pa_GetDeviceInfo(device);
+	if (!devInfo) {
+		qWarning("PortAudioSystem: failed to retrieve info about device %d - Pa_GetDeviceInfo() returned: nullptr",
+				 device);
+		return 0;
+	}
+
+	const auto *apiInfo = Pa_GetHostApiInfo(devInfo->hostApi);
+	if (!apiInfo) {
+		qWarning(
+			"PortAudioSystem: failed to retrieve info about API %d (device %d) - Pa_GetHostApiInfo() returned: nullptr",
+			devInfo->hostApi, device);
+		return 0;
+	}
+
+	qDebug("PortAudioSystem: using %s %s", apiInfo->name, devInfo->name);
+
+	PaStreamParameters streamPar;
+	streamPar.channelCount = 1;
+
+	if (!isInput && devInfo->maxOutputChannels > 1) {
+		// TODO: add support for more than 2 channels
+		streamPar.channelCount = 2;
+	}
+
+	streamPar.device           = device;
+	streamPar.sampleFormat     = paFloat32;
+	streamPar.suggestedLatency = (isInput ? devInfo->defaultLowInputLatency : devInfo->defaultLowOutputLatency);
+	streamPar.hostApiSpecificStreamInfo = nullptr;
+
+	const auto ret =
+		Pa_OpenStream(stream, isInput ? &streamPar : nullptr, isInput ? nullptr : &streamPar, SAMPLE_RATE, frameSize,
+					  paClipOff | paDitherOff, &streamCallback, reinterpret_cast< void * >(isInput));
+	if (ret != paNoError) {
+		qWarning("PortAudioSystem: failed to open stream - Pa_OpenStream() returned: %s", Pa_GetErrorText(ret));
+		*stream = nullptr;
+		return 0;
+	}
+
+	return streamPar.channelCount;
+}
+
+bool PortAudioSystem::closeStream(PaStream *stream) {
+	if (!bOk || !stream) {
+		return false;
+	}
+
+	QMutexLocker lock(&qmWait);
+
+	const auto ret = Pa_CloseStream(stream);
+	if (ret != paNoError) {
+		qWarning("PortAudioSystem: failed to close stream - Pa_CloseStream() returned: %s", Pa_GetErrorText(ret));
+		return false;
+	}
+
 	return true;
 }
 
-bool OverlayConfig::needsUpgrade() {
-	return false;
+bool PortAudioSystem::startStream(PaStream *stream) {
+	if (!bOk) {
+		return false;
+	}
+
+	if (isStreamRunning(stream)) {
+		return true;
+	}
+
+	const auto ret = Pa_StartStream(stream);
+	if (ret != paNoError) {
+		qWarning("PortAudioSystem: failed to start stream - Pa_StartStream() returned: %s", Pa_GetErrorText(ret));
+		return false;
+	}
+
+	return true;
 }
 
-bool OverlayConfig::installFiles() {
-	return false;
+bool PortAudioSystem::stopStream(PaStream *stream) {
+	if (!bOk) {
+		return false;
+	}
+
+	if (!isStreamRunning(stream)) {
+		return true;
+	}
+
+	const auto ret = Pa_StopStream(stream);
+	if (ret != paNoError) {
+		qWarning("PortAudioSystem: failed to stop stream - Pa_StopStream() returned: %s", Pa_GetErrorText(ret));
+		return false;
+	}
+
+	return true;
 }
 
-bool OverlayConfig::uninstallFiles() {
-	return false;
+int PortAudioSystem::streamCallback(const void *input, void *output, unsigned long frames,
+									const PaStreamCallbackTimeInfo *, PaStreamCallbackFlags, void *isInput) {
+	if (isInput) {
+		auto const pai = dynamic_cast< PortAudioInput * >(g.ai.get());
+		if (!pai) {
+			return paAbort;
+		}
+
+		pai->process(frames, input);
+	} else {
+		auto const pao = dynamic_cast< PortAudioOutput * >(g.ao.get());
+		if (!pao) {
+			return paAbort;
+		}
+
+		pao->process(frames, output);
+	}
+
+	return paContinue;
+}
+
+PortAudioInput::PortAudioInput() : stream(nullptr) {
+	iMicChannels = pas->openStream(&stream, g.s.iPortAudioInput, iFrameSize, true);
+	if (!iMicChannels) {
+		qWarning("PortAudioInput: failed to open stream");
+		return;
+	}
+
+	iMicFreq   = SAMPLE_RATE;
+	eMicFormat = SampleFloat;
+	initializeMixer();
+
+	if (!pas->startStream(stream)) {
+		qWarning("PortAudioInput: failed to start stream");
+	}
+}
+
+PortAudioInput::~PortAudioInput() {
+	// Request interruption
+	qmWait.lock();
+
+	if (!pas->stopStream(stream)) {
+		qWarning("PortAudioInput: failed to stop stream");
+	}
+
+	qwcSleep.wakeAll();
+	qmWait.unlock();
+
+	// Wait for thread to exit
+	wait();
+
+	// Cleanup
+	if (!pas->closeStream(stream)) {
+		qWarning("PortAudioInput: failed to close stream");
+	}
+}
+
+void PortAudioInput::process(const uint32_t frames, const void *buffer) {
+	addMic(buffer, frames);
+}
+
+void PortAudioInput::run() {
+	if (!pas->isStreamRunning(stream)) {
+		return;
+	}
+
+	// Pause thread until interruption is requested by the destructor
+	qmWait.lock();
+	qwcSleep.wait(&qmWait);
+	qmWait.unlock();
+}
+
+PortAudioOutput::PortAudioOutput() : stream(nullptr) {
+	iChannels = pas->openStream(&stream, g.s.iPortAudioOutput, iFrameSize, false);
+	if (!iChannels) {
+		qWarning("PortAudioOutput: failed to open stream");
+		return;
+	}
+
+	iMixerFreq    = SAMPLE_RATE;
+	eSampleFormat = SampleFloat;
+
+	const uint32_t channelsMask[]{ SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT };
+
+	initializeMixer(channelsMask);
+
+	if (!pas->startStream(stream)) {
+		qWarning("PortAudioOutput: failed to start stream");
+	}
+}
+
+PortAudioOutput::~PortAudioOutput() {
+	// Request interruption
+	qmWait.lock();
+
+	if (!pas->stopStream(stream)) {
+		qWarning("PortAudioOutput: failed to stop stream");
+	}
+
+	qwcSleep.wakeAll();
+	qmWait.unlock();
+
+	// Wait for thread to exit
+	wait();
+
+	// Cleanup
+	if (!pas->closeStream(stream)) {
+		qWarning("PortAudioOutput: failed to close stream");
+	}
+}
+
+void PortAudioOutput::process(const uint32_t frames, void *buffer) {
+	if (!mix(buffer, frames)) {
+		memset(buffer, 0, sizeof(float) * frames * iChannels);
+	}
+}
+
+void PortAudioOutput::run() {
+	if (!pas->isStreamRunning(stream)) {
+		return;
+	}
+
+	// Pause thread until interruption is requested by the destructor
+	qmWait.lock();
+	qwcSleep.wait(&qmWait);
+	qmWait.unlock();
 }
