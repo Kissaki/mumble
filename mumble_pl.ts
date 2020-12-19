@@ -1,108 +1,91 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TalkingUISelection.h"
-#include "MainWindow.h"
-#include "UserModel.h"
+#include "TaskList.h"
 
-#include <QVariant>
-#include <QWidget>
+#include "MumbleApplication.h"
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include "win.h"
 
-TalkingUISelection::TalkingUISelection(QWidget *widget) : m_widget(widget) {
-}
+#include <QtCore/QFileInfo>
+#include <QtCore/QSettings>
+#include <QtCore/QString>
+#include <QtCore/QUrl>
+#include <QtCore/QUrlQuery>
 
+// We disable clang-format for these includes as apparently the order in which they are
+// included is important.
+// clang-format off
+#include <shlobj.h>
+#include <shobjidl.h>
+#include <propkey.h>
+#include <propvarutil.h>
+// clang-format on
 
-void TalkingUISelection::setActive(bool active) {
-	if (m_widget) {
-		m_widget->setProperty("selected", active);
-		// Unpolish the widget's style so that the new property can take effect
-		m_widget->style()->unpolish(m_widget);
+extern bool bIsWin7;
+
+void TaskList::addToRecentList(QString name, QString user, QString host, int port) {
+	if (!bIsWin7)
+		return;
+
+	HRESULT hr;
+	IShellLink *link   = nullptr;
+	IPropertyStore *ps = nullptr;
+	PROPVARIANT pt;
+
+	hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IShellLink),
+						  reinterpret_cast< void ** >(&link));
+	if (!link || FAILED(hr))
+		return;
+
+	QUrl url;
+	url.setScheme(QLatin1String("mumble"));
+	url.setUserName(user);
+	url.setHost(host);
+	url.setPort(port);
+
+	QUrlQuery query;
+	query.addQueryItem(QLatin1String("title"), name);
+	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
+	url.setQuery(query);
+
+	QSettings settings(QLatin1String("HKEY_CLASSES_ROOT"), QSettings::NativeFormat);
+
+	QString app = settings.value(QLatin1String("mumble/DefaultIcon/.")).toString();
+	if (app.isEmpty() || !QFileInfo(app).exists())
+		app = QCoreApplication::applicationFilePath();
+
+	link->SetPath(app.toStdWString().c_str());
+	link->SetArguments(QString::fromLatin1(url.toEncoded()).toStdWString().c_str());
+
+	hr = link->QueryInterface(__uuidof(IPropertyStore), reinterpret_cast< void ** >(&ps));
+	if (FAILED(hr)) {
+		qFatal("TaskList: Failed to get property store");
+		goto cleanup;
 	}
-}
 
-void TalkingUISelection::apply() {
-	setActive(true);
-}
+	InitPropVariantFromString(name.toStdWString().c_str(), &pt);
+	hr = ps->SetValue(PKEY_Title, pt);
+	PropVariantClear(&pt);
 
-void TalkingUISelection::discard() {
-	setActive(false);
-}
-
-bool TalkingUISelection::operator==(const TalkingUISelection &other) const {
-	return m_widget == other.m_widget;
-}
-
-bool TalkingUISelection::operator!=(const TalkingUISelection &other) const {
-	return m_widget != other.m_widget;
-}
-
-bool TalkingUISelection::operator==(const QWidget *widget) const {
-	return m_widget == widget;
-}
-
-bool TalkingUISelection::operator!=(const QWidget *widget) const {
-	return m_widget != widget;
-}
-
-
-UserSelection::UserSelection(QWidget *widget, unsigned int userSession)
-	: TalkingUISelection(widget), m_userSession(userSession) {
-}
-
-void UserSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedUser(m_userSession);
+	if (FAILED(hr)) {
+		qFatal("TaskList: Failed to set title");
+		goto cleanup;
 	}
-}
 
-std::unique_ptr< TalkingUISelection > UserSelection::cloneToHeap() const {
-	return std::make_unique< UserSelection >(*this);
-}
-
-
-
-ChannelSelection::ChannelSelection(QWidget *widget, int channelID)
-	: TalkingUISelection(widget), m_channelID(channelID) {
-}
-
-void ChannelSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannel(m_channelID);
+	hr = ps->Commit();
+	if (FAILED(hr)) {
+		qFatal("TaskList: Failed commit");
+		goto cleanup;
 	}
-}
 
-std::unique_ptr< TalkingUISelection > ChannelSelection::cloneToHeap() const {
-	return std::make_unique< ChannelSelection >(*this);
-}
+	SHAddToRecentDocs(SHARD_LINK, link);
 
-
-
-ListenerSelection::ListenerSelection(QWidget *widget, unsigned int userSession, int channelID)
-	: TalkingUISelection(widget), m_userSession(userSession), m_channelID(channelID) {
-}
-
-void ListenerSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannelListener(m_userSession, m_channelID);
-	}
-}
-
-std::unique_ptr< TalkingUISelection > ListenerSelection::cloneToHeap() const {
-	return std::make_unique< ListenerSelection >(*this);
-}
-
-
-
-void EmptySelection::syncToMainWindow() const {
-	// Do nothing
-}
-
-std::unique_ptr< TalkingUISelection > EmptySelection::cloneToHeap() const {
-	return std::make_unique< EmptySelection >(*this);
+cleanup:
+	if (ps)
+		ps->Release();
+	if (link)
+		link->Release();
 }
