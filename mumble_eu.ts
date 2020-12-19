@@ -3,305 +3,279 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
+#include "AudioOutputSample.h"
+
 #include "Audio.h"
+#include "Utils.h"
 
-#include "AudioInput.h"
-#include "AudioOutput.h"
-#include "CELTCodec.h"
-#ifdef USE_OPUS
-#	include "OpusCodec.h"
-#endif
-#include "Log.h"
-#include "PacketDataStream.h"
+#include <QtCore/QDebug>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QMessageBox>
 
-#include <QtCore/QObject>
+#include <cmath>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+SoundFile::SoundFile(const QString &fname) {
+	siInfo.frames     = 0;
+	siInfo.channels   = 1;
+	siInfo.samplerate = 0;
+	siInfo.sections   = 0;
+	siInfo.seekable   = 0;
+	siInfo.format     = 0;
 
-class CodecInit : public DeferInit {
-public:
-	void initialize();
-	void destroy();
-};
+	sfFile = nullptr;
 
-#define DOUBLE_RAND (rand() / static_cast< double >(RAND_MAX))
+	qfFile.setFileName(fname);
 
-LoopUser LoopUser::lpLoopy;
-CodecInit ciInit;
+	if (qfFile.open(QIODevice::ReadOnly)) {
+		static SF_VIRTUAL_IO svi = { &SoundFile::vio_get_filelen, &SoundFile::vio_seek, &SoundFile::vio_read,
+									 &SoundFile::vio_write, &SoundFile::vio_tell };
 
-void CodecInit::initialize() {
-#ifdef USE_OPUS
-	OpusCodec *oCodec = new OpusCodec();
-	if (oCodec->isValid()) {
-		oCodec->report();
-		g.oCodec = oCodec;
-	} else {
-		Log::logOrDefer(
-			Log::CriticalError,
-			QObject::tr("CodecInit: Failed to load Opus, it will not be available for encoding/decoding audio."));
-		delete oCodec;
-	}
-#endif
+		sfFile = sf_open_virtual(&svi, SFM_READ, &siInfo, this);
 
-	if (g.s.bDisableCELT) {
-		// Kill switch for CELT activated. Do not initialize it.
-		return;
-	}
-
-	CELTCodec *codec = nullptr;
-
-#ifdef USE_SBCELT
-	codec = new CELTCodecSBCELT();
-	if (codec->isValid()) {
-		codec->report();
-		g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-	} else {
-		delete codec;
-	}
-#else
-	codec = new CELTCodec070(QLatin1String("0.7.0"));
-	if (codec->isValid()) {
-		codec->report();
-		g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-	} else {
-		delete codec;
-		codec = new CELTCodec070(QLatin1String("0.0.0"));
-		if (codec->isValid()) {
-			codec->report();
-			g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-		} else {
-			delete codec;
-		}
-	}
-#endif
-}
-
-void CodecInit::destroy() {
-#ifdef USE_OPUS
-	delete g.oCodec;
-#endif
-
-	foreach (CELTCodec *codec, g.qmCodecs)
-		delete codec;
-	g.qmCodecs.clear();
-}
-
-LoopUser::LoopUser() {
-	qsName    = QLatin1String("Loopy");
-	uiSession = 0;
-	iId       = 0;
-	bMute = bDeaf = bSuppress = false;
-	bLocalIgnore = bLocalMute = bSelfDeaf = false;
-	tsState                               = Settings::Passive;
-	cChannel                              = nullptr;
-	qetTicker.start();
-	qetLastFetch.start();
-}
-
-void LoopUser::addFrame(const QByteArray &packet) {
-	if (DOUBLE_RAND < g.s.dPacketLoss) {
-		qWarning("Drop");
-		return;
-	}
-
-	{
-		QMutexLocker l(&qmLock);
-		bool restart = (qetLastFetch.elapsed() > 100);
-
-		double time = qetTicker.elapsed();
-
-		double r;
-		if (restart)
-			r = 0.0;
-		else
-			r = DOUBLE_RAND * g.s.dMaxPacketDelay;
-
-		qmPackets.insert(static_cast< float >(time + r), packet);
-	}
-
-	// Restart check
-	if (qetLastFetch.elapsed() > 100) {
-		AudioOutputPtr ao = g.ao;
-		if (ao) {
-			MessageHandler::UDPMessageType msgType =
-				static_cast< MessageHandler::UDPMessageType >((packet.at(0) >> 5) & 0x7);
-			ao->addFrameToBuffer(this, QByteArray(), 0, msgType);
+		if (!sfFile) {
+			qWarning("AudioOutputSample: Failed to open sound-file: %s", qUtf8Printable(strError()));
 		}
 	}
 }
 
-void LoopUser::fetchFrames() {
-	QMutexLocker l(&qmLock);
+SoundFile::~SoundFile() {
+	if (sfFile)
+		sf_close(sfFile);
+}
 
-	AudioOutputPtr ao(g.ao);
-	if (!ao || qmPackets.isEmpty()) {
+bool SoundFile::isOpen() const {
+	return sfFile && qfFile.isOpen();
+}
+
+int SoundFile::channels() const {
+	return siInfo.channels;
+}
+
+int SoundFile::samplerate() const {
+	return siInfo.samplerate;
+}
+
+int SoundFile::error() const {
+	return sf_error(sfFile);
+}
+
+QString SoundFile::strError() const {
+	return QLatin1String(sf_strerror(sfFile));
+}
+
+sf_count_t SoundFile::seek(sf_count_t frames, int whence) {
+	return sf_seek(sfFile, frames, whence);
+}
+
+sf_count_t SoundFile::read(float *ptr, sf_count_t items) {
+	return sf_read_float(sfFile, ptr, items);
+}
+
+sf_count_t SoundFile::vio_get_filelen(void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return (sf->qfFile.size());
+}
+
+sf_count_t SoundFile::vio_seek(sf_count_t offset, int whence, void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	if (whence == SEEK_SET) {
+		sf->qfFile.seek(offset);
+	} else if (whence == SEEK_END) {
+		sf->qfFile.seek(sf->qfFile.size() - offset);
+	} else {
+		sf->qfFile.seek(sf->qfFile.pos() + offset);
+	}
+	return sf->qfFile.pos();
+}
+
+sf_count_t SoundFile::vio_read(void *ptr, sf_count_t count, void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return sf->qfFile.read(reinterpret_cast< char * >(ptr), count);
+}
+
+sf_count_t SoundFile::vio_write(const void *ptr, sf_count_t count, void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return sf->qfFile.write(reinterpret_cast< const char * >(ptr), count);
+}
+
+sf_count_t SoundFile::vio_tell(void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return sf->qfFile.pos();
+}
+
+AudioOutputSample::AudioOutputSample(const QString &name, SoundFile *psndfile, bool loop, unsigned int freq,
+									 unsigned int systemMaxBufferSize)
+	: AudioOutputUser(name) {
+	int err;
+
+	sfHandle       = psndfile;
+	iOutSampleRate = freq;
+
+	if (sfHandle->channels() == 1) {
+		iBufferSize = systemMaxBufferSize;
+		bStereo     = false;
+	} else if (sfHandle->channels() == 2) {
+		iBufferSize = systemMaxBufferSize * 2;
+		bStereo     = true;
+	} else {
+		sfHandle = nullptr; // sound file is corrupted
 		return;
 	}
 
-	double cmp = qetTicker.elapsed();
+	pfBuffer = new float[iBufferSize];
 
-	QMultiMap< float, QByteArray >::iterator i = qmPackets.begin();
+	/* qWarning() << "Channels: " << sfHandle->channels();
+	qWarning() << "Samplerate: " << sfHandle->samplerate();
+	qWarning() << "Target Sr.: " << freq;
+	qWarning() << "Format: " << sfHandle->format() << endl; */
 
-	while (i != qmPackets.end()) {
-		if (i.key() > cmp)
-			break;
-
-		int iSeq;
-		const QByteArray &data = i.value();
-		PacketDataStream pds(data.constData(), data.size());
-
-		unsigned int msgFlags = static_cast< unsigned int >(pds.next());
-
-		pds >> iSeq;
-
-		QByteArray qba;
-		qba.reserve(pds.left() + 1);
-		qba.append(static_cast< char >(msgFlags));
-		qba.append(pds.dataBlock(pds.left()));
-
-		MessageHandler::UDPMessageType msgType = static_cast< MessageHandler::UDPMessageType >((msgFlags >> 5) & 0x7);
-
-		ao->addFrameToBuffer(this, qba, iSeq, msgType);
-		i = qmPackets.erase(i);
+	// If the frequencies don't match initialize the resampler
+	if (sfHandle->samplerate() != static_cast< int >(freq)) {
+		srs = speex_resampler_init(bStereo ? 2 : 1, sfHandle->samplerate(), iOutSampleRate, 3, &err);
+		if (err != RESAMPLER_ERR_SUCCESS) {
+			qWarning() << "Initialize " << sfHandle->samplerate() << " to " << iOutSampleRate << " resampler failed!";
+			srs      = nullptr;
+			sfHandle = nullptr;
+			return;
+		}
+	} else {
+		srs = nullptr;
 	}
 
-	qetLastFetch.restart();
+	iLastConsume = iBufferFilled = 0;
+	bLoop                        = loop;
+	bEof                         = false;
 }
 
-RecordUser::RecordUser() : LoopUser() {
-	qsName = QLatin1String("Recorder");
+AudioOutputSample::~AudioOutputSample() {
+	if (srs)
+		speex_resampler_destroy(srs);
+
+	delete sfHandle;
+	sfHandle = nullptr;
 }
 
-RecordUser::~RecordUser() {
-	AudioOutputPtr ao = g.ao;
-	if (ao)
-		ao->removeBuffer(this);
-}
+SoundFile *AudioOutputSample::loadSndfile(const QString &filename) {
+	SoundFile *sf;
 
-void RecordUser::addFrame(const QByteArray &packet) {
-	AudioOutputPtr ao(g.ao);
-	if (!ao)
-		return;
+	// Create the filehandle and do a quick check if everything is ok
+	sf = new SoundFile(filename);
 
-	int iSeq;
-	PacketDataStream pds(packet.constData(), packet.size());
-
-	unsigned int msgFlags = static_cast< unsigned int >(pds.next());
-
-	pds >> iSeq;
-
-	QByteArray qba;
-	qba.reserve(pds.left() + 1);
-	qba.append(static_cast< char >(msgFlags));
-	qba.append(pds.dataBlock(pds.left()));
-
-	MessageHandler::UDPMessageType msgType = static_cast< MessageHandler::UDPMessageType >((msgFlags >> 5) & 0x7);
-
-	ao->addFrameToBuffer(this, qba, iSeq, msgType);
-}
-
-void Audio::startOutput(const QString &output) {
-	g.ao = AudioOutputRegistrar::newFromChoice(output);
-	if (g.ao)
-		g.ao->start(QThread::HighPriority);
-}
-
-void Audio::stopOutput() {
-	// Take a copy of the global AudioOutput shared pointer
-	// to keep a reference around.
-	AudioOutputPtr ao = g.ao;
-
-	// Reset the global AudioOutput shared pointer to the null pointer.
-	g.ao.reset();
-
-	// Wait until our copy of the AudioOutput shared pointer (ao)
-	// is the only one left.
-	while (ao.get() && !ao.unique()) {
-		QThread::yieldCurrentThread();
+	if (!sf->isOpen()) {
+		qWarning() << "File " << filename << " failed to open";
+		delete sf;
+		return nullptr;
 	}
 
-	// Reset our copy of the AudioOutput shared pointer.
-	// This causes the AudioOutput destructor to be called
-	// right here in this function, on the main thread.
-	// Our audio backends expect this to happen.
-	//
-	// One such example is PulseAudioInput, whose destructor
-	// takes the PulseAudio mainloop lock. If the destructor
-	// is called inside one of the PulseAudio callbacks that
-	// take copies of g.ai, the destructor will try to also
-	// take the mainloop lock, causing an abort().
-	ao.reset();
-}
-
-void Audio::startInput(const QString &input) {
-	g.ai = AudioInputRegistrar::newFromChoice(input);
-	if (g.ai)
-		g.ai->start(QThread::HighestPriority);
-}
-
-void Audio::stopInput() {
-	// Take a copy of the global AudioInput shared pointer
-	// to keep a reference around.
-	AudioInputPtr ai = g.ai;
-
-	// Reset the global AudioInput shared pointer to the null pointer.
-	g.ai.reset();
-
-	// Wait until our copy of the AudioInput shared pointer (ai)
-	// is the only one left.
-	while (ai.get() && !ai.unique()) {
-		QThread::yieldCurrentThread();
+	if (sf->error() != SF_ERR_NO_ERROR) {
+		qWarning() << "File " << filename << " couldn't be loaded: " << sf->strError();
+		delete sf;
+		return nullptr;
 	}
 
-	// Reset our copy of the AudioInput shared pointer.
-	// This causes the AudioInput destructor to be called
-	// right here in this function, on the main thread.
-	// Our audio backends expect this to happen.
-	//
-	// One such example is PulseAudioInput, whose destructor
-	// takes the PulseAudio mainloop lock. If the destructor
-	// is called inside one of the PulseAudio callbacks that
-	// take copies of g.ai, the destructor will try to also
-	// take the mainloop lock, causing an abort().
-	ai.reset();
+	if (sf->channels() <= 0 || sf->channels() > 2) {
+		qWarning() << "File " << filename << " contains " << sf->channels() << " Channels, only 1 or 2 are supported.";
+		delete sf;
+		return nullptr;
+	}
+	return sf;
 }
 
-void Audio::start(const QString &input, const QString &output) {
-	startInput(input);
-	startOutput(output);
+QString AudioOutputSample::browseForSndfile(QString defaultpath) {
+	QString file = QFileDialog::getOpenFileName(nullptr, tr("Choose sound file"), defaultpath,
+												QLatin1String("*.wav *.ogg *.ogv *.oga *.flac *.aiff"));
+	if (!file.isEmpty()) {
+		SoundFile *sf = AudioOutputSample::loadSndfile(file);
+		if (!sf) {
+			QMessageBox::critical(nullptr, tr("Invalid sound file"),
+								  tr("The file '%1' cannot be used by Mumble. Please select a file with a compatible "
+									 "format and encoding.")
+									  .arg(file.toHtmlEscaped()));
+			return QString();
+		}
+		delete sf;
+	}
+	return file;
 }
 
-void Audio::stop() {
-	// Take copies of the global AudioInput and AudioOutput
-	// shared pointers to keep a reference to each of them
-	// around.
-	AudioInputPtr ai  = g.ai;
-	AudioOutputPtr ao = g.ao;
+bool AudioOutputSample::prepareSampleBuffer(unsigned int frameCount) {
+	unsigned int channels    = bStereo ? 2 : 1;
+	unsigned int sampleCount = frameCount * channels;
+	// Forward the buffer
+	for (unsigned int i = iLastConsume; i < iBufferFilled; ++i)
+		pfBuffer[i - iLastConsume] = pfBuffer[i];
+	iBufferFilled -= iLastConsume;
+	iLastConsume = sampleCount;
 
-	// Reset the global AudioInput and AudioOutput shared pointers
-	// to the null pointer.
-	g.ao.reset();
-	g.ai.reset();
+	// Check if we can satisfy request with current buffer
+	if (iBufferFilled >= sampleCount)
+		return true;
 
-	// Wait until our copies of the AudioInput and AudioOutput shared pointers
-	// (ai and ao) are the only ones left.
-	while ((ai.get() && !ai.unique()) || (ao.get() && !ao.unique())) {
-		QThread::yieldCurrentThread();
+	// Calculate the required buffersize to hold the results
+	unsigned int iInputFrames = static_cast< unsigned int >(
+		ceilf(static_cast< float >(frameCount * sfHandle->samplerate()) / static_cast< float >(iOutSampleRate)));
+	unsigned int iInputSamples = iInputFrames * channels;
+
+	STACKVAR(float, fOut, iInputSamples);
+
+	bool eof = false;
+	sf_count_t read;
+	do {
+		resizeBuffer(iBufferFilled + sampleCount);
+
+		// If we need to resample, write to the buffer on stack
+		float *pOut = (srs) ? fOut : pfBuffer + iBufferFilled;
+
+		// Try to read all samples needed to satifsy this request
+		if ((read = sfHandle->read(pOut, iInputSamples)) < iInputSamples) {
+			if (sfHandle->error() != SF_ERR_NO_ERROR || !bLoop) {
+				// We reached the eof or encountered an error, stuff with zeroes
+				memset(pOut, 0, sizeof(float) * (iInputSamples - read));
+				read = iInputSamples;
+				eof  = true;
+			} else {
+				sfHandle->seek(SEEK_SET, 0);
+			}
+		}
+
+		spx_uint32_t inlen  = static_cast< unsigned int >(read) / channels;
+		spx_uint32_t outlen = frameCount;
+		if (srs) {
+			// If necessary resample
+			if (!bStereo) {
+				speex_resampler_process_float(srs, 0, pOut, &inlen, pfBuffer + iBufferFilled, &outlen);
+			} else {
+				speex_resampler_process_interleaved_float(srs, pOut, &inlen, pfBuffer + iBufferFilled, &outlen);
+			}
+		}
+
+		iBufferFilled += outlen * channels;
+	} while (iBufferFilled < sampleCount);
+
+	if (eof && !bEof) {
+		emit playbackFinished();
+		bEof = true;
 	}
 
-	// Reset our copies of the AudioInput and AudioOutput
-	// shared pointers.
-	// This causes the AudioInput and AudioOutput destructors
-	// to be called right here in this function, on the main
-	// thread. Our audio backends expect this to happen.
-	//
-	// One such example is PulseAudioInput, whose destructor
-	// takes the PulseAudio mainloop lock. If the destructor
-	// is called inside one of the PulseAudio callbacks that
-	// take copies of g.ai, the destructor will try to also
-	// take the mainloop lock, causing an abort().
-	ai.reset();
-	ao.reset();
+	return !eof;
 }
