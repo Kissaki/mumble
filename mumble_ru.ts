@@ -3,144 +3,165 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_GLOBAL_H_
-#define MUMBLE_MUMBLE_GLOBAL_H_
+#include "G15LCDEngine_helper.h"
 
-#include <QtCore/QDir>
-#include <boost/shared_ptr.hpp>
+#include "MumbleApplication.h"
 
-#include "ACL.h"
-#include "Settings.h"
-#include "Timer.h"
-#include "Version.h"
+static LCDEngine *G15LCDEngineNew() {
+	return new G15LCDEngineHelper();
+}
 
-// Global helper class to spread variables around across threads.
+static LCDEngineRegistrar registrar(G15LCDEngineNew);
 
-class MainWindow;
-class ServerHandler;
-class AudioInput;
-class AudioOutput;
-class Database;
-class Log;
-class Plugins;
-class QSettings;
-class Overlay;
-class LCD;
-class Zeroconf;
-class OverlayClient;
-class CELTCodec;
-class OpusCodec;
-class LogEmitter;
-class DeveloperConsole;
-class TalkingUI;
+G15LCDEngineHelper::G15LCDEngineHelper() : LCDEngine() {
+	bRunning     = false;
+	bUnavailable = true;
 
-class QNetworkAccessManager;
+#if defined(Q_OS_WIN)
+	qsHelperExecutable = QString::fromLatin1("\"%1/mumble-g15-helper.exe\"")
+							 .arg(MumbleApplication::instance()->applicationVersionRootPath());
+#elif defined(Q_OS_MAC)
+	qsHelperExecutable = QString::fromLatin1("\"%1/mumble-g15-helper\"")
+							 .arg(MumbleApplication::instance()->applicationVersionRootPath());
+#endif
 
-struct Global Q_DECL_FINAL {
-private:
-	Q_DISABLE_COPY(Global)
-public:
-	static Global *g_global_struct;
-	MainWindow *mw;
-	Settings s;
-	boost::shared_ptr< ServerHandler > sh;
-	boost::shared_ptr< AudioInput > ai;
-	boost::shared_ptr< AudioOutput > ao;
-	/**
-	 * @remark Must only be accessed from the main event loop
+	qpHelper = new QProcess(this);
+	qpHelper->setObjectName(QLatin1String("Helper"));
+	qpHelper->setWorkingDirectory(qApp->applicationDirPath());
+
+	/*
+	 * Call our helper to detect whether any Logitech Gamepanel devices
+	 * are available on the system.
 	 */
-	Database *db;
-	Log *l;
-	Plugins *p;
-	QSettings *qs;
-#ifdef USE_OVERLAY
-	Overlay *o;
-#endif
-	LCD *lcd;
-	Zeroconf *zeroconf;
-	QNetworkAccessManager *nam;
-	QSharedPointer< LogEmitter > le;
-	DeveloperConsole *c;
-	TalkingUI *talkingUI;
-	int iPushToTalk;
-	Timer tDoublePush;
-	quint64 uiDoublePush;
-	/// Holds the current VoiceTarget ID to send audio to
-	int iTarget;
-	/// Holds the value of iTarget before its last change until the current
-	/// audio-stream ends (and it has a value > 0). See the comment in
-	/// AudioInput::flushCheck for further details on this.
-	int iPrevTarget;
-	bool bPushToMute;
-	bool bCenterPosition;
-	bool bPosTest;
-	bool bInAudioWizard;
-#ifdef USE_OVERLAY
-	OverlayClient *ocIntercept;
-#endif
-	int iAudioPathTime;
-	/// A unique ID for the current user. It is being assigned by the server right
-	/// after connecting to it. An ID of 0 indicates that the user currently isn't
-	/// connected to a server.
-	unsigned int uiSession;
-	ChanACL::Permissions pPermissions;
-	int iMaxBandwidth;
-	int iAudioBandwidth;
-	QDir qdBasePath;
-	QMap< int, CELTCodec * > qmCodecs;
-	OpusCodec *oCodec;
-	int iCodecAlpha, iCodecBeta;
-	bool bPreferAlpha;
-	bool bOpus;
-	bool bAttenuateOthers;
-	/// If set the AudioOutput::mix will forcefully adjust the volume of all
-	/// non-priority speakers.
-	bool prioritySpeakerActiveOverride;
-	bool bAllowHTML;
-	unsigned int uiMessageLength;
-	unsigned int uiImageLength;
-	unsigned int uiMaxUsers;
-	bool bQuit;
-	QString windowTitlePostfix;
-	bool bDebugDumpInput;
-	bool bDebugPrintQueue;
+	qpHelper->start(qsHelperExecutable, QStringList(QLatin1String("/detect")));
+	qpHelper->waitForFinished();
+	if (qpHelper->exitCode() != 0) {
+		qWarning("G15LCDEngine_lglcd: Logitech LCD Manager not detected.");
+		return;
+	}
 
-	bool bHappyEaster;
-	static const char ccHappyEaster[];
+	qlDevices << new G15LCDDeviceHelper(this);
+	bUnavailable = false;
 
-	Global(const QString &qsConfigPath = QString());
-	~Global();
-};
+	QMetaObject::connectSlotsByName(this);
+}
 
-// Class to handle ordered initialization of globals.
-// This allows the same link-time magic as used everywhere else
-// for globals that need an init before the GUI starts, but
-// after we reach main().
+G15LCDEngineHelper::~G15LCDEngineHelper() {
+	setProcessStatus(false);
+}
 
-class DeferInit {
-private:
-	Q_DISABLE_COPY(DeferInit)
-protected:
-	static QMultiMap< int, DeferInit * > *qmDeferers;
-	void add(int priority);
+QList< LCDDevice * > G15LCDEngineHelper::devices() const {
+	return qlDevices;
+}
 
-public:
-	DeferInit(int priority) { add(priority); };
-	DeferInit() { add(0); };
-	virtual ~DeferInit();
-	virtual void initialize(){};
-	virtual void destroy(){};
-	static void run_initializers();
-	static void run_destroyers();
-};
+void G15LCDEngineHelper::setProcessStatus(bool run) {
+	if (bUnavailable)
+		return;
 
-/// Special exit code which causes mumble to restart itself. The outward facing return code with be 0
-const int MUMBLE_EXIT_CODE_RESTART = 64738;
+	if (run && !bRunning) {
+		bRunning = true;
+		qpHelper->start(qsHelperExecutable, QStringList(QLatin1String("/mumble")));
+		if (!qpHelper->waitForStarted(2000)) {
+			qWarning("G15LCDEngine_lglcd: Unable to launch G15 helper.");
+			bRunning = false;
+			return;
+		}
+	} else if (!run && bRunning) {
+		bRunning = false;
+		qpHelper->kill();
+		qpHelper->waitForFinished();
+	}
+}
 
-// -Wshadow is bugged. If an inline function of a class uses a variable or
-// parameter named 'g', that will generate a warning even if the class header
-// is included long before this definition.
+void G15LCDEngineHelper::on_Helper_finished(int exitCode, QProcess::ExitStatus status) {
+	/* Skip the signal if we killed ourselves. */
+	if (!bRunning)
+		return;
 
-#define g (*Global::g_global_struct)
+	if (status == QProcess::CrashExit) {
+		qWarning("G15LCDEngine_lglcd: Helper process crashed. Restarting.");
+		qpHelper->start(qsHelperExecutable, QStringList(QLatin1String("/mumble")));
+	} else if (status == QProcess::NormalExit && exitCode != 0) {
+		qWarning("G15LCDEngine_lglcd: Helper process exited. Exit code was: `%i'. Not attempting recovery.", exitCode);
+		bUnavailable = true;
+	}
+}
 
-#endif
+bool G15LCDEngineHelper::framebufferReady() const {
+	return !bUnavailable && (qpHelper->state() == QProcess::Running);
+}
+
+void G15LCDEngineHelper::submitFrame(bool alert, unsigned char *buf, qint64 len) {
+	char pri = alert ? 1 : 0;
+	if ((qpHelper->write(&pri, 1) != 1) || (qpHelper->write(reinterpret_cast< char * >(buf), len) != len))
+		qWarning("G15LCDEngine_lglcd: failed to write");
+}
+
+/* -- */
+
+G15LCDDeviceHelper::G15LCDDeviceHelper(G15LCDEngineHelper *e) : LCDDevice(), bEnabled(false) {
+	engine = e;
+}
+
+G15LCDDeviceHelper::~G15LCDDeviceHelper() {
+}
+
+bool G15LCDDeviceHelper::enabled() {
+	return bEnabled;
+}
+
+void G15LCDDeviceHelper::setEnabled(bool b) {
+	engine->setProcessStatus(b);
+	bEnabled = b;
+}
+
+void G15LCDDeviceHelper::blitImage(QImage *img, bool alert) {
+	Q_ASSERT(img);
+	int len    = G15_MAX_FBMEM_BITS;
+	uchar *tmp = img->bits();
+	uchar buf[G15_MAX_FBMEM];
+
+	if (!engine->framebufferReady())
+		return;
+
+	if (!bEnabled)
+		return;
+
+	/*
+	 * The amount of copying/conversion we're doing is hideous.
+	 *
+	 * To draw to the LCD display using Logitech's SDK, we need to pass
+	 * it a byte array (in which each byte represents a single pixel on
+	 * the LCD.)
+	 *
+	 * Unfortunately, there's no way out, really.  We *could* perhaps draw
+	 * directly to a monochrome "bytemap" (via Format_Indexed8, and a mono-
+	 * chrome colormap), but QPainter simply doesn't want to draw to a
+	 * QImage of Format_Indexed8.
+	 *
+	 * (What's even worse is that the byte array passed to the Logitech SDK
+	 * isn't even the native format of the LCD. It has to convert it once
+	 * more, when it receives a frame.)
+	 */
+	for (int i = 0; i < len; i++) {
+		int idx      = i * 8;
+		buf[idx + 7] = tmp[i] & 0x80 ? 0xff : 0x00;
+		buf[idx + 6] = tmp[i] & 0x40 ? 0xff : 0x00;
+		buf[idx + 5] = tmp[i] & 0x20 ? 0xff : 0x00;
+		buf[idx + 4] = tmp[i] & 0x10 ? 0xff : 0x00;
+		buf[idx + 3] = tmp[i] & 0x08 ? 0xff : 0x00;
+		buf[idx + 2] = tmp[i] & 0x04 ? 0xff : 0x00;
+		buf[idx + 1] = tmp[i] & 0x02 ? 0xff : 0x00;
+		buf[idx + 0] = tmp[i] & 0x01 ? 0xff : 0x00;
+	}
+
+	engine->submitFrame(alert, buf, G15_MAX_FBMEM);
+}
+
+QString G15LCDDeviceHelper::name() const {
+	return QString::fromLatin1("Logitech Gamepanel");
+}
+
+QSize G15LCDDeviceHelper::size() const {
+	return QSize(G15_MAX_WIDTH, G15_MAX_HEIGHT);
+}
