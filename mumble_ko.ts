@@ -2,54 +2,48 @@
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
-#include "LogEmitter.h"
-#include "Global.h"
 
-static QSharedPointer< LogEmitter > le;
+#ifndef MUMBLE_MUMBLE_OVERLAYUSER_H_
+#define MUMBLE_MUMBLE_OVERLAYUSER_H_
 
-static void mumbleMessageOutputQString(QtMsgType type, const QString &msg) {
-	char c;
+#include <QtCore/QtGlobal>
 
-	switch (type) {
-		case QtDebugMsg:
-			c = 'D';
-			break;
-		case QtWarningMsg:
-			c = 'W';
-			break;
-		case QtFatalMsg:
-			c = 'F';
-			break;
-		default:
-			c = 'X';
-	}
+#include "Overlay.h"
 
-#define LOG(f, msg)                                                                                      \
-	fprintf(f, "<%c>%s %s\n", c,                                                                         \
-			qPrintable(QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"))), \
-			qPrintable(msg))
+class OverlayUser : public OverlayGroup {
+private:
+	Q_DISABLE_COPY(OverlayUser)
+public:
+	enum { Type = UserType + 1 };
 
-	QString date = QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"));
-	QString fmsg = QString::fromLatin1("<%1>%2 %3").arg(c).arg(date).arg(msg);
-	fprintf(stderr, "%s\n", qPrintable(fmsg));
+protected:
+	QGraphicsPixmapItem *qgpiMuted, *qgpiDeafened;
+	QGraphicsPixmapItem *qgpiAvatar;
+	QGraphicsPixmapItem *qgpiName[4];
+	QGraphicsPixmapItem *qgpiChannel;
+	QGraphicsPathItem *qgpiBox;
 
-	le->addLogEntry(fmsg);
+	OverlaySettings *os;
 
-	if (type == QtFatalMsg) {
-		exit(1);
-	}
-}
+	unsigned int uiSize;
+	ClientUser *cuUser;
+	Settings::TalkState tsColor;
 
-static void mumbleMessageOutputWithContext(QtMsgType type, const QMessageLogContext &ctx, const QString &msg) {
-	Q_UNUSED(ctx);
-	mumbleMessageOutputQString(type, msg);
-}
+	QString qsName;
+	QString qsChannelName;
+	QByteArray qbaAvatar;
 
-void os_init() {
-	// Make a copy of the global LogEmitter, such that
-	// os_unix.cpp doesn't have to consider the deletion
-	// of the Global object and its LogEmitter object.
-	le = g.le;
+	void setup();
 
-	qInstallMessageHandler(mumbleMessageOutputWithContext);
-}
+public:
+	OverlayUser(ClientUser *cu, unsigned int uiSize, OverlaySettings *osptr);
+	OverlayUser(Settings::TalkState ts, unsigned int uiSize, OverlaySettings *osptr);
+	void updateUser();
+	void updateLayout();
+
+	int type() const Q_DECL_OVERRIDE;
+	static QRectF scaledRect(const QRectF &qr, qreal scale);
+	static QPointF alignedPosition(const QRectF &box, const QRectF &item, Qt::Alignment a);
+};
+
+#endif
