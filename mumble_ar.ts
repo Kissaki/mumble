@@ -3,95 +3,77 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIOCONFIGDIALOG_H_
-#define MUMBLE_MUMBLE_AUDIOCONFIGDIALOG_H_
+#include "About.h"
 
-#include "ConfigDialog.h"
+#include "License.h"
+#include "MainWindow.h"
 
-#include "ui_AudioInput.h"
-#include "ui_AudioOutput.h"
+#include "Utils.h"
 
-class AudioInputDialog : public ConfigWidget, public Ui::AudioInput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(AudioInputDialog)
-protected:
-	QTimer *qtTick;
-	void hideEvent(QHideEvent *event) Q_DECL_OVERRIDE;
-	void showEvent(QShowEvent *event) Q_DECL_OVERRIDE;
-	void updateEchoEnableState();
+#include <QtWidgets/QPushButton>
 
-	void showSpeexNoiseSuppressionSlider(bool show);
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	AudioInputDialog(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
+AboutDialog::AboutDialog(QWidget *p) : QDialog(p) {
+	setWindowTitle(tr("About Mumble"));
 
-public slots:
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void updateBitrate();
-	void continuePlayback();
+	QTabWidget *qtwTab   = new QTabWidget(this);
+	QVBoxLayout *vblMain = new QVBoxLayout(this);
 
-	void on_qcbPushClick_clicked(bool);
-	void on_qpbPushClickBrowseOn_clicked();
-	void on_qpbPushClickBrowseOff_clicked();
-	void on_qpbPushClickPreview_clicked();
-	void on_qpbPushClickReset_clicked();
+	QTextEdit *qteLicense = new QTextEdit(qtwTab);
+	qteLicense->setReadOnly(true);
+	qteLicense->setPlainText(License::license());
+	qteLicense->setAccessibleName(tr("License agreement"));
 
-	void on_qsTransmitHold_valueChanged(int v);
-	void on_qsFrames_valueChanged(int v);
-	void on_qsQuality_valueChanged(int v);
-	void on_qsAmp_valueChanged(int v);
-	void on_qsDoublePush_valueChanged(int v);
-	void on_qsPTTHold_valueChanged(int v);
-	void on_qsSpeexNoiseSupStrength_valueChanged(int v);
-	void on_qcbTransmit_currentIndexChanged(int v);
-	void on_qcbSystem_currentIndexChanged(int);
-	void on_Tick_timeout();
-	void on_qcbIdleAction_currentIndexChanged(int v);
-	void on_qrbNoiseSupSpeex_toggled(bool checked);
-	void on_qrbNoiseSupBoth_toggled(bool checked);
-};
+	QTextEdit *qteAuthors = new QTextEdit(qtwTab);
+	qteAuthors->setReadOnly(true);
+	qteAuthors->setPlainText(License::authors());
+	qteAuthors->setAccessibleName(tr("Authors"));
 
-class AudioOutputDialog : public ConfigWidget, public Ui::AudioOutput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(AudioOutputDialog)
+	QTextBrowser *qtb3rdPartyLicense = new QTextBrowser(qtwTab);
+	qtb3rdPartyLicense->setReadOnly(true);
+	qtb3rdPartyLicense->setOpenExternalLinks(true);
+	qtb3rdPartyLicense->setAccessibleName(tr("Third-party license agreements"));
 
-	void enablePulseAudioAttenuationOptionsFor(const QString &outputName);
+	QList< LicenseInfo > thirdPartyLicenses = License::thirdPartyLicenses();
+	foreach (LicenseInfo li, thirdPartyLicenses) {
+		qtb3rdPartyLicense->append(QString::fromLatin1("<h3>%1 (<a href=\"%2\">%2</a>)</h3><pre>%3</pre>")
+									   .arg(li.name.toHtmlEscaped())
+									   .arg(li.url.toHtmlEscaped())
+									   .arg(li.license.toHtmlEscaped()));
+	}
 
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	AudioOutputDialog(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
-	/// @returns The name of the currently selected audio output interface
-	QString getCurrentlySelectedOutputInterfaceName() const;
-public slots:
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void on_qsDelay_valueChanged(int v);
-	void on_qsJitter_valueChanged(int v);
-	void on_qsVolume_valueChanged(int v);
-	void on_qsOtherVolume_valueChanged(int v);
-	void on_qsPacketDelay_valueChanged(int v);
-	void on_qsPacketLoss_valueChanged(int v);
-	void on_qcbLoopback_currentIndexChanged(int v);
-	void on_qsMinDistance_valueChanged(int v);
-	void on_qsMaxDistance_valueChanged(int v);
-	void on_qsBloom_valueChanged(int v);
-	void on_qsMaxDistVolume_valueChanged(int v);
-	void on_qcbSystem_currentIndexChanged(int);
-	void on_qcbAttenuateOthersOnTalk_clicked(bool checked);
-	void on_qcbAttenuateOthers_clicked(bool checked);
-	void on_qcbOnlyAttenuateSameOutput_clicked(bool checked);
-};
+	qtb3rdPartyLicense->moveCursor(QTextCursor::Start);
 
-#endif
+	QWidget *about = new QWidget(qtwTab);
+
+	QLabel *icon = new QLabel(about);
+	icon->setPixmap(g.mw->qiIcon.pixmap(g.mw->qiIcon.actualSize(QSize(128, 128))));
+
+	QLabel *text = new QLabel(about);
+	text->setTextInteractionFlags(Qt::TextBrowserInteraction);
+	text->setOpenExternalLinks(true);
+	text->setText(tr("<h3>Mumble (%1)</h3>"
+					 "<p>%3</p>"
+					 "<p><b>A voice-chat utility for gamers</b></p>"
+					 "<p><tt><a href=\"%2\">%2</a></tt></p>")
+					  .arg(QLatin1String(MUMBLE_RELEASE))
+					  .arg(QLatin1String("https://www.mumble.info/"))
+					  .arg(QLatin1String("Copyright 2005-2020 The Mumble Developers")));
+	QHBoxLayout *qhbl = new QHBoxLayout(about);
+	qhbl->addWidget(icon);
+	qhbl->addWidget(text);
+
+	qtwTab->addTab(about, tr("&About Mumble"));
+	qtwTab->addTab(qteLicense, tr("&License"));
+	qtwTab->addTab(qteAuthors, tr("A&uthors"));
+	qtwTab->addTab(qtb3rdPartyLicense, tr("&Third-Party Licenses"));
+
+	QPushButton *okButton = new QPushButton(tr("OK"), this);
+	connect(okButton, SIGNAL(clicked()), this, SLOT(accept()));
+
+	vblMain->addWidget(qtwTab);
+	vblMain->addWidget(okButton);
+}
