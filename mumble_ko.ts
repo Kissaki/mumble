@@ -3,96 +3,90 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CUSTOMELEMENTS_H_
-#define MUMBLE_MUMBLE_CUSTOMELEMENTS_H_
+#ifndef MUMBLE_MUMBLE_CLIENTUSER_H_
+#define MUMBLE_MUMBLE_CLIENTUSER_H_
 
-#include <QtCore/QObject>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QTextBrowser>
-#include <QtWidgets/QTextEdit>
+#include <QtCore/QHash>
+#include <QtCore/QReadWriteLock>
 
-class LogTextBrowser : public QTextBrowser {
+#include "Settings.h"
+#include "Timer.h"
+#include "User.h"
+
+class ClientUser : public QObject, public User {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(LogTextBrowser)
-protected:
-	void resizeEvent(QResizeEvent *e) Q_DECL_OVERRIDE;
-	bool event(QEvent *e) Q_DECL_OVERRIDE;
-
-public:
-	LogTextBrowser(QWidget *p = nullptr);
-
-	int getLogScroll();
-	int getLogScrollMaximum();
-	void setLogScroll(int scroll_pos);
-	void scrollLogToBottom();
-};
-
-class ChatbarTextEdit : public QTextEdit {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ChatbarTextEdit)
-	void inFocus(bool);
-	QStringList qslHistory;
-	QString qsHistoryTemp;
-	int iHistoryIndex;
-	static const int MAX_HISTORY = 50;
+	Q_DISABLE_COPY(ClientUser)
 
 protected:
-	QString qsDefaultText;
-	bool bDefaultVisible;
-	void focusInEvent(QFocusEvent *) Q_DECL_OVERRIDE;
-	void focusOutEvent(QFocusEvent *) Q_DECL_OVERRIDE;
-	void contextMenuEvent(QContextMenuEvent *) Q_DECL_OVERRIDE;
-	void dragEnterEvent(QDragEnterEvent *) Q_DECL_OVERRIDE;
-	void dragMoveEvent(QDragMoveEvent *) Q_DECL_OVERRIDE;
-	void dropEvent(QDropEvent *) Q_DECL_OVERRIDE;
-	bool event(QEvent *) Q_DECL_OVERRIDE;
-	QSize minimumSizeHint() const Q_DECL_OVERRIDE;
-	QSize sizeHint() const Q_DECL_OVERRIDE;
-	void resizeEvent(QResizeEvent *e) Q_DECL_OVERRIDE;
-	void insertFromMimeData(const QMimeData *source) Q_DECL_OVERRIDE;
-	bool sendImagesFromMimeData(const QMimeData *source);
+	float m_localVolume = 1.0f;
 
 public:
-	void setDefaultText(const QString &, bool = false);
-	unsigned int completeAtCursor();
+	Settings::TalkState tsState;
+	Timer tLastTalkStateChange;
+	bool bLocalIgnore;
+	bool bLocalIgnoreTTS;
+	bool bLocalMute;
+
+	float fPowerMin, fPowerMax;
+	float fAverageAvailable;
+
+	int iFrames;
+	int iSequence;
+
+	QByteArray qbaTextureFormat;
+	QString qsFriendName;
+
+	QString getFlagsString() const;
+	ClientUser(QObject *p = nullptr);
+
+	float getLocalVolumeAdjustments() const;
+
+	/**
+	 * Determines whether a user is active or not
+	 * A user is active when it is currently speaking or when the user has
+	 * spoken within Settings::uiActiveTime amount of seconds.
+	 */
+	bool isActive();
+
+	static QHash< unsigned int, ClientUser * > c_qmUsers;
+	static QReadWriteLock c_qrwlUsers;
+
+	static QList< ClientUser * > c_qlTalking;
+	static QReadWriteLock c_qrwlTalking;
+	static QList< ClientUser * > getTalking();
+	static QList< ClientUser * > getActive();
+
+	static void sortUsersOverlay(QList< ClientUser * > &list);
+
+	static ClientUser *get(unsigned int);
+	static bool isValid(unsigned int);
+	static ClientUser *add(unsigned int, QObject *p = nullptr);
+	static ClientUser *match(const ClientUser *p, bool matchname = false);
+	static void remove(unsigned int);
+	static void remove(ClientUser *);
+
+protected:
+	static bool lessThanOverlay(const ClientUser *, const ClientUser *);
+public slots:
+	void setTalking(Settings::TalkState ts);
+	void setMute(bool mute);
+	void setDeaf(bool deaf);
+	void setSuppress(bool suppress);
+	void setLocalIgnore(bool ignore);
+	void setLocalIgnoreTTS(bool ignoreTTS);
+	void setLocalMute(bool mute);
+	void setSelfMute(bool mute);
+	void setSelfDeaf(bool deaf);
+	void setPrioritySpeaker(bool priority);
+	void setRecording(bool recording);
+	void setLocalVolumeAdjustment(float adjustment);
 signals:
-	void tabPressed(void);
-	void backtabPressed(void);
-	void ctrlSpacePressed(void);
-	void entered(QString);
-	void pastedImage(QString);
-public slots:
-	void pasteAndSend_triggered();
-	void doResize();
-	void doScrollbar();
-	void addToHistory(const QString &str);
-	void historyUp();
-	void historyDown();
-
-public:
-	ChatbarTextEdit(QWidget *p = nullptr);
+	void talkingStateChanged();
+	void muteDeafStateChanged();
+	void prioritySpeakerStateChanged();
+	void recordingStateChanged();
+	void localVolumeAdjustmentsChanged(float newAdjustment, float oldAdjustment);
 };
 
-class DockTitleBar : public QLabel {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(DockTitleBar)
-protected:
-	QTimer *qtTick;
-	int size;
-	int newsize;
-
-public:
-	DockTitleBar();
-	QSize sizeHint() const Q_DECL_OVERRIDE;
-	QSize minimumSizeHint() const Q_DECL_OVERRIDE;
-public slots:
-	void tick();
-
-protected:
-	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
-};
-
-#endif // CUSTOMELEMENTS_H_
+#endif
