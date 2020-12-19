@@ -3,218 +3,157 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_VOICERECORDER_H_
-#define MUMBLE_MUMBLE_VOICERECORDER_H_
+#include "LogEmitter.h"
+#include "MainWindow.h"
+#include "Overlay.h"
+#include "Utils.h"
 
-#include <QtCore/QtGlobal>
+#include <CoreFoundation/CoreFoundation.h>
 
-#ifdef Q_OS_WIN
-#	include "win.h"
-#endif
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-#ifndef Q_MOC_RUN
-#	include <boost/scoped_ptr.hpp>
-#	include <boost/shared_array.hpp>
-#endif
+char *os_lang = nullptr;
+static FILE *fConsole = nullptr;
 
-#include <QtCore/QDateTime>
-#include <QtCore/QHash>
-#include <QtCore/QMutex>
-#include <QtCore/QObject>
-#include <QtCore/QThread>
-#include <QtCore/QWaitCondition>
+static QSharedPointer<LogEmitter> le;
 
-#ifdef Q_OS_WIN
-#	define ENABLE_SNDFILE_WINDOWS_PROTOTYPES 1
-#endif
+#define PATH_MAX 1024
+static char crashhandler_fn[PATH_MAX];
 
-#include <sndfile.h>
+static void crashhandler_signals_restore();
+static void crashhandler_handle_crash();
 
-class ClientUser;
-class RecordUser;
-class Timer;
+static void mumbleMessageOutputQString(QtMsgType type, const QString &msg) {
+	char c;
 
-/// Utilities and enums for voice recorder format handling
-namespace VoiceRecorderFormat {
+	switch (type) {
+		case QtDebugMsg:
+			c='D';
+			break;
+		case QtWarningMsg:
+			c='W';
+			break;
+		case QtFatalMsg:
+			c='F';
+			break;
+		default:
+			c='X';
+	}
 
-/// List of all formats currently supported by the recorder.
-enum Format {
-	/// WAVE Format
-	WAV = 0,
-// When switching between a non vorbis capable lib and a vorbis capable one
-// this can mess up the selection stored in the config
-#ifndef NO_VORBIS_RECORDING
-	/// Ogg Vorbis Format
-	VORBIS,
-#endif
-	/// AU Format
-	AU,
-	/// FLAC Format
-	FLAC,
-	kEnd
-};
+#define LOG(f, msg) fprintf(f, "<%c>%s %s\n", c, \
+		qPrintable(QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"))), qPrintable(msg))
 
-/// Returns a human readable description of the format id.
-QString getFormatDescription(VoiceRecorderFormat::Format fm);
+	QString date = QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"));
+	QString fmsg = QString::fromLatin1("<%1>%2 %3").arg(c).arg(date).arg(msg);
+	fprintf(stderr, "%s\n", qPrintable(fmsg));
+	fprintf(fConsole, "%s\n", qPrintable(fmsg));
+	fflush(fConsole);
 
-/// Returns the default extension for the given format.
-QString getFormatDefaultExtension(VoiceRecorderFormat::Format fm);
+	le->addLogEntry(fmsg);
 
-} // namespace VoiceRecorderFormat
+	if (type == QtFatalMsg) {
+		CFStringRef csMsg = CFStringCreateWithFormat(kCFAllocatorDefault, nullptr, CFSTR("%s\n\nThe error has been logged. Please submit your log file to the Mumble project if the problem persists."), qPrintable(msg));
+		CFUserNotificationDisplayAlert(0, 0, nullptr,  nullptr, nullptr, CFSTR("Mumble has encountered a fatal error"), csMsg, CFSTR("OK"), nullptr, nullptr, nullptr);
+		CFRelease(csMsg);
+		exit(0);
+	}
+}
 
-/// Class for recording audio data.
-///
-/// Runs as a seperate thread accepting audio data through the addBuffer method
-/// which is then encoded using one of the formats of VoiceRecordingFormat::Format
-/// and written to disk.
-///
-class VoiceRecorder : public QThread {
-	Q_OBJECT
-public:
-	/// Possible error conditions inside the recorder
-	enum Error { Unspecified, CreateDirectoryFailed, CreateFileFailed, InvalidSampleRate };
+static void mumbleMessageOutputWithContext(QtMsgType type, const QMessageLogContext &ctx, const QString &msg) {
+	Q_UNUSED(ctx);
+	mumbleMessageOutputQString(type, msg);
+}
 
-	/// Structure for holding configuration of VoiceRecorder object
-	struct Config {
-		/// The current sample rate of the recorder.
-		int sampleRate;
+void query_language() {
+	CFPropertyListRef cfaLangs;
+	CFStringRef cfsLang;
+	static char lang[16];
 
-		/// The path to store recordings.
-		QString fileName;
+	cfaLangs = CFPreferencesCopyAppValue(CFSTR("AppleLanguages"), kCFPreferencesCurrentApplication);
+	cfsLang = (CFStringRef) CFArrayGetValueAtIndex((CFArrayRef)cfaLangs, 0);
 
-		/// True if multi channel recording is disabled.
-		bool mixDownMode;
+	if (! CFStringGetCString(cfsLang, lang, 16, kCFStringEncodingUTF8))
+		return;
 
-		/// The current recording format.
-		VoiceRecorderFormat::Format recordingFormat;
-	};
+	os_lang = lang;
+}
 
-	/// Creates a new VoiceRecorder instance.
-	VoiceRecorder(QObject *p, const Config &config);
-	~VoiceRecorder() Q_DECL_OVERRIDE;
+static void crashhandler_signal_handler(int signal) {
+	switch (signal) {
+		case SIGQUIT:
+		case SIGILL:
+		case SIGTRAP:
+		case SIGABRT:
+		case SIGEMT:
+		case SIGFPE:
+		case SIGBUS:
+		case SIGSEGV:
+		case SIGSYS:
+			crashhandler_signals_restore();
+			crashhandler_handle_crash();
+			break;
+		default:
+			break;
+	}
+}
 
-	/// The main event loop of the thread, which writes all buffers to files.
-	void run() Q_DECL_OVERRIDE;
+/* These are the signals that according to signal(3) produce a coredump by default. */
+int sigs[] = { SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGEMT, SIGFPE, SIGBUS, SIGSEGV, SIGSYS };
+#define NSIGS sizeof(sigs)/sizeof(sigs[0])
 
-	/// Stops the main loop.
-	/// @param force If true buffers are discarded. Otherwise the thread will not stop before writing everything.
-	void stop(bool force = false);
+static void crashhandler_signals_setup() {
+	for (size_t i = 0; i < NSIGS; i++) {
+		signal(sigs[i], crashhandler_signal_handler);
+	}
+}
 
-	/// Remembers the current time for a set of coming addBuffer calls
-	void prepareBufferAdds();
+static void crashhandler_signals_restore() {
+	for (size_t i = 0; i < NSIGS; i++) {
+		signal(sigs[i], nullptr);
+	}
+}
 
-	/// Adds an audio buffer which contains |samples| audio samples to the recorder.
-	/// The audio data will be assumed to be recorded at the time
-	/// prepareBufferAdds was last called.
-	/// @param clientUser User for which to add the audio data. nullptr in mixdown mode.
-	void addBuffer(const ClientUser *clientUser, boost::shared_array< float > buffer, int samples);
+static void crashhandler_init() {
+	QString dump = g.qdBasePath.filePath(QLatin1String("mumble.dmp"));
+	if (strncpy(crashhandler_fn, dump.toUtf8().data(), PATH_MAX)) {
+		crashhandler_signals_setup();
+		/* todo: Change the behavior of the Apple crash dialog? Maybe? */
+	}
+}
 
-	/// Returns the elapsed time since the recording started.
-	quint64 getElapsedTime() const;
+static void crashhandler_handle_crash() {
+	/* Abuse mtime for figuring out which crashdump we should send. */
+	FILE *f = fopen(crashhandler_fn, "w");
+	fflush(f);
+	fclose(f);
+}
 
-	/// Returns a refence to the record user which is used to record local audio.
-	RecordUser &getRecordUser() const;
+void os_init() {
+	crashhandler_init();
 
-	/// Returns true if the recorder is recording mixed down data instead of multichannel
-	bool isInMixDownMode() const;
-signals:
-	/// Emitted if an error is encountered
-	void error(int err, QString strerr);
+	const char *home = getenv("HOME");
+	const char *logpath = "/Library/Logs/Mumble.log";
 
-	/// Emitted when recording is started
-	void recording_started();
-	/// Emitted when recording is stopped
-	void recording_stopped();
+	// Make a copy of the global LogEmitter, such that
+	// os_macx.mm doesn't have to consider the deletion
+	// of the Global object and its LogEmitter object.
+	le = g.le;
 
-private:
-	/// Stores information about a recording buffer.
-	struct RecordBuffer {
-		/// Constructs a new RecordBuffer object.
-		RecordBuffer(int recordInfoIndex_, boost::shared_array< float > buffer_, int samples_,
-					 quint64 absoluteStartSample_);
+	if (home) {
+		size_t len = strlen(home) + strlen(logpath) + 1;
+		STACKVAR(char, buff, len);
+		memset(buff, 0, len);
+		strcat(buff, home);
+		strcat(buff, logpath);
+		fConsole = fopen(buff, "a+");
+		if (fConsole) {
+			qInstallMessageHandler(mumbleMessageOutputWithContext);
+		}
+	}
 
-		/// Hashmap index for the user
-		const int recordInfoIndex;
-
-		/// The buffer.
-		boost::shared_array< float > buffer;
-
-		/// The number of samples in the buffer.
-		int samples;
-
-		/// Absolute sample number at the start of this buffer
-		quint64 absoluteStartSample;
-	};
-
-	/// Stores the recording state for one user.
-	struct RecordInfo {
-		RecordInfo(const QString &userName_);
-		~RecordInfo();
-
-		/// Name of the user being recorded
-		const QString userName;
-
-		/// libsndfile's handle.
-		SNDFILE *soundFile;
-
-		/// The last absolute sample we wrote for this users
-		quint64 lastWrittenAbsoluteSample;
-	};
-
-	typedef QHash< int, boost::shared_ptr< RecordInfo > > RecordInfoMap;
-
-	/// Removes invalid characters in a path component.
-	QString sanitizeFilenameOrPathComponent(const QString &str) const;
-
-	/// Expands the template variables in |path| for the given |userName|.
-	QString expandTemplateVariables(const QString &path, const QString &userName) const;
-
-	/// Returns the RecordInfo hashmap index for the given user
-	int indexForUser(const ClientUser *clientUser) const;
-
-	/// Create a sndfile SF_INFO structure describing the currently configured recording format
-	SF_INFO createSoundFileInfo() const;
-
-	/// Opens the file for the given recording information
-	/// Helper function for run method. Will abort recording on failure.
-	bool ensureFileIsOpenedFor(SF_INFO &soundFileInfo, boost::shared_ptr< RecordInfo > &ri);
-
-	/// Hash which maps the |uiSession| of all users for which we have to keep a recording state to the corresponding
-	/// RecordInfo object.
-	RecordInfoMap m_recordInfo;
-
-	/// List containing all unprocessed RecordBuffer objects.
-	QList< boost::shared_ptr< RecordBuffer > > m_recordBuffer;
-
-	/// The user which is used to record local audio.
-	boost::scoped_ptr< RecordUser > m_recordUser;
-
-	/// High precision timer for buffer timestamps.
-	boost::scoped_ptr< Timer > m_timestamp;
-
-	/// Protects the buffer list |qlRecordBuffer|.
-	QMutex m_bufferLock;
-
-	/// Wait condition and mutex to block until there is new data.
-	QMutex m_sleepLock;
-	QWaitCondition m_sleepCondition;
-
-	/// Configuration for this instance
-	const Config m_config;
-
-	/// True if the main loop is active.
-	bool m_recording;
-
-	/// Tells the recorder to not finish writing its buffers before returning
-	bool m_abort;
-
-	/// The timestamp where the recording started.
-	const QDateTime m_recordingStartTime;
-
-	/// Absolute sample position to assume for buffer adds
-	quint64 m_absoluteSampleEstimation;
-};
-
-typedef boost::shared_ptr< VoiceRecorder > VoiceRecorderPtr;
-
-#endif
+	/* Query for language setting. OS X's LANG environment variable is determined from the region selected
+	 * in SystemPrefs -> International -> Formats -> Region instead of the system language. We override this
+	 * by always using the system langauge, to get rid of all sorts of nasty langauge inconsistencies. */
+	query_language();
+}
