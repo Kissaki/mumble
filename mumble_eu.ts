@@ -1,51 +1,21 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include <winver.h>
-
-IDI_ICON1 ICON DISCARDABLE "@MUMBLE_ICON@"
-
-#ifndef DEBUG
-#define VER_DEBUG 0L
-#else
-#define VER_DEBUG VS_FF_DEBUG
-#endif
-
-#ifdef SNAPSHOT_BUILD
-#define	VER_RELEASE	VS_FF_SPECIALBUILD|VS_FF_PRERELEASE
-#else
-#define VER_RELEASE 0L
-#endif
-
-VS_VERSION_INFO VERSIONINFO
-	FILEVERSION		@PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
-	PRODUCTVERSION	@PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
-	FILEFLAGSMASK	VS_FFI_FILEFLAGSMASK
-	FILEFLAGS		(VER_DEBUG|VER_RELEASE)
-	FILEOS			VOS_NT_WINDOWS32
-	FILETYPE		VFT_APP
-	FILESUBTYPE		0L
-	BEGIN
-		BLOCK "StringFileInfo"
-		BEGIN
-			BLOCK "040904E4"
-			BEGIN
-				VALUE "CompanyName", "The Mumble Developers"
-				VALUE "FileDescription", "Mumble - Low-latency VoIP client"
-				VALUE "FileVersion", "@PROJECT_VERSION@"
-				VALUE "ProductVersion", "@PROJECT_VERSION@"
-				VALUE "LegalCopyright", "Copyright (c) 2005-@MUMBLE_BUILD_YEAR@ The Mumble Developers"
-				VALUE "OriginalFilename", "mumble.exe"
-				VALUE "ProductName", "Mumble"
-#ifdef SNAPSHOT_BUILD
-				VALUE "SpecialBuild", "Snapshot development release"
-#endif
-			END
-		END
-		BLOCK "VarFileInfo"
-		BEGIN
-			VALUE "Translation", 0x409, 1252
-		END
-	END
+<RCC>
+    <qresource prefix="/">
+        <file alias="rec.svg">../../icons/rec.svg</file>
+        <file alias="mumble.svg">../../icons/mumble.svg</file>
+        <file alias="mumble.icns">../../icons/mumble.icns</file>
+        <file alias="wb_male.oga">../../samples/wb_male.oga</file>
+        <file alias="on.ogg">../../samples/on.ogg</file>
+        <file alias="off.ogg">../../samples/off.ogg</file>
+        <file alias="Critical.ogg">../../samples/Critical.ogg</file>
+        <file alias="PermissionDenied.ogg">../../samples/PermissionDenied.ogg</file>
+        <file alias="SelfMutedDeafened.ogg">../../samples/SelfMutedDeafened.ogg</file>
+        <file alias="ServerConnected.ogg">../../samples/ServerConnected.ogg</file>
+        <file alias="ServerDisconnected.ogg">../../samples/ServerDisconnected.ogg</file>
+        <file alias="TextMessage.ogg">../../samples/TextMessage.ogg</file>
+        <file alias="UserJoinedChannel.ogg">../../samples/UserJoinedChannel.ogg</file>
+        <file alias="UserKickedYouOrByYou.ogg">../../samples/UserKickedYouOrByYou.ogg</file>
+        <file alias="UserLeftChannel.ogg">../../samples/UserLeftChannel.ogg</file>
+        <file alias="UserMutedYouOrByYou.ogg">../../samples/UserMutedYouOrByYou.ogg</file>
+        <file alias="RecordingStateChanged.ogg">../../samples/RecordingStateChanged.ogg</file>
+    </qresource>
+</RCC>
