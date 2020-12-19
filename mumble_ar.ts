@@ -1,93 +1,40 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_OVERLAYCLIENT_H_
-#define MUMBLE_MUMBLE_OVERLAYCLIENT_H_
-
-#include <QtCore/QScopedPointer>
-#include <QtCore/QUrl>
-#include <QtNetwork/QLocalSocket>
-
-#include "../../overlay/overlay.h"
-#include "OverlayUserGroup.h"
-#include "SharedMemory.h"
-#include "Timer.h"
-
-class ClientUser;
-class Overlay;
-class QLibrary;
-class QLocalServer;
-class OverlayPositionableItem;
-
-class OverlayClient : public QObject {
-	friend class Overlay;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(OverlayClient)
-protected:
-	OverlayMsg omMsg;
-	QLocalSocket *qlsSocket;
-	SharedMemory2 *smMem;
-	QRect qrLast;
-	Timer t;
-
-	float framesPerSecond;
-	int iOffsetX, iOffsetY;
-
-	/// The process ID of the process this OverlayClient is connected to.
-	quint64 uiPid;
-	/// The path to the executable of the process that this OverlayClient is connected to.
-	QString qsExecutablePath;
-
-	QGraphicsScene qgs;
-
-	QScopedPointer< QGraphicsPixmapItem > qgpiCursor;
-	QScopedPointer< QGraphicsPixmapItem > qgpiLogo;
-	QScopedPointer< OverlayPositionableItem > qgpiFPS;
-	QScopedPointer< OverlayPositionableItem > qgpiTime;
-
-	OverlayUserGroup ougUsers;
-
-#ifdef Q_OS_MAC
-	QMap< Qt::CursorShape, QPixmap > qmCursors;
-#endif
-
-	bool bWasVisible;
-	bool bDelete;
-
-	void setupRender();
-	void setupScene(bool show);
-
-	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
-
-	void readyReadMsgInit(unsigned int length);
-
-	QList< QRectF > qlDirty;
-protected slots:
-	void readyRead();
-	void changed(const QList< QRectF > &);
-	void render();
-
-public:
-	QGraphicsView qgv;
-	unsigned int uiWidth, uiHeight;
-	int iMouseX, iMouseY;
-
-	OverlayClient(QLocalSocket *, QObject *);
-	~OverlayClient() Q_DECL_OVERRIDE;
-	void reset();
-public slots:
-	void showGui();
-	void hideGui();
-	void scheduleDelete();
-	void updateMouse();
-	void updateFPS();
-	void updateTime();
-	bool update();
-	void openEditor();
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>qwPTTButtonWidget</class>
+ <widget class="QWidget" name="qwPTTButtonWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>100</width>
+    <height>100</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Mumble PTT</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="margin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QPushButton" name="qpbPushToTalk">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="text">
+      <string>Push to talk</string>
+     </property>
+     <property name="default">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
