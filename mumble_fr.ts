@@ -3,62 +3,45 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_GKEY_H
-#define MUMBLE_MUMBLE_GKEY_H
+#ifndef MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
+#	define MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
+#	include "../../g15helper/g15helper.h"
+#	include "LCD.h"
 
-#include "win.h"
+class G15LCDDeviceLGLCD;
 
-#include <QtCore/QLibrary>
-#include <QtCore/QString>
-#include <QtCore/QUuid>
+class G15LCDEngineLGLCD : public LCDEngine {
+	friend class G15LCDDeviceLGLCD;
 
-#define GKEY_LOGITECH_DLL_REG_HKEY HKEY_CLASSES_ROOT
-#ifdef _M_X64
-#	define GKEY_LOGITECH_DLL_REG_PATH L"Wow6432Node\\CLSID\\{7bded654-f278-4977-a20f-6e72a0d07859}\\ServerBinary"
-#	define GKEY_LOGITECH_DLL_DEFAULT_LOCATION \
-		"C:/Program Files/Logitech Gaming Software/SDK/G-key/x64/LogitechGkey.dll"
-#else
-#	define GKEY_LOGITECH_DLL_REG_PATH L"CLSID\\{7bded654-f278-4977-a20f-6e72a0d07859}\\ServerBinary"
-#	define GKEY_LOGITECH_DLL_DEFAULT_LOCATION \
-		"C:/Program Files/Logitech Gaming Software/SDK/G-key/x86/LogitechGkey.dll"
-#endif
-
-#define GKEY_MIN_MOUSE_BUTTON 6
-#define GKEY_MAX_MOUSE_BUTTON 20
-#define GKEY_MIN_KEYBOARD_BUTTON 1
-#define GKEY_MAX_KEYBOARD_BUTTON 29
-#define GKEY_MIN_KEYBOARD_MODE 1
-#define GKEY_MAX_KEYBOARD_MODE 3
-
-#define GKEY_BUTTON_MOUSE 1
-#define GKEY_BUTTON_KEYBOARD 2
-
-#define GKEY_MOUSE_GUID "c41e60af-9022-46cf-bc39-37981082d716"
-#define GKEY_KEYBOARD_GUID "153e64e6-98c8-4e03-80ef-5ffd33d25b8a"
-
-class GKeyLibrary {
-public:
-	GKeyLibrary();
-	virtual ~GKeyLibrary();
-	bool isValid() const;
-	static const QUuid quMouse;
-	static const QUuid quKeyboard;
-
-	bool isMouseButtonPressed(int button);
-	bool isKeyboardGkeyPressed(int key, int mode);
-	QString getMouseButtonString(int button);
-	QString getKeyboardGkeyString(int key, int mode);
-
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(G15LCDEngineLGLCD)
 protected:
-	QLibrary qlLogiGkey;
-	bool bValid;
+	lgLcdConnectContextEx llcceConnect;
+	lgLcdOpenByTypeContext llcContext;
 
-	BOOL (*LogiGkeyInit)(void *);
-	void (*LogiGkeyShutdown)();
-	BOOL (*LogiGkeyIsMouseButtonPressed)(int button);
-	BOOL (*LogiGkeyIsKeyboardGkeyPressed)(int key, int mode);
-	wchar_t *(*LogiGkeyGetMouseButtonString)(int button);
-	wchar_t *(*LogiGkeyGetKeyboardGkeyString)(int key, int mode);
+public:
+	G15LCDEngineLGLCD();
+	~G15LCDEngineLGLCD();
+	QList< LCDDevice * > devices() const;
 };
 
-#endif // MUMBLE_MUMBLE_GKEY_H
+class G15LCDDeviceLGLCD : public LCDDevice {
+protected:
+	G15LCDEngineLGLCD *engine;
+	bool bEnabled;
+
+public:
+	G15LCDDeviceLGLCD(G15LCDEngineLGLCD *e);
+	~G15LCDDeviceLGLCD();
+	bool enabled();
+	void setEnabled(bool e);
+	void blitImage(QImage *img, bool alert);
+	QString name() const;
+	QSize size() const;
+};
+
+#else
+class G15LCDEngineLGLCD;
+class G15LCDDeviceLGLCD;
+#endif
