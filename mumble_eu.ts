@@ -1,134 +1,91 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>PluginConfig</class>
- <widget class="QWidget" name="PluginConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>321</width>
-    <height>235</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Plugins</string>
-  </property>
-  <layout class="QVBoxLayout">
-   <item>
-    <widget class="QGroupBox" name="qgbOptions">
-     <property name="title">
-      <string>Options</string>
-     </property>
-     <layout class="QVBoxLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbTransmit">
-        <property name="toolTip">
-         <string>Enable plugins and transmit positional information</string>
-        </property>
-        <property name="whatsThis">
-         <string>This allows plugins for supported games to fetch your in-game position and transmit it with each voice packet. This enables other users to hear your voice in-game from the direction your character is in relation to their own.</string>
-        </property>
-        <property name="text">
-         <string>Link to Game and Transmit Position</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbPlugins">
-     <property name="title">
-      <string>Plugins</string>
-     </property>
-     <layout class="QVBoxLayout">
-      <item>
-       <widget class="QTreeWidget" name="qtwPlugins">
-        <property name="rootIsDecorated">
-         <bool>false</bool>
-        </property>
-        <property name="headerHidden">
-         <bool>false</bool>
-        </property>
-        <attribute name="headerStretchLastSection">
-         <bool>false</bool>
-        </attribute>
-        <attribute name="headerStretchLastSection">
-         <bool>false</bool>
-        </attribute>
-        <column>
-         <property name="text">
-          <string>Name</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Enabled</string>
-         </property>
-        </column>
-       </widget>
-      </item>
-      <item>
-       <layout class="QHBoxLayout">
-        <item>
-         <widget class="QPushButton" name="qpbReload">
-          <property name="toolTip">
-           <string>Reloads all plugins</string>
-          </property>
-          <property name="whatsThis">
-           <string>This rescans and reloads plugins. Use this if you just added or changed a plugin to the plugins directory.</string>
-          </property>
-          <property name="text">
-           <string>&amp;Reload plugins</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <spacer>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
-         <widget class="QPushButton" name="qpbAbout">
-          <property name="toolTip">
-           <string>Information about plugin</string>
-          </property>
-          <property name="whatsThis">
-           <string>This shows a small information message about the plugin.</string>
-          </property>
-          <property name="text">
-           <string>&amp;About</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="qpbConfig">
-          <property name="toolTip">
-           <string>Show configuration page of plugin</string>
-          </property>
-          <property name="whatsThis">
-           <string>This shows the configuration page of the plugin, if any.</string>
-          </property>
-          <property name="text">
-           <string>&amp;Configure</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-     </layout>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#ifndef MUMBLE_MUMBLE_PLUGINS_H_
+#define MUMBLE_MUMBLE_PLUGINS_H_
+
+#include "ConfigDialog.h"
+
+#include "ui_Plugins.h"
+
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
+
+#include <QtCore/QMutex>
+#include <QtCore/QObject>
+#include <QtCore/QReadWriteLock>
+#include <QtCore/QUrl>
+
+struct PluginInfo;
+
+class PluginConfig : public ConfigWidget, public Ui::PluginConfig {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PluginConfig)
+protected:
+	void refillPluginList();
+	PluginInfo *pluginForItem(QTreeWidgetItem *) const;
+
+public:
+	/// The unique name of this ConfigWidget
+	static const QString name;
+	PluginConfig(Settings &st);
+	virtual QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	virtual QIcon icon() const Q_DECL_OVERRIDE;
+public slots:
+	void save() const Q_DECL_OVERRIDE;
+	void load(const Settings &r) Q_DECL_OVERRIDE;
+	void on_qpbConfig_clicked();
+	void on_qpbAbout_clicked();
+	void on_qpbReload_clicked();
+	void on_qtwPlugins_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
+};
+
+struct PluginFetchMeta;
+
+class Plugins : public QObject {
+	friend class PluginConfig;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Plugins)
+protected:
+	QReadWriteLock qrwlPlugins;
+	QMutex qmPluginStrings;
+	QList< PluginInfo * > qlPlugins;
+	PluginInfo *locked;
+	PluginInfo *prevlocked;
+	void clearPlugins();
+	int iPluginTry;
+	QMap< QString, PluginFetchMeta > qmPluginFetchMeta;
+	QString qsSystemPlugins;
+	QString qsUserPlugins;
+#ifdef Q_OS_WIN
+	HANDLE hToken;
+	TOKEN_PRIVILEGES tpPrevious;
+	DWORD cbPrevious;
+#endif
+public:
+	std::string ssContext, ssContextSent;
+	std::wstring swsIdentity, swsIdentitySent;
+	bool bValid;
+	bool bUnlink;
+	float fPosition[3], fFront[3], fTop[3];
+	float fCameraPosition[3], fCameraFront[3], fCameraTop[3];
+
+	Plugins(QObject *p = nullptr);
+	~Plugins() Q_DECL_OVERRIDE;
+public slots:
+	void on_Timer_timeout();
+	void rescanPlugins();
+	bool fetch();
+	void checkUpdates();
+	void fetchedUpdatePAPlugins(QByteArray, QUrl);
+	void fetchedPAPluginDL(QByteArray, QUrl);
+};
+
+#endif
