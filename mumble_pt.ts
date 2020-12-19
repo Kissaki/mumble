@@ -3,124 +3,83 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-/* Copyright (C) 2015, Fredrik Nordin <freedick@ludd.ltu.se>
+#ifndef MUMBLE_MUMBLE_USERLISTMODEL_H_
+#define MUMBLE_MUMBLE_USERLISTMODEL_H_
 
-   All rights reserved.
+#include <QAbstractTableModel>
+#include <QDateTime>
+#include <QHash>
+#include <QItemSelection>
+#include <QList>
+#include <QModelIndex>
+#include <QObject>
+#include <QString>
+#include <QVariant>
+#include <Qt>
 
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions
-   are met:
+#include "Mumble.pb.h"
 
-   - Redistributions of source code must retain the above copyright notice,
-	 this list of conditions and the following disclaimer.
-   - Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-   - Neither the name of the Mumble Developers nor the names of its
-	 contributors may be used to endorse or promote products derived from this
-	 software without specific prior written permission.
+///
+/// The UserListModel class provides a table model backed by a UserList protobuf structure.
+/// It supports removing rows and editing user nicks.
+///
+class UserListModel : public QAbstractTableModel {
+	Q_OBJECT
+public:
+	/// Enumerates the columns in the table model
+	enum Columns { COL_NICK, COL_INACTIVEDAYS, COL_LASTCHANNEL, COUNT_COL };
 
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
-   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+	/// UserListModel constructs a table model representing the userList.
+	/// @param userList User list protobuf structure (will be copied)
+	/// @param parent Parent in QObject hierarchy
+	UserListModel(const MumbleProto::UserList &userList, QObject *parent = nullptr);
 
+	int rowCount(const QModelIndex &parentIndex = QModelIndex()) const Q_DECL_OVERRIDE;
+	int columnCount(const QModelIndex &parentIndex = QModelIndex()) const Q_DECL_OVERRIDE;
 
-#include "UserLocalVolumeDialog.h"
-#include "ClientUser.h"
-#include "Database.h"
-#include "MainWindow.h"
+	QVariant headerData(int section, Qt::Orientation orientation, int role) const Q_DECL_OVERRIDE;
+	QVariant data(const QModelIndex &dataIndex, int role = Qt::DisplayRole) const Q_DECL_OVERRIDE;
+	bool setData(const QModelIndex &dataIndex, const QVariant &value, int role) Q_DECL_OVERRIDE;
+	Qt::ItemFlags flags(const QModelIndex &flagIndex) const Q_DECL_OVERRIDE;
 
-#include <QtGui/QCloseEvent>
-#include <QtWidgets/QPushButton>
+	bool removeRows(int row, int count, const QModelIndex &parentIndex = QModelIndex()) Q_DECL_OVERRIDE;
 
-#include <cmath>
+	/// Function for removing all rows in a selection
+	void removeRowsInSelection(const QItemSelection &selection);
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+	/// Returns a message for updating the original server state to the current model state.
+	MumbleProto::UserList getUserListUpdate() const;
 
-UserLocalVolumeDialog::UserLocalVolumeDialog(unsigned int sessionId,
-											 QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker)
-	: QDialog(nullptr), m_clientSession(sessionId), m_qmUserVolTracker(qmUserVolTracker) {
-	setupUi(this);
-	qsUserLocalVolume->setAccessibleName(tr("User volume"));
-	qsbUserLocalVolume->setAccessibleName(tr("User volume"));
+	/// Returns true if the UserList given during construction was changed.
+	bool isUserListDirty() const;
 
-	ClientUser *user = ClientUser::get(sessionId);
-	if (user) {
-		QString title = tr("Adjusting local volume for %1").arg(user->qsName);
-		setWindowTitle(title);
-		qsUserLocalVolume->setValue(qRound(log2(user->getLocalVolumeAdjustments()) * 6.0));
-		m_originalVolumeAdjustmentDecibel = qsUserLocalVolume->value();
-	}
+	/// Returns true if the model only contains COL_NICK (true for Mumble <= 1.2.4)
+	bool isLegacy() const;
 
-	if (g.mw && g.mw->windowFlags() & Qt::WindowStaysOnTopHint) {
-		// If the main window is set to always be on top of other windows, we should make the
-		// volume dialog behave the same in order for it to not get hidden behind the main window.
-		setWindowFlags(Qt::WindowStaysOnTopHint);
-	}
-}
+private:
+	/// Given an ISO formatted UTC time string returns the number of days since then.
+	/// @return QVariant() is returned for invalid strings.
+	QVariant lastSeenToTodayDayCount(const std::string &lastSeenDate) const;
+	/// Returns a textual representation of the channel hierarchy of the given channel
+	QString pathForChannelId(const int channelId) const;
+	/// Converts a ISO formatted UTC time string to a QDateTime object.
+	QDateTime isoUTCToDateTime(const std::string &isoTime) const;
 
-void UserLocalVolumeDialog::closeEvent(QCloseEvent *event) {
-	m_qmUserVolTracker->remove(m_clientSession);
-	event->accept();
-}
+	typedef QList< MumbleProto::UserList_User > ModelUserList;
+	/// Model backend for user data
+	ModelUserList m_userList;
 
-void UserLocalVolumeDialog::present(unsigned int sessionId,
-									QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker) {
-	if (qmUserVolTracker->contains(sessionId)) {
-		qmUserVolTracker->value(sessionId)->raise();
-	} else {
-		UserLocalVolumeDialog *uservol = new UserLocalVolumeDialog(sessionId, qmUserVolTracker);
-		uservol->show();
-		qmUserVolTracker->insert(sessionId, uservol);
-	}
-}
+	typedef QHash<::google::protobuf::uint32, MumbleProto::UserList_User > ModelUserListChangeMap;
+	/// Change map indexed by user id
+	ModelUserListChangeMap m_changes;
 
-void UserLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
-	qsbUserLocalVolume->setValue(value);
-	ClientUser *user = ClientUser::get(m_clientSession);
-	if (user) {
-		// Decibel formula: +6db = *2
-		user->setLocalVolumeAdjustment(static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
-	}
-}
+	/// True if the message given on construction lacked column data (true for murmur <= 1.2.4)
+	bool m_legacyMode;
 
-void UserLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
-	qsUserLocalVolume->setValue(value);
-}
+	/// Cache for lastSeenToTodayDayCount
+	mutable QHash< QString, QVariant > m_stringToLastSeenToTodayCount;
+	/// Cache for pathForChannelId conversions
+	mutable QHash< int, QString > m_channelIdToPathMap;
+};
 
-void UserLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
-		qsUserLocalVolume->setValue(0);
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
-		ClientUser *user = ClientUser::get(m_clientSession);
-		if (user) {
-			if (!user->qsHash.isEmpty()) {
-				g.db->setUserLocalVolume(user->qsHash, user->getLocalVolumeAdjustments());
-			} else {
-				g.mw->logChangeNotPermanent(QObject::tr("Local Volume Adjustment..."), user);
-			}
-		}
-		UserLocalVolumeDialog::close();
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
-		qsUserLocalVolume->setValue(m_originalVolumeAdjustmentDecibel);
-		UserLocalVolumeDialog::close();
-	}
-}
-
-void UserLocalVolumeDialog::reject() {
-	m_qmUserVolTracker->remove(m_clientSession);
-	UserLocalVolumeDialog::close();
-}
+#endif // MUMBLE_MUMBLE_USERLISTMODEL_H_
