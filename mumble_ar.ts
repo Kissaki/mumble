@@ -3,646 +3,297 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ASIOInput.h"
+#include "LookConfig.h"
+#include "Themes.h"
 
+#include "AudioInput.h"
+#include "AudioOutput.h"
 #include "MainWindow.h"
-#include "Utils.h"
 
-#include <QtWidgets/QMessageBox>
-
-#include <cmath>
+#include <QtCore/QFileSystemWatcher>
+#include <QtCore/QStack>
+#include <QtCore/QTimer>
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-// From os_win.cpp.
-extern HWND mumble_mw_hwnd;
+const QString LookConfig::name = QLatin1String("LookConfig");
 
-const QString ASIOConfig::name = QLatin1String("ASIOConfig");
-
-class ASIOAudioInputRegistrar : public AudioInputRegistrar {
-public:
-	ASIOAudioInputRegistrar();
-	virtual AudioInput *create();
-	virtual const QList< audioDevice > getDeviceChoices();
-	virtual void setDeviceChoice(const QVariant &, Settings &);
-	virtual bool canEcho(const QString &) const;
-};
-
-ASIOAudioInputRegistrar::ASIOAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("ASIO")) {
+static ConfigWidget *LookConfigNew(Settings &st) {
+	return new LookConfig(st);
 }
 
-AudioInput *ASIOAudioInputRegistrar::create() {
-	return new ASIOInput();
-}
-const QList< audioDevice > ASIOAudioInputRegistrar::getDeviceChoices() {
-	QList< audioDevice > qlReturn;
-	return qlReturn;
-}
+static ConfigRegistrar registrar(1100, LookConfigNew);
 
-bool ASIOAudioInputRegistrar::canEcho(const QString &) const {
-	return true;
-}
-
-void ASIOAudioInputRegistrar::setDeviceChoice(const QVariant &, Settings &) {
-}
-
-static ConfigWidget *ASIOConfigDialogNew(Settings &st) {
-	return new ASIOConfig(st);
-}
-
-class ASIOInit : public DeferInit {
-	ASIOAudioInputRegistrar *airASIO;
-	ConfigRegistrar *crASIO;
-
-public:
-	ASIOInit() : airASIO(nullptr), crASIO(nullptr) {}
-	void initialize();
-	void destroy();
-};
-
-void ASIOInit::initialize() {
-	HKEY hkDevs;
-	HKEY hk;
-	FILETIME ft;
-
-	airASIO = nullptr;
-	crASIO  = nullptr;
-
-	bool bFound = false;
-
-	if (!g.s.bASIOEnable) {
-		qWarning("ASIOInput: ASIO forcefully disabled via 'asio/enable' config option.");
-		return;
-	}
-
-	// List of devices known to misbehave or be totally useless
-	QStringList blacklist;
-	blacklist << QLatin1String("{a91eaba1-cf4c-11d3-b96a-00a0c9c7b61a}"); // ASIO DirectX
-	blacklist << QLatin1String("{e3186861-3a74-11d1-aef8-0080ad153287}"); // ASIO Multimedia
-#ifdef QT_NO_DEBUG
-	blacklist << QLatin1String("{232685c6-6548-49d8-846d-4141a3ef7560}"); // ASIO4ALL
-#endif
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\ASIO", 0, KEY_READ, &hkDevs) == ERROR_SUCCESS) {
-		DWORD idx        = 0;
-		DWORD keynamelen = 255;
-		WCHAR keyname[255];
-		while (RegEnumKeyEx(hkDevs, idx++, keyname, &keynamelen, nullptr, nullptr, nullptr, &ft) == ERROR_SUCCESS) {
-			QString name = QString::fromUtf16(reinterpret_cast< ushort * >(keyname), keynamelen);
-			if (RegOpenKeyEx(hkDevs, keyname, 0, KEY_READ, &hk) == ERROR_SUCCESS) {
-				DWORD dtype = REG_SZ;
-				WCHAR wclsid[255];
-				DWORD datasize = 255;
-				CLSID clsid;
-				if (RegQueryValueEx(hk, L"CLSID", 0, &dtype, reinterpret_cast< BYTE * >(wclsid), &datasize)
-					== ERROR_SUCCESS) {
-					if (datasize > 76)
-						datasize = 76;
-					QString qsCls =
-						QString::fromUtf16(reinterpret_cast< ushort * >(wclsid), datasize / 2).toLower().trimmed();
-					if (!blacklist.contains(qsCls.toLower()) && !FAILED(CLSIDFromString(wclsid, &clsid))) {
-						bFound = true;
-					}
-				}
-				RegCloseKey(hk);
-			}
-			keynamelen = 255;
-		}
-		RegCloseKey(hkDevs);
-	}
-
-	if (bFound) {
-		airASIO = new ASIOAudioInputRegistrar();
-		crASIO  = new ConfigRegistrar(2002, ASIOConfigDialogNew);
-	} else {
-		qWarning("ASIO: No valid devices found, disabling");
-	}
-}
-
-void ASIOInit::destroy() {
-	delete airASIO;
-	delete crASIO;
-}
-
-static class ASIOInit asioinit;
-
-ASIOInput *ASIOInput::aiSelf;
-
-ASIOConfig::ASIOConfig(Settings &st) : ConfigWidget(st) {
+LookConfig::LookConfig(Settings &st) : ConfigWidget(st) {
 	setupUi(this);
+	qsbSilentUserLifetime->setAccessibleName(tr("Silent user lifetime"));
+	qsbPrefixCharCount->setAccessibleName(tr("Prefix character count"));
+	qsbChannelHierarchyDepth->setAccessibleName(tr("Channel hierarchy depth"));
+	qleChannelSeparator->setAccessibleName(tr("Channel separator"));
+	qsbPostfixCharCount->setAccessibleName(tr("Postfix character count"));
+	qleAbbreviationReplacement->setAccessibleName(tr("Abbreviation replacement"));
+	qsbMaxNameLength->setAccessibleName(tr("Maximum name length"));
+	qsbRelFontSize->setAccessibleName(tr("Relative font size"));
+	qcbLanguage->setAccessibleName(tr("Language"));
+	qcbTheme->setAccessibleName(tr("Theme"));
+	qcbAlwaysOnTop->setAccessibleName(tr("Always on top"));
+	qcbChannelDrag->setAccessibleName(tr("Channel dragging"));
+	qcbExpand->setAccessibleName(tr("Automatically expand channels when"));
+	qcbUserDrag->setAccessibleName(tr("User dragging behavior"));
 
-	qcbDevice->setAccessibleName(tr("Device to use for microphone"));
-	qlwMic->setAccessibleName(tr("List of microphones"));
-	qlwSpeaker->setAccessibleName(tr("List of speakers"));
-
-	// List of devices known to misbehave or be totally useless
-	QStringList blacklist;
-	blacklist << QLatin1String("{a91eaba1-cf4c-11d3-b96a-00a0c9c7b61a}"); // ASIO DirectX
-	blacklist << QLatin1String("{e3186861-3a74-11d1-aef8-0080ad153287}"); // ASIO Multimedia
-#ifdef QT_NO_DEBUG
-	blacklist << QLatin1String("{232685c6-6548-49d8-846d-4141a3ef7560}"); // ASIO4ALL
+#ifndef Q_OS_MAC
+	if (!QSystemTrayIcon::isSystemTrayAvailable())
 #endif
-	HKEY hkDevs;
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\ASIO", 0, KEY_READ, &hkDevs) == ERROR_SUCCESS) {
-		const DWORD keynamebufsize = 255;
-		WCHAR keyname[keynamebufsize];
+		qgbTray->hide();
 
-		FILETIME ft;
-		DWORD idx        = 0;
-		DWORD keynamelen = keynamebufsize;
-		while (RegEnumKeyEx(hkDevs, idx++, keyname, &keynamelen, nullptr, nullptr, nullptr, &ft) == ERROR_SUCCESS) {
-			QString name = QString::fromUtf16(reinterpret_cast< ushort * >(keyname), keynamelen);
-			HKEY hk;
-			if (RegOpenKeyEx(hkDevs, keyname, 0, KEY_READ, &hk) == ERROR_SUCCESS) {
-				DWORD dtype = REG_SZ;
-				WCHAR wclsid[255];
-				DWORD datasize = 255;
-				if (RegQueryValueEx(hk, L"CLSID", 0, &dtype, reinterpret_cast< BYTE * >(wclsid), &datasize)
-					== ERROR_SUCCESS) {
-					if (datasize > 76)
-						datasize = 76;
-					QString qsCls =
-						QString::fromUtf16(reinterpret_cast< ushort * >(wclsid), datasize / 2).toLower().trimmed();
-					CLSID clsid;
-					if (!blacklist.contains(qsCls) && !FAILED(CLSIDFromString(wclsid, &clsid))) {
-						ASIODev ad(name, qsCls);
-						qlDevs << ad;
-					}
-				}
-				RegCloseKey(hk);
-			}
-			keynamelen = keynamebufsize;
+	qcbLanguage->addItem(tr("System default"));
+	QDir d(QLatin1String(":"), QLatin1String("mumble_*.qm"), QDir::Name, QDir::Files);
+	foreach (const QString &key, d.entryList()) {
+		QString cc        = key.mid(7, key.indexOf(QLatin1Char('.')) - 7);
+		QLocale tmpLocale = QLocale(cc);
+
+		// If there is no native language name, use the locale
+		QString displayName = cc;
+		if (!tmpLocale.nativeLanguageName().isEmpty()) {
+			displayName = QString(QLatin1String("%1 (%2)")).arg(tmpLocale.nativeLanguageName()).arg(cc);
+		} else if (cc == QLatin1String("eo")) {
+			// Can't initialize QLocale for a countryless language (QTBUG-8452, QTBUG-14592).
+			// We only have one so special case it.
+			displayName = QLatin1String("Esperanto (eo)");
 		}
-		RegCloseKey(hkDevs);
+
+		qcbLanguage->addItem(displayName, QVariant(cc));
 	}
 
-	bOk = false;
+	qcbExpand->addItem(tr("None"), Settings::NoChannels);
+	qcbExpand->addItem(tr("Only with users"), Settings::ChannelsWithUsers);
+	qcbExpand->addItem(tr("All"), Settings::AllChannels);
 
-	ASIODev ad;
+	qcbChannelDrag->insertItem(Settings::Ask, tr("Ask"), Settings::Ask);
+	qcbChannelDrag->insertItem(Settings::DoNothing, tr("Do Nothing"), Settings::DoNothing);
+	qcbChannelDrag->insertItem(Settings::Move, tr("Move"), Settings::Move);
 
-	foreach (ad, qlDevs) { qcbDevice->addItem(ad.first, QVariant(ad.second)); }
+	qcbUserDrag->insertItem(Settings::Ask, tr("Ask"), Settings::Ask);
+	qcbUserDrag->insertItem(Settings::DoNothing, tr("Do Nothing"), Settings::DoNothing);
+	qcbUserDrag->insertItem(Settings::Move, tr("Move"), Settings::Move);
 
-	if (qlDevs.count() == 0) {
-		qpbQuery->setEnabled(false);
-		qpbConfig->setEnabled(false);
+	connect(qrbLCustom, SIGNAL(toggled(bool)), qcbLockLayout, SLOT(setEnabled(bool)));
+
+	QDir userThemeDirectory = Themes::getUserThemesDirectory();
+	if (userThemeDirectory.exists()) {
+		m_themeDirectoryWatcher = new QFileSystemWatcher(this);
+
+		// Use a timer to cut down floods of directory changes. We only want
+		// to trigger a refresh after nothing has happened for 200ms in the
+		// watched directory.
+		m_themeDirectoryDebouncer = new QTimer(this);
+		m_themeDirectoryDebouncer->setSingleShot(true);
+		m_themeDirectoryDebouncer->setInterval(200);
+		m_themeDirectoryDebouncer->connect(m_themeDirectoryWatcher, SIGNAL(directoryChanged(QString)), SLOT(start()));
+
+		connect(m_themeDirectoryDebouncer, SIGNAL(timeout()), SLOT(themeDirectoryChanged()));
+		m_themeDirectoryWatcher->addPath(userThemeDirectory.path());
+
+		QUrl userThemeDirectoryUrl = QUrl::fromLocalFile(userThemeDirectory.path());
+		//: This link is located next to the theme heading in the ui config and opens the user theme directory
+		qlThemesDirectory->setText(tr("<a href=\"%1\">Browse</a>").arg(userThemeDirectoryUrl.toString()));
+		qlThemesDirectory->setOpenExternalLinks(true);
 	}
 }
 
-void ASIOConfig::on_qpbQuery_clicked() {
-	QString qsCls = qcbDevice->itemData(qcbDevice->currentIndex()).toString();
-	CLSID clsid;
-	IASIO *iasio;
+QString LookConfig::title() const {
+	return tr("User Interface");
+}
 
-	clearQuery();
+const QString &LookConfig::getName() const {
+	return LookConfig::name;
+}
 
-	CLSIDFromString(const_cast< wchar_t * >(reinterpret_cast< const wchar_t * >(qsCls.utf16())), &clsid);
-	if (CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, clsid, reinterpret_cast< void ** >(&iasio)) == S_OK) {
-		SleepEx(10, false);
-		if (iasio->init(mumble_mw_hwnd)) {
-			SleepEx(10, false);
-			char buff[512];
-			memset(buff, 0, 512);
+QIcon LookConfig::icon() const {
+	return QIcon(QLatin1String("skin:config_ui.png"));
+}
 
-			iasio->getDriverName(buff);
-			SleepEx(10, false);
+void LookConfig::reloadThemes(const boost::optional< ThemeInfo::StyleInfo > configuredStyle) {
+	const ThemeMap themes = Themes::getThemes();
 
-			long ver = iasio->getDriverVersion();
-			SleepEx(10, false);
+	int selectedThemeEntry = 0;
 
-			ASIOSampleRate srate = 0.0;
-			iasio->setSampleRate(48000.0);
-			iasio->getSampleRate(&srate);
-			SleepEx(10, false);
-
-			long minSize, maxSize, prefSize, granSize;
-			iasio->getBufferSize(&minSize, &maxSize, &prefSize, &granSize);
-			SleepEx(10, false);
-
-			QString str = tr("%1 (version %2)").arg(QLatin1String(buff)).arg(ver);
-			qlName->setText(str);
-
-			str = tr("%1 -> %2 samples buffer, with %3 sample resolution (%4 preferred) at %5 Hz")
-					  .arg(minSize)
-					  .arg(maxSize)
-					  .arg(granSize)
-					  .arg(prefSize)
-					  .arg(srate, 0, 'f', 0);
-
-			qlBuffers->setText(str);
-
-			long ichannels, ochannels;
-			iasio->getChannels(&ichannels, &ochannels);
-			SleepEx(10, false);
-			long cnum;
-
-			bool match = (s.qsASIOclass == qsCls);
-
-			for (cnum = 0; cnum < ichannels; cnum++) {
-				ASIOChannelInfo aci;
-				aci.channel = cnum;
-				aci.isInput = true;
-				iasio->getChannelInfo(&aci);
-				SleepEx(10, false);
-				switch (aci.type) {
-					case ASIOSTFloat32LSB:
-					case ASIOSTInt32LSB:
-					case ASIOSTInt24LSB:
-					case ASIOSTInt16LSB: {
-						QListWidget *widget = qlwUnused;
-						QVariant v          = static_cast< int >(cnum);
-						if (match && s.qlASIOmic.contains(v))
-							widget = qlwMic;
-						else if (match && s.qlASIOspeaker.contains(v))
-							widget = qlwSpeaker;
-						QListWidgetItem *item = new QListWidgetItem(QLatin1String(aci.name), widget);
-						item->setData(Qt::UserRole, static_cast< int >(cnum));
-					} break;
-					default:
-						qWarning("ASIOInput: Channel %ld %s (Unusable format %ld)", cnum, aci.name, aci.type);
-				}
+	qcbTheme->clear();
+	qcbTheme->addItem(tr("None"));
+	for (ThemeMap::const_iterator theme = themes.begin(); theme != themes.end(); ++theme) {
+		for (ThemeInfo::StylesMap::const_iterator styleit = theme->styles.begin(); styleit != theme->styles.end();
+			 ++styleit) {
+			if (configuredStyle && configuredStyle->themeName == styleit->themeName
+				&& configuredStyle->name == styleit->name) {
+				selectedThemeEntry = qcbTheme->count();
 			}
 
-			bOk = true;
-		} else {
-			SleepEx(10, false);
-			char err[255];
-			iasio->getErrorMessage(err);
-			SleepEx(10, false);
-			QMessageBox::critical(this, QLatin1String("Mumble"),
-								  tr("ASIO Initialization failed: %1").arg(QString::fromLatin1(err).toHtmlEscaped()),
-								  QMessageBox::Ok, QMessageBox::NoButton);
+			qcbTheme->addItem(theme->name + QLatin1String(" - ") + styleit->name, QVariant::fromValue(*styleit));
 		}
-		iasio->Release();
+	}
+
+	qcbTheme->setCurrentIndex(selectedThemeEntry);
+}
+
+void LookConfig::load(const Settings &r) {
+	loadComboBox(qcbLanguage, 0);
+	loadComboBox(qcbChannelDrag, 0);
+	loadComboBox(qcbUserDrag, 0);
+
+	// Load Layout checkbox state
+	switch (r.wlWindowLayout) {
+		case Settings::LayoutClassic:
+			qrbLClassic->setChecked(true);
+			break;
+		case Settings::LayoutStacked:
+			qrbLStacked->setChecked(true);
+			break;
+		case Settings::LayoutHybrid:
+			qrbLHybrid->setChecked(true);
+			break;
+		case Settings::LayoutCustom:
+		default:
+			s.wlWindowLayout = Settings::LayoutCustom;
+			qrbLCustom->setChecked(true);
+			break;
+	}
+	qcbLockLayout->setEnabled(r.wlWindowLayout == Settings::LayoutCustom);
+
+
+	for (int i = 0; i < qcbLanguage->count(); i++) {
+		if (qcbLanguage->itemData(i).toString() == r.qsLanguage) {
+			loadComboBox(qcbLanguage, i);
+			break;
+		}
+	}
+
+	loadComboBox(qcbAlwaysOnTop, r.aotbAlwaysOnTop);
+
+	loadComboBox(qcbExpand, r.ceExpand);
+	loadComboBox(qcbChannelDrag, r.ceChannelDrag);
+	loadComboBox(qcbUserDrag, r.ceUserDrag);
+	loadCheckBox(qcbUsersTop, r.bUserTop);
+	loadCheckBox(qcbAskOnQuit, r.bAskOnQuit);
+	loadCheckBox(qcbEnableDeveloperMenu, r.bEnableDeveloperMenu);
+	loadCheckBox(qcbLockLayout, (r.wlWindowLayout == Settings::LayoutCustom) && r.bLockLayout);
+	loadCheckBox(qcbHideTray, r.bHideInTray);
+	loadCheckBox(qcbStateInTray, r.bStateInTray);
+	loadCheckBox(qcbShowUserCount, r.bShowUserCount);
+	loadCheckBox(qcbShowVolumeAdjustments, r.bShowVolumeAdjustments);
+	loadCheckBox(qcbShowContextMenuInMenuBar, r.bShowContextMenuInMenuBar);
+	loadCheckBox(qcbShowTransmitModeComboBox, r.bShowTransmitModeComboBox);
+	loadCheckBox(qcbHighContrast, r.bHighContrast);
+	loadCheckBox(qcbChatBarUseSelection, r.bChatBarUseSelection);
+	loadCheckBox(qcbFilterHidesEmptyChannels, r.bFilterHidesEmptyChannels);
+
+	const boost::optional< ThemeInfo::StyleInfo > configuredStyle = Themes::getConfiguredStyle(r);
+	reloadThemes(configuredStyle);
+
+	loadCheckBox(qcbLocalUserVisible, r.bTalkingUI_LocalUserStaysVisible);
+	loadCheckBox(qcbAbbreviateChannelNames, r.bTalkingUI_AbbreviateChannelNames);
+	loadCheckBox(qcbAbbreviateCurrentChannel, r.bTalkingUI_AbbreviateCurrentChannel);
+	loadCheckBox(qcbShowLocalListeners, r.bTalkingUI_ShowLocalListeners);
+	qsbRelFontSize->setValue(r.iTalkingUI_RelativeFontSize);
+	qsbSilentUserLifetime->setValue(r.iTalkingUI_SilentUserLifeTime);
+	qsbChannelHierarchyDepth->setValue(r.iTalkingUI_ChannelHierarchyDepth);
+	qsbMaxNameLength->setValue(r.iTalkingUI_MaxChannelNameLength);
+	qsbPrefixCharCount->setValue(r.iTalkingUI_PrefixCharCount);
+	qsbPostfixCharCount->setValue(r.iTalkingUI_PostfixCharCount);
+	qleChannelSeparator->setText(r.qsTalkingUI_ChannelSeparator);
+	qleAbbreviationReplacement->setText(r.qsTalkingUI_AbbreviationReplacement);
+}
+
+void LookConfig::save() const {
+	const QString oldLanguage = s.qsLanguage;
+	if (qcbLanguage->currentIndex() == 0)
+		s.qsLanguage = QString();
+	else
+		s.qsLanguage = qcbLanguage->itemData(qcbLanguage->currentIndex()).toString();
+
+	if (s.qsLanguage != oldLanguage) {
+		s.requireRestartToApply = true;
+	}
+
+	// Save Layout radioboxes state
+	if (qrbLClassic->isChecked()) {
+		s.wlWindowLayout = Settings::LayoutClassic;
+	} else if (qrbLStacked->isChecked()) {
+		s.wlWindowLayout = Settings::LayoutStacked;
+	} else if (qrbLHybrid->isChecked()) {
+		s.wlWindowLayout = Settings::LayoutHybrid;
 	} else {
-		QMessageBox::critical(this, QLatin1String("Mumble"), tr("Failed to instantiate ASIO driver"), QMessageBox::Ok,
-							  QMessageBox::NoButton);
+		s.wlWindowLayout = Settings::LayoutCustom;
 	}
-}
 
-void ASIOConfig::on_qpbConfig_clicked() {
-	QString qsCls = qcbDevice->itemData(qcbDevice->currentIndex()).toString();
-	CLSID clsid;
-	IASIO *iasio;
+	s.ceExpand      = static_cast< Settings::ChannelExpand >(qcbExpand->currentIndex());
+	s.ceChannelDrag = static_cast< Settings::ChannelDrag >(qcbChannelDrag->currentIndex());
+	s.ceUserDrag    = static_cast< Settings::ChannelDrag >(qcbUserDrag->currentIndex());
 
-	CLSIDFromString(const_cast< wchar_t * >(reinterpret_cast< const wchar_t * >(qsCls.utf16())), &clsid);
-	if (CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, clsid, reinterpret_cast< void ** >(&iasio)) == S_OK) {
-		SleepEx(10, false);
-		if (iasio->init(mumble_mw_hwnd)) {
-			SleepEx(10, false);
-			iasio->controlPanel();
-			SleepEx(10, false);
-		} else {
-			SleepEx(10, false);
-			char err[255];
-			iasio->getErrorMessage(err);
-			SleepEx(10, false);
-			QMessageBox::critical(this, QLatin1String("Mumble"),
-								  tr("ASIO Initialization failed: %1").arg(QString::fromLatin1(err).toHtmlEscaped()),
-								  QMessageBox::Ok, QMessageBox::NoButton);
-		}
-		iasio->Release();
+	if (qcbUsersTop->isChecked() != s.bUserTop) {
+		s.bUserTop              = qcbUsersTop->isChecked();
+		s.requireRestartToApply = true;
+	}
+
+	s.aotbAlwaysOnTop           = static_cast< Settings::AlwaysOnTopBehaviour >(qcbAlwaysOnTop->currentIndex());
+	s.bAskOnQuit                = qcbAskOnQuit->isChecked();
+	s.bEnableDeveloperMenu      = qcbEnableDeveloperMenu->isChecked();
+	s.bLockLayout               = qcbLockLayout->isChecked();
+	s.bHideInTray               = qcbHideTray->isChecked();
+	s.bStateInTray              = qcbStateInTray->isChecked();
+	s.bShowUserCount            = qcbShowUserCount->isChecked();
+	s.bShowVolumeAdjustments    = qcbShowVolumeAdjustments->isChecked();
+	s.bShowContextMenuInMenuBar = qcbShowContextMenuInMenuBar->isChecked();
+	s.bShowTransmitModeComboBox = qcbShowTransmitModeComboBox->isChecked();
+	s.bHighContrast             = qcbHighContrast->isChecked();
+	s.bChatBarUseSelection      = qcbChatBarUseSelection->isChecked();
+	s.bFilterHidesEmptyChannels = qcbFilterHidesEmptyChannels->isChecked();
+
+	QVariant themeData = qcbTheme->itemData(qcbTheme->currentIndex());
+	if (themeData.isNull()) {
+		Themes::setConfiguredStyle(s, boost::none, s.requireRestartToApply);
 	} else {
-		QMessageBox::critical(this, QLatin1String("Mumble"), tr("Failed to instantiate ASIO driver"), QMessageBox::Ok,
-							  QMessageBox::NoButton);
+		Themes::setConfiguredStyle(s, themeData.value< ThemeInfo::StyleInfo >(), s.requireRestartToApply);
+	}
+
+	s.bTalkingUI_LocalUserStaysVisible    = qcbLocalUserVisible->isChecked();
+	s.bTalkingUI_AbbreviateChannelNames   = qcbAbbreviateChannelNames->isChecked();
+	s.bTalkingUI_AbbreviateCurrentChannel = qcbAbbreviateCurrentChannel->isChecked();
+	s.bTalkingUI_ShowLocalListeners       = qcbShowLocalListeners->isChecked();
+	s.iTalkingUI_RelativeFontSize         = qsbRelFontSize->value();
+	s.iTalkingUI_SilentUserLifeTime       = qsbSilentUserLifetime->value();
+	s.iTalkingUI_ChannelHierarchyDepth    = qsbChannelHierarchyDepth->value();
+	s.iTalkingUI_MaxChannelNameLength     = qsbMaxNameLength->value();
+	s.iTalkingUI_PrefixCharCount          = qsbPrefixCharCount->value();
+	s.iTalkingUI_PostfixCharCount         = qsbPostfixCharCount->value();
+	s.qsTalkingUI_ChannelSeparator        = qleChannelSeparator->text();
+	s.qsTalkingUI_AbbreviationReplacement = qleAbbreviationReplacement->text();
+}
+
+void LookConfig::accept() const {
+	g.mw->setShowDockTitleBars((g.s.wlWindowLayout == Settings::LayoutCustom) && !g.s.bLockLayout);
+}
+
+void LookConfig::themeDirectoryChanged() {
+	qWarning() << "Theme directory changed";
+	QVariant themeData = qcbTheme->itemData(qcbTheme->currentIndex());
+	if (themeData.isNull()) {
+		reloadThemes(boost::none);
+	} else {
+		reloadThemes(themeData.value< ThemeInfo::StyleInfo >());
 	}
 }
 
-void ASIOConfig::on_qcbDevice_activated(int) {
-	clearQuery();
-}
+void LookConfig::on_qcbAbbreviateChannelNames_stateChanged(int state) {
+	bool abbreviateNames = state == Qt::Checked;
 
-void ASIOConfig::on_qpbAddMic_clicked() {
-	int row = qlwUnused->currentRow();
-	if (row < 0)
-		return;
-	qlwMic->addItem(qlwUnused->takeItem(row));
-}
-
-void ASIOConfig::on_qpbRemMic_clicked() {
-	int row = qlwMic->currentRow();
-	if (row < 0)
-		return;
-	qlwUnused->addItem(qlwMic->takeItem(row));
-}
-
-void ASIOConfig::on_qpbAddSpeaker_clicked() {
-	int row = qlwUnused->currentRow();
-	if (row < 0)
-		return;
-	qlwSpeaker->addItem(qlwUnused->takeItem(row));
-}
-
-void ASIOConfig::on_qpbRemSpeaker_clicked() {
-	int row = qlwSpeaker->currentRow();
-	if (row < 0)
-		return;
-	qlwUnused->addItem(qlwSpeaker->takeItem(row));
-}
-
-QString ASIOConfig::title() const {
-	return tr("ASIO");
-}
-
-const QString &ASIOConfig::getName() const {
-	return ASIOConfig::name;
-}
-
-QIcon ASIOConfig::icon() const {
-	return QIcon(QLatin1String("skin:config_asio.png"));
-}
-
-void ASIOConfig::save() const {
-	if (!bOk)
-		return;
-
-	s.qsASIOclass = qcbDevice->itemData(qcbDevice->currentIndex()).toString();
-
-	QList< QVariant > list;
-
-	for (int i = 0; i < qlwMic->count(); i++) {
-		QListWidgetItem *item = qlwMic->item(i);
-		list << item->data(Qt::UserRole);
-	}
-
-	s.qlASIOmic = list;
-
-	list.clear();
-
-	for (int i = 0; i < qlwSpeaker->count(); i++) {
-		QListWidgetItem *item = qlwSpeaker->item(i);
-		list << item->data(Qt::UserRole);
-	}
-
-	s.qlASIOspeaker = list;
-}
-
-void ASIOConfig::load(const Settings &r) {
-	int i = 0;
-	ASIODev ad;
-	foreach (ad, qlDevs) {
-		if (ad.second == r.qsASIOclass) {
-			loadComboBox(qcbDevice, i);
-		}
-		i++;
-	}
-	s.qlASIOmic     = r.qlASIOmic;
-	s.qlASIOspeaker = r.qlASIOspeaker;
-
-	qlName->setText(QString());
-	qlBuffers->setText(QString());
-	qlwMic->clear();
-	qlwUnused->clear();
-	qlwSpeaker->clear();
-}
-
-void ASIOConfig::clearQuery() {
-	bOk = false;
-	qlName->setText(QString());
-	qlBuffers->setText(QString());
-	qlwMic->clear();
-	qlwUnused->clear();
-	qlwSpeaker->clear();
-}
-
-ASIOInput::ASIOInput() {
-	QString qsCls = g.s.qsASIOclass;
-	CLSID clsid;
-
-	iasio   = nullptr;
-	abiInfo = nullptr;
-	aciInfo = nullptr;
-
-	// Sanity check things first.
-
-	iNumMic     = g.s.qlASIOmic.count();
-	iNumSpeaker = g.s.qlASIOspeaker.count();
-
-	if ((iNumMic == 0) || (iNumSpeaker == 0)) {
-		QMessageBox::warning(nullptr, QLatin1String("Mumble"),
-							 tr("You need to select at least one microphone and one speaker source to use ASIO."),
-							 QMessageBox::Ok, QMessageBox::NoButton);
-		return;
-	}
-
-	CLSIDFromString(const_cast< wchar_t * >(reinterpret_cast< const wchar_t * >(qsCls.utf16())), &clsid);
-	if (CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, clsid, reinterpret_cast< void ** >(&iasio)) == S_OK) {
-		if (iasio->init(nullptr)) {
-			iasio->setSampleRate(48000.0);
-			ASIOSampleRate srate = 0.0;
-			iasio->getSampleRate(&srate);
-
-			if (srate <= 0.0)
-				return;
-
-			long minSize, maxSize, prefSize, granSize;
-			iasio->getBufferSize(&minSize, &maxSize, &prefSize, &granSize);
-
-			bool halfit = true;
-
-			double wbuf  = (srate / 100.0);
-			long wantBuf = lround(wbuf);
-			lBufSize     = wantBuf;
-
-			if (static_cast< double >(wantBuf) == wbuf) {
-				qWarning("ASIOInput: Exact buffer match possible.");
-				if ((wantBuf >= minSize) && (wantBuf <= maxSize)) {
-					if (wantBuf == minSize)
-						halfit = false;
-					else if ((granSize >= 1) && (((wantBuf - minSize) % granSize) == 0))
-						halfit = false;
-				}
-			}
-
-			if (halfit) {
-				if (granSize == 0) {
-					qWarning("ASIOInput: Single buffer size");
-					lBufSize = minSize;
-				} else {
-					long target = wantBuf / 2;
-					lBufSize    = target;
-					while (lBufSize < target) {
-						if (granSize < 0)
-							lBufSize *= 2;
-						else
-							lBufSize += granSize;
-					}
-				}
-				qWarning("ASIOInput: Buffer mismatch mode. Wanted %li, got %li", wantBuf, lBufSize);
-			}
-
-
-			abiInfo = new ASIOBufferInfo[iNumMic + iNumSpeaker];
-			aciInfo = new ASIOChannelInfo[iNumMic + iNumSpeaker];
-
-			int i, idx = 0;
-			for (i = 0; i < iNumMic; i++) {
-				abiInfo[idx].isInput    = true;
-				abiInfo[idx].channelNum = g.s.qlASIOmic[i].toInt();
-
-				aciInfo[idx].channel = abiInfo[idx].channelNum;
-				aciInfo[idx].isInput = true;
-				iasio->getChannelInfo(&aciInfo[idx]);
-				SleepEx(10, false);
-
-				idx++;
-			}
-			for (i = 0; i < iNumSpeaker; i++) {
-				abiInfo[idx].isInput    = true;
-				abiInfo[idx].channelNum = g.s.qlASIOspeaker[i].toInt();
-
-				aciInfo[idx].channel = abiInfo[idx].channelNum;
-				aciInfo[idx].isInput = true;
-				iasio->getChannelInfo(&aciInfo[idx]);
-				SleepEx(10, false);
-
-				idx++;
-			}
-
-			iEchoChannels = iNumSpeaker;
-			iMicChannels  = iNumMic;
-			iEchoFreq = iMicFreq = iroundf(srate);
-
-			initializeMixer();
-
-			ASIOCallbacks asioCallbacks;
-			ZeroMemory(&asioCallbacks, sizeof(asioCallbacks));
-			asioCallbacks.bufferSwitch         = &bufferSwitch;
-			asioCallbacks.sampleRateDidChange  = &sampleRateChanged;
-			asioCallbacks.asioMessage          = &asioMessages;
-			asioCallbacks.bufferSwitchTimeInfo = &bufferSwitchTimeInfo;
-
-			if (iasio->createBuffers(abiInfo, idx, lBufSize, &asioCallbacks) == ASE_OK) {
-				bRunning = true;
-				return;
-			}
-		}
-	}
-
-	if (iasio) {
-		iasio->Release();
-		iasio = nullptr;
-	}
-
-	QMessageBox::critical(nullptr, QLatin1String("Mumble"),
-						  tr("Opening selected ASIO device failed. No input will be done."), QMessageBox::Ok,
-						  QMessageBox::NoButton);
-}
-
-ASIOInput::~ASIOInput() {
-	qwDone.wakeAll();
-	wait();
-	if (iasio) {
-		iasio->stop();
-		iasio->disposeBuffers();
-		iasio->Release();
-		iasio = nullptr;
-	}
-
-	delete[] abiInfo;
-	abiInfo = nullptr;
-
-	delete[] aciInfo;
-	aciInfo = nullptr;
-}
-
-void ASIOInput::run() {
-	QMutex m;
-	m.lock();
-	if (iasio) {
-		aiSelf = this;
-		iasio->start();
-		qwDone.wait(&m);
-	}
-}
-
-ASIOTime *ASIOInput::bufferSwitchTimeInfo(ASIOTime *, long index, ASIOBool) {
-	aiSelf->bufferReady(index);
-	return 0L;
-}
-
-void ASIOInput::addBuffer(ASIOSampleType sampType, int interleave, void *src, float *RESTRICT dst) {
-	switch (sampType) {
-		case ASIOSTInt16LSB: {
-			const float m             = 1.0f / 32768.f;
-			const short *RESTRICT buf = static_cast< short * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = buf[i] * m;
-		} break;
-		case ASIOSTInt32LSB: {
-			const float m           = 1.0f / 2147483648.f;
-			const int *RESTRICT buf = static_cast< int * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = buf[i] * m;
-		} break;
-		case ASIOSTInt24LSB: {
-			const float m                     = 1.0f / static_cast< float >(0x7FFFFFFF - 0xFF);
-			const unsigned char *RESTRICT buf = static_cast< unsigned char * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = (buf[i * 3] << 24 | buf[i * 3 + 1] << 16 | buf[i * 3 + 2] << 8) * m;
-		} break;
-		case ASIOSTFloat32LSB: {
-			const float *RESTRICT buf = static_cast< float * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = buf[i];
-		} break;
-	}
-}
-
-void ASIOInput::bufferReady(long buffindex) {
-	STACKVAR(float, buffer, lBufSize *qMax(iNumMic, iNumSpeaker));
-
-	for (int c = 0; c < iNumSpeaker; ++c)
-		addBuffer(aciInfo[iNumMic + c].type, iNumSpeaker, abiInfo[iNumMic + c].buffers[buffindex], buffer + c);
-	addEcho(buffer, lBufSize);
-
-	for (int c = 0; c < iNumMic; ++c)
-		addBuffer(aciInfo[c].type, iNumMic, abiInfo[c].buffers[buffindex], buffer + c);
-	addMic(buffer, lBufSize);
-}
-
-void ASIOInput::bufferSwitch(long index, ASIOBool processNow) {
-	ASIOTime timeInfo;
-	memset(&timeInfo, 0, sizeof(timeInfo));
-
-	if (aiSelf->iasio->getSamplePosition(&timeInfo.timeInfo.samplePosition, &timeInfo.timeInfo.systemTime) == ASE_OK)
-		timeInfo.timeInfo.flags = kSystemTimeValid | kSamplePositionValid;
-
-	bufferSwitchTimeInfo(&timeInfo, index, processNow);
-}
-
-void ASIOInput::sampleRateChanged(ASIOSampleRate) {
-	qFatal("ASIOInput: sampleRateChanged");
-}
-
-long ASIOInput::asioMessages(long selector, long value, void *, double *) {
-	long ret = 0;
-	switch (selector) {
-		case kAsioSelectorSupported:
-			if (value == kAsioResetRequest || value == kAsioEngineVersion || value == kAsioResyncRequest
-				|| value == kAsioLatenciesChanged || value == kAsioSupportsTimeInfo || value == kAsioSupportsTimeCode
-				|| value == kAsioSupportsInputMonitor)
-				ret = 1L;
-			break;
-		case kAsioResetRequest:
-			qFatal("ASIOInput: kAsioResetRequest");
-			ret = 1L;
-			break;
-		case kAsioResyncRequest:
-			ret = 1L;
-			break;
-		case kAsioLatenciesChanged:
-			ret = 1L;
-			break;
-		case kAsioEngineVersion:
-			ret = 2L;
-			break;
-		case kAsioSupportsTimeInfo:
-			ret = 1;
-			break;
-		case kAsioSupportsTimeCode:
-			ret = 0;
-			break;
-	}
-	return ret;
+	// Only enable the abbreviation related settings if abbreviation is actually enabled
+	qcbAbbreviateCurrentChannel->setEnabled(abbreviateNames);
+	qsbChannelHierarchyDepth->setEnabled(abbreviateNames);
+	qsbMaxNameLength->setEnabled(abbreviateNames);
+	qsbPrefixCharCount->setEnabled(abbreviateNames);
+	qsbPostfixCharCount->setEnabled(abbreviateNames);
+	qleChannelSeparator->setEnabled(abbreviateNames);
+	qleAbbreviationReplacement->setEnabled(abbreviateNames);
 }
