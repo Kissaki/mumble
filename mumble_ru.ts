@@ -1,40 +1,40 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>qwPTTButtonWidget</class>
- <widget class="QWidget" name="qwPTTButtonWidget">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>100</width>
-    <height>100</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Mumble PTT</string>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <property name="margin">
-    <number>0</number>
-   </property>
-   <item>
-    <widget class="QPushButton" name="qpbPushToTalk">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="text">
-      <string>Push to talk</string>
-     </property>
-     <property name="default">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#ifndef MUMBLE_MUMBLE_PATHLISTWIDGET_H_
+#define MUMBLE_MUMBLE_PATHLISTWIDGET_H_
+
+#include <QListWidget>
+
+class QGraphicsSceneDragDropEvent;
+class QDropEvent;
+
+/**
+ * ListWidget that adds functionality for being able to drop files or folders to add them to the list.
+ *
+ * It makes use of OverlayAppInfo to display file/app information (e.g. the appropriate icon).
+ */
+class PathListWidget : public QListWidget {
+public:
+	enum PathType { FILE_EXE, FOLDER };
+
+	PathListWidget(QWidget *parent = 0);
+	void setPathType(PathType type);
+	virtual void dragEnterEvent(QDragEnterEvent *event) Q_DECL_OVERRIDE;
+	virtual void dragMoveEvent(QDragMoveEvent *event) Q_DECL_OVERRIDE;
+	virtual void dropEvent(QDropEvent *event) Q_DECL_OVERRIDE;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PathListWidget)
+
+	PathType pathType;
+
+	void addFilePath(const QString &path);
+	void addFolderPath(const QString &path);
+	void checkAcceptDragEvent(QDropEvent *event, bool store);
+};
+
+#endif
