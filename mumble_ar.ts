@@ -1,40 +1,61 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2019-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_PATHLISTWIDGET_H_
-#define MUMBLE_MUMBLE_PATHLISTWIDGET_H_
+#include "Screen.h"
 
-#include <QListWidget>
+#include "MumbleApplication.h"
 
-class QGraphicsSceneDragDropEvent;
-class QDropEvent;
+#include <QScreen>
+#include <QWidget>
+#include <QWindow>
 
-/**
- * ListWidget that adds functionality for being able to drop files or folders to add them to the list.
- *
- * It makes use of OverlayAppInfo to display file/app information (e.g. the appropriate icon).
- */
-class PathListWidget : public QListWidget {
-public:
-	enum PathType { FILE_EXE, FOLDER };
+QWindow *Screen::windowFromWidget(const QWidget &widget) {
+	QWindow *window = widget.windowHandle();
+	if (window) {
+		return window;
+	}
 
-	PathListWidget(QWidget *parent = 0);
-	void setPathType(PathType type);
-	virtual void dragEnterEvent(QDragEnterEvent *event) Q_DECL_OVERRIDE;
-	virtual void dragMoveEvent(QDragMoveEvent *event) Q_DECL_OVERRIDE;
-	virtual void dropEvent(QDropEvent *event) Q_DECL_OVERRIDE;
+	const QWidget *parent = widget.nativeParentWidget();
+	if (parent) {
+		return parent->windowHandle();
+	}
 
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PathListWidget)
+	return nullptr;
+}
 
-	PathType pathType;
+QScreen *Screen::screenFromWidget(const QWidget &widget) {
+	const QWindow *window = windowFromWidget(widget);
+	if (window && window->screen()) {
+		return window->screen();
+	}
 
-	void addFilePath(const QString &path);
-	void addFolderPath(const QString &path);
-	void checkAcceptDragEvent(QDropEvent *event, bool store);
-};
+	return qApp->primaryScreen();
+}
 
+QScreen *Screen::screenAt(const QPoint &point) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+	return qApp->screenAt(point);
+#else
+	// Adapted from qguiapplication.cpp (Qt)
+	QVarLengthArray< const QScreen *, 8 > visitedScreens;
+
+	for (const QScreen *screen : qApp->screens()) {
+		if (visitedScreens.contains(screen)) {
+			continue;
+		}
+
+		// The virtual siblings include the screen itself, so iterate directly
+		for (QScreen *sibling : screen->virtualSiblings()) {
+			if (sibling->geometry().contains(point)) {
+				return sibling;
+			}
+
+			visitedScreens.append(sibling);
+		}
+	}
+
+	return nullptr;
 #endif
+}
