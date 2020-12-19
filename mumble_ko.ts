@@ -1,331 +1,152 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>GlobalShortcutTarget</class>
- <widget class="QDialog" name="GlobalShortcutTarget">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>421</width>
-    <height>542</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Whisper Target</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="qlTarget">
-     <property name="text">
-      <string>Shout/Whisper to:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="2">
-    <widget class="QStackedWidget" name="qswStack">
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
-     <widget class="QWidget" name="qwSelectionPage">
-      <layout class="QHBoxLayout" name="horizontalLayout_3">
-       <item>
-        <widget class="QGroupBox" name="qgbSelection">
-         <property name="title">
-          <string>Current selection</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_5">
-          <item>
-           <widget class="QLabel" name="qlWhenShouting">
-            <property name="text">
-             <string>When shouting to channel:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QWidget" name="widget" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <layout class="QVBoxLayout" name="verticalLayout_6">
-             <item>
-              <widget class="QCheckBox" name="qcbShoutLinks">
-               <property name="toolTip">
-                <string>The whisper will also be transmitted to linked channels.</string>
-               </property>
-               <property name="text">
-                <string>Shout to linked channels</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="qcbShoutSubchans">
-               <property name="toolTip">
-                <string>The whisper will also be sent to the subchannels of the channel target.</string>
-               </property>
-               <property name="text">
-                <string>Shout to subchannels</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <spacer name="verticalSpacer_3">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwUserPage">
-      <layout class="QVBoxLayout" name="verticalLayout">
-       <item>
-        <widget class="QGroupBox" name="qgbUser">
-         <property name="title">
-          <string>List of users</string>
-         </property>
-         <layout class="QGridLayout" name="gridLayout_2">
-          <item row="0" column="0" rowspan="4">
-           <widget class="QListWidget" name="qlwUsers"/>
-          </item>
-          <item row="0" column="1">
-           <widget class="MUComboBox" name="qcbUser"/>
-          </item>
-          <item row="1" column="1">
-           <widget class="QPushButton" name="qpbAdd">
-            <property name="text">
-             <string>Add</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QPushButton" name="qpbRemove">
-            <property name="text">
-             <string>Remove</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="1">
-           <spacer name="verticalSpacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>94</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwChannelPage">
-      <layout class="QVBoxLayout" name="verticalLayout_2">
-       <item>
-        <widget class="QGroupBox" name="qgbChannel">
-         <property name="title">
-          <string>Channel Target</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_3">
-          <item>
-           <widget class="QTreeWidget" name="qtwChannels">
-            <property name="indentation">
-             <number>10</number>
-            </property>
-            <property name="rootIsDecorated">
-             <bool>true</bool>
-            </property>
-            <property name="sortingEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="headerHidden">
-             <bool>true</bool>
-            </property>
-            <column>
-             <property name="text">
-              <string notr="true">Name</string>
-             </property>
-            </column>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout">
-            <item>
-             <widget class="QLabel" name="qlGroup">
-              <property name="text">
-               <string>Restrict to Group</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="qleGroup">
-              <property name="toolTip">
-               <string>If specified, only members of this group will receive the whisper.</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <item>
-             <widget class="QCheckBox" name="qcbLinks">
-              <property name="toolTip">
-               <string>The whisper will also be transmitted to linked channels.</string>
-              </property>
-              <property name="text">
-               <string>Shout to Linked channels</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="qcbChildren">
-              <property name="toolTip">
-               <string>The whisper will also be sent to the subchannels of the channel target.</string>
-              </property>
-              <property name="text">
-               <string>Shout to subchannels</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </widget>
-   </item>
-   <item row="2" column="0" colspan="2">
-    <widget class="QGroupBox" name="qgbModifiers">
-     <property name="title">
-      <string>Modifiers</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <widget class="QCheckBox" name="qcbForceCenter">
-        <property name="toolTip">
-         <string>Do not send positional audio information when using this whisper shortcut.</string>
-        </property>
-        <property name="text">
-         <string>Ignore positional audio</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QComboBox" name="qcbTarget">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="frame">
-      <bool>true</bool>
-     </property>
-     <item>
-      <property name="text">
-       <string>Current selection</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>List of users</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Channel</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="3" column="0" colspan="2">
-    <widget class="QDialogButtonBox" name="qbbButtons">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <tabstops>
-  <tabstop>qlwUsers</tabstop>
-  <tabstop>qcbUser</tabstop>
-  <tabstop>qpbAdd</tabstop>
-  <tabstop>qpbRemove</tabstop>
-  <tabstop>qtwChannels</tabstop>
-  <tabstop>qleGroup</tabstop>
-  <tabstop>qcbLinks</tabstop>
-  <tabstop>qcbChildren</tabstop>
-  <tabstop>qcbForceCenter</tabstop>
-  <tabstop>qbbButtons</tabstop>
- </tabstops>
- <resources/>
- <connections>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>accepted()</signal>
-   <receiver>GlobalShortcutTarget</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>227</x>
-     <y>290</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>157</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>rejected()</signal>
-   <receiver>GlobalShortcutTarget</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>295</x>
-     <y>296</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+/* SPECIFICATION
+ * The code interfacing with the Logitech G-Keys DLL was implemented using the
+ * following spec:
+ *
+ * The G-keys DLL lives in
+ * "C:\Program Files\Logitech Gaming Software\SDK\G-key\x64\LogitechGkey.dll" for x64 and
+ * "C:\Program Files\Logitech Gaming Software\SDK\G-key\x86\LogitechGkey.dll" for x86.
+ *
+ * Its location can also be read from the registry, using the following keys:
+ *
+ * x86:
+ * "HKEY_CLASSES_ROOT\CLSID\{7bded654-f278-4977-a20f-6e72a0d07859}\ServerBinary"
+ *
+ * x64:
+ * "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{7bded654-f278-4977-a20f-6e72a0d07859}\ServerBinary"
+ *
+ * The registry keys are needed if a user installed the Logitech Gaming
+ * Software in a non-standard location.
+ *
+ * The DLL has an init function, it's called "LogiGkeyInit". It takes a
+ * pointer, but the parameter must always be nullptr. The function returns a BOOL
+ * as a status code.
+ *
+ * The DLL also has a shutdown function, called "LogiGkeyShutdown". It takes
+ * no parameters and does not return anything.
+ *
+ * You can poll for button states with the DLL using the functions
+ * "LogiGkeyIsMouseButtonPressed" and "LogiGkeyIsKeyboardGkeyPressed".
+ *
+ * The function "LogiGkeyIsMouseButtonPressed" takes a single int parameter, a
+ * button number. Mouse button numbers run from 6 up to and including 20. The
+ * function returns a BOOL that is true if the button is pressed, and false if
+ * not.
+ *
+ * The function "LogiGkeyIsKeyboardGkeyPressed" takes two int parameters, a
+ * button number and a mode number. Keyboard button numbers run from 1 up to
+ * and including 29. The mode number can 1, 2 or 3. The mode checks the button
+ * state in a specific mode. Typically, one queries all buttons for all modes,
+ * so one ends up with 29*3 calls to the function. The function returns a BOOL
+ * that is true if the button in the given mode is pressed, and false if not.
+ *
+ * There are also two functions, "LogiGkeyGetMouseButtonString" and
+ * "LogiGkeyGetKeyboardGkeyString". They take the same parameters as the
+ * polling functions above, but do not check whether the button is pressed or
+ * not. Instead, they return the name of the button being queried as a pointer
+ * to a NUL-terminated array of wchar_t's. Presumably, the pointer will be
+ * nullptr if the name cannot be retrieved or translated.
+ */
+
+/* USAGE
+ * In order to use the gkeys on a logitech keyboard, any user must have the
+ * Logitech Gaming Software version 8.55+ installed on their computer. Then
+ * (re)start mumble. When mumble initializes the library, the LGS (Logitech
+ * Gaming Software) will create a profile called "mumble", featuring the mumble
+ * icon. In LGS, right click this icon, and select either "Set as Default" or
+ * "Set as Persistent". (See "What are persistent and default profiles?" in the
+ * LGS help by clicking on the "?" icon on the LGS window, or at
+ * http://www.logitech.com/assets/51813/3/lgs-guide.pdf). If mumble is not set
+ * as the default or persistent profile, then your keys will not be active
+ * unless mumble is the active window.
+ */
+
+#include "GKey.h"
+
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                            \
+		{                                                                           \
+			var    = reinterpret_cast< __typeof__(var) >(qlLogiGkey.resolve(#var)); \
+			bValid = bValid && var;                                                 \
+		}
+#else
+#	define RESOLVE(var)                                                                          \
+		{                                                                                         \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlLogiGkey.resolve(#var)); \
+			bValid                             = bValid && var;                                   \
+		}
+#endif
+
+const QUuid GKeyLibrary::quMouse    = QUuid(QString::fromLatin1(GKEY_MOUSE_GUID));
+const QUuid GKeyLibrary::quKeyboard = QUuid(QString::fromLatin1(GKEY_KEYBOARD_GUID));
+
+GKeyLibrary::GKeyLibrary() {
+	QStringList alternatives;
+
+	HKEY key   = nullptr;
+	DWORD type = 0;
+	WCHAR wcLocation[510];
+	DWORD len = 510;
+	if (RegOpenKeyEx(GKEY_LOGITECH_DLL_REG_HKEY, GKEY_LOGITECH_DLL_REG_PATH, 0, KEY_READ, &key) == ERROR_SUCCESS) {
+		LONG err = RegQueryValueEx(key, L"", nullptr, &type, reinterpret_cast< LPBYTE >(wcLocation), &len);
+		if (err == ERROR_SUCCESS && type == REG_SZ) {
+			QString qsLocation = QString::fromUtf16(reinterpret_cast< ushort * >(wcLocation), len / 2);
+			qWarning("GKeyLibrary: Found ServerBinary with libLocation = \"%s\", len = %lu", qPrintable(qsLocation),
+					 static_cast< unsigned long >(len));
+			alternatives << qsLocation;
+		} else {
+			qWarning("GKeyLibrary: Error looking up ServerBinary (Error: 0x%lx, Type: 0x%lx, len: %lu)",
+					 static_cast< unsigned long >(err), static_cast< unsigned long >(type),
+					 static_cast< unsigned long >(len));
+		}
+	}
+
+	alternatives << QString::fromLatin1(GKEY_LOGITECH_DLL_DEFAULT_LOCATION);
+	foreach (const QString &lib, alternatives) {
+		qlLogiGkey.setFileName(lib);
+
+		if (qlLogiGkey.load()) {
+			bValid = true;
+			break;
+		}
+	}
+
+	RESOLVE(LogiGkeyInit);
+	RESOLVE(LogiGkeyShutdown);
+	RESOLVE(LogiGkeyIsMouseButtonPressed);
+	RESOLVE(LogiGkeyIsKeyboardGkeyPressed);
+	RESOLVE(LogiGkeyGetMouseButtonString);
+	RESOLVE(LogiGkeyGetKeyboardGkeyString);
+
+	if (bValid)
+		bValid = LogiGkeyInit(nullptr);
+}
+
+GKeyLibrary::~GKeyLibrary() {
+	if (LogiGkeyShutdown)
+		LogiGkeyShutdown();
+}
+
+bool GKeyLibrary::isValid() const {
+	return bValid;
+}
+
+bool GKeyLibrary::isMouseButtonPressed(int button) {
+	return LogiGkeyIsMouseButtonPressed(button);
+}
+
+bool GKeyLibrary::isKeyboardGkeyPressed(int key, int mode) {
+	return LogiGkeyIsKeyboardGkeyPressed(key, mode);
+}
+
+QString GKeyLibrary::getMouseButtonString(int button) {
+	return QString::fromWCharArray(LogiGkeyGetMouseButtonString(button));
+}
+
+QString GKeyLibrary::getKeyboardGkeyString(int key, int mode) {
+	return QString::fromWCharArray(LogiGkeyGetKeyboardGkeyString(key, mode));
+}
