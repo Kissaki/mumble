@@ -3,38 +3,90 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_PATHLISTWIDGET_H_
-#define MUMBLE_MUMBLE_PATHLISTWIDGET_H_
+#include "PathListWidget.h"
 
-#include <QListWidget>
+#include "Overlay.h"
 
-class QGraphicsSceneDragDropEvent;
-class QDropEvent;
+#include <QtCore/QDir>
+#include <QtCore/QFile>
+#include <QtCore/QMimeData>
+#include <QtGui/QDragEnterEvent>
+#include <QtGui/QDragMoveEvent>
+#include <QtGui/QDropEvent>
 
-/**
- * ListWidget that adds functionality for being able to drop files or folders to add them to the list.
- *
- * It makes use of OverlayAppInfo to display file/app information (e.g. the appropriate icon).
- */
-class PathListWidget : public QListWidget {
-public:
-	enum PathType { FILE_EXE, FOLDER };
+PathListWidget::PathListWidget(QWidget *parent) : QListWidget(parent), pathType(FILE_EXE) {
+	setAcceptDrops(true);
+}
 
-	PathListWidget(QWidget *parent = 0);
-	void setPathType(PathType type);
-	virtual void dragEnterEvent(QDragEnterEvent *event) Q_DECL_OVERRIDE;
-	virtual void dragMoveEvent(QDragMoveEvent *event) Q_DECL_OVERRIDE;
-	virtual void dropEvent(QDropEvent *event) Q_DECL_OVERRIDE;
+void PathListWidget::setPathType(PathType type) {
+	pathType = type;
+}
 
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PathListWidget)
+void PathListWidget::addFilePath(const QString &path) {
+	QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(path);
+	QStringList qslIdentifiers;
+	for (int i = 0; i < count(); i++) {
+		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
+	}
+	if (!qslIdentifiers.contains(qsAppIdentifier)) {
+		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, this);
+		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
+		setCurrentItem(qlwiApplication);
+	}
+}
 
-	PathType pathType;
+void PathListWidget::addFolderPath(const QString &path) {
+	QString dir = QDir::toNativeSeparators(path);
+	QStringList qslIdentifiers;
+	for (int i = 0; i < count(); i++) {
+		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
+	}
+	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
+		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), QDir(dir).path(), this);
+		qlwiPath->setData(Qt::UserRole, QVariant(dir));
+		setCurrentItem(qlwiPath);
+	}
+}
 
-	void addFilePath(const QString &path);
-	void addFolderPath(const QString &path);
-	void checkAcceptDragEvent(QDropEvent *event, bool store);
-};
+void PathListWidget::checkAcceptDragEvent(QDropEvent *event, bool store) {
+	if (event->mimeData()->hasUrls()) {
+		foreach (QUrl url, event->mimeData()->urls()) {
+			if (url.isLocalFile()) {
+				QFileInfo info(url.toLocalFile());
+				switch (pathType) {
+					case FILE_EXE:
+						if (info.isFile() && info.isExecutable()) {
+							if (store) {
+								addFilePath(info.filePath());
+							}
+							event->setDropAction(Qt::LinkAction);
+							event->accept();
+						}
+						break;
+					case FOLDER:
+						if (info.isDir()) {
+							if (store) {
+								addFolderPath(url.toLocalFile());
+							}
+							event->setDropAction(Qt::LinkAction);
+							event->accept();
+						}
+						break;
+				}
+			}
+		}
+	}
+}
 
-#endif
+void PathListWidget::dragEnterEvent(QDragEnterEvent *event) {
+	checkAcceptDragEvent(event, false);
+}
+
+void PathListWidget::dragMoveEvent(QDragMoveEvent *event) {
+	checkAcceptDragEvent(event, false);
+}
+
+void PathListWidget::dropEvent(QDropEvent *event) {
+	checkAcceptDragEvent(event, true);
+}
