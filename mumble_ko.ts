@@ -3,101 +3,44 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_LCD_H_
-#define MUMBLE_MUMBLE_LCD_H_
+#ifndef MUMBLE_MUMBLE_GLOBALSHORTCUT_UNIX_H_
+#define MUMBLE_MUMBLE_GLOBALSHORTCUT_UNIX_H_
 
 #include "ConfigDialog.h"
-#include "Timer.h"
+#include "Global.h"
+#include "GlobalShortcut.h"
 
-#include "ui_LCD.h"
+#include <X11/X.h>
 
-class User;
-class LCDDevice;
+#define NUM_BUTTONS 0x2ff
 
-class LCDConfig : public ConfigWidget, public Ui::LCDConfig {
+struct _XDisplay;
+typedef _XDisplay Display;
+
+class GlobalShortcutX : public GlobalShortcutEngine {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(LCDConfig)
+	Q_DISABLE_COPY(GlobalShortcutX)
 public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	LCDConfig(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
+	Display *display;
+	QSet< Window > qsRootWindows;
+	int iXIopcode;
+	QSet< int > qsMasterDevices;
+
+	volatile bool bRunning;
+	QSet< QString > qsKeyboards;
+	QMap< QString, QFile * > qmInputDevices;
+
+	GlobalShortcutX();
+	~GlobalShortcutX() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+	QString buttonName(const QVariant &) Q_DECL_OVERRIDE;
+
+	void queryXIMasterList();
 public slots:
-	void on_qsMinColWidth_valueChanged(int v);
-	void on_qsSplitterWidth_valueChanged(int v);
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
+	void displayReadyRead(int);
+	void inputReadyRead(int);
+	void directoryChanged(const QString &);
 };
-
-class LCDEngine : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDEngine)
-protected:
-	QList< LCDDevice * > qlDevices;
-
-public:
-	LCDEngine();
-	virtual ~LCDEngine() Q_DECL_OVERRIDE;
-	virtual QList< LCDDevice * > devices() const = 0;
-};
-
-class LCDDevice {
-public:
-	LCDDevice();
-	virtual ~LCDDevice();
-	virtual bool enabled()                                  = 0;
-	virtual void setEnabled(bool e)                         = 0;
-	virtual void blitImage(QImage *img, bool alert = false) = 0;
-	virtual QString name() const                            = 0;
-	virtual QSize size() const                              = 0;
-};
-
-typedef LCDEngine *(*LCDEngineNew)(void);
-
-class LCDEngineRegistrar Q_DECL_FINAL {
-protected:
-	LCDEngineNew n;
-
-public:
-	static QList< LCDEngineNew > *qlInitializers;
-	LCDEngineRegistrar(LCDEngineNew n);
-	~LCDEngineRegistrar();
-};
-
-class LCD : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCD)
-protected:
-	QFont qfNormal, qfBold, qfItalic, qfItalicBold;
-	QMap< unsigned int, Timer > qmSpeaking;
-	QMap< unsigned int, Timer > qmNew;
-	QMap< unsigned int, Timer > qmOld;
-	QMap< unsigned int, QString > qmNameCache;
-
-	int iFontHeight;
-	int iFrameIndex;
-	QHash< QSize, unsigned char * > qhImageBuffers;
-	QHash< QSize, QImage * > qhImages;
-	void initBuffers();
-	void destroyBuffers();
-	QImage qiLogo;
-	QTimer *qtTimer;
-public slots:
-	void tick();
-
-public:
-	LCD();
-	~LCD() Q_DECL_OVERRIDE;
-	void updateUserView();
-	bool hasDevices();
-};
-
-uint qHash(const QSize &size);
 
 #endif
