@@ -1,467 +1,829 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#import <AppKit/AppKit.h>
-#import <Carbon/Carbon.h>
+#include "TalkingUI.h"
+#include "Channel.h"
+#include "ChannelListener.h"
+#include "ClientUser.h"
+#include "MainWindow.h"
+#include "TalkingUIComponent.h"
+#include "UserModel.h"
 
-#include "GlobalShortcut_macx.h"
-#include "OverlayClient.h"
+#include <QGroupBox>
+#include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QItemSelectionModel>
+#include <QLabel>
+#include <QModelIndex>
+#include <QMouseEvent>
+#include <QPalette>
+#include <QScreen>
+#include <QTextDocumentFragment>
+#include <QVBoxLayout>
+#include <QtCore/QDateTime>
+#include <QtCore/QStringList>
+#include <QtCore/QTimer>
+#include <QtGui/QPainter>
+#include <QtGui/QPixmap>
 
-#define MOD_OFFSET   0x10000
-#define MOUSE_OFFSET 0x20000
+#include <algorithm>
 
-GlobalShortcutEngine *GlobalShortcutEngine::platformInit() {
-	return new GlobalShortcutMac();
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+TalkingUI::TalkingUI(QWidget *parent) : QWidget(parent), m_containers(), m_currentSelection(nullptr) {
+	setupUI();
 }
 
-CGEventRef GlobalShortcutMac::callback(CGEventTapProxy proxy, CGEventType type,
-                                       CGEventRef event, void *udata) {
-	GlobalShortcutMac *gs = reinterpret_cast<GlobalShortcutMac *>(udata);
-	unsigned int keycode;
-	bool suppress = false;
-	bool forward = false;
-	bool down = false;
-	int64_t repeat = 0;
+int TalkingUI::findContainer(int associatedChannelID, ContainerType type) const {
+	for (std::size_t i = 0; i < m_containers.size(); i++) {
+		const std::unique_ptr< TalkingUIContainer > &currentContainer = m_containers[i];
 
-	Q_UNUSED(proxy);
-
-	switch (type) {
-		case kCGEventLeftMouseDown:
-		case kCGEventRightMouseDown:
-		case kCGEventOtherMouseDown:
-			down = true;
-		case kCGEventLeftMouseUp:
-		case kCGEventRightMouseUp:
-		case kCGEventOtherMouseUp: {
-			keycode = static_cast<unsigned int>(CGEventGetIntegerValueField(event, kCGMouseEventButtonNumber));
-			suppress = gs->handleButton(MOUSE_OFFSET+keycode, down);
-			/* Suppressing "the" mouse button is probably not a good idea :-) */
-			if (keycode == 0)
-				suppress = false;
-			forward = !suppress;
-			break;
+		if (currentContainer->getType() == type && currentContainer->getAssociatedChannelID() == associatedChannelID) {
+			return static_cast< int >(i);
 		}
-
-		case kCGEventMouseMoved:
-		case kCGEventLeftMouseDragged:
-		case kCGEventRightMouseDragged:
-		case kCGEventOtherMouseDragged: {
-			if (g.ocIntercept) {
-				int64_t dx = CGEventGetIntegerValueField(event, kCGMouseEventDeltaX);
-				int64_t dy = CGEventGetIntegerValueField(event, kCGMouseEventDeltaY);
-				g.ocIntercept->iMouseX = qBound<int>(0, g.ocIntercept->iMouseX + static_cast<int>(dx), g.ocIntercept->uiWidth - 1);
-				g.ocIntercept->iMouseY = qBound<int>(0, g.ocIntercept->iMouseY + static_cast<int>(dy), g.ocIntercept->uiHeight - 1);
-				QMetaObject::invokeMethod(g.ocIntercept, "updateMouse", Qt::QueuedConnection);
-				forward = true;
-			}
-			break;
-		}
-
-		case kCGEventScrollWheel:
-			forward = true;
-			break;
-
-		case kCGEventKeyDown:
-			down = true;
-		case kCGEventKeyUp:
-			repeat = CGEventGetIntegerValueField(event, kCGKeyboardEventAutorepeat);
-			if (! repeat) {
-				keycode = static_cast<unsigned int>(CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode));
-				suppress = gs->handleButton(keycode, down);
-			}
-			forward = true;
-			break;
-
-		case kCGEventFlagsChanged: {
-			CGEventFlags f = CGEventGetFlags(event);
-
-			// Dump active event taps on Ctrl+Alt+Cmd.
-			CGEventFlags ctrlAltCmd = static_cast<CGEventFlags>(kCGEventFlagMaskControl|kCGEventFlagMaskAlternate|kCGEventFlagMaskCommand);
-			if ((f & ctrlAltCmd) == ctrlAltCmd)
-				gs->dumpEventTaps();
-
-			suppress = gs->handleModButton(f);
-			forward = !suppress;
-			break;
-		}
-
-		case kCGEventTapDisabledByTimeout:
-			qWarning("GlobalShortcutMac: EventTap disabled by timeout. Re-enabling.");
-			/*
-			 * On Snow Leopard, we get this event type quite often. It disables our event
-			 * tap completely. Possible Apple bug.
-			 *
-			 * For now, simply call CGEventTapEnable() to enable our event tap again.
-			 *
-			 * See: http://lists.apple.com/archives/quartz-dev/2009/Sep/msg00007.html
-			 */
-			CGEventTapEnable(gs->port, true);
-			break;
-
-		case kCGEventTapDisabledByUserInput:
-			break;
-
-		default:
-			break;
 	}
 
-		if (forward && g.ocIntercept) {
-			NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-			NSEvent *evt = [[NSEvent eventWithCGEvent:event] retain];
-			QMetaObject::invokeMethod(gs, "forwardEvent", Qt::QueuedConnection, Q_ARG(void *, evt));
-			[pool release];
+	return -1;
+}
+
+std::unique_ptr< TalkingUIContainer > TalkingUI::removeContainer(const TalkingUIContainer &container) {
+	return removeContainer(container.getAssociatedChannelID(), container.getType());
+}
+
+std::unique_ptr< TalkingUIContainer > TalkingUI::removeContainer(int associatedChannelID, ContainerType type) {
+	int index = findContainer(associatedChannelID, type);
+
+	std::unique_ptr< TalkingUIContainer > container(nullptr);
+
+	if (index >= 0) {
+		// Move the container out of the vector
+		container = std::move(m_containers[index]);
+		m_containers.erase(m_containers.begin() + index);
+
+		// If the container is currently selected, clear the selection
+		if (isSelected(*container)) {
+			setSelection(EmptySelection());
+		}
+	}
+
+	return container;
+}
+
+std::unique_ptr< TalkingUIContainer > TalkingUI::removeIfSuperfluous(const TalkingUIContainer &container) {
+	if (container.isEmpty() && !container.isPermanent()) {
+		return removeContainer(container);
+	}
+
+	return nullptr;
+}
+
+struct container_ptr_less {
+	bool operator()(const std::unique_ptr< TalkingUIContainer > &first,
+					const std::unique_ptr< TalkingUIContainer > &second) {
+		return *first < *second;
+	}
+};
+
+void TalkingUI::sortContainers() {
+	// Remove all containers from the UI
+	for (auto &currentContainer : m_containers) {
+		layout()->removeWidget(currentContainer->getWidget());
+	}
+
+	// Sort the containers
+	std::sort(m_containers.begin(), m_containers.end(), container_ptr_less());
+
+	// Add them again in the order they appear in the vector
+	for (auto &currentContainer : m_containers) {
+		layout()->addWidget(currentContainer->getWidget());
+	}
+}
+
+TalkingUIUser *TalkingUI::findUser(unsigned int userSession) {
+	for (auto &currentContainer : m_containers) {
+		TalkingUIEntry *entry = currentContainer->get(userSession, EntryType::USER);
+
+		if (entry) {
+			// We know that it must be a TalkingUIUser since that is what we searched for
+			return static_cast< TalkingUIUser * >(entry);
+		}
+	}
+
+	return nullptr;
+}
+
+void TalkingUI::removeUser(unsigned int userSession) {
+	TalkingUIUser *userEntry = findUser(userSession);
+
+	if (userEntry) {
+		// If the user that is going to be deleted is currently selected, clear the selection
+		if (isSelected(*userEntry)) {
+			setSelection(EmptySelection());
+		}
+
+		TalkingUIContainer *userContainer = userEntry->getContainer();
+
+		userContainer->removeEntry(userEntry);
+
+		removeIfSuperfluous(*userContainer);
+
+		updateUI();
+	}
+}
+
+void TalkingUI::addListener(const ClientUser *user, const Channel *channel) {
+	TalkingUIChannelListener *existingEntry = findListener(user->uiSession, channel->iId);
+
+	if (!existingEntry) {
+		// Only create entry if it doesn't exist yet
+
+		// First make sure the channel exists
+		addChannel(channel);
+
+		std::unique_ptr< TalkingUIContainer > &channelContainer =
+			m_containers[findContainer(channel->iId, ContainerType::CHANNEL)];
+
+		std::unique_ptr< TalkingUIChannelListener > listenerEntry =
+			std::make_unique< TalkingUIChannelListener >(*user, *channel);
+
+		channelContainer->addEntry(std::move(listenerEntry));
+
+		sortContainers();
+	}
+}
+
+TalkingUIChannelListener *TalkingUI::findListener(unsigned int userSession, int channelID) {
+	int channelIndex = findContainer(channelID, ContainerType::CHANNEL);
+
+	if (channelIndex >= 0) {
+		std::unique_ptr< TalkingUIContainer > &channelContainer = m_containers[channelIndex];
+
+		TalkingUIEntry *entry = channelContainer->get(userSession, EntryType::LISTENER);
+
+		if (entry) {
+			return static_cast< TalkingUIChannelListener * >(entry);
+		}
+	}
+
+	return nullptr;
+}
+
+void TalkingUI::removeListener(unsigned int userSession, int channelID) {
+	TalkingUIChannelListener *listenerEntry = findListener(userSession, channelID);
+
+	if (listenerEntry) {
+		// If the user that is going to be deleted is currently selected, clear the selection
+		if (isSelected(*listenerEntry)) {
+			setSelection(EmptySelection());
+		}
+
+		TalkingUIContainer *userContainer = listenerEntry->getContainer();
+
+		userContainer->removeEntry(listenerEntry);
+
+		removeIfSuperfluous(*userContainer);
+
+		updateUI();
+	}
+}
+
+void TalkingUI::removeAllListeners() {
+	// Find all listener entries
+	std::vector< TalkingUIEntry * > entriesToBeRemoved;
+	for (auto &currentContainer : m_containers) {
+		for (auto &currentEntry : currentContainer->getEntries()) {
+			if (currentEntry->getType() == EntryType::LISTENER) {
+				entriesToBeRemoved.push_back(currentEntry.get());
+			}
+		}
+	}
+
+	// remove the individual entries
+	for (auto currentEntry : entriesToBeRemoved) {
+		TalkingUIContainer *container = currentEntry->getContainer();
+
+		container->removeEntry(currentEntry);
+
+		removeIfSuperfluous(*container);
+	}
+
+	// if we removed something, update the UI
+	if (entriesToBeRemoved.size() > 0) {
+		updateUI();
+	}
+}
+
+void TalkingUI::setupUI() {
+	QVBoxLayout *layout = new QVBoxLayout;
+
+	setLayout(layout);
+
+	setWindowTitle(QObject::tr("Talking UI"));
+
+	setAttribute(Qt::WA_ShowWithoutActivating);
+	setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint);
+
+	// Hide the "?" (context help) button in the title bar of the widget as we don't want
+	// that due to it taking valuable screen space so that the title can't be displayed
+	// properly and as the TalkingUI doesn't provide context help anyways, this is not a big loss.
+	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
+	connect(g.mw->qtvUsers->selectionModel(), &QItemSelectionModel::currentChanged, this,
+			&TalkingUI::on_mainWindowSelectionChanged);
+}
+
+void TalkingUI::setFontSize(QWidget *widget) {
+	const double fontFactor = g.s.iTalkingUI_RelativeFontSize / 100.0;
+	const int origLineHeight = QFontMetrics(font()).height();
+
+	if (font().pixelSize() >= 0) {
+		// font specified in pixels
+		widget->setStyleSheet(QString::fromLatin1("font-size: %1px;")
+								  .arg(static_cast< int >(std::max(fontFactor * font().pixelSize(), 1.0))));
+	} else {
+		// font specified in points
+		widget->setStyleSheet(QString::fromLatin1("font-size: %1pt;")
+								  .arg(static_cast< int >(std::max(fontFactor * font().pointSize(), 1.0))));
+	}
+
+	m_currentLineHeight = static_cast< int >(std::max(origLineHeight * fontFactor, 1.0));
+}
+
+void TalkingUI::updateStatusIcons(const ClientUser *user) {
+	TalkingUIUser *userEntry = findUser(user->uiSession);
+
+	if (!userEntry) {
+		return;
+	}
+
+	TalkingUIUser::UserStatus status;
+	status.muted        = user->bMute;
+	status.selfMuted    = user->bSelfMute;
+	status.localMuted   = user->bLocalMute;
+	status.deafened     = user->bDeaf;
+	status.selfDeafened = user->bSelfDeaf;
+
+	userEntry->setStatus(status);
+}
+
+void TalkingUI::hideUser(unsigned int session) {
+	removeUser(session);
+
+	updateUI();
+}
+
+QString createChannelName(const Channel *chan, bool abbreviateName, int minPrefixChars, int minPostfixChars,
+						  int idealMaxChars, int parentLevel, const QString &separator,
+						  const QString &abbreviationIndicator, bool abbreviateCurrentChannel) {
+	if (!abbreviateName) {
+		return chan->qsName;
+	}
+
+	// Assemble list of relevant channel names (representing the channel hierarchy
+	QStringList nameList;
+	do {
+		nameList << chan->qsName;
+
+		chan = chan->cParent;
+	} while (chan && nameList.size() < (parentLevel + 1));
+
+	const bool reachedRoot = !chan;
+
+	// We also want to abbreviate names that nominally have the same amount of characters before and
+	// after abbreviation. However as we're typically not using mono-spaced fonts, the abbreviation
+	// indicator might still occupy less space than the original text.
+	const int abbreviableSize = minPrefixChars + minPostfixChars + abbreviationIndicator.size();
+
+	// Iterate over all names and check how many of them could be abbreviated
+	int totalCharCount = reachedRoot ? separator.size() : 0;
+	for (int i = 0; i < nameList.size(); i++) {
+		totalCharCount += nameList[i].size();
+
+		if (i + 1 < nameList.size()) {
+			// Account for the separator's size as well
+			totalCharCount += separator.size();
+		}
+	}
+
+	QString groupName = reachedRoot ? separator : QString();
+
+	for (int i = nameList.size() - 1; i >= 0; i--) {
+		if (totalCharCount > idealMaxChars && nameList[i].size() >= abbreviableSize
+			&& (abbreviateCurrentChannel || i != 0)) {
+			// Abbreviate the names as much as possible
+			groupName += nameList[i].left(minPrefixChars) + abbreviationIndicator + nameList[i].right(minPostfixChars);
+		} else {
+			groupName += nameList[i];
+		}
+
+		if (i != 0) {
+			groupName += separator;
+		}
+	}
+
+	return groupName;
+}
+
+void TalkingUI::addChannel(const Channel *channel) {
+	if (findContainer(channel->iId, ContainerType::CHANNEL) < 0) {
+		// Create a QGroupBox for this channel
+		const QString channelName =
+			createChannelName(channel, g.s.bTalkingUI_AbbreviateChannelNames, g.s.iTalkingUI_PrefixCharCount,
+							  g.s.iTalkingUI_PostfixCharCount, g.s.iTalkingUI_MaxChannelNameLength,
+							  g.s.iTalkingUI_ChannelHierarchyDepth, g.s.qsTalkingUI_ChannelSeparator,
+							  g.s.qsTalkingUI_AbbreviationReplacement, g.s.bTalkingUI_AbbreviateCurrentChannel);
+
+		std::unique_ptr< TalkingUIChannel > channelContainer =
+			std::make_unique< TalkingUIChannel >(channel->iId, channelName, *this);
+
+		QWidget *channelWidget = channelContainer->getWidget();
+
+		setFontSize(channelWidget);
+
+		layout()->addWidget(channelWidget);
+
+
+		m_containers.push_back(std::move(channelContainer));
+	}
+}
+
+TalkingUIUser *TalkingUI::findOrAddUser(const ClientUser *user) {
+	// In a first step, it has to be made sure that the user's channel
+	// exists in this UI.
+	addChannel(user->cChannel);
+
+
+	TalkingUIUser *oldUserEntry = findUser(user->uiSession);
+	bool nameMatches            = true;
+
+	if (oldUserEntry) {
+		// We also verify whether the name for that user matches up (if it is contained in m_entries) in case
+		// a user didn't get removed from the map but its ID got reused by a new client.
+
+		nameMatches = oldUserEntry->getName() == user->qsName;
+
+		if (!nameMatches) {
+			// Hide the stale user
+			hideUser(user->uiSession);
+			// Remove the old user
+			removeUser(user->uiSession);
+
+			// reset pointer
+			oldUserEntry = nullptr;
+		}
+	}
+
+	if (!oldUserEntry || !nameMatches) {
+		bool isSelf = g.uiSession == user->uiSession;
+		// Create an Entry for this user (alongside the respective labels)
+		// We initially set the labels to not be visible, so that we'll
+		// enter the code-block further down.
+
+		std::unique_ptr< TalkingUIContainer > &channelContainer =
+			m_containers[findContainer(user->cChannel->iId, ContainerType::CHANNEL)];
+		if (!channelContainer) {
+			qCritical("TalkingUI::findOrAddUser requesting unknown channel!");
 			return nullptr;
 		}
 
-	return suppress ? nullptr : event;
+		std::unique_ptr< TalkingUIUser > userEntry = std::make_unique< TalkingUIUser >(*user);
+		TalkingUIUser *newUserEntry = userEntry.get();
+
+		// * 1000 as the setting is in seconds whereas the timer expects milliseconds
+		userEntry->setLifeTime(g.s.iTalkingUI_SilentUserLifeTime * 1000);
+
+		userEntry->restrictLifetime(!isSelf || !g.s.bTalkingUI_LocalUserStaysVisible);
+
+		userEntry->setPriority(isSelf ? EntryPriority::HIGH : EntryPriority::DEFAULT);
+
+		QObject::connect(user, &ClientUser::localVolumeAdjustmentsChanged, this,
+						 &TalkingUI::on_userLocalVolumeAdjustmentsChanged);
+
+		// If this user is currently selected, mark him/her as such
+		if (g.mw && g.mw->pmModel && g.mw->pmModel->getSelectedUser() == user) {
+			setSelection(UserSelection(userEntry->getWidget(), userEntry->getAssociatedUserSession()));
+		}
+
+		// As the font size of the newly created widget did not adapt to any StyleSheet it might have inherited
+		// from its parents (the channel box), the size the talking icon is initialized to in the entry's
+		// constructor is incorrect. Therefore we have to explicitly update it here.
+		userEntry->setIconSize(m_currentLineHeight);
+
+		// Actually add the user to the respective channel
+		channelContainer->addEntry(std::move(userEntry));
+
+		sortContainers();
+
+		return newUserEntry;
+	} else {
+		return oldUserEntry;
+	}
 }
 
-GlobalShortcutMac::GlobalShortcutMac()
-    : loop(nullptr)
-    , port(nullptr)
-    , modmask(static_cast<CGEventFlags>(0)) {
-#ifndef QT_NO_DEBUG
-	qWarning("GlobalShortcutMac: Debug build detected. Disabling shortcut engine.");
-	return;
-#endif
+void TalkingUI::moveUserToChannel(unsigned int userSession, int channelID) {
+	int targetChanIndex = findContainer(channelID, ContainerType::CHANNEL);
 
-	CGEventMask evmask = CGEventMaskBit(kCGEventLeftMouseDown) |
-	                     CGEventMaskBit(kCGEventLeftMouseUp) |
-	                     CGEventMaskBit(kCGEventRightMouseDown) |
-	                     CGEventMaskBit(kCGEventRightMouseUp) |
-	                     CGEventMaskBit(kCGEventOtherMouseDown) |
-	                     CGEventMaskBit(kCGEventOtherMouseUp) |
-	                     CGEventMaskBit(kCGEventKeyDown) |
-	                     CGEventMaskBit(kCGEventKeyUp) |
-	                     CGEventMaskBit(kCGEventFlagsChanged) |
-	                     CGEventMaskBit(kCGEventMouseMoved) |
-	                     CGEventMaskBit(kCGEventLeftMouseDragged) |
-	                     CGEventMaskBit(kCGEventRightMouseDragged) |
-	                     CGEventMaskBit(kCGEventOtherMouseDragged) |
-	                     CGEventMaskBit(kCGEventScrollWheel);
-	port = CGEventTapCreate(kCGSessionEventTap,
-	                        kCGTailAppendEventTap,
-	                        kCGEventTapOptionDefault, // active filter (not only a listener)
-	                        evmask,
-	                        GlobalShortcutMac::callback,
-	                        this);
-
-	if (! port) {
-		qWarning("GlobalShortcutMac: Unable to create EventTap. Global Shortcuts will not be available.");
+	if (targetChanIndex < 0) {
+		qCritical("TalkingUI::moveUserToChannel Can't find channel for speaker");
 		return;
 	}
 
-	kbdLayout = nullptr;
+	std::unique_ptr< TalkingUIContainer > &targetChannel = m_containers[targetChanIndex];
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-# if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-	if (TISCopyCurrentKeyboardInputSource && TISGetInputSourceProperty)
-# endif
-	{
-		TISInputSourceRef inputSource = TISCopyCurrentKeyboardInputSource();
-		if (inputSource) {
-			CFDataRef data = static_cast<CFDataRef>(TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData));
-			if (data)
-				kbdLayout = reinterpret_cast<UCKeyboardLayout *>(const_cast<UInt8 *>(CFDataGetBytePtr(data)));
+	if (targetChannel->contains(userSession, EntryType::USER)) {
+		// The given user is already in the target channel - nothing to do
+		return;
+	}
+
+	// Iterate all containers in order to find the one the user is currently in
+	TalkingUIUser *userEntry = findUser(userSession);
+
+	if (userEntry) {
+		TalkingUIContainer *oldContainer = userEntry->getContainer();
+
+		targetChannel->addEntry(oldContainer->removeEntry(userEntry));
+
+		removeIfSuperfluous(*oldContainer);
+
+		sortContainers();
+	} else {
+		qCritical("TalkingUI::moveUserToChannel Unable to locate user");
+		return;
+	}
+
+	updateUI();
+}
+
+void TalkingUI::updateUI() {
+	// Use timer to execute this after all other events have been processed
+	QTimer::singleShot(0, [this]() { adjustSize(); });
+}
+
+void TalkingUI::setSelection(const TalkingUISelection &selection) {
+	if (dynamic_cast< const EmptySelection * >(&selection)) {
+		// The selection is set to an empty selection
+		if (m_currentSelection) {
+			// There currently is a selection -> clear and remove it
+			m_currentSelection->discard();
+			m_currentSelection.reset();
 		}
-	}
-#endif
-#ifndef __LP64__
-	if (! kbdLayout) {
-		SInt16 currentKeyScript = GetScriptManagerVariable(smKeyScript);
-		SInt16 lastKeyLayoutID = GetScriptVariable(currentKeyScript, smScriptKeys);
-		Handle handle = GetResource('uchr', lastKeyLayoutID);
-		if (handle)
-			kbdLayout = reinterpret_cast<UCKeyboardLayout *>(*handle);
-	}
-#endif
-	if (! kbdLayout)
-		qWarning("GlobalShortcutMac: No keyboard layout mapping available. Unable to perform key translation.");
-
-	start(QThread::TimeCriticalPriority);
-}
-
-GlobalShortcutMac::~GlobalShortcutMac() {
-#ifndef QT_NO_DEBUG
-	return;
-#endif
-	if (loop) {
-		CFRunLoopStop(loop);
-		loop = nullptr;
-		wait();
-	}
-}
-
-void GlobalShortcutMac::dumpEventTaps() {
-	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	uint32_t ntaps = 0;
-	CGEventTapInformation table[64];
-	if (CGGetEventTapList(20, table, &ntaps) == kCGErrorSuccess) {
-		qWarning("--- Installed Event Taps ---");
-		for (uint32_t i = 0; i < ntaps; i++) {
-			CGEventTapInformation *info = &table[i];
-
-			NSString *processName = nil;
-			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier: info->processBeingTapped];
-			if (app) {
-				processName = [app localizedName];
+	} else {
+		if (m_currentSelection) {
+			if (selection == *m_currentSelection) {
+				// Selection hasn't actually changed
+				return;
 			}
 
-			qWarning("{");
-			qWarning("  eventTapID: %u", info->eventTapID);
-			qWarning("  tapPoint: 0x%x", info->tapPoint);
-			qWarning("  options = 0x%x", info->options);
-			qWarning("  eventsOfInterest = 0x%llx", info->eventsOfInterest);
-			qWarning("  tappingProcess = %i (%s)", info->tappingProcess, [processName UTF8String]);
-			qWarning("  processBeingTapped = %i", info->processBeingTapped);
-			qWarning("  enabled = %s", info->enabled ? "true":"false");
-			qWarning("  minUsecLatency = %.2f", info->minUsecLatency);
-			qWarning("  avgUsecLatency = %.2f", info->avgUsecLatency);
-			qWarning("  maxUsecLatency = %.2f", info->maxUsecLatency);
-			qWarning("}");
+			// Discard old selection (it'll get deleted on re-assignment below)
+			m_currentSelection->discard();
 		}
-		qWarning("--- End of Event Taps ---");
+
+		// Use the new selection (which at this point we know is not the empty selection)
+		m_currentSelection = selection.cloneToHeap();
+
+		m_currentSelection->apply();
+		m_currentSelection->syncToMainWindow();
 	}
-	[pool release];
 }
 
-void GlobalShortcutMac::forwardEvent(void *evt) {
-	NSEvent *event = (NSEvent *)evt;
-	SEL sel = nil;
-
-	if (! g.ocIntercept)
-		return;
-
-	QWidget *vp = g.ocIntercept->qgv.viewport();
-	NSView *view = (NSView *) vp->winId();
-
-	switch ([event type]) {
-		case NSLeftMouseDown:
-			sel = @selector(mouseDown:);
-			break;
-		case NSLeftMouseUp:
-			sel = @selector(mouseUp:);
-			break;
-		case NSLeftMouseDragged:
-			sel = @selector(mouseDragged:);
-			break;
-		case NSRightMouseDown:
-			sel = @selector(rightMouseDown:);
-			break;
-		case NSRightMouseUp:
-			sel = @selector(rightMouseUp:);
-			break;
-		case NSRightMouseDragged:
-			sel = @selector(rightMouseDragged:);
-			break;
-		case NSOtherMouseDown:
-			sel = @selector(otherMouseDown:);
-			break;
-		case NSOtherMouseUp:
-			sel = @selector(otherMouseUp:);
-			break;
-		case NSOtherMouseDragged:
-			sel = @selector(otherMouseDragged:);
-			break;
-		case NSMouseEntered:
-			sel = @selector(mouseEntered:);
-			break;
-		case NSMouseExited:
-			sel = @selector(mouseExited:);
-			break;
-		case NSMouseMoved:
-			sel = @selector(mouseMoved:);
-			break;
-		default:
-			// Ignore the rest. We only care about mouse events.
-			break;
+bool TalkingUI::isSelected(const TalkingUIComponent &component) const {
+	if (m_currentSelection) {
+		return *m_currentSelection == component.getWidget();
 	}
-
-	if (sel) {
-		NSPoint p; p.x = (CGFloat) g.ocIntercept->iMouseX;
-		p.y = (CGFloat) (g.ocIntercept->uiHeight - g.ocIntercept->iMouseY);
-		NSEvent *mouseEvent = [NSEvent mouseEventWithType:[event type] location:p modifierFlags:[event modifierFlags] timestamp:[event timestamp]
-		                               windowNumber:0 context:nil eventNumber:[event eventNumber] clickCount:[event clickCount]
-		                               pressure:[event pressure]];
-		if ([view respondsToSelector:sel])
-				[view performSelector:sel withObject:mouseEvent];
-		[event release];
-		return;
-	}
-
-	switch ([event type]) {
-		case NSKeyDown:
-			sel = @selector(keyDown:);
-			break;
-		case NSKeyUp:
-			sel = @selector(keyUp:);
-			break;
-		case NSFlagsChanged:
-			sel = @selector(flagsChanged:);
-			break;
-		case NSScrollWheel:
-			sel = @selector(scrollWheel:);
-			break;
-		default:
-			break;
-	}
-
-	if (sel) {
-		if ([view respondsToSelector:sel])
-				[view performSelector:sel withObject:event];
-	}
-
-	[event release];
-}
-
-void GlobalShortcutMac::run() {
-	loop = CFRunLoopGetCurrent();
-	CFRunLoopSourceRef src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0);
-	CFRunLoopAddSource(loop, src, kCFRunLoopCommonModes);
-	CFRunLoopRun();
-}
-
-void GlobalShortcutMac::needRemap() {
-	remap();
-}
-
-bool GlobalShortcutMac::handleModButton(const CGEventFlags newmask) {
-	bool down;
-	bool suppress = false;
-
-#define MOD_CHANGED(mask, btn) do { \
-	    if ((newmask & mask) != (modmask & mask)) { \
-	        down = newmask & mask; \
-	        suppress = handleButton(MOD_OFFSET+btn, down); \
-	        modmask = newmask; \
-	        return suppress; \
-	    }} while (0)
-
-	MOD_CHANGED(kCGEventFlagMaskAlphaShift, 0);
-	MOD_CHANGED(kCGEventFlagMaskShift, 1);
-	MOD_CHANGED(kCGEventFlagMaskControl, 2);
-	MOD_CHANGED(kCGEventFlagMaskAlternate, 3);
-	MOD_CHANGED(kCGEventFlagMaskCommand, 4);
-	MOD_CHANGED(kCGEventFlagMaskHelp, 5);
-	MOD_CHANGED(kCGEventFlagMaskSecondaryFn, 6);
-	MOD_CHANGED(kCGEventFlagMaskNumericPad, 7);
 
 	return false;
 }
 
-QString GlobalShortcutMac::translateMouseButton(const unsigned int keycode) const {
-	return QString::fromLatin1("Mouse Button %1").arg(keycode-MOUSE_OFFSET+1);
-}
+void TalkingUI::mousePressEvent(QMouseEvent *event) {
+	bool foundTarget = false;
 
-QString GlobalShortcutMac::translateModifierKey(const unsigned int keycode) const {
-	unsigned int key = keycode - MOD_OFFSET;
-	switch (key) {
-		case 0:
-			return QLatin1String("Caps Lock");
-		case 1:
-			return QLatin1String("Shift");
-		case 2:
-			return QLatin1String("Control");
-		case 3:
-			return QLatin1String("Alt/Option");
-		case 4:
-			return QLatin1String("Command");
-		case 5:
-			return QLatin1String("Help");
-		case 6:
-			return QLatin1String("Fn");
-		case 7:
-			return QLatin1String("Num Lock");
-	}
-	return QString::fromLatin1("Modifier %1").arg(key);
-}
+	for (auto &currentContainer : m_containers) {
+		QRect containerArea(currentContainer->getWidget()->mapToGlobal({ 0, 0 }),
+							currentContainer->getWidget()->size());
 
-QString GlobalShortcutMac::translateKeyName(const unsigned int keycode) const {
-	UInt32 junk = 0;
-	UniCharCount len = 64;
-	UniChar unicodeString[len];
+		if (containerArea.contains(event->globalPos())) {
+			for (auto &currentEntry : currentContainer->getEntries()) {
+				QRect entryArea(currentEntry->getWidget()->mapToGlobal({ 0, 0 }), currentEntry->getWidget()->size());
 
-	if (! kbdLayout)
-		return QString();
+				if (entryArea.contains(event->globalPos())) {
+					switch (currentEntry->getType()) {
+						case EntryType::USER:
+							setSelection(
+								UserSelection(currentEntry->getWidget(), currentEntry->getAssociatedUserSession()));
+							break;
+						case EntryType::LISTENER:
+							TalkingUIChannelListener *listenerEntry =
+								static_cast< TalkingUIChannelListener * >(currentEntry.get());
+							setSelection(ListenerSelection(listenerEntry->getWidget(),
+														   listenerEntry->getAssociatedUserSession(),
+														   listenerEntry->getAssociatedChannelID()));
+							break;
+					}
 
-	OSStatus err = UCKeyTranslate(kbdLayout, static_cast<UInt16>(keycode),
-	                              kUCKeyActionDisplay, 0, LMGetKbdType(),
-	                              kUCKeyTranslateNoDeadKeysBit, &junk,
-	                              len, &len, unicodeString);
-	if (err != noErr)
-		return QString();
+					foundTarget = true;
 
-	if (len == 1) {
-		switch (unicodeString[0]) {
-			case '\t':
-				return QLatin1String("Tab");
-			case '\r':
-				return QLatin1String("Enter");
-			case '\b':
-				return QLatin1String("Backspace");
-			case '\e':
-				return QLatin1String("Escape");
-			case ' ':
-				return QLatin1String("Space");
-			case 28:
-				return QLatin1String("Left");
-			case 29:
-				return QLatin1String("Right");
-			case 30:
-				return QLatin1String("Up");
-			case 31:
-				return QLatin1String("Down");
-		}
+					break;
+				}
+			}
 
-		if (unicodeString[0] < ' ') {
-			qWarning("GlobalShortcutMac: Unknown translation for keycode %u: %u", keycode, unicodeString[0]);
-			return QString();
+			if (!foundTarget) {
+				// Select channel itself
+				setSelection(
+					ChannelSelection(currentContainer->getWidget(), currentContainer->getAssociatedChannelID()));
+
+				foundTarget = true;
+			}
+
+			break;
 		}
 	}
 
-	return QString(reinterpret_cast<const QChar *>(unicodeString), len).toUpper();
-}
-
-QString GlobalShortcutMac::buttonName(const QVariant &v) {
-	bool ok;
-	unsigned int key = v.toUInt(&ok);
-	if (!ok)
-		return QString();
-
-	if (key >= MOUSE_OFFSET)
-		return translateMouseButton(key);
-	else if (key >= MOD_OFFSET)
-		return translateModifierKey(key);
-	else {
-		QString str = translateKeyName(key);
-		if (!str.isEmpty())
-			return str;
+	if (foundTarget) {
+		if (event->button() == Qt::RightButton && g.mw) {
+			// If an entry is selected and the right mouse button was clicked, we pretend as if the user had clicked on
+			// the client in the MainWindow. For this to work we map the global mouse position to the local coordinate
+			// system of the UserView in the MainWindow. The function will use some internal logic to determine the user
+			// to invoke the context menu on but if that fails (which in this case it will), it'll fall back to the
+			// currently selected item. This item we have updated to the correct one with the setSelection() call above
+			// resulting in the proper context menu being shown at the position of the mouse which in this case is in
+			// the TalkingUI.
+			QMetaObject::invokeMethod(g.mw, "on_qtvUsers_customContextMenuRequested", Qt::QueuedConnection,
+									  Q_ARG(QPoint, g.mw->qtvUsers->mapFromGlobal(event->globalPos())), Q_ARG(bool, false));
+		}
+	} else {
+		// Clear selection
+		setSelection(EmptySelection());
 	}
 
-	return QString::fromLatin1("Keycode %1").arg(key);
+	updateUI();
 }
 
-void GlobalShortcutMac::setEnabled(bool b) {
-	// Since Mojave, passing nullptr to CGEventTapEnable() segfaults.
-	if (port) {
-		CGEventTapEnable(port, b);
+void TalkingUI::setVisible(bool visible) {
+	if (visible) {
+		adjustSize();
+	}
+
+	QWidget::setVisible(visible);
+}
+
+QSize TalkingUI::sizeHint() const {
+	// Prefer to occupy at least 10% of the screen's size
+	// This aims to be a good compromise between not being in the way and not
+	// being too small to being handled properly.
+	int width = QGuiApplication::screens()[0]->availableSize().width() * 0.1;
+
+	return { width, 0 };
+}
+
+QSize TalkingUI::minimumSizeHint() const {
+	return { 0, 0 };
+}
+
+void TalkingUI::on_talkingStateChanged() {
+	ClientUser *user = qobject_cast< ClientUser * >(sender());
+
+	if (!user) {
+		// If the user that caused this event doesn't exist anymore, it means that it
+		// got deleted in the meantime. This in turn means that the user disconnected
+		// from the server. In that case it has been removed via on_clientDisconnected
+		// already (or shortly will be), so it is safe to silently ignore this case
+		// here.
+		return;
+	}
+
+	if (!user->cChannel) {
+		// If the user doesn't have an associated channel, something's either wrong
+		// or that user has just disconnected. In either way, we want to make sure
+		// that this user won't stick around in the UI.
+		hideUser(user->uiSession);
+		return;
+	}
+
+	TalkingUIUser *userEntry = findOrAddUser(user);
+
+	if (userEntry) {
+		userEntry->setTalkingState(user->tsState);
+	}
+
+	updateUI();
+}
+
+void TalkingUI::on_mainWindowSelectionChanged(const QModelIndex &current, const QModelIndex &previous) {
+	Q_UNUSED(previous);
+
+	// Sync the selection in the MainWindow to the TalkingUI
+	if (g.mw && g.mw->pmModel) {
+		bool clearSelection = true;
+
+		const ClientUser *user = g.mw->pmModel->getUser(current);
+		const Channel *channel = g.mw->pmModel->getChannel(current);
+
+		if (g.mw->pmModel->isChannelListener(current)) {
+			TalkingUIChannelListener *listenerEntry = findListener(user->uiSession, channel->iId);
+
+			if (listenerEntry) {
+				setSelection(ListenerSelection(listenerEntry->getWidget(), user->uiSession, channel->iId));
+
+				clearSelection = false;
+			}
+		} else {
+			if (user) {
+				TalkingUIUser *userEntry = findUser(user->uiSession);
+
+				if (userEntry) {
+					// Only select the user if there is an actual entry for it in the TalkingUI
+					setSelection(UserSelection(userEntry->getWidget(), userEntry->getAssociatedUserSession()));
+
+					clearSelection = false;
+				}
+			} else if (!user && channel) {
+				// if user != nullptr, the selection is actually a user, but UserModel::getChannel still returns
+				// the channel of that user. However we only want to select the channel if the user has indeed
+				// selected the channel and not just one of the users in it.
+				int index = findContainer(channel->iId, ContainerType::CHANNEL);
+
+				if (index >= 0) {
+					// Only select the channel if there is present in the TalkingUI
+					std::unique_ptr< TalkingUIContainer > &targetContainer = m_containers[index];
+
+					setSelection(
+						ChannelSelection(targetContainer->getWidget(), targetContainer->getAssociatedChannelID()));
+
+					clearSelection = false;
+				}
+			}
+		}
+
+		if (clearSelection) {
+			setSelection(EmptySelection());
+		}
 	}
 }
 
-bool GlobalShortcutMac::enabled() {
-	if (!port) {
-		return false;
+void TalkingUI::on_serverSynchronized() {
+	if (g.s.bTalkingUI_LocalUserStaysVisible) {
+		// According to the settings the local user should always be visible and as we
+		// can't count on it to change its talking state right after it has connected to
+		// a server, we have to add it manually.
+		ClientUser *self = ClientUser::get(g.uiSession);
+		findOrAddUser(self);
+	}
+}
+
+void TalkingUI::on_serverDisconnected() {
+	setSelection(EmptySelection());
+
+	// If we disconnect from a server, we have to clear all our users, channels, and so on
+	// Since all entries are owned by their respective containers, we only have to delete
+	// all containers. These in turn are managed by smart-pointers and therefore it is
+	// enough to let those go out of scope.
+	m_containers.clear();
+
+	updateUI();
+}
+
+void TalkingUI::on_channelChanged(QObject *obj) {
+	// According to this function's doc, the passed object must be of type ClientUser
+	ClientUser *user = static_cast< ClientUser * >(obj);
+
+	if (!user) {
+		return;
 	}
 
-	return CGEventTapIsEnabled(port);
+	TalkingUIUser *userEntry = findUser(user->uiSession);
+
+	if (userEntry) {
+		// The user is visible, so we call moveUserToChannel in order to update
+		// the channel this particular user is being displayed in.
+		// But first we have to make sure there actually exists and entry for
+		// the new channel.
+		addChannel(user->cChannel);
+		moveUserToChannel(user->uiSession, user->cChannel->iId);
+	}
 }
 
-bool GlobalShortcutMac::canSuppress() {
-	return true;
+void TalkingUI::on_settingsChanged() {
+	// The settings might have affected the way we have to display the channel names
+	// thus we'll update them just in case
+	for (auto &currentContainer : m_containers) {
+		// The font size might have changed as well -> update it
+		// By the hierarchy in the UI the font-size should propagate to all
+		// sub-elements (entries) as well.
+		setFontSize(currentContainer->getWidget());
+
+		if (currentContainer->getType() != ContainerType::CHANNEL) {
+			continue;
+		}
+
+		TalkingUIChannel *channelContainer = static_cast< TalkingUIChannel * >(currentContainer.get());
+
+		const Channel *channel = Channel::get(currentContainer->getAssociatedChannelID());
+
+		if (channel) {
+			// Update
+			channelContainer->setName(
+				createChannelName(channel, g.s.bTalkingUI_AbbreviateChannelNames, g.s.iTalkingUI_PrefixCharCount,
+								  g.s.iTalkingUI_PostfixCharCount, g.s.iTalkingUI_MaxChannelNameLength,
+								  g.s.iTalkingUI_ChannelHierarchyDepth, g.s.qsTalkingUI_ChannelSeparator,
+								  g.s.qsTalkingUI_AbbreviationReplacement, g.s.bTalkingUI_AbbreviateCurrentChannel));
+		} else {
+			qCritical("TalkingUI: Can't find channel for stored ID");
+		}
+	}
+
+	// If the font has changed, we have to update the icon size as well
+	for (auto &currentContainer : m_containers) {
+		for (auto &currentEntry : currentContainer->getEntries()) {
+			currentEntry->setIconSize(m_currentLineHeight);
+
+			if (currentEntry->getType() == EntryType::USER) {
+				TalkingUIUser *userEntry = static_cast< TalkingUIUser * >(currentEntry.get());
+
+				// The time that a silent user may stick around might have changed as well
+				// * 1000 as the setting is in seconds whereas the timer expects milliseconds
+				userEntry->setLifeTime(g.s.iTalkingUI_SilentUserLifeTime * 1000);
+			}
+		}
+	}
+
+	const ClientUser *self = ClientUser::get(g.uiSession);
+
+	// Whether or not the current user should always be displayed might also have changed,
+	// so we'll have to update that as well.
+	TalkingUIUser *localUserEntry = findUser(g.uiSession);
+	if (localUserEntry) {
+		localUserEntry->restrictLifetime(!g.s.bTalkingUI_LocalUserStaysVisible);
+	} else {
+		if (self && g.s.bTalkingUI_LocalUserStaysVisible) {
+			// Add the local user as it is requested to be displayed
+			findOrAddUser(self);
+		}
+	}
+
+
+	// Furthermore whether or not to display the local user's listeners might have changed -> clear all
+	// listeners from the TalkingUI and add them again if appropriate
+	removeAllListeners();
+	if (g.s.bTalkingUI_ShowLocalListeners) {
+		if (self) {
+			const QSet< int > channels = ChannelListener::getListenedChannelsForUser(self->uiSession);
+
+			for (int currentChannelID : channels) {
+				const Channel *channel = Channel::get(currentChannelID);
+
+				if (channel) {
+					addListener(self, channel);
+				}
+			}
+		}
+	}
 }
 
-bool GlobalShortcutMac::canDisable() {
-	return true;
+void TalkingUI::on_clientDisconnected(unsigned int userSession) {
+	removeUser(userSession);
+}
+
+void TalkingUI::on_muteDeafStateChanged() {
+	ClientUser *user = qobject_cast< ClientUser * >(sender());
+
+	if (user) {
+		// Update icons for local user only
+		updateStatusIcons(user);
+	}
+}
+
+void TalkingUI::on_userLocalVolumeAdjustmentsChanged(float, float) {
+	ClientUser *user = qobject_cast< ClientUser * >(sender());
+
+	if (user) {
+		TalkingUIUser *userEntry = findUser(user->uiSession);
+		if (userEntry) {
+			userEntry->setDisplayString(UserModel::createDisplayString(*user, false, nullptr));
+		}
+	}
+}
+
+void TalkingUI::on_channelListenerAdded(const ClientUser *user, const Channel *channel) {
+	if (user->uiSession == g.uiSession && g.s.bTalkingUI_ShowLocalListeners) {
+		addListener(user, channel);
+	}
+}
+
+void TalkingUI::on_channelListenerRemoved(const ClientUser *user, const Channel *channel) {
+	removeListener(user->uiSession, channel->iId);
+}
+
+void TalkingUI::on_channelListenerLocalVolumeAdjustmentChanged(int channelID, float, float) {
+	TalkingUIChannelListener *listenerEntry = findListener(g.uiSession, channelID);
+
+	const Channel *channel = Channel::get(channelID);
+	const ClientUser *self = ClientUser::get(g.uiSession);
+
+	if (listenerEntry && channel && self) {
+		listenerEntry->setDisplayString(UserModel::createDisplayString(*self, true, channel));
+	}
 }
