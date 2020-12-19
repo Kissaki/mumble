@@ -1,74 +1,108 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TextToSpeech.h"
+#include "TalkingUISelection.h"
+#include "MainWindow.h"
+#include "UserModel.h"
 
-// As the include order seems to make a difference, disable clang-format for them
-// clang-format off
-#include <servprov.h>
-#include <sapi.h>
-// clang-format on
+#include <QVariant>
+#include <QWidget>
 
-#undef FAILED
-#define FAILED(Status) (static_cast< HRESULT >(Status) < 0)
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-class TextToSpeechPrivate {
-public:
-	ISpVoice *pVoice;
-	TextToSpeechPrivate();
-	~TextToSpeechPrivate();
-	void say(const QString &text);
-	void setVolume(int v);
-};
-
-TextToSpeechPrivate::TextToSpeechPrivate() {
-	pVoice = nullptr;
-
-	HRESULT hr = CoCreateInstance(CLSID_SpVoice, nullptr, CLSCTX_ALL, IID_ISpVoice, (void **) &pVoice);
-	if (FAILED(hr))
-		qWarning("TextToSpeechPrivate: Failed to allocate TTS Voice");
+TalkingUISelection::TalkingUISelection(QWidget *widget) : m_widget(widget) {
 }
 
-TextToSpeechPrivate::~TextToSpeechPrivate() {
-	if (pVoice)
-		pVoice->Release();
-}
 
-void TextToSpeechPrivate::say(const QString &text) {
-	if (pVoice) {
-		pVoice->Speak((const wchar_t *) text.utf16(), SPF_ASYNC, nullptr);
+void TalkingUISelection::setActive(bool active) {
+	if (m_widget) {
+		m_widget->setProperty("selected", active);
+		// Unpolish the widget's style so that the new property can take effect
+		m_widget->style()->unpolish(m_widget);
 	}
 }
 
-void TextToSpeechPrivate::setVolume(int volume) {
-	if (pVoice)
-		pVoice->SetVolume(volume);
+void TalkingUISelection::apply() {
+	setActive(true);
 }
 
-TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
-	enabled = true;
-	d       = new TextToSpeechPrivate();
+void TalkingUISelection::discard() {
+	setActive(false);
 }
 
-TextToSpeech::~TextToSpeech() {
-	delete d;
+bool TalkingUISelection::operator==(const TalkingUISelection &other) const {
+	return m_widget == other.m_widget;
 }
 
-void TextToSpeech::say(const QString &text) {
-	if (enabled)
-		d->say(text);
+bool TalkingUISelection::operator!=(const TalkingUISelection &other) const {
+	return m_widget != other.m_widget;
 }
 
-void TextToSpeech::setEnabled(bool e) {
-	enabled = e;
+bool TalkingUISelection::operator==(const QWidget *widget) const {
+	return m_widget == widget;
 }
 
-void TextToSpeech::setVolume(int volume) {
-	d->setVolume(volume);
+bool TalkingUISelection::operator!=(const QWidget *widget) const {
+	return m_widget != widget;
 }
 
-bool TextToSpeech::isEnabled() const {
-	return enabled;
+
+UserSelection::UserSelection(QWidget *widget, unsigned int userSession)
+	: TalkingUISelection(widget), m_userSession(userSession) {
+}
+
+void UserSelection::syncToMainWindow() const {
+	if (g.mw && g.mw->pmModel) {
+		g.mw->pmModel->setSelectedUser(m_userSession);
+	}
+}
+
+std::unique_ptr< TalkingUISelection > UserSelection::cloneToHeap() const {
+	return std::make_unique< UserSelection >(*this);
+}
+
+
+
+ChannelSelection::ChannelSelection(QWidget *widget, int channelID)
+	: TalkingUISelection(widget), m_channelID(channelID) {
+}
+
+void ChannelSelection::syncToMainWindow() const {
+	if (g.mw && g.mw->pmModel) {
+		g.mw->pmModel->setSelectedChannel(m_channelID);
+	}
+}
+
+std::unique_ptr< TalkingUISelection > ChannelSelection::cloneToHeap() const {
+	return std::make_unique< ChannelSelection >(*this);
+}
+
+
+
+ListenerSelection::ListenerSelection(QWidget *widget, unsigned int userSession, int channelID)
+	: TalkingUISelection(widget), m_userSession(userSession), m_channelID(channelID) {
+}
+
+void ListenerSelection::syncToMainWindow() const {
+	if (g.mw && g.mw->pmModel) {
+		g.mw->pmModel->setSelectedChannelListener(m_userSession, m_channelID);
+	}
+}
+
+std::unique_ptr< TalkingUISelection > ListenerSelection::cloneToHeap() const {
+	return std::make_unique< ListenerSelection >(*this);
+}
+
+
+
+void EmptySelection::syncToMainWindow() const {
+	// Do nothing
+}
+
+std::unique_ptr< TalkingUISelection > EmptySelection::cloneToHeap() const {
+	return std::make_unique< EmptySelection >(*this);
 }
