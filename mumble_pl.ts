@@ -3,272 +3,105 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ConfigDialog.h"
+#ifndef MUMBLE_MUMBLE_ACLEDITOR_H_
+#define MUMBLE_MUMBLE_ACLEDITOR_H_
 
-#include "AudioInput.h"
-#include "AudioOutput.h"
-#include "Global.h"
+#include "ACL.h"
+#include "Group.h"
+#include "Mumble.pb.h"
 
-#include <QScrollArea>
-#include <QtCore/QMutexLocker>
-#include <QtGui/QScreen>
-#include <QtWidgets/QDesktopWidget>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QMessageBox>
+#include "ui_ACLEditor.h"
 
+class ACLGroup : public Group {
+private:
+	Q_DISABLE_COPY(ACLGroup)
+public:
+	bool bInherited;
+	ACLGroup(const QString &name);
+};
 
-// init static member fields
-QMutex ConfigDialog::s_existingWidgetsMutex;
-QHash< QString, ConfigWidget * > ConfigDialog::s_existingWidgets;
+class ACLEditor : public QDialog, public Ui::ACLEditor {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ACLEditor)
+protected:
+	typedef QPair< QString, int > idname;
+	MumbleProto::ACL msg;
+	enum WaitID { GroupAdd, GroupRemove, GroupInherit, ACLList };
+	QHash< int, QString > qhNameCache;
+	QHash< QString, int > qhIDCache;
+	QHash< QString, int > qhNameWait;
 
-ConfigDialog::ConfigDialog(QWidget *p) : QDialog(p) {
-	setupUi(this);
+	int iUnknown;
 
-	qlwIcons->setAccessibleName(tr("Configuration categories"));
+	void refill(WaitID what);
 
-	{
-		QMutexLocker lock(&s_existingWidgetsMutex);
-		s_existingWidgets.clear();
-	}
+	ACLGroup *currentGroup();
+	ChanACL *currentACL();
 
+	int iId;
+	bool bInheritACL;
+	QList< ChanACL * > qlACLs;
+	QList< ACLGroup * > qlGroups;
+	ChanACL *pcaPassword;
 
-	s = g.s;
+	int numInheritACL;
+	int iChannel;
+	bool bAddChannelMode;
 
-	unsigned int idx = 0;
-	ConfigWidgetNew cwn;
-	foreach (cwn, *ConfigRegistrar::c_qmNew) {
-		ConfigWidget *cw = cwn(s);
-		{
-			QMutexLocker lock(&s_existingWidgetsMutex);
-			s_existingWidgets.insert(cw->getName(), cw);
-		}
+	const QString userName(int id);
+	int id(const QString &uname);
 
-		addPage(cw, ++idx);
-	}
+	QList< QCheckBox * > qlACLAllow;
+	QList< QCheckBox * > qlACLDeny;
+	QList< ChanACL::Perm > qlPerms;
 
-	updateListView();
+	void updatePasswordACL(void);
+	void updatePasswordField(void);
+	void showEvent(QShowEvent *) Q_DECL_OVERRIDE;
+	void fillWidgetFromSet(QListWidget *, const QSet< int > &);
 
-	QPushButton *okButton = dialogButtonBox->button(QDialogButtonBox::Ok);
-	okButton->setToolTip(tr("Accept changes"));
-	okButton->setWhatsThis(tr("This button will accept current settings and return to the application.<br />"
-							  "The settings will be stored to disk when you leave the application."));
+public:
+	ACLEditor(int parentchannelid, QWidget *p = nullptr);
+	ACLEditor(int channelid, const MumbleProto::ACL &mea, QWidget *p = nullptr);
+	~ACLEditor();
+	void returnQuery(const MumbleProto::QueryUsers &mqu);
+public slots:
+	void accept() Q_DECL_OVERRIDE;
+public slots:
+	void refillACL();
+	void refillGroupNames();
+	void refillGroupAdd();
+	void refillGroupRemove();
+	void refillGroupInherit();
+	void refillComboBoxes();
+	void groupEnableCheck();
+	void ACLEnableCheck();
 
-	QPushButton *cancelButton = dialogButtonBox->button(QDialogButtonBox::Cancel);
-	cancelButton->setToolTip(tr("Reject changes"));
-	cancelButton->setWhatsThis(tr("This button will reject all changes and return to the application.<br />"
-								  "The settings will be reset to the previous positions."));
+	void on_qtwTab_currentChanged(int index);
+	void on_qlwACLs_currentRowChanged();
+	void on_qpbACLAdd_clicked();
+	void on_qpbACLRemove_clicked();
+	void on_qpbACLUp_clicked();
+	void on_qpbACLDown_clicked();
+	void on_qcbACLInherit_clicked(bool checked);
+	void on_qcbACLApplyHere_clicked(bool checked);
+	void on_qcbACLApplySubs_clicked(bool checked);
+	void on_qcbACLGroup_activated(const QString &text);
+	void on_qcbACLUser_activated();
+	void ACLPermissions_clicked();
 
-	QPushButton *applyButton = dialogButtonBox->button(QDialogButtonBox::Apply);
-	applyButton->setToolTip(tr("Apply changes"));
-	applyButton->setWhatsThis(tr("This button will immediately apply all changes."));
+	void on_qcbGroupList_activated(const QString &text);
+	void on_qcbGroupList_editTextChanged(const QString &text);
+	void on_qpbGroupAdd_clicked();
+	void on_qpbGroupRemove_clicked();
+	void on_qcbGroupInherit_clicked(bool checked);
+	void on_qcbGroupInheritable_clicked(bool checked);
+	void on_qpbGroupAddAdd_clicked();
+	void on_qpbGroupAddRemove_clicked();
+	void on_qpbGroupRemoveAdd_clicked();
+	void on_qpbGroupRemoveRemove_clicked();
+	void on_qpbGroupInheritRemove_clicked();
+};
 
-	QPushButton *resetButton = pageButtonBox->addButton(QDialogButtonBox::Reset);
-	resetButton->setToolTip(tr("Undo changes for current page"));
-	resetButton->setWhatsThis(
-		tr("This button will revert any changes done on the current page to the most recent applied settings."));
-
-	QPushButton *restoreButton = pageButtonBox->addButton(QDialogButtonBox::RestoreDefaults);
-	restoreButton->setToolTip(tr("Restore defaults for current page"));
-	restoreButton->setWhatsThis(
-		tr("This button will restore the defaults for the settings on the current page. Other pages will not be "
-		   "changed.<br />"
-		   "To restore all settings to their defaults, you can press the \"Defaults (All)\" button."));
-
-	QPushButton *restoreAllButton =
-		pageButtonBox->addButton(QString::fromLatin1("Defaults (All)"), QDialogButtonBox::ResetRole);
-	restoreAllButton->setToolTip(tr("Restore all defaults"));
-	restoreAllButton->setWhatsThis(tr("This button will restore the defaults for all settings."));
-
-	if (!g.s.qbaConfigGeometry.isEmpty()) {
-#ifdef USE_OVERLAY
-		if (!g.ocIntercept)
 #endif
-			restoreGeometry(g.s.qbaConfigGeometry);
-	}
-}
-
-void ConfigDialog::addPage(ConfigWidget *cw, unsigned int idx) {
-	int w = INT_MAX, h = INT_MAX;
-
-	const QList< QScreen * > screens = qApp->screens();
-	for (int i = 0; i < screens.size(); ++i) {
-		const QRect ds = screens[i]->availableGeometry();
-		if (ds.isValid()) {
-			w = qMin(w, ds.width());
-			h = qMin(h, ds.height());
-		}
-	}
-
-	QSize ms = cw->minimumSizeHint();
-	cw->resize(ms);
-	cw->setMinimumSize(ms);
-
-	ms.rwidth() += 128;
-	ms.rheight() += 192;
-	if ((ms.width() > w) || (ms.height() > h)) {
-		QScrollArea *qsa = new QScrollArea();
-		qsa->setFrameShape(QFrame::NoFrame);
-		qsa->setWidgetResizable(true);
-		qsa->setWidget(cw);
-		qhPages.insert(cw, qsa);
-		qswPages->addWidget(qsa);
-	} else {
-		qhPages.insert(cw, cw);
-		qswPages->addWidget(cw);
-	}
-	qmWidgets.insert(idx, cw);
-	cw->load(g.s);
-}
-
-ConfigDialog::~ConfigDialog() {
-	{
-		QMutexLocker lock(&s_existingWidgetsMutex);
-		s_existingWidgets.clear();
-	}
-
-	foreach (QWidget *qw, qhPages)
-		delete qw;
-}
-
-ConfigWidget *ConfigDialog::getConfigWidget(const QString &name) {
-	QMutexLocker lock(&s_existingWidgetsMutex);
-
-	return s_existingWidgets.value(name, nullptr);
-}
-
-void ConfigDialog::on_pageButtonBox_clicked(QAbstractButton *b) {
-	ConfigWidget *conf = qobject_cast< ConfigWidget * >(qswPages->currentWidget());
-	if (!conf) {
-		QScrollArea *qsa = qobject_cast< QScrollArea * >(qswPages->currentWidget());
-		if (qsa)
-			conf = qobject_cast< ConfigWidget * >(qsa->widget());
-	}
-	if (!conf)
-		return;
-	switch (pageButtonBox->standardButton(b)) {
-		case QDialogButtonBox::RestoreDefaults: {
-			Settings def;
-			conf->load(def);
-			break;
-		}
-		case QDialogButtonBox::Reset: {
-			conf->load(g.s);
-			break;
-		}
-		// standardButton returns NoButton for any custom buttons. The only custom button
-		// in the pageButtonBox is the one for resetting all settings.
-		case QDialogButtonBox::NoButton: {
-			// Ask for confirmation before resetting **all** settings
-			QMessageBox msgBox;
-			msgBox.setIcon(QMessageBox::Question);
-			msgBox.setText(QObject::tr("Reset all settings?"));
-			msgBox.setInformativeText(QObject::tr("Do you really want to reset all settings (not only the ones currently visible) to their default value?"));
-			msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-			msgBox.setDefaultButton(QMessageBox::No);
-
-			if (msgBox.exec() == QMessageBox::Yes) {
-				Settings defaultSetting;
-				foreach (ConfigWidget *cw, qmWidgets) {
-					cw->load(defaultSetting);
-				}
-			}
-			break;
-		}
-		default:
-			break;
-	}
-}
-
-void ConfigDialog::on_dialogButtonBox_clicked(QAbstractButton *b) {
-	switch (dialogButtonBox->standardButton(b)) {
-		case QDialogButtonBox::Apply: {
-			apply();
-			break;
-		}
-		default:
-			break;
-	}
-}
-
-void ConfigDialog::on_qlwIcons_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous) {
-	if (!current)
-		current = previous;
-
-	if (current) {
-		QWidget *w = qhPages.value(qmIconWidgets.value(current));
-		if (w)
-			qswPages->setCurrentWidget(w);
-	}
-}
-
-void ConfigDialog::updateListView() {
-	QWidget *ccw         = qmIconWidgets.value(qlwIcons->currentItem());
-	QListWidgetItem *sel = nullptr;
-
-	qmIconWidgets.clear();
-	qlwIcons->clear();
-
-	QFontMetrics qfm(qlwIcons->font());
-	int configNavbarWidth = 0;
-
-	foreach (ConfigWidget *cw, qmWidgets) {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
-		configNavbarWidth = qMax(configNavbarWidth, qfm.horizontalAdvance(cw->title()));
-#else
-		configNavbarWidth = qMax(configNavbarWidth, qfm.width(cw->title()));
-#endif
-
-		QListWidgetItem *i = new QListWidgetItem(qlwIcons);
-		i->setIcon(cw->icon());
-		i->setText(cw->title());
-		i->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
-
-		qmIconWidgets.insert(i, cw);
-		if (cw == ccw)
-			sel = i;
-	}
-
-	// Add space for icon and some padding.
-	configNavbarWidth += qlwIcons->iconSize().width() + 25;
-
-	qlwIcons->setMinimumWidth(configNavbarWidth);
-	qlwIcons->setMaximumWidth(configNavbarWidth);
-
-	if (sel)
-		qlwIcons->setCurrentItem(sel);
-	else
-		qlwIcons->setCurrentRow(0);
-}
-
-void ConfigDialog::apply() {
-	Audio::stop();
-
-	foreach (ConfigWidget *cw, qmWidgets)
-		cw->save();
-
-	g.s = s;
-
-	foreach (ConfigWidget *cw, qmWidgets)
-		cw->accept();
-
-	if (!g.s.bAttenuateOthersOnTalk)
-		g.bAttenuateOthers = false;
-
-	// They might have changed their keys.
-	g.iPushToTalk = 0;
-
-	Audio::start();
-
-	emit settingsAccepted();
-}
-
-void ConfigDialog::accept() {
-	apply();
-
-#ifdef USE_OVERLAY
-	if (!g.ocIntercept)
-#endif
-		g.s.qbaConfigGeometry = saveGeometry();
-
-	QDialog::accept();
-}
