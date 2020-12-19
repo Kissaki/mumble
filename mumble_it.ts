@@ -1,93 +1,199 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_WEBFETCH_H_
-#define MUMBLE_MUMBLE_WEBFETCH_H_
-
-#include <QtCore/QByteArray>
-#include <QtCore/QMap>
-#include <QtCore/QObject>
-#include <QtCore/QUrl>
-
-class QNetworkReply;
-
-/// WebFetch is a utility class to download data from Mumble services.
-class WebFetch : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(WebFetch)
-protected:
-	QObject *qoObject;
-	const char *cpSlot;
-	QNetworkReply *qnr;
-	QString m_service;
-
-	QString prefixedServiceHost() const;
-	QString serviceHost() const;
-
-	WebFetch(QString service, QUrl url, QObject *obj, const char *slot);
-signals:
-	void fetched(QByteArray data, QUrl url, QMap< QString, QString > headers);
-protected slots:
-	void finished();
-
-public:
-	/// The fetch function downloads the resource specified by the url parameter from the
-	/// Mumble service given in the service parameter. Once the download completes, the
-	/// function invokes the slot specified via the slot parameter.
-	///
-	/// Only the path part of the url parameter
-	/// is used to construct the final, fully-qualified URL from which the resource is
-	/// downloaded.
-	///
-	/// By default, the service parameter and the url parameter are combined to create
-	/// a service as follows:
-	///
-	///     fullyQualifiedURL = https://${service}.mumble.info/${url.path}
-	///
-	/// When a resource is downloaded from a Mumble service, the service may optionally
-	/// specify a service prefix to use for future requests to all Mumble services. This
-	/// is communicated via the Use-Service-Prefix HTTP header in HTTP responses from
-	/// Mumble services. When this function encounters such a response header, it stores
-	/// the service prefix in the "net/serviceprefix" Mumble setting. If this setting
-	/// is non-empty, the fully-qualified URL is instead constructed as such:
-	///
-	///     fullyQualifiedURL = https://${serivcePrefixSetting}-${service}.mumble.info/${url.path}
-	///
-	/// The service prefix must only contain ASCII characters 'A' through 'Z' (upper case)
-	/// or 'a' through 'z (lower case).
-	///
-	/// @param  service  The Mumble service name to use for this request.
-	///
-	///                  The service name specified is used to create base URL
-	///                  used by the final, fully-qualified URL as follows:
-	///
-	///                      baseURL = https://${service}.mumble.info
-	///
-	///                  If the Mumble setting "net/serviceprefix" is non-empty,
-	///                  it will be used as a prefix to the base URL. In this case,
-	///                  the base URL will be constructed as follows:
-	///
-	///                      baseURL = https://${servicePrefixSetting}-${service}.mumble.info
-	///
-	/// @param  url      The path to the endpoint that the request is targetted at.
-	///                  Only the path of the URL will be used. The specified path is
-	///                  used in combination with the base URL constructed by the service
-	///                  parameter to construct the fully-qualified URL for the HTTP request
-	///                  that will be sent by this function.
-	///                  The path is used in combination with the base URL from the service
-	///                  parameter as follows:
-	///
-	///                      fullyQualifiedURL = ${baseURL}/${url.path}
-	///
-	/// @param  slot     A Qt slot of the form fetched(QByteArray data, QUrl url,
-	///                                                QMap<QString,QString> httpHeaders)
-	///                  If the download initiated by the function was succesful, the data
-	///                  parameter will be a non-null QByteArray.
-	///                  If the download failed, the data parameter will be a null QByteArray.
-	static void fetch(const QString &service, const QUrl &url, QObject *obj, const char *slot);
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>VoiceRecorderDialog</class>
+ <widget class="QDialog" name="VoiceRecorderDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>450</width>
+    <height>255</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Recorder</string>
+  </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>:/actions/media-record.svg</normaloff>:/actions/media-record.svg</iconset>
+  </property>
+  <layout class="QGridLayout" name="gridLayout_2">
+   <item row="0" column="0" colspan="2">
+    <widget class="QGroupBox" name="qgbControl">
+     <property name="title">
+      <string>Control</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item>
+       <widget class="QLabel" name="qlTime">
+        <property name="font">
+         <font>
+          <pointsize>20</pointsize>
+          <weight>50</weight>
+          <bold>false</bold>
+          <underline>false</underline>
+         </font>
+        </property>
+        <property name="text">
+         <string>00:00:00</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Minimum</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="qpbStart">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>&amp;Start</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="qpbStop">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>S&amp;top</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QGroupBox" name="qgbMode">
+     <property name="title">
+      <string>Mode</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QRadioButton" name="qrbDownmix">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Downmix</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="qrbMultichannel">
+        <property name="text">
+         <string>Multichannel</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QGroupBox" name="qgbOutput">
+     <property name="title">
+      <string>Output</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="qlOutputFormat">
+        <property name="text">
+         <string>Output format</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="MUComboBox" name="qcbFormat"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="qlTargetDirectory">
+        <property name="text">
+         <string>Target directory</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="qlFilename">
+        <property name="text">
+         <string>Filename</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <layout class="QHBoxLayout" name="qhblTargetDirectory">
+        <item>
+         <widget class="QLineEdit" name="qleTargetDirectory"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="qpbTargetDirectoryBrowse">
+          <property name="text">
+           <string>&amp;Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLineEdit" name="qleFilename"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MUComboBox</class>
+   <extends>QComboBox</extends>
+   <header>widgets/MUComboBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
