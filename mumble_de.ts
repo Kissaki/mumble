@@ -3,404 +3,793 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayConfig.h"
-#include "OverlayClient.h"
+#include "Plugins.h"
+
+#include "../../plugins/mumble_plugin.h"
+#include "Log.h"
 #include "MainWindow.h"
-
-#include <QtCore/QProcess>
-#include <QtCore/QXmlStreamReader>
-
-#import <ScriptingBridge/ScriptingBridge.h>
-#import <Cocoa/Cocoa.h>
-#include <Carbon/Carbon.h>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
-
-extern "C" {
-#include <xar/xar.h>
-}
-
-// Ignore deprecation warnings for the whole file, for now.
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
-static NSString *MumbleOverlayLoaderBundle = @"/Library/ScriptingAdditions/MumbleOverlay.osax";
-static NSString *MumbleOverlayLoaderBundleIdentifier = @"net.sourceforge.mumble.OverlayScriptingAddition";
-
-pid_t getForegroundProcessId() {
-	NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-	if (app) {
-		return [app processIdentifier];
-	}
-
-	return 0;
-}
-
-@interface OverlayInjectorMac : NSObject {
-	BOOL active;
-}
-- (id) init;
-- (void) dealloc;
-- (void) appLaunched:(NSNotification *)notification;
-- (void) setActive:(BOOL)flag;
-- (void) eventDidFail:(const AppleEvent *)event withError:(NSError *)error;
-@end
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
-@interface OverlayInjectorMac () <SBApplicationDelegate>
-@end
+#include "Message.h"
+#include "MumbleApplication.h"
+#include "ServerHandler.h"
+#include "Utils.h"
+#include "WebFetch.h"
+#ifdef USE_MANUAL_PLUGIN
+#	include "ManualPlugin.h"
 #endif
 
-@implementation OverlayInjectorMac
+#include <QtCore/QLibrary>
+#include <QtCore/QUrlQuery>
 
-- (id) init {
-	self = [super init];
+#ifdef Q_OS_WIN
+#	include <QtCore/QTemporaryFile>
+#endif
 
-	if (self) {
-		active = NO;
-		NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
-		[[workspace notificationCenter] addObserver:self
-		                                selector:@selector(appLaunched:)
-		                                name:NSWorkspaceDidLaunchApplicationNotification
-		                                object:workspace];
-		return self;
-	}
+#include <QtWidgets/QMessageBox>
+#include <QtXml/QDomDocument>
 
-	return nil;
+#ifdef Q_OS_WIN
+#	include <softpub.h>
+#	include <tlhelp32.h>
+#endif
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+const QString PluginConfig::name = QLatin1String("PluginConfig");
+
+static ConfigWidget *PluginConfigDialogNew(Settings &st) {
+	return new PluginConfig(st);
 }
 
-- (void) dealloc {
-	NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
-	[[workspace notificationCenter] removeObserver:self
-		                                name:NSWorkspaceDidLaunchApplicationNotification
-		                                object:workspace];
+static ConfigRegistrar registrar(5000, PluginConfigDialogNew);
 
-	[super dealloc];
-}
-
-- (void) appLaunched:(NSNotification *)notification {
-	if (active) {
-		BOOL overlayEnabled = NO;
-		NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
-		NSDictionary *userInfo = [notification userInfo];
-
-		NSString *bundleId = [userInfo objectForKey:@"NSApplicationBundleIdentifier"];
-		if ([bundleId isEqualToString:[[NSBundle mainBundle] bundleIdentifier]])
-			return;
-
-		QString qsBundleIdentifier = QString::fromUtf8([bundleId UTF8String]);
-
-		switch (g.s.os.oemOverlayExcludeMode) {
-			case OverlaySettings::LauncherFilterExclusionMode: {
-				qWarning("Overlay_macx: launcher filter mode not implemented on macOS, allowing everything");
-				overlayEnabled = YES;
-				break;
-			}
-			case OverlaySettings::WhitelistExclusionMode: {
-				if (g.s.os.qslWhitelist.contains(qsBundleIdentifier)) {
-					overlayEnabled = YES;
-				}
-				break;
-			}
-			case OverlaySettings::BlacklistExclusionMode: {
-				if (! g.s.os.qslBlacklist.contains(qsBundleIdentifier)) {
-					overlayEnabled = YES;
-				}
-				break;
-			}
-		}
-
-		if (overlayEnabled) {
-			pid_t pid = [[userInfo objectForKey:@"NSApplicationProcessIdentifier"] intValue];
-			SBApplication *app = [SBApplication applicationWithProcessIdentifier:pid];
-			[app setDelegate:self];
-
-			// This timeout is specified in 'ticks'.
-			// A tick defined as: "[...] (a tick is approximately 1/60 of a second) [...]" in the
-			// Apple Event Manager Refernce documentation:
-			// http://developer.apple.com/legacy/mac/library/documentation/Carbon/reference/Event_Manager/Event_Manager.pdf
-			[app setTimeout:10*60];
-
-			[app setSendMode:kAEWaitReply];
-			[app sendEvent:kASAppleScriptSuite id:kGetAEUT parameters:0];
-
-			[app setSendMode:kAENoReply];
-			if (QSysInfo::MacintoshVersion == QSysInfo::MV_LEOPARD) {
-				[app sendEvent:'MUOL' id:'daol' parameters:0];
-			} else if (QSysInfo::MacintoshVersion >= QSysInfo::MV_SNOWLEOPARD) {
-				[app sendEvent:'MUOL' id:'load' parameters:0];
-			}
-		}
-
-		[pool release];
-	}
-}
-
-- (void) setActive:(BOOL)flag {
-	active = flag;
-}
-
-// SBApplication delegate method
-- (void)eventDidFail:(const AppleEvent *)event withError:(NSError *)error {
-	Q_UNUSED(event);
-	Q_UNUSED(error);
-
-	// Do nothing. This method is only here to avoid an exception.
-}
-
-@end
-
-class OverlayPrivateMac : public OverlayPrivate {
-	protected:
-		OverlayInjectorMac *olm;
-	public:
-		void setActive(bool);
-		OverlayPrivateMac(QObject *);
-		~OverlayPrivateMac();
+struct PluginInfo {
+	bool locked;
+	bool enabled;
+	QLibrary lib;
+	QString filename;
+	QString description;
+	QString shortname;
+	MumblePlugin *p;
+	MumblePlugin2 *p2;
+	MumblePluginQt *pqt;
+	PluginInfo();
 };
 
-OverlayPrivateMac::OverlayPrivateMac(QObject *p) : OverlayPrivate(p) {
-	olm = [[OverlayInjectorMac alloc] init];
+PluginInfo::PluginInfo() {
+	locked  = false;
+	enabled = false;
+	p       = nullptr;
+	p2      = nullptr;
+	pqt     = nullptr;
 }
 
-OverlayPrivateMac::~OverlayPrivateMac() {
-	[olm release];
+struct PluginFetchMeta {
+	QString hash;
+	QString path;
+
+	PluginFetchMeta(const QString &hash_ = QString(), const QString &path_ = QString())
+		: hash(hash_), path(path_) { /* Empty */
+	}
+};
+
+
+PluginConfig::PluginConfig(Settings &st) : ConfigWidget(st) {
+	setupUi(this);
+	qtwPlugins->setAccessibleName(tr("Plugins"));
+	qtwPlugins->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+	qtwPlugins->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+
+	refillPluginList();
 }
 
-void OverlayPrivateMac::setActive(bool act) {
-	[olm setActive:act];
+QString PluginConfig::title() const {
+	return tr("Plugins");
 }
 
-void Overlay::platformInit() {
-	d = new OverlayPrivateMac(this);
+const QString &PluginConfig::getName() const {
+	return PluginConfig::name;
 }
 
-void Overlay::setActiveInternal(bool act) {
-	if (d) {
-		/// Only act if the private instance has been created already
-		static_cast<OverlayPrivateMac *>(d)->setActive(act);
+QIcon PluginConfig::icon() const {
+	return QIcon(QLatin1String("skin:config_plugin.png"));
+}
+
+void PluginConfig::load(const Settings &r) {
+	loadCheckBox(qcbTransmit, r.bTransmitPosition);
+}
+
+void PluginConfig::save() const {
+	QReadLocker lock(&g.p->qrwlPlugins);
+
+	s.bTransmitPosition = qcbTransmit->isChecked();
+	s.qmPositionalAudioPlugins.clear();
+
+	QList< QTreeWidgetItem * > list = qtwPlugins->findItems(QString(), Qt::MatchContains);
+	foreach (QTreeWidgetItem *i, list) {
+		bool enabled = (i->checkState(1) == Qt::Checked);
+
+		PluginInfo *pi = pluginForItem(i);
+		if (pi) {
+			s.qmPositionalAudioPlugins.insert(pi->filename, enabled);
+			pi->enabled = enabled;
+		}
 	}
 }
 
-bool OverlayConfig::supportsInstallableOverlay() {
-	return true;
+PluginInfo *PluginConfig::pluginForItem(QTreeWidgetItem *i) const {
+	if (i) {
+		foreach (PluginInfo *pi, g.p->qlPlugins) {
+			if (pi->filename == i->data(0, Qt::UserRole).toString())
+				return pi;
+		}
+	}
+	return nullptr;
 }
 
-void OverlayClient::updateMouse() {
-	QCursor c = qgv.viewport()->cursor();
-	NSCursor *cursor = nil;
-	Qt::CursorShape csShape = c.shape();
-
-	switch (csShape) {
-		case Qt::IBeamCursor:        cursor = [NSCursor IBeamCursor]; break;
-		case Qt::CrossCursor:        cursor = [NSCursor crosshairCursor]; break;
-		case Qt::ClosedHandCursor:   cursor = [NSCursor closedHandCursor]; break;
-		case Qt::OpenHandCursor:     cursor = [NSCursor openHandCursor]; break;
-		case Qt::PointingHandCursor: cursor = [NSCursor pointingHandCursor]; break;
-		case Qt::SizeVerCursor:      cursor = [NSCursor resizeUpDownCursor]; break;
-		case Qt::SplitVCursor:       cursor = [NSCursor resizeUpDownCursor]; break;
-		case Qt::SizeHorCursor:      cursor = [NSCursor resizeLeftRightCursor]; break;
-		case Qt::SplitHCursor:       cursor = [NSCursor resizeLeftRightCursor]; break;
-		default:                     cursor = [NSCursor arrowCursor]; break;
+void PluginConfig::on_qpbConfig_clicked() {
+	PluginInfo *pi;
+	{
+		QReadLocker lock(&g.p->qrwlPlugins);
+		pi = pluginForItem(qtwPlugins->currentItem());
 	}
 
-	QPixmap pm = qmCursors.value(csShape);
-	if (pm.isNull()) {
-		NSImage *img = [cursor image];
-		CGImageRef cgimg = nullptr;
-		NSArray *reps = [img representations];
-		for (NSUInteger i = 0; i < [reps count]; i++) {
-			NSImageRep *rep = [reps objectAtIndex:i];
-			if ([rep class] == [NSBitmapImageRep class]) {
-				cgimg = [(NSBitmapImageRep *)rep CGImage];
+	if (!pi)
+		return;
+
+	if (pi->pqt && pi->pqt->config) {
+		pi->pqt->config(this);
+	} else if (pi->p->config) {
+		pi->p->config(0);
+	} else {
+		QMessageBox::information(this, QLatin1String("Mumble"), tr("Plugin has no configure function."),
+								 QMessageBox::Ok, QMessageBox::NoButton);
+	}
+}
+
+void PluginConfig::on_qpbAbout_clicked() {
+	PluginInfo *pi;
+	{
+		QReadLocker lock(&g.p->qrwlPlugins);
+		pi = pluginForItem(qtwPlugins->currentItem());
+	}
+
+	if (!pi)
+		return;
+
+	if (pi->pqt && pi->pqt->about) {
+		pi->pqt->about(this);
+	} else if (pi->p->about) {
+		pi->p->about(0);
+	} else {
+		QMessageBox::information(this, QLatin1String("Mumble"), tr("Plugin has no about function."), QMessageBox::Ok,
+								 QMessageBox::NoButton);
+	}
+}
+
+void PluginConfig::on_qpbReload_clicked() {
+	g.p->rescanPlugins();
+	refillPluginList();
+}
+
+void PluginConfig::refillPluginList() {
+	QReadLocker lock(&g.p->qrwlPlugins);
+	qtwPlugins->clear();
+
+	foreach (PluginInfo *pi, g.p->qlPlugins) {
+		QTreeWidgetItem *i = new QTreeWidgetItem(qtwPlugins);
+		i->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+		i->setCheckState(1, pi->enabled ? Qt::Checked : Qt::Unchecked);
+		i->setText(0, pi->description);
+		if (pi->p->longdesc)
+			i->setToolTip(0, QString::fromStdWString(pi->p->longdesc()).toHtmlEscaped());
+		i->setData(0, Qt::UserRole, pi->filename);
+	}
+	qtwPlugins->setCurrentItem(qtwPlugins->topLevelItem(0));
+	on_qtwPlugins_currentItemChanged(qtwPlugins->topLevelItem(0), nullptr);
+}
+
+void PluginConfig::on_qtwPlugins_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *) {
+	QReadLocker lock(&g.p->qrwlPlugins);
+
+	PluginInfo *pi = pluginForItem(current);
+	if (pi) {
+		bool showAbout = false;
+		if (pi->p->about) {
+			showAbout = true;
+		}
+		if (pi->pqt && pi->pqt->about) {
+			showAbout = true;
+		}
+		qpbAbout->setEnabled(showAbout);
+
+		bool showConfig = false;
+		if (pi->p->config) {
+			showConfig = true;
+		}
+		if (pi->pqt && pi->pqt->config) {
+			showConfig = true;
+		}
+		qpbConfig->setEnabled(showConfig);
+	} else {
+		qpbAbout->setEnabled(false);
+		qpbConfig->setEnabled(false);
+	}
+}
+
+Plugins::Plugins(QObject *p) : QObject(p) {
+	QTimer *timer = new QTimer(this);
+	timer->setObjectName(QLatin1String("Timer"));
+	timer->start(500);
+	locked = prevlocked = nullptr;
+	bValid              = false;
+	iPluginTry          = 0;
+	for (int i = 0; i < 3; i++)
+		fPosition[i] = fFront[i] = fTop[i] = 0.0;
+	QMetaObject::connectSlotsByName(this);
+
+#ifdef QT_NO_DEBUG
+#	ifndef MUMBLE_PLUGIN_PATH
+	qsSystemPlugins =
+		QString::fromLatin1("%1/plugins").arg(MumbleApplication::instance()->applicationVersionRootPath());
+#		ifdef Q_OS_MAC
+	qsSystemPlugins = QString::fromLatin1("%1/../Plugins").arg(qApp->applicationDirPath());
+#		endif
+#	else
+	qsSystemPlugins = QLatin1String(MUMTEXT(MUMBLE_PLUGIN_PATH));
+#	endif
+
+	qsUserPlugins = g.qdBasePath.absolutePath() + QLatin1String("/Plugins");
+#else
+#	ifdef MUMBLE_PLUGIN_PATH
+	qsSystemPlugins = QLatin1String(MUMTEXT(MUMBLE_PLUGIN_PATH));
+#	else
+	qsSystemPlugins = QString();
+#	endif
+
+	qsUserPlugins = QString::fromLatin1("%1/plugins").arg(MumbleApplication::instance()->applicationVersionRootPath());
+#endif
+
+#ifdef Q_OS_WIN
+	// According to MS KB Q131065, we need this to OpenProcess()
+
+	hToken = nullptr;
+
+	if (!OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, FALSE, &hToken)) {
+		if (GetLastError() == ERROR_NO_TOKEN) {
+			ImpersonateSelf(SecurityImpersonation);
+			OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, FALSE, &hToken);
+		}
+	}
+
+	TOKEN_PRIVILEGES tp;
+	LUID luid;
+	cbPrevious = sizeof(TOKEN_PRIVILEGES);
+
+	LookupPrivilegeValue(nullptr, SE_DEBUG_NAME, &luid);
+
+	tp.PrivilegeCount           = 1;
+	tp.Privileges[0].Luid       = luid;
+	tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+	AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &tpPrevious, &cbPrevious);
+#endif
+}
+
+Plugins::~Plugins() {
+	clearPlugins();
+
+#ifdef Q_OS_WIN
+	AdjustTokenPrivileges(hToken, FALSE, &tpPrevious, cbPrevious, nullptr, nullptr);
+	CloseHandle(hToken);
+#endif
+}
+
+void Plugins::clearPlugins() {
+	QWriteLocker lock(&g.p->qrwlPlugins);
+	foreach (PluginInfo *pi, qlPlugins) {
+		if (pi->locked)
+			pi->p->unlock();
+		pi->lib.unload();
+		delete pi;
+	}
+	qlPlugins.clear();
+}
+
+void Plugins::rescanPlugins() {
+	clearPlugins();
+
+	QWriteLocker lock(&g.p->qrwlPlugins);
+	prevlocked = locked = nullptr;
+	bValid              = false;
+
+	QDir qd(qsSystemPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
+	QDir qud(qsUserPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
+	QFileInfoList libs = qud.entryInfoList() + qd.entryInfoList();
+
+	QSet< QString > evaluated;
+	foreach (const QFileInfo &libinfo, libs) {
+		QString fname   = libinfo.fileName();
+		QString libname = libinfo.absoluteFilePath();
+		if (!evaluated.contains(fname) && QLibrary::isLibrary(libname)) {
+			PluginInfo *pi = new PluginInfo();
+			pi->lib.setFileName(libname);
+			pi->filename = fname;
+			if (pi->lib.load()) {
+				mumblePluginFunc mpf = reinterpret_cast< mumblePluginFunc >(pi->lib.resolve("getMumblePlugin"));
+				if (mpf) {
+					evaluated.insert(fname);
+					pi->p = mpf();
+
+					// Check whether the plugin has a valid plugin magic and that it's not retracted.
+					// A retracted plugin is a plugin that clients should disregard, typically because
+					// the game the plugin was written for now provides positional audio via the
+					// link plugin (see null_plugin.cpp).
+					if (pi->p && pi->p->magic == MUMBLE_PLUGIN_MAGIC && pi->p->shortname != L"Retracted") {
+						pi->description = QString::fromStdWString(pi->p->description);
+						pi->shortname   = QString::fromStdWString(pi->p->shortname);
+						pi->enabled     = g.s.qmPositionalAudioPlugins.value(pi->filename, true);
+
+						mumblePlugin2Func mpf2 =
+							reinterpret_cast< mumblePlugin2Func >(pi->lib.resolve("getMumblePlugin2"));
+						if (mpf2) {
+							pi->p2 = mpf2();
+							if (pi->p2->magic != MUMBLE_PLUGIN_MAGIC_2) {
+								pi->p2 = nullptr;
+							}
+						}
+
+						mumblePluginQtFunc mpfqt =
+							reinterpret_cast< mumblePluginQtFunc >(pi->lib.resolve("getMumblePluginQt"));
+						if (mpfqt) {
+							pi->pqt = mpfqt();
+							if (pi->pqt->magic != MUMBLE_PLUGIN_MAGIC_QT) {
+								pi->pqt = nullptr;
+							}
+						}
+
+						qlPlugins << pi;
+						continue;
+					}
+				}
+				pi->lib.unload();
+			} else {
+				qWarning("Plugins: Failed to load %s: %s", qPrintable(pi->filename), qPrintable(pi->lib.errorString()));
 			}
+			delete pi;
 		}
 	}
 
-	NSPoint p = [cursor hotSpot];
-	iOffsetX = (int) p.x;
-	iOffsetY = (int) p.y;
-
-	qgpiCursor->setPixmap(pm);
-	qgpiCursor->setPos(iMouseX - iOffsetX, iMouseY - iOffsetY);
+	// Handle built-in plugins
+	{
+#if defined(USE_MANUAL_PLUGIN)
+		// Manual plugin
+		PluginInfo *pi  = new PluginInfo();
+		pi->filename    = QLatin1String("manual.builtin");
+		pi->p           = ManualPlugin_getMumblePlugin();
+		pi->pqt         = ManualPlugin_getMumblePluginQt();
+		pi->description = QString::fromStdWString(pi->p->description);
+		pi->shortname   = QString::fromStdWString(pi->p->shortname);
+		pi->enabled     = g.s.qmPositionalAudioPlugins.value(pi->filename, true);
+		qlPlugins << pi;
+#endif
+	}
 }
 
-QString installerPath() {
-	NSString *installerPath = [[NSBundle mainBundle] pathForResource:@"MumbleOverlay" ofType:@"pkg"];
-	if (installerPath) {
-		return QString::fromUtf8([installerPath UTF8String]);
-	}
-	return QString();
-}
+bool Plugins::fetch() {
+	if (g.bPosTest) {
+		fPosition[0] = fPosition[1] = fPosition[2] = 0.0f;
+		fFront[0]                                  = 0.0f;
+		fFront[1]                                  = 0.0f;
+		fFront[2]                                  = 1.0f;
+		fTop[0]                                    = 0.0f;
+		fTop[1]                                    = 1.0f;
+		fTop[2]                                    = 0.0f;
 
-bool OverlayConfig::isInstalled() {
-	bool ret = false;
-
-	// Determine if the installed bundle is correctly installed (i.e. it's loadable)
-	NSBundle *bundle = [NSBundle bundleWithPath:MumbleOverlayLoaderBundle];
-	ret = [bundle preflightAndReturnError:nullptr];
-
-	// Do the bundle identifiers match?
-	if (ret) {
-		ret = [[bundle bundleIdentifier] isEqualToString:MumbleOverlayLoaderBundleIdentifier];
-	}
-
-	return ret;
-}
-
-// Check whether this installer installs something 'newer' than what we already have.
-// Also checks whether the new installer is compatiable with the current version of
-// Mumble.
-static bool isInstallerNewer(QString path, NSUInteger curVer) {
-	xar_t pkg = nullptr;
-	xar_iter_t iter = nullptr;
-	xar_file_t file = nullptr;
-	char *data = nullptr;
-	size_t size = 0;
-	bool ret = false;
-	QString qsMinVer, qsOverlayVer;
-
-	pkg = xar_open(path.toUtf8().constData(), READ);
-	if (!pkg) {
-		qWarning("isInstallerNewer: Unable to open pkg.");
-		goto out;
-	}
-
-	iter = xar_iter_new();
-	if (!iter) {
-		qWarning("isInstallerNewer: Unable to allocate iter");
-		goto out;
-	}
-
-	file = xar_file_first(pkg, iter);
-	while (file) {
-		if (!strcmp(xar_get_path(file), "upgrade.xml"))
-			break;
-		file = xar_file_next(iter);
-	}
-
-	if (file) {
-		if (xar_extract_tobuffersz(pkg, file, &data, &size) == -1) {
-			goto out;
+		for (int i = 0; i < 3; ++i) {
+			fCameraPosition[i] = fPosition[i];
+			fCameraFront[i]    = fFront[i];
+			fCameraTop[i]      = fTop[i];
 		}
 
-		QXmlStreamReader reader(QByteArray::fromRawData(data, size));
-		while (! reader.atEnd()) {
-			QXmlStreamReader::TokenType tok = reader.readNext();
-			if (tok == QXmlStreamReader::StartElement) {
-				if (reader.name() == QLatin1String("upgrade")) {
-					qsOverlayVer = reader.attributes().value(QLatin1String("version")).toString();
-					qsMinVer = reader.attributes().value(QLatin1String("minclient")).toString();
+		bValid = true;
+		return true;
+	}
+
+	if (!locked) {
+		bValid = false;
+		return bValid;
+	}
+
+	QReadLocker lock(&qrwlPlugins);
+	if (!locked) {
+		bValid = false;
+		return bValid;
+	}
+
+	if (!locked->enabled)
+		bUnlink = true;
+
+	bool ok;
+	{
+		QMutexLocker mlock(&qmPluginStrings);
+		ok = locked->p->fetch(fPosition, fFront, fTop, fCameraPosition, fCameraFront, fCameraTop, ssContext,
+							  swsIdentity);
+	}
+	if (!ok || bUnlink) {
+		lock.unlock();
+		QWriteLocker wlock(&qrwlPlugins);
+
+		if (locked) {
+			locked->p->unlock();
+			locked->locked = false;
+			prevlocked     = locked;
+			locked         = nullptr;
+			for (int i = 0; i < 3; i++)
+				fPosition[i] = fFront[i] = fTop[i] = fCameraPosition[i] = fCameraFront[i] = fCameraTop[i] = 0.0f;
+		}
+	}
+	bValid = ok;
+	return bValid;
+}
+
+void Plugins::on_Timer_timeout() {
+	fetch();
+
+	QReadLocker lock(&qrwlPlugins);
+
+	if (prevlocked) {
+		g.l->log(Log::Information, tr("%1 lost link.").arg(prevlocked->shortname.toHtmlEscaped()));
+		prevlocked = nullptr;
+	}
+
+
+	{
+		QMutexLocker mlock(&qmPluginStrings);
+
+		if (!locked) {
+			ssContext.clear();
+			swsIdentity.clear();
+		}
+
+		std::string context;
+		if (locked)
+			context.assign(u8(QString::fromStdWString(locked->p->shortname)) + static_cast< char >(0) + ssContext);
+
+		if (!g.uiSession) {
+			ssContextSent.clear();
+			swsIdentitySent.clear();
+		} else if ((context != ssContextSent) || (swsIdentity != swsIdentitySent)) {
+			MumbleProto::UserState mpus;
+			mpus.set_session(g.uiSession);
+			if (context != ssContextSent) {
+				ssContextSent.assign(context);
+				mpus.set_plugin_context(context);
+			}
+			if (swsIdentity != swsIdentitySent) {
+				swsIdentitySent.assign(swsIdentity);
+				mpus.set_plugin_identity(u8(QString::fromStdWString(swsIdentitySent)));
+			}
+			if (g.sh)
+				g.sh->sendMessage(mpus);
+		}
+	}
+
+	if (locked) {
+		return;
+	}
+
+	if (!g.s.bTransmitPosition)
+		return;
+
+	lock.unlock();
+	QWriteLocker wlock(&qrwlPlugins);
+
+	if (qlPlugins.isEmpty())
+		return;
+
+	++iPluginTry;
+	if (iPluginTry >= qlPlugins.count())
+		iPluginTry = 0;
+
+	std::multimap< std::wstring, unsigned long long int > pids;
+#if defined(Q_OS_WIN)
+	PROCESSENTRY32 pe;
+
+	pe.dwSize    = sizeof(pe);
+	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (hSnap != INVALID_HANDLE_VALUE) {
+		BOOL ok = Process32First(hSnap, &pe);
+
+		while (ok) {
+			pids.insert(
+				std::pair< std::wstring, unsigned long long int >(std::wstring(pe.szExeFile), pe.th32ProcessID));
+			ok = Process32Next(hSnap, &pe);
+		}
+		CloseHandle(hSnap);
+	}
+#elif defined(Q_OS_LINUX)
+	QDir d(QLatin1String("/proc"));
+	QStringList entries = d.entryList();
+	bool ok;
+	foreach (const QString &entry, entries) {
+		// Check if the entry is a PID
+		// by checking whether it's a number.
+		// If it is not, skip it.
+		unsigned long long int pid = static_cast< unsigned long long int >(entry.toLongLong(&ok, 10));
+		if (!ok) {
+			continue;
+		}
+
+		QString exe = QFile::symLinkTarget(QString(QLatin1String("/proc/%1/exe")).arg(entry));
+		QFileInfo fi(exe);
+		QString firstPart      = fi.baseName();
+		QString completeSuffix = fi.completeSuffix();
+		QString baseName;
+		if (completeSuffix.isEmpty()) {
+			baseName = firstPart;
+		} else {
+			baseName = firstPart + QLatin1String(".") + completeSuffix;
+		}
+
+		if (baseName == QLatin1String("wine-preloader") || baseName == QLatin1String("wine64-preloader")) {
+			QFile f(QString(QLatin1String("/proc/%1/cmdline")).arg(entry));
+			if (f.open(QIODevice::ReadOnly)) {
+				QByteArray cmdline = f.readAll();
+				f.close();
+
+				int nul = cmdline.indexOf('\0');
+				if (nul != -1) {
+					cmdline.truncate(nul);
+				}
+
+				QString exe = QString::fromUtf8(cmdline);
+				if (exe.contains(QLatin1String("\\"))) {
+					int lastBackslash = exe.lastIndexOf(QLatin1String("\\"));
+					if (exe.count() > lastBackslash + 1) {
+						baseName = exe.mid(lastBackslash + 1);
+					}
 				}
 			}
 		}
 
-		if (reader.hasError() || qsMinVer.isNull() || qsOverlayVer.isNull()) {
-			qWarning("isInstallerNewer: Error while parsing XML version info.");
-			goto out;
+		if (!baseName.isEmpty()) {
+			pids.insert(std::pair< std::wstring, unsigned long long int >(baseName.toStdWString(), pid));
 		}
-
-		NSUInteger newVer = qsOverlayVer.toUInt();
-
-		QRegExp rx(QLatin1String("(\\d+)\\.(\\d+)\\.(\\d+)"));
-		int major, minor, patch;
-		int minmajor, minminor, minpatch;
-		if (! rx.exactMatch(QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING))))
-			goto out;
-		major = rx.cap(1).toInt();
-		minor = rx.cap(2).toInt();
-		patch = rx.cap(3).toInt();
-		if (! rx.exactMatch(qsMinVer))
-			goto out;
-		minmajor = rx.cap(1).toInt();
-		minminor = rx.cap(2).toInt();
-		minpatch = rx.cap(3).toInt();
-
-		ret = (major >= minmajor) && (minor >= minminor) && (patch >= minpatch) && (newVer > curVer);
 	}
+#endif
 
-out:
-	xar_close(pkg);
-	xar_iter_free(iter);
-	free(data);
-	return ret;
-}
-
-bool OverlayConfig::needsUpgrade() {
-	NSDictionary *infoPlist = [NSDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"%@/Contents/Info.plist", MumbleOverlayLoaderBundle]];
-	if (infoPlist) {
-		NSUInteger curVersion = [[infoPlist objectForKey:@"MumbleOverlayVersion"] unsignedIntegerValue];
-
-		QString path = installerPath();
-		if (path.isEmpty())
-			return false;
-
-		return isInstallerNewer(path, curVersion);
-	}
-
-	return false;
-}
-
-static bool authExec(AuthorizationRef ref, const char **argv) {
-	OSStatus err = noErr;
-	int pid = 0, status = 0;
-
-	err = AuthorizationExecuteWithPrivileges(ref, argv[0], kAuthorizationFlagDefaults, const_cast<char * const *>(&argv[1]), nullptr);
-	if (err == errAuthorizationSuccess) {
-		do {
-			pid = wait(&status);
-		} while (pid == -1 && errno == EINTR);
-		return (pid != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0);
-	}
-
-	qWarning("Overlay_macx: Failed to AuthorizeExecuteWithPrivileges. (err=%i)", err);
-	qWarning("Overlay_macx: Status: (pid=%i, exited=%u, exitStatus=%u)", pid, WIFEXITED(status), WEXITSTATUS(status));
-
-	return false;
-}
-
-bool OverlayConfig::installFiles() {
-	bool ret = false;
-
-	QString path = installerPath();
-	if (path.isEmpty()) {
-		qWarning("OverlayConfig: No installers found in search paths.");
-		return false;
-	}
-
-	QProcess installer(this);
-	QStringList args;
-	args << QString::fromLatin1("-W");
-	args << path;
-	installer.start(QLatin1String("/usr/bin/open"), args, QIODevice::ReadOnly);
-
-	while (!installer.waitForFinished(1000)) {
-		qApp->processEvents();
-	}
-
-	return ret;
-}
-
-bool OverlayConfig::uninstallFiles() {
-	AuthorizationRef auth;
-	NSBundle *loaderBundle;
-	bool ret = false, bundleOk = false;
-	OSStatus err;
-
-	// Load the installed loader bundle and check if it's something we're willing to uninstall.
-	loaderBundle = [NSBundle bundleWithPath:MumbleOverlayLoaderBundle];
-	bundleOk = [[loaderBundle bundleIdentifier] isEqualToString:MumbleOverlayLoaderBundleIdentifier];
-
-	// Perform uninstallation using Authorization Services. (Pops up a dialog asking for admin privileges)
-	if (bundleOk) {
-		err = AuthorizationCreate(nullptr, kAuthorizationEmptyEnvironment, kAuthorizationFlagDefaults, &auth);
-		if (err == errAuthorizationSuccess) {
-			QByteArray tmp = QString::fromLatin1("/tmp/%1_Uninstalled_MumbleOverlay.osax").arg(QDateTime::currentMSecsSinceEpoch()).toLocal8Bit();
-			const char *remove[] = { "/bin/mv", [MumbleOverlayLoaderBundle UTF8String], tmp.constData(), nullptr };
-			ret = authExec(auth, remove);
+	PluginInfo *pi = qlPlugins.at(iPluginTry);
+	if (pi->enabled) {
+		if (pi->p2 ? pi->p2->trylock(pids) : pi->p->trylock()) {
+			pi->shortname = QString::fromStdWString(pi->p->shortname);
+			g.l->log(Log::Information, tr("%1 linked.").arg(pi->shortname.toHtmlEscaped()));
+			pi->locked = true;
+			bUnlink    = false;
+			locked     = pi;
 		}
-		AuthorizationFree(auth, kAuthorizationFlagDefaults);
+	}
+}
+
+void Plugins::checkUpdates() {
+	QUrl url;
+	url.setPath(QLatin1String("/v1/pa-plugins"));
+
+	QList< QPair< QString, QString > > queryItems;
+	queryItems << qMakePair(QString::fromUtf8("ver"),
+							QString::fromUtf8(QUrl::toPercentEncoding(QString::fromUtf8(MUMBLE_RELEASE))));
+#if defined(Q_OS_WIN)
+#	if defined(Q_OS_WIN64)
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("WinX64"));
+#	else
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("Win32"));
+#	endif
+	queryItems << qMakePair(QString::fromUtf8("abi"), QString::fromUtf8(MUMTEXT(_MSC_VER)));
+#elif defined(Q_OS_MAC)
+#	if defined(USE_MAC_UNIVERSAL)
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("MacOSX-Universal"));
+#	else
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("MacOSX"));
+#	endif
+#else
+	queryItems << qMakePair(QString::fromUtf8("os"), QString::fromUtf8("Unix"));
+#endif
+
+
+#ifdef QT_NO_DEBUG
+	QUrlQuery query;
+	query.setQueryItems(queryItems);
+	url.setQuery(query);
+
+	WebFetch::fetch(QLatin1String("update"), url, this, SLOT(fetchedUpdatePAPlugins(QByteArray, QUrl)));
+#else
+	g.mw->msgBox(tr("Skipping plugin update in debug mode."));
+#endif
+}
+
+void Plugins::fetchedUpdatePAPlugins(QByteArray data, QUrl) {
+	if (data.isNull())
+		return;
+
+	bool rescan = false;
+	qmPluginFetchMeta.clear();
+	QDomDocument doc;
+	doc.setContent(data);
+
+	QDomElement root = doc.documentElement();
+	QDomNode n       = root.firstChild();
+	while (!n.isNull()) {
+		QDomElement e = n.toElement();
+		if (!e.isNull()) {
+			if (e.tagName() == QLatin1String("plugin")) {
+				QString name = QFileInfo(e.attribute(QLatin1String("name"))).fileName();
+				QString hash = e.attribute(QLatin1String("hash"));
+				QString path = e.attribute(QLatin1String("path"));
+				qmPluginFetchMeta.insert(name, PluginFetchMeta(hash, path));
+			}
+		}
+		n = n.nextSibling();
 	}
 
-	return ret;
+	QDir qd(qsSystemPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
+	QDir qdu(qsUserPlugins, QString(), QDir::Name, QDir::Files | QDir::Readable);
+
+	QFileInfoList libs = qd.entryInfoList();
+	foreach (const QFileInfo &libinfo, libs) {
+		QString libname     = libinfo.absoluteFilePath();
+		QString filename    = libinfo.fileName();
+		PluginFetchMeta pfm = qmPluginFetchMeta.value(filename);
+		QString wanthash    = pfm.hash;
+		if (!wanthash.isNull() && QLibrary::isLibrary(libname)) {
+			QFile f(libname);
+			if (wanthash.isEmpty()) {
+				// Outdated plugin
+				if (f.exists()) {
+					clearPlugins();
+					f.remove();
+					rescan = true;
+				}
+			} else if (f.open(QIODevice::ReadOnly)) {
+				QString h = QLatin1String(sha1(f.readAll()).toHex());
+				f.close();
+				if (h == wanthash) {
+					if (qd != qdu) {
+						QFile qfuser(qsUserPlugins + QString::fromLatin1("/") + filename);
+						if (qfuser.exists()) {
+							clearPlugins();
+							qfuser.remove();
+							rescan = true;
+						}
+					}
+					// Mark for removal from userplugins
+					qmPluginFetchMeta.insert(filename, PluginFetchMeta());
+				}
+			}
+		}
+	}
+
+	if (qd != qdu) {
+		libs = qdu.entryInfoList();
+		foreach (const QFileInfo &libinfo, libs) {
+			QString libname     = libinfo.absoluteFilePath();
+			QString filename    = libinfo.fileName();
+			PluginFetchMeta pfm = qmPluginFetchMeta.value(filename);
+			QString wanthash    = pfm.hash;
+			if (!wanthash.isNull() && QLibrary::isLibrary(libname)) {
+				QFile f(libname);
+				if (wanthash.isEmpty()) {
+					// Outdated plugin
+					if (f.exists()) {
+						clearPlugins();
+						f.remove();
+						rescan = true;
+					}
+				} else if (f.open(QIODevice::ReadOnly)) {
+					QString h = QLatin1String(sha1(f.readAll()).toHex());
+					f.close();
+					if (h == wanthash) {
+						qmPluginFetchMeta.remove(filename);
+					}
+				}
+			}
+		}
+	}
+	QMap< QString, PluginFetchMeta >::const_iterator i;
+	for (i = qmPluginFetchMeta.constBegin(); i != qmPluginFetchMeta.constEnd(); ++i) {
+		PluginFetchMeta pfm = i.value();
+		if (!pfm.hash.isEmpty()) {
+			QUrl pluginDownloadUrl;
+			if (pfm.path.isEmpty()) {
+				pluginDownloadUrl.setPath(QString::fromLatin1("%1").arg(i.key()));
+			} else {
+				pluginDownloadUrl.setPath(pfm.path);
+			}
+
+			WebFetch::fetch(QLatin1String("pa-plugin-dl"), pluginDownloadUrl, this,
+							SLOT(fetchedPAPluginDL(QByteArray, QUrl)));
+		}
+	}
+
+	if (rescan)
+		rescanPlugins();
+}
+
+void Plugins::fetchedPAPluginDL(QByteArray data, QUrl url) {
+	if (data.isNull())
+		return;
+
+	bool rescan = false;
+
+	const QString &urlPath = url.path();
+	QString fname          = QFileInfo(urlPath).fileName();
+	if (qmPluginFetchMeta.contains(fname)) {
+		PluginFetchMeta pfm = qmPluginFetchMeta.value(fname);
+		if (pfm.hash == QLatin1String(sha1(data).toHex())) {
+			bool verified = true;
+#ifdef Q_OS_WIN
+			verified = false;
+			QString tempname;
+			std::wstring tempnative;
+			{
+				QTemporaryFile temp(QDir::tempPath() + QLatin1String("/plugin_XXXXXX.dll"));
+				if (temp.open()) {
+					tempname   = temp.fileName();
+					tempnative = QDir::toNativeSeparators(tempname).toStdWString();
+					temp.write(data);
+					temp.setAutoRemove(false);
+				}
+			}
+			if (!tempname.isNull()) {
+				WINTRUST_FILE_INFO file;
+				ZeroMemory(&file, sizeof(file));
+				file.cbStruct      = sizeof(file);
+				file.pcwszFilePath = tempnative.c_str();
+
+				WINTRUST_DATA data;
+				ZeroMemory(&data, sizeof(data));
+				data.cbStruct            = sizeof(data);
+				data.dwUIChoice          = WTD_UI_NONE;
+				data.fdwRevocationChecks = WTD_REVOKE_NONE;
+				data.dwUnionChoice       = WTD_CHOICE_FILE;
+				data.pFile               = &file;
+				data.dwProvFlags         = WTD_SAFER_FLAG | WTD_USE_DEFAULT_OSVER_CHECK;
+				data.dwUIContext         = WTD_UICONTEXT_INSTALL;
+
+				static GUID guid = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+
+				LONG ts = WinVerifyTrust(0, &guid, &data);
+
+				QFile deltemp(tempname);
+				deltemp.remove();
+				verified = (ts == 0);
+			}
+#endif
+			if (verified) {
+				clearPlugins();
+
+				QFile f;
+				f.setFileName(qsSystemPlugins + QLatin1String("/") + fname);
+				if (f.open(QIODevice::WriteOnly)) {
+					f.write(data);
+					f.close();
+					g.mw->msgBox(tr("Downloaded new or updated plugin to %1.").arg(f.fileName().toHtmlEscaped()));
+				} else {
+					f.setFileName(qsUserPlugins + QLatin1String("/") + fname);
+					if (f.open(QIODevice::WriteOnly)) {
+						f.write(data);
+						f.close();
+						g.mw->msgBox(tr("Downloaded new or updated plugin to %1.").arg(f.fileName().toHtmlEscaped()));
+					} else {
+						g.mw->msgBox(tr("Failed to install new plugin to %1.").arg(f.fileName().toHtmlEscaped()));
+					}
+				}
+
+				rescan = true;
+			}
+		}
+	}
+
+	if (rescan)
+		rescanPlugins();
 }
