@@ -1,86 +1,449 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_MANUALPLUGIN_H_
-#define MUMBLE_MUMBLE_MANUALPLUGIN_H_
-
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QDialog>
-#include <QtWidgets/QGraphicsItem>
-#include <QtWidgets/QGraphicsScene>
-
-#include "ui_ManualPlugin.h"
-
-#include "../../plugins/mumble_plugin.h"
-
-#include <atomic>
-#include <chrono>
-
-struct Position2D {
-	float x;
-	float y;
-};
-
-// We need this typedef in order to be able to pass this hash as an argument
-// to QMetaObject::invokeMethod
-using PositionMap = QHash< unsigned int, Position2D >;
-Q_DECLARE_METATYPE(PositionMap);
-
-
-/// A struct holding information about a stale entry in the
-/// manual plugin's position window
-struct StaleEntry {
-	/// The time point since when this entry is considered stale
-	std::chrono::time_point< std::chrono::steady_clock > staleSince;
-	/// The pointer to the stale item
-	QGraphicsItem *staleItem;
-};
-
-class Manual : public QDialog, public Ui::Manual {
-	Q_OBJECT
-public:
-	Manual(QWidget *parent = 0);
-
-	static void setSpeakerPositions(const QHash< unsigned int, Position2D > &positions);
-
-
-public slots:
-	void on_qpbUnhinge_pressed();
-	void on_qpbLinked_clicked(bool);
-	void on_qpbActivated_clicked(bool);
-	void on_qdsbX_valueChanged(double);
-	void on_qdsbY_valueChanged(double);
-	void on_qdsbZ_valueChanged(double);
-	void on_qsbAzimuth_valueChanged(int);
-	void on_qsbElevation_valueChanged(int);
-	void on_qdAzimuth_valueChanged(int);
-	void on_qdElevation_valueChanged(int);
-	void on_qleContext_editingFinished();
-	void on_qleIdentity_editingFinished();
-	void on_buttonBox_clicked(QAbstractButton *);
-	void on_qsbSilentUserDisplaytime_valueChanged(int);
-
-	void on_speakerPositionUpdate(PositionMap positions);
-
-	void on_updateStaleSpeakers();
-
-protected:
-	QGraphicsScene *qgsScene;
-	QGraphicsItem *qgiPosition;
-
-	std::atomic< bool > updateLoopRunning;
-
-	QHash< unsigned int, QGraphicsItem * > speakerPositions;
-	QHash< unsigned int, StaleEntry > staleSpeakerPositions;
-
-	bool eventFilter(QObject *, QEvent *);
-	void changeEvent(QEvent *e);
-	void updateTopAndFront(int orientation, int azimut);
-};
-
-MumblePlugin *ManualPlugin_getMumblePlugin();
-MumblePluginQt *ManualPlugin_getMumblePluginQt();
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Manual</class>
+ <widget class="QDialog" name="Manual">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>731</width>
+    <height>528</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Manual Mumble Positional Audio</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="qhlHorizontal" stretch="0,0">
+     <item>
+      <widget class="QGroupBox" name="qgbPosition">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <horstretch>2</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="title">
+        <string>Position</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0">
+        <item>
+         <widget class="QGraphicsView" name="qgvPosition">
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="backgroundBrush">
+           <brush brushstyle="NoBrush">
+            <color alpha="255">
+             <red>0</red>
+             <green>0</green>
+             <blue>0</blue>
+            </color>
+           </brush>
+          </property>
+          <property name="foregroundBrush">
+           <brush brushstyle="NoBrush">
+            <color alpha="255">
+             <red>0</red>
+             <green>0</green>
+             <blue>0</blue>
+            </color>
+           </brush>
+          </property>
+          <property name="interactive">
+           <bool>true</bool>
+          </property>
+          <property name="sceneRect">
+           <rectf>
+            <x>-50.000000000000000</x>
+            <y>-50.000000000000000</y>
+            <width>100.000000000000000</width>
+            <height>100.000000000000000</height>
+           </rectf>
+          </property>
+          <property name="renderHints">
+           <set>QPainter::Antialiasing|QPainter::TextAntialiasing</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="1" column="1">
+           <widget class="QLabel" name="qlY">
+            <property name="text">
+             <string>Y</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QDoubleSpinBox" name="qdsbZ">
+            <property name="suffix">
+             <string>m</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QDoubleSpinBox" name="qdsbX">
+            <property name="prefix">
+             <string/>
+            </property>
+            <property name="suffix">
+             <string>m</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLabel" name="qlZ">
+            <property name="text">
+             <string>Z</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="qlX">
+            <property name="text">
+             <string>X</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="qdsbY">
+            <property name="suffix">
+             <string>m</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="qhlVertical">
+       <item>
+        <widget class="QGroupBox" name="groupBox">
+         <property name="title">
+          <string>Display</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="qlSilentUserDisplaytime">
+            <property name="toolTip">
+             <string>How long silent user's positions should stay marked after they have stopped talking (in seconds).</string>
+            </property>
+            <property name="text">
+             <string>Silent user displaytime:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="qsbSilentUserDisplaytime">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>How long silent user's positions should stay marked after they have stopped talking (in seconds).</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="qgbHeading">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string>Heading</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="2" column="0">
+           <widget class="QSpinBox" name="qsbAzimuth">
+            <property name="suffix">
+             <string>°</string>
+            </property>
+            <property name="maximum">
+             <number>360</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="qlAzimuth">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Azimuth</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDial" name="qdElevation">
+            <property name="minimum">
+             <number>-180</number>
+            </property>
+            <property name="maximum">
+             <number>180</number>
+            </property>
+            <property name="pageStep">
+             <number>30</number>
+            </property>
+            <property name="value">
+             <number>90</number>
+            </property>
+            <property name="sliderPosition">
+             <number>90</number>
+            </property>
+            <property name="wrapping">
+             <bool>true</bool>
+            </property>
+            <property name="notchTarget">
+             <double>6.000000000000000</double>
+            </property>
+            <property name="notchesVisible">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSpinBox" name="qsbElevation">
+            <property name="suffix">
+             <string>°</string>
+            </property>
+            <property name="minimum">
+             <number>-90</number>
+            </property>
+            <property name="maximum">
+             <number>90</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="qlElevation">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Elevation</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QDial" name="qdAzimuth">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>360</number>
+            </property>
+            <property name="pageStep">
+             <number>30</number>
+            </property>
+            <property name="wrapping">
+             <bool>true</bool>
+            </property>
+            <property name="notchTarget">
+             <double>6.000000000000000</double>
+            </property>
+            <property name="notchesVisible">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="qgbMeta">
+         <property name="title">
+          <string>Meta data</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_3">
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="qleContext"/>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="qlContext">
+            <property name="text">
+             <string>Context</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="qlIdentity">
+            <property name="text">
+             <string>Identity</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="qpbContext">
+            <property name="text">
+             <string>Set</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QPushButton" name="qpbIdentity">
+            <property name="text">
+             <string>Set</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="qleIdentity"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="qgbState">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string>State</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_4">
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="qpbLinked">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>Link</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QCheckBox" name="qpbActivated">
+            <property name="text">
+             <string>Activate</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="qpbUnhinge">
+         <property name="text">
+          <string>Unhinge</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Close|QDialogButtonBox::Reset</set>
+     </property>
+     <property name="centerButtons">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>Manual</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>254</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>Manual</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>316</x>
+     <y>260</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
