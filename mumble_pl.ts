@@ -3,70 +3,72 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Usage.h"
+#include "TextToSpeech.h"
 
-#include "ClientUser.h"
-#include "LCD.h"
-#include "NetworkConfig.h"
-#include "OSInfo.h"
-#include "Version.h"
-#include "Global.h"
+// As the include order seems to make a difference, disable clang-format for them
+// clang-format off
+#include <servprov.h>
+#include <sapi.h>
+// clang-format on
 
-#include <QtCore/QTimer>
-#include <QtNetwork/QHostAddress>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkReply>
-#include <QtXml/QDomElement>
+#undef FAILED
+#define FAILED(Status) (static_cast< HRESULT >(Status) < 0)
 
-Usage::Usage(QObject *p) : QObject(p) {
-	qbReport.open(QBuffer::ReadWrite);
-	qdsReport.setDevice(&qbReport);
-	qdsReport.setVersion(QDataStream::Qt_4_4);
-	qdsReport << static_cast< unsigned int >(2);
+class TextToSpeechPrivate {
+public:
+	ISpVoice *pVoice;
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
+	void say(const QString &text);
+	void setVolume(int v);
+};
 
-	// Wait 10 minutes (so we know they're actually using this), then...
-	QTimer::singleShot(60 * 10 * 1000, this, SLOT(registerUsage()));
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	pVoice = nullptr;
+
+	HRESULT hr = CoCreateInstance(CLSID_SpVoice, nullptr, CLSCTX_ALL, IID_ISpVoice, (void **) &pVoice);
+	if (FAILED(hr))
+		qWarning("TextToSpeechPrivate: Failed to allocate TTS Voice");
 }
 
-void Usage::registerUsage() {
-	if (!g.s.bUsage
-		|| g.s.uiUpdateCounter == 0) // Only register usage if allowed by the user and first wizard run has finished
-		return;
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	if (pVoice)
+		pVoice->Release();
+}
 
-	QDomDocument doc;
-	QDomElement root = doc.createElement(QLatin1String("usage"));
-	doc.appendChild(root);
+void TextToSpeechPrivate::say(const QString &text) {
+	if (pVoice) {
+		pVoice->Speak((const wchar_t *) text.utf16(), SPF_ASYNC, nullptr);
+	}
+}
 
-	QDomElement tag;
-	QDomText t;
+void TextToSpeechPrivate::setVolume(int volume) {
+	if (pVoice)
+		pVoice->SetVolume(volume);
+}
 
-	OSInfo::fillXml(doc, root);
+TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+	enabled = true;
+	d       = new TextToSpeechPrivate();
+}
 
-	tag = doc.createElement(QLatin1String("in"));
-	root.appendChild(tag);
-	t = doc.createTextNode(g.s.qsAudioInput);
-	tag.appendChild(t);
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
 
-	tag = doc.createElement(QLatin1String("out"));
-	root.appendChild(tag);
-	t = doc.createTextNode(g.s.qsAudioOutput);
-	tag.appendChild(t);
+void TextToSpeech::say(const QString &text) {
+	if (enabled)
+		d->say(text);
+}
 
-	tag = doc.createElement(QLatin1String("lcd"));
-	root.appendChild(tag);
-	t = doc.createTextNode(QString::number(g.lcd->hasDevices() ? 1 : 0));
-	tag.appendChild(t);
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
 
-	QBuffer *qb = new QBuffer();
-	qb->setData(doc.toString().toUtf8());
-	qb->open(QIODevice::ReadOnly);
+void TextToSpeech::setVolume(int volume) {
+	d->setVolume(volume);
+}
 
-	QNetworkRequest req(QUrl(QLatin1String("https://usage-report.mumble.info/v1/report")));
-	Network::prepareRequest(req);
-	req.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("text/xml"));
-
-	QNetworkReply *rep = g.nam->post(req, qb);
-	qb->setParent(rep);
-
-	connect(rep, SIGNAL(finished()), rep, SLOT(deleteLater()));
+bool TextToSpeech::isEnabled() const {
+	return enabled;
 }
