@@ -3,38 +3,69 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_PATHLISTWIDGET_H_
-#define MUMBLE_MUMBLE_PATHLISTWIDGET_H_
+#ifndef MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
+#define MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
 
-#include <QListWidget>
-
-class QGraphicsSceneDragDropEvent;
-class QDropEvent;
+#include <QtCore/QMutex>
+#include <QtCore/QObject>
+#include <mmdeviceapi.h>
 
 /**
- * ListWidget that adds functionality for being able to drop files or folders to add them to the list.
- *
- * It makes use of OverlayAppInfo to display file/app information (e.g. the appropriate icon).
+ * @brief Singleton for acting on WASAPINotification events for given devices.
  */
-class PathListWidget : public QListWidget {
+class WASAPINotificationClient : public QObject, public IMMNotificationClient {
+	Q_OBJECT
 public:
-	enum PathType { FILE_EXE, FOLDER };
+	/* IMMNotificationClient interface */
+	HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDevice);
+	HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key);
+	HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId);
+	HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId);
+	HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState);
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface);
+	ULONG STDMETHODCALLTYPE AddRef();
+	ULONG STDMETHODCALLTYPE Release();
 
-	PathListWidget(QWidget *parent = 0);
-	void setPathType(PathType type);
-	virtual void dragEnterEvent(QDragEnterEvent *event) Q_DECL_OVERRIDE;
-	virtual void dragMoveEvent(QDragMoveEvent *event) Q_DECL_OVERRIDE;
-	virtual void dropEvent(QDropEvent *event) Q_DECL_OVERRIDE;
+	/* Enlist/Unlist functionality */
+	void enlistDefaultDeviceAsUsed(LPCWSTR pwstrDefaultDevice);
+
+	void enlistDeviceAsUsed(LPCWSTR pwstrDevice);
+	void enlistDeviceAsUsed(const QString &device);
+
+	void unlistDevice(LPCWSTR pwstrDevice);
+
+	void clearUsedDefaultDeviceList();
+	void clearUsedDeviceLists();
+
+	/**
+	 * @return Singleton instance reference.
+	 */
+	static WASAPINotificationClient &get();
 
 private:
-	Q_OBJECT
-	Q_DISABLE_COPY(PathListWidget)
+	WASAPINotificationClient();
+	~WASAPINotificationClient() Q_DECL_OVERRIDE;
 
-	PathType pathType;
+	WASAPINotificationClient(const WASAPINotificationClient &);
+	WASAPINotificationClient &operator=(const WASAPINotificationClient &);
 
-	void addFilePath(const QString &path);
-	void addFolderPath(const QString &path);
-	void checkAcceptDragEvent(QDropEvent *event, bool store);
+	static WASAPINotificationClient &doGet();
+	static void doGetOnce();
+
+	void restartAudio();
+
+	/* _fu = Non locking versions */
+	void _clearUsedDeviceLists();
+	void _enlistDeviceAsUsed(const QString &device);
+
+	QStringList usedDefaultDevices;
+	QStringList usedDevices;
+	IMMDeviceEnumerator *pEnumerator;
+	LONG _cRef;
+	QMutex listsMutex;
+
+signals:
+	void doResetAudio();
 };
 
-#endif
+#endif // WASAPINOTIFICATIONCLIENT_H_
