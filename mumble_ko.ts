@@ -1,386 +1,90 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>NetworkConfig</class>
- <widget class="QWidget" name="NetworkConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>576</width>
-    <height>572</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string notr="true">Form</string>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout_2">
-   <item>
-    <widget class="QGroupBox" name="qgbConnection">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Connection</string>
-     </property>
-     <layout class="QVBoxLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbTcpMode">
-        <property name="toolTip">
-         <string>Use TCP compatibility mode</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Enable TCP compatibility mode&lt;/b&gt;.&lt;br /&gt;This will make Mumble use only TCP when communicating with the server. This will increase overhead and cause lost packets to produce noticeable pauses in communication, so this should only be used if you are unable to use the default (which uses UDP for voice and TCP for control).</string>
-        </property>
-        <property name="text">
-         <string>Force TCP mode</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbQoS">
-        <property name="toolTip">
-         <string>Enable QoS to prioritize packets</string>
-        </property>
-        <property name="whatsThis">
-         <string>This will enable QoS, which will attempt to prioritize voice packets over other traffic.</string>
-        </property>
-        <property name="text">
-         <string>Use Quality of Service</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbAutoReconnect">
-        <property name="toolTip">
-         <string>Reconnect when disconnected</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Reconnect when disconnected&lt;/b&gt;.&lt;br /&gt;This will make Mumble try to automatically reconnect after 10 seconds if your server connection fails.</string>
-        </property>
-        <property name="text">
-         <string>Reconnect automatically</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbAutoConnect">
-        <property name="toolTip">
-         <string>Reconnect to last used server when starting Mumble</string>
-        </property>
-        <property name="text">
-         <string>Reconnect to last server on startup</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbSuppressIdentity">
-        <property name="toolTip">
-         <string>Don't send certificate to server and don't save passwords. (Not saved).</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This will suppress identity information from the client.&lt;/b&gt;&lt;p&gt;The client will not identify itself with a certificate, even if defined, and will not cache passwords for connections. This is primarily a test-option and is not saved.&lt;/p&gt;</string>
-        </property>
-        <property name="text">
-         <string>Suppress certificate and password storage</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbProxy">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Proxy</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlType">
-        <property name="text">
-         <string>Type</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="3">
-       <widget class="MUComboBox" name="qcbType">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Type of proxy to connect through</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Type of proxy to connect through.&lt;/b&gt;&lt;br /&gt;This makes Mumble connect through a proxy for all outgoing connections. Note: Proxy tunneling forces Mumble into TCP compatibility mode, causing all voice data to be sent via the control channel.</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>Direct connection</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>HTTP(S) proxy</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>SOCKS5 proxy</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlHostname">
-        <property name="text">
-         <string>Hostname</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="qleHostname">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Hostname of the proxy</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Hostname of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the hostname of the proxy you wish to tunnel network traffic through.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLabel" name="qlPort">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Port</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QLineEdit" name="qlePort">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>20</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>60</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Port number of the proxy</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Port number of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the port number that the proxy expects connections on.</string>
-        </property>
-        <property name="inputMask">
-         <string/>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="maxLength">
-         <number>5</number>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlUsername">
-        <property name="text">
-         <string>Username</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1" colspan="3">
-       <widget class="QLineEdit" name="qleUsername">
-        <property name="toolTip">
-         <string>Username for proxy authentication</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Username for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the username you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="qlPassword">
-        <property name="text">
-         <string>Password</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1" colspan="3">
-       <widget class="QLineEdit" name="qlePassword">
-        <property name="toolTip">
-         <string>Password for proxy authentication</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Password for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the password you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
-        </property>
-        <property name="inputMask">
-         <string/>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="echoMode">
-         <enum>QLineEdit::Password</enum>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbPrivacy">
-     <property name="title">
-      <string>Privacy</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <widget class="QCheckBox" name="qcbHideOS">
-        <property name="toolTip">
-         <string>Prevent OS information being sent to Mumble servers and web servers</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Don't send OS information to servers&lt;/b&gt;&lt;br/&gt;
-Prevents the client from sending potentially identifying information about the operating system to the Mumble server and web servers.</string>
-        </property>
-        <property name="text">
-         <string>Do not send OS information to Mumble servers and web servers</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbServices">
-     <property name="title">
-      <string>Mumble services</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbAutoUpdate">
-        <property name="toolTip">
-         <string>Check for new releases of Mumble automatically.</string>
-        </property>
-        <property name="whatsThis">
-         <string>This will check for new releases of Mumble every time you start the program, and notify you if one is available.</string>
-        </property>
-        <property name="text">
-         <string>Check for application updates on startup</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbPluginUpdate">
-        <property name="toolTip">
-         <string>Check for new releases of plugins automatically.</string>
-        </property>
-        <property name="whatsThis">
-         <string>This will check for new releases of plugins every time you start the program, and download them automatically.</string>
-        </property>
-        <property name="text">
-         <string>Download plugin and overlay updates on startup</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbUsage">
-        <property name="toolTip">
-         <string>Submit anonymous statistics to the Mumble project</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Submit anonymous statistics.&lt;/b&gt;&lt;br /&gt;Mumble has a small development team, and as such needs to focus its development where it is needed most. By submitting a bit of statistics you help the project determine where to focus development.</string>
-        </property>
-        <property name="text">
-         <string>Submit anonymous statistics</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbDisablePublicList">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="toolTip">
-         <string>When toggled this hides the public server list from the connect dialog</string>
-        </property>
-        <property name="text">
-         <string>Hide public server list</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <spacer>
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeType">
-      <enum>QSizePolicy::Expanding</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#ifndef MUMBLE_MUMBLE_DATABASE_H_
+#define MUMBLE_MUMBLE_DATABASE_H_
+
+#include "Settings.h"
+#include "UnresolvedServerAddress.h"
+#include <QSqlDatabase>
+
+struct FavoriteServer {
+	QString qsName;
+	QString qsUsername;
+	QString qsPassword;
+	QString qsHostname;
+	QString qsUrl;
+	unsigned short usPort;
+};
+
+class Database : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Database)
+
+	QSqlDatabase db;
+	/// This function is called when no database location is configured
+	/// in the config file. It tries to find an existing database file and
+	/// creates a new one if none was found.
+	bool findOrCreateDatabase();
+
+public:
+	Database(const QString &dbname);
+	~Database() Q_DECL_OVERRIDE;
+
+	QList< FavoriteServer > getFavorites();
+	void setFavorites(const QList< FavoriteServer > &servers);
+	void setPassword(const QString &host, unsigned short port, const QString &user, const QString &pw);
+	bool fuzzyMatch(QString &name, QString &user, QString &pw, QString &host, unsigned short port);
+
+	bool isLocalIgnored(const QString &hash);
+	void setLocalIgnored(const QString &hash, bool ignored);
+
+	bool isLocalIgnoredTTS(const QString &hash);
+	void setLocalIgnoredTTS(const QString &hash, bool ignoredTTS);
+
+	bool isLocalMuted(const QString &hash);
+	void setLocalMuted(const QString &hash, bool muted);
+
+	float getUserLocalVolume(const QString &hash);
+	void setUserLocalVolume(const QString &hash, float volume);
+
+	bool isChannelFiltered(const QByteArray &server_cert_digest, const int channel_id);
+	void setChannelFiltered(const QByteArray &server_cert_digest, const int channel_id, bool hidden);
+
+	QMap< UnresolvedServerAddress, unsigned int > getPingCache();
+	void setPingCache(const QMap< UnresolvedServerAddress, unsigned int > &cache);
+
+	bool seenComment(const QString &hash, const QByteArray &commenthash);
+	void setSeenComment(const QString &hash, const QByteArray &commenthash);
+
+	QByteArray blob(const QByteArray &hash);
+	void setBlob(const QByteArray &hash, const QByteArray &blob);
+
+	QStringList getTokens(const QByteArray &digest);
+	void setTokens(const QByteArray &digest, QStringList &tokens);
+
+	QList< Shortcut > getShortcuts(const QByteArray &digest);
+	bool setShortcuts(const QByteArray &digest, QList< Shortcut > &shortcuts);
+
+	void addFriend(const QString &name, const QString &hash);
+	void removeFriend(const QString &hash);
+	const QString getFriend(const QString &hash);
+	const QMap< QString, QString > getFriends();
+
+	const QString getDigest(const QString &hostname, unsigned short port);
+	void setDigest(const QString &hostname, unsigned short port, const QString &digest);
+
+	bool getUdp(const QByteArray &digest);
+	void setUdp(const QByteArray &digest, bool udp);
+
+	QList< int > getChannelListeners(const QByteArray &digest);
+	void setChannelListeners(const QByteArray &digest, const QSet< int > &channelIDs);
+
+	QHash< int, float > getChannelListenerLocalVolumeAdjustments(const QByteArray &digest);
+	void setChannelListenerLocalVolumeAdjustments(const QByteArray &digest, const QHash< int, float > &volumeMap);
+};
+
+#endif
