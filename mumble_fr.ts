@@ -3,106 +3,101 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TalkingUISelection.h"
-#include "MainWindow.h"
-#include "UserModel.h"
+#ifndef MUMBLE_MUMBLE_TALKINGUISELECTION_H_
+#define MUMBLE_MUMBLE_TALKINGUISELECTION_H_
 
-#include <QVariant>
-#include <QWidget>
+#include <memory>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+class QWidget;
 
-TalkingUISelection::TalkingUISelection(QWidget *widget) : m_widget(widget) {
-}
+/// Base class of all selections within the TalkingUI
+class TalkingUISelection {
+protected:
+	/// The widget that is used to represent this selection (it'll be marked
+	/// as selected).
+	QWidget *m_widget;
 
+	explicit TalkingUISelection() = default;
 
-void TalkingUISelection::setActive(bool active) {
-	if (m_widget) {
-		m_widget->setProperty("selected", active);
-		// Unpolish the widget's style so that the new property can take effect
-		m_widget->style()->unpolish(m_widget);
-	}
-}
+public:
+	explicit TalkingUISelection(QWidget *widget);
+	virtual ~TalkingUISelection() = default;
 
-void TalkingUISelection::apply() {
-	setActive(true);
-}
+	/// Turns this selection on or off. Turning it on usually involves marking the
+	/// associated Widget in a certain way while deactivating the selection reverts this effect.
+	///
+	/// @param active Whether to activate this selection
+	virtual void setActive(bool active);
 
-void TalkingUISelection::discard() {
-	setActive(false);
-}
+	/// Applies this selection. This is a shortcut for setActive(true).
+	virtual void apply() final;
 
-bool TalkingUISelection::operator==(const TalkingUISelection &other) const {
-	return m_widget == other.m_widget;
-}
+	/// Discards this selection. This is a shortcut for setActive(false).
+	virtual void discard() final;
 
-bool TalkingUISelection::operator!=(const TalkingUISelection &other) const {
-	return m_widget != other.m_widget;
-}
+	/// Synchronizes this selection to the MainWindow
+	virtual void syncToMainWindow() const = 0;
 
-bool TalkingUISelection::operator==(const QWidget *widget) const {
-	return m_widget == widget;
-}
+	bool operator==(const TalkingUISelection &other) const;
+	bool operator!=(const TalkingUISelection &other) const;
 
-bool TalkingUISelection::operator!=(const QWidget *widget) const {
-	return m_widget != widget;
-}
+	bool operator==(const QWidget *widget) const;
+	bool operator!=(const QWidget *widget) const;
 
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const = 0;
+};
 
-UserSelection::UserSelection(QWidget *widget, unsigned int userSession)
-	: TalkingUISelection(widget), m_userSession(userSession) {
-}
+/// A class representing the selection of a user in the TalkingUI
+class UserSelection : public TalkingUISelection {
+protected:
+	const unsigned int m_userSession;
 
-void UserSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedUser(m_userSession);
-	}
-}
+public:
+	explicit UserSelection(QWidget *widget, unsigned int userSession);
+	explicit UserSelection(const UserSelection &) = default;
 
-std::unique_ptr< TalkingUISelection > UserSelection::cloneToHeap() const {
-	return std::make_unique< UserSelection >(*this);
-}
+	virtual void syncToMainWindow() const override;
 
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
 
+/// A class representing the selection of a channel in the TalkingUI
+class ChannelSelection : public TalkingUISelection {
+protected:
+	const int m_channelID;
 
-ChannelSelection::ChannelSelection(QWidget *widget, int channelID)
-	: TalkingUISelection(widget), m_channelID(channelID) {
-}
+public:
+	explicit ChannelSelection(QWidget *widget, int channelID);
+	explicit ChannelSelection(const ChannelSelection &) = default;
 
-void ChannelSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannel(m_channelID);
-	}
-}
+	virtual void syncToMainWindow() const override;
 
-std::unique_ptr< TalkingUISelection > ChannelSelection::cloneToHeap() const {
-	return std::make_unique< ChannelSelection >(*this);
-}
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
 
+class ListenerSelection : public TalkingUISelection {
+protected:
+	unsigned int m_userSession;
+	const int m_channelID;
 
+public:
+	explicit ListenerSelection(QWidget *widget, unsigned int userSession, int channelID);
+	explicit ListenerSelection(const ListenerSelection &) = default;
 
-ListenerSelection::ListenerSelection(QWidget *widget, unsigned int userSession, int channelID)
-	: TalkingUISelection(widget), m_userSession(userSession), m_channelID(channelID) {
-}
+	virtual void syncToMainWindow() const override;
 
-void ListenerSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannelListener(m_userSession, m_channelID);
-	}
-}
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
 
-std::unique_ptr< TalkingUISelection > ListenerSelection::cloneToHeap() const {
-	return std::make_unique< ListenerSelection >(*this);
-}
+/// A class representing an empty selection in the TalkingUI
+class EmptySelection : public TalkingUISelection {
+public:
+	explicit EmptySelection()                       = default;
+	explicit EmptySelection(const EmptySelection &) = default;
 
+	virtual void syncToMainWindow() const override;
 
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
 
-void EmptySelection::syncToMainWindow() const {
-	// Do nothing
-}
-
-std::unique_ptr< TalkingUISelection > EmptySelection::cloneToHeap() const {
-	return std::make_unique< EmptySelection >(*this);
-}
+#endif // MUMBLE_MUMBLE_TALKINGUISELECTION_H_
