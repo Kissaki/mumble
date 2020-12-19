@@ -1,84 +1,133 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_RICHTEXTEDITOR_H_
-#define MUMBLE_MUMBLE_RICHTEXTEDITOR_H_
-
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QTextEdit>
-
-class LogDocument;
-
-class RichTextHtmlEdit : public QTextEdit {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(RichTextHtmlEdit)
-protected:
-	void insertFromMimeData(const QMimeData *source);
-
-public:
-	RichTextHtmlEdit(QWidget *p);
-
-private:
-	LogDocument *m_document;
-};
-
-#include "ui_RichTextEditor.h"
-#include "ui_RichTextEditorLink.h"
-
-
-class RichTextEditorLink : public QDialog, Ui::RichTextEditorLink {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(RichTextEditorLink)
-public:
-	RichTextEditorLink(const QString &text = QString(), QWidget *p = nullptr);
-	QString text() const;
-};
-
-class RichTextEditor : public QTabWidget, Ui::RichTextEditor {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(RichTextEditor)
-protected:
-	bool bModified;
-	bool bChanged;
-	bool bReadOnly;
-	void richToPlain();
-	QColor qcColor;
-	bool eventFilter(QObject *obj, QEvent *event) Q_DECL_OVERRIDE;
-
-public:
-	RichTextEditor(QWidget *p = nullptr);
-	QString text();
-	bool isModified() const;
-signals:
-	/// The accept signal is emitted when Ctrl-Enter is pressed inside the RichTextEditor.
-	void accept();
-public slots:
-	void setText(const QString &text, bool readonly = false);
-	void updateColor(const QColor &);
-	void updateActions();
-protected slots:
-	void on_qaBold_triggered(bool);
-	void on_qaItalic_triggered(bool);
-	void on_qaUnderline_triggered(bool);
-	void on_qaColor_triggered();
-	void on_qaLink_triggered();
-	void on_qaImage_triggered();
-
-	void on_qptePlainText_textChanged();
-	void on_qteRichText_textChanged();
-	void on_qteRichText_cursorPositionChanged();
-	void on_qteRichText_currentCharFormatChanged();
-	void onCurrentChanged(int);
-};
-
-class RichTextImage {
-public:
-	static bool isValidImage(const QByteArray &buf, QByteArray &fmt);
-};
-
-#endif
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>RichTextEditor</class>
+ <widget class="QTabWidget" name="RichTextEditor">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>700</width>
+    <height>518</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string notr="true">TabWidget</string>
+  </property>
+  <property name="tabPosition">
+   <enum>QTabWidget::South</enum>
+  </property>
+  <property name="currentIndex">
+   <number>0</number>
+  </property>
+  <widget class="QWidget" name="qwRich">
+   <attribute name="title">
+    <string>Display</string>
+   </attribute>
+   <layout class="QVBoxLayout" name="verticalLayout_2">
+    <item>
+     <widget class="QToolBar" name="qtbToolBar"/>
+    </item>
+    <item>
+     <widget class="RichTextHtmlEdit" name="qteRichText">
+      <property name="autoFormatting">
+       <set>QTextEdit::AutoAll</set>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="qwPlain">
+   <attribute name="title">
+    <string>Source Text</string>
+   </attribute>
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QPlainTextEdit" name="qptePlainText"/>
+    </item>
+   </layout>
+  </widget>
+  <action name="qaBold">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:actions/format-text-bold.svg</normaloff>skin:actions/format-text-bold.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Bold</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+B</string>
+   </property>
+  </action>
+  <action name="qaItalic">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:actions/format-text-italic.svg</normaloff>skin:actions/format-text-italic.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Italic</string>
+   </property>
+   <property name="toolTip">
+    <string>Italic</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+I</string>
+   </property>
+  </action>
+  <action name="qaUnderline">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:actions/format-text-underline.svg</normaloff>skin:actions/format-text-underline.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Underline</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+U</string>
+   </property>
+  </action>
+  <action name="qaColor">
+   <property name="text">
+    <string>Color</string>
+   </property>
+  </action>
+  <action name="qaLink">
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:mimetypes/text-html.svg</normaloff>skin:mimetypes/text-html.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Insert Link</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+L</string>
+   </property>
+  </action>
+  <action name="qaImage">
+   <property name="icon">
+    <iconset>
+     <normaloff>skin:mimetypes/image-x-generic.svg</normaloff>skin:mimetypes/image-x-generic.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Insert Image</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>RichTextHtmlEdit</class>
+   <extends>QTextEdit</extends>
+   <header>RichTextEditor.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
