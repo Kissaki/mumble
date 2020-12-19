@@ -3,48 +3,44 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "DeveloperConsole.h"
+#ifndef MUMBLE_MUMBLE_GLOBALSHORTCUT_UNIX_H_
+#define MUMBLE_MUMBLE_GLOBALSHORTCUT_UNIX_H_
 
-#include "LogEmitter.h"
-
-#include <QtWidgets/QTextBrowser>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "ConfigDialog.h"
 #include "Global.h"
+#include "GlobalShortcut.h"
 
-DeveloperConsole::DeveloperConsole(QObject *parent) : QObject(parent) {
-	connect(g.le.data(), SIGNAL(newLogEntry(const QString &)), this, SLOT(addLogMessage(const QString &)));
-}
+#include <X11/X.h>
 
-DeveloperConsole::~DeveloperConsole() {
-	QMainWindow *mw = m_window.data();
-	delete mw;
-}
+#define NUM_BUTTONS 0x2ff
 
-void DeveloperConsole::show() {
-	if (m_window.isNull()) {
-		QMainWindow *mw = new QMainWindow();
-		mw->setAttribute(Qt::WA_DeleteOnClose);
-		QTextBrowser *tb = new QTextBrowser();
-		mw->resize(675, 300);
-		mw->setCentralWidget(tb);
-		mw->setWindowTitle(tr("Developer Console"));
+struct _XDisplay;
+typedef _XDisplay Display;
 
-		connect(g.le.data(), SIGNAL(newLogEntry(const QString &)), tb, SLOT(append(const QString &)));
+class GlobalShortcutX : public GlobalShortcutEngine {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(GlobalShortcutX)
+public:
+	Display *display;
+	QSet< Window > qsRootWindows;
+	int iXIopcode;
+	QSet< int > qsMasterDevices;
 
-		foreach (const QString &m, m_logEntries)
-			tb->append(m);
-		m_window = QPointer< QMainWindow >(mw);
-	}
+	volatile bool bRunning;
+	QSet< QString > qsKeyboards;
+	QMap< QString, QFile * > qmInputDevices;
 
-	m_window.data()->show();
-	m_window.data()->activateWindow();
-}
+	GlobalShortcutX();
+	~GlobalShortcutX() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+	QString buttonName(const QVariant &) Q_DECL_OVERRIDE;
 
-void DeveloperConsole::addLogMessage(const QString &msg) {
-	if (m_logEntries.count() >= 1000)
-		m_logEntries.removeFirst();
+	void queryXIMasterList();
+public slots:
+	void displayReadyRead(int);
+	void inputReadyRead(int);
+	void directoryChanged(const QString &);
+};
 
-	m_logEntries.append(msg);
-}
+#endif
