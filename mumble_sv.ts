@@ -3,52 +3,38 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Tokens.h"
+#ifndef MUMBLE_MUMBLE_PATHLISTWIDGET_H_
+#define MUMBLE_MUMBLE_PATHLISTWIDGET_H_
 
-#include "Database.h"
-#include "ServerHandler.h"
+#include <QListWidget>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+class QGraphicsSceneDragDropEvent;
+class QDropEvent;
 
-Tokens::Tokens(QWidget *p) : QDialog(p) {
-	setupUi(this);
-	qlwTokens->setAccessibleName(tr("Tokens"));
+/**
+ * ListWidget that adds functionality for being able to drop files or folders to add them to the list.
+ *
+ * It makes use of OverlayAppInfo to display file/app information (e.g. the appropriate icon).
+ */
+class PathListWidget : public QListWidget {
+public:
+	enum PathType { FILE_EXE, FOLDER };
 
-	qbaDigest          = g.sh->qbaDigest;
-	QStringList tokens = g.db->getTokens(qbaDigest);
-	tokens.sort();
-	foreach (const QString &qs, tokens) {
-		QListWidgetItem *qlwi = new QListWidgetItem(qs);
-		qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
-		qlwTokens->addItem(qlwi);
-	}
-}
+	PathListWidget(QWidget *parent = 0);
+	void setPathType(PathType type);
+	virtual void dragEnterEvent(QDragEnterEvent *event) Q_DECL_OVERRIDE;
+	virtual void dragMoveEvent(QDragMoveEvent *event) Q_DECL_OVERRIDE;
+	virtual void dropEvent(QDropEvent *event) Q_DECL_OVERRIDE;
 
-void Tokens::accept() {
-	QStringList qsl;
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(PathListWidget)
 
-	QList< QListWidgetItem * > items = qlwTokens->findItems(QString(), Qt::MatchStartsWith);
-	foreach (QListWidgetItem *qlwi, items) {
-		const QString &text = qlwi->text().trimmed();
-		if (!text.isEmpty())
-			qsl << text;
-	}
-	g.db->setTokens(qbaDigest, qsl);
-	g.sh->setTokens(qsl);
-	QDialog::accept();
-}
+	PathType pathType;
 
-void Tokens::on_qpbAdd_clicked() {
-	QListWidgetItem *qlwi = new QListWidgetItem(tr("Empty Token"));
-	qlwi->setFlags(qlwi->flags() | Qt::ItemIsEditable);
+	void addFilePath(const QString &path);
+	void addFolderPath(const QString &path);
+	void checkAcceptDragEvent(QDropEvent *event, bool store);
+};
 
-	qlwTokens->addItem(qlwi);
-	qlwTokens->editItem(qlwi);
-}
-
-void Tokens::on_qpbRemove_clicked() {
-	foreach (QListWidgetItem *qlwi, qlwTokens->selectedItems())
-		delete qlwi;
-}
+#endif
