@@ -3,199 +3,67 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "XMLTools.h"
+#include "XboxInput.h"
 
-#include <QStringList>
-#include <QXmlStreamReader>
-#include <QXmlStreamWriter>
+#include <QtCore/QStringList>
 
-void XMLTools::recurseParse(QXmlStreamReader &reader, QXmlStreamWriter &writer, int &paragraphs,
-							const QMap< QString, QString > &opstyle, const int close, bool ignore) {
-	while (!reader.atEnd()) {
-		QXmlStreamReader::TokenType tt = reader.readNext();
+const QUuid XboxInput::s_XboxInputGuid = QUuid(QString::fromLatin1("ca3937e3-640c-4d9e-9ef3-903f8b4fbcab"));
 
-		QXmlStreamAttributes a = reader.attributes();
-		QMap< QString, QString > style;
-		QMap< QString, QString > pstyle = opstyle;
+XboxInput::XboxInput()
+	: GetState(nullptr), m_getStateFunc(nullptr), m_getStateExFunc(nullptr), m_xinputlib(nullptr), m_valid(false) {
+	// Load the most suitable XInput DLL available.
+	//
+	// We prefer 1_4 and 1_3 over the others because they provide
+	// XInputGetStateEx(), which allows us to query the state of
+	// the guide button.
+	//
+	// See https://msdn.microsoft.com/en-us/library/windows/desktop/hh405051(v=vs.85).aspx
+	// for more information.
+	QStringList alternatives;
+	alternatives << QLatin1String("XInput1_4.dll");
+	alternatives << QLatin1String("xinput1_3.dll");
+	alternatives << QLatin1String("XInput9_1_0.dll");
+	alternatives << QLatin1String("xinput1_2.dll");
+	alternatives << QLatin1String("xinput1_1.dll");
 
-		QStringRef styleref = a.value(QLatin1String("style"));
-		if (!styleref.isNull()) {
-			QString stylestring = styleref.toString();
-#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
-			QStringList styles = stylestring.split(QLatin1String(";"), Qt::SkipEmptyParts);
-#else
-			// Qt 5.14 introduced the Qt::SplitBehavior flags deprecating the QString fields
-			QStringList styles = stylestring.split(QLatin1String(";"), QString::SkipEmptyParts);
-#endif
-			foreach (QString s, styles) {
-				s           = s.simplified();
-				int idx     = s.indexOf(QLatin1Char(':'));
-				QString key = (idx > 0) ? s.left(idx).simplified() : s;
-				QString val = (idx > 0) ? s.mid(idx + 1).simplified() : QString();
-
-				if (!pstyle.contains(key) || (pstyle.value(key) != val)) {
-					style.insert(key, val);
-					pstyle.insert(key, val);
-				}
-			}
+	foreach (const QString &lib, alternatives) {
+		m_xinputlib = LoadLibraryW(reinterpret_cast< const wchar_t * >(lib.utf16()));
+		if (m_xinputlib) {
+			qWarning("XboxInput: using XInput DLL '%s'", qPrintable(lib));
+			m_valid = true;
+			break;
 		}
+	}
 
-		switch (tt) {
-			case QXmlStreamReader::StartElement: {
-				QString name = reader.name().toString();
-				int rclose   = 1;
-				if (name == QLatin1String("body")) {
-					rclose = 0;
-					ignore = false;
-				} else if (name == QLatin1String("span")) {
-					// Substitute style with <b>, <i> and <u>
+	if (!m_valid) {
+		qWarning("XboxInput: no valid XInput DLL was found on the system.");
+		return;
+	}
 
-					rclose = 0;
-					if (style.value(QLatin1String("font-weight")) == QLatin1String("600")) {
-						writer.writeStartElement(QLatin1String("b"));
-						rclose++;
-						style.remove(QLatin1String("font-weight"));
-					}
-					if (style.value(QLatin1String("font-style")) == QLatin1String("italic")) {
-						writer.writeStartElement(QLatin1String("i"));
-						rclose++;
-						style.remove(QLatin1String("font-style"));
-					}
-					if (style.value(QLatin1String("text-decoration")) == QLatin1String("underline")) {
-						writer.writeStartElement(QLatin1String("u"));
-						rclose++;
-						style.remove(QLatin1String("text-decoration"));
-					}
-					if (!style.isEmpty()) {
-						rclose++;
-						writer.writeStartElement(name);
+	m_getStateFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, "XInputGetState"));
+	// Undocumented XInputGetStateEx -- ordinal 100. It is available in XInput 1.3 and greater.
+	// It provides access to the state of the guide button.
+	// For reference, see SDL's XInput support: http://www.libsdl.org/tmp/SDL/src/core/windows/SDL_xinput.c
+	m_getStateExFunc = reinterpret_cast< XboxInputGetStateFunc >(GetProcAddress(m_xinputlib, (char *) 100));
 
-						QStringList qsl;
-						QMap< QString, QString >::const_iterator i;
-						for (i = style.constBegin(); i != style.constEnd(); ++i) {
-							if (!i.value().isEmpty())
-								qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
-							else
-								qsl << i.key();
-						}
-
-						writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
-					}
-				} else if (name == QLatin1String("p")) {
-					paragraphs++;
-					if (paragraphs == 1) {
-						// Ignore first paragraph. If it is styled empty drop its contents (e.g. <br />) too.
-						if (style.value(QLatin1String("-qt-paragraph-type")) == QLatin1String("empty")) {
-							reader.skipCurrentElement();
-							continue;
-						}
-						rclose = 0;
-					} else {
-						rclose = 1;
-						writer.writeStartElement(name);
-
-						if (!style.isEmpty()) {
-							QStringList qsl;
-							QMap< QString, QString >::const_iterator i;
-							for (i = style.constBegin(); i != style.constEnd(); ++i) {
-								if (!i.value().isEmpty())
-									qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
-								else
-									qsl << i.key();
-							}
-
-							writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
-						}
-					}
-				} else if (name == QLatin1String("a")) {
-					// Set pstyle to include implicit blue underline.
-					rclose = 1;
-					writer.writeCurrentToken(reader);
-					pstyle.insert(QLatin1String("text-decoration"), QLatin1String("underline"));
-					pstyle.insert(QLatin1String("color"), QLatin1String("#0000ff"));
-				} else if (!ignore) {
-					rclose = 1;
-					writer.writeCurrentToken(reader);
-				}
-
-				recurseParse(reader, writer, paragraphs, pstyle, rclose, ignore);
-				break;
-			}
-			case QXmlStreamReader::EndElement:
-				if (!ignore)
-					for (int i = 0; i < close; ++i)
-						writer.writeEndElement();
-				return;
-			case QXmlStreamReader::Characters:
-				if (!ignore)
-					writer.writeCharacters(reader.text().toString());
-				break;
-			default:
-				break;
-		}
+	if (m_getStateExFunc) {
+		GetState = m_getStateExFunc;
+		qWarning("XboxInput: using XInputGetStateEx() as querying function.");
+	} else if (m_getStateFunc) {
+		GetState = m_getStateFunc;
+		qWarning("XboxInput: using XInputGetState() as querying function.");
+	} else {
+		m_valid = false;
+		qWarning("XboxInput: no valid querying function found.");
 	}
 }
 
-bool XMLTools::unduplicateTags(QXmlStreamReader &reader, QXmlStreamWriter &writer) {
-	bool changed   = false;
-	bool needclose = false;
-
-	QStringList qslConcat;
-	qslConcat << QLatin1String("b");
-	qslConcat << QLatin1String("i");
-	qslConcat << QLatin1String("u");
-	qslConcat << QLatin1String("a");
-
-	QList< QString > qlNames;
-	QList< QXmlStreamAttributes > qlAttributes;
-
-	while (!reader.atEnd()) {
-		QXmlStreamReader::TokenType tt = reader.readNext();
-		QString name                   = reader.name().toString();
-		switch (tt) {
-			case QXmlStreamReader::StartDocument:
-			case QXmlStreamReader::EndDocument:
-				break;
-			case QXmlStreamReader::StartElement: {
-				QXmlStreamAttributes a = reader.attributes();
-
-				if (name == QLatin1String("unduplicate"))
-					break;
-
-				if (needclose) {
-					needclose = false;
-
-					if ((a == qlAttributes.last()) && (name == qlNames.last()) && (qslConcat.contains(name))) {
-						changed = true;
-						break;
-					}
-					qlNames.takeLast();
-					qlAttributes.takeLast();
-					writer.writeEndElement();
-				}
-				writer.writeCurrentToken(reader);
-				qlNames.append(name);
-				qlAttributes.append(a);
-			} break;
-			case QXmlStreamReader::EndElement: {
-				if (name == QLatin1String("unduplicate"))
-					break;
-				if (needclose) {
-					qlNames.takeLast();
-					qlAttributes.takeLast();
-					writer.writeCurrentToken(reader);
-				}
-				needclose = true;
-			} break;
-			default:
-				if (needclose) {
-					writer.writeEndElement();
-					needclose = false;
-				}
-				writer.writeCurrentToken(reader);
-		}
+XboxInput::~XboxInput() {
+	if (m_xinputlib) {
+		FreeLibrary(m_xinputlib);
 	}
-	if (needclose)
-		writer.writeEndElement();
-	return changed;
+}
+
+bool XboxInput::isValid() const {
+	return m_valid;
 }
