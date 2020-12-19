@@ -3,91 +3,84 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OVERLAYCLIENT_H_
-#define MUMBLE_MUMBLE_OVERLAYCLIENT_H_
+#ifndef MUMBLE_MUMBLE_MANUALPLUGIN_H_
+#define MUMBLE_MUMBLE_MANUALPLUGIN_H_
 
-#include <QtCore/QScopedPointer>
-#include <QtCore/QUrl>
-#include <QtNetwork/QLocalSocket>
+#include <QtCore/QtGlobal>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QGraphicsItem>
+#include <QtWidgets/QGraphicsScene>
 
-#include "../../overlay/overlay.h"
-#include "OverlayUserGroup.h"
-#include "SharedMemory.h"
-#include "Timer.h"
+#include "ui_ManualPlugin.h"
 
-class ClientUser;
-class Overlay;
-class QLibrary;
-class QLocalServer;
-class OverlayPositionableItem;
+#include "../../plugins/mumble_plugin.h"
 
-class OverlayClient : public QObject {
-	friend class Overlay;
+#include <atomic>
+#include <chrono>
 
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(OverlayClient)
-protected:
-	OverlayMsg omMsg;
-	QLocalSocket *qlsSocket;
-	SharedMemory2 *smMem;
-	QRect qrLast;
-	Timer t;
-
-	float framesPerSecond;
-	int iOffsetX, iOffsetY;
-
-	/// The process ID of the process this OverlayClient is connected to.
-	quint64 uiPid;
-	/// The path to the executable of the process that this OverlayClient is connected to.
-	QString qsExecutablePath;
-
-	QGraphicsScene qgs;
-
-	QScopedPointer< QGraphicsPixmapItem > qgpiCursor;
-	QScopedPointer< QGraphicsPixmapItem > qgpiLogo;
-	QScopedPointer< OverlayPositionableItem > qgpiFPS;
-	QScopedPointer< OverlayPositionableItem > qgpiTime;
-
-	OverlayUserGroup ougUsers;
-
-#ifdef Q_OS_MAC
-	QMap< Qt::CursorShape, QPixmap > qmCursors;
-#endif
-
-	bool bWasVisible;
-	bool bDelete;
-
-	void setupRender();
-	void setupScene(bool show);
-
-	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
-
-	void readyReadMsgInit(unsigned int length);
-
-	QList< QRectF > qlDirty;
-protected slots:
-	void readyRead();
-	void changed(const QList< QRectF > &);
-	void render();
-
-public:
-	QGraphicsView qgv;
-	unsigned int uiWidth, uiHeight;
-	int iMouseX, iMouseY;
-
-	OverlayClient(QLocalSocket *, QObject *);
-	~OverlayClient() Q_DECL_OVERRIDE;
-	void reset();
-public slots:
-	void showGui();
-	void hideGui();
-	void scheduleDelete();
-	void updateMouse();
-	void updateFPS();
-	void updateTime();
-	bool update();
-	void openEditor();
+struct Position2D {
+	float x;
+	float y;
 };
+
+// We need this typedef in order to be able to pass this hash as an argument
+// to QMetaObject::invokeMethod
+using PositionMap = QHash< unsigned int, Position2D >;
+Q_DECLARE_METATYPE(PositionMap);
+
+
+/// A struct holding information about a stale entry in the
+/// manual plugin's position window
+struct StaleEntry {
+	/// The time point since when this entry is considered stale
+	std::chrono::time_point< std::chrono::steady_clock > staleSince;
+	/// The pointer to the stale item
+	QGraphicsItem *staleItem;
+};
+
+class Manual : public QDialog, public Ui::Manual {
+	Q_OBJECT
+public:
+	Manual(QWidget *parent = 0);
+
+	static void setSpeakerPositions(const QHash< unsigned int, Position2D > &positions);
+
+
+public slots:
+	void on_qpbUnhinge_pressed();
+	void on_qpbLinked_clicked(bool);
+	void on_qpbActivated_clicked(bool);
+	void on_qdsbX_valueChanged(double);
+	void on_qdsbY_valueChanged(double);
+	void on_qdsbZ_valueChanged(double);
+	void on_qsbAzimuth_valueChanged(int);
+	void on_qsbElevation_valueChanged(int);
+	void on_qdAzimuth_valueChanged(int);
+	void on_qdElevation_valueChanged(int);
+	void on_qleContext_editingFinished();
+	void on_qleIdentity_editingFinished();
+	void on_buttonBox_clicked(QAbstractButton *);
+	void on_qsbSilentUserDisplaytime_valueChanged(int);
+
+	void on_speakerPositionUpdate(PositionMap positions);
+
+	void on_updateStaleSpeakers();
+
+protected:
+	QGraphicsScene *qgsScene;
+	QGraphicsItem *qgiPosition;
+
+	std::atomic< bool > updateLoopRunning;
+
+	QHash< unsigned int, QGraphicsItem * > speakerPositions;
+	QHash< unsigned int, StaleEntry > staleSpeakerPositions;
+
+	bool eventFilter(QObject *, QEvent *);
+	void changeEvent(QEvent *e);
+	void updateTopAndFront(int orientation, int azimut);
+};
+
+MumblePlugin *ManualPlugin_getMumblePlugin();
+MumblePluginQt *ManualPlugin_getMumblePluginQt();
 
 #endif
