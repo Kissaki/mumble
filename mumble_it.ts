@@ -3,566 +3,369 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ALSAAudio.h"
+#ifndef MUMBLE_MUMBLE_CONNECTDIALOG_H_
+#define MUMBLE_MUMBLE_CONNECTDIALOG_H_
 
-#include "MainWindow.h"
-#include "User.h"
-#include "Utils.h"
+#ifndef Q_MOC_RUN
+#	include <boost/accumulators/accumulators.hpp>
+#	include <boost/accumulators/statistics/stats.hpp>
+#endif
 
-#include <alsa/asoundlib.h>
-#include <sys/poll.h>
+#include <QtCore/QString>
+#include <QtCore/QUrl>
+#include <QtCore/QtGlobal>
+#include <QtWidgets/QStyledItemDelegate>
+#include <QtWidgets/QTreeView>
+#include <QtWidgets/QTreeWidgetItem>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include <QtNetwork/QHostInfo>
 
-#define NBLOCKS 8
+#ifdef USE_ZEROCONF
+#	include "BonjourRecord.h"
+#	include <dns_sd.h>
+#endif
 
-class ALSAEnumerator {
-public:
-	QHash< QString, QString > qhInput;
-	QHash< QString, QString > qhOutput;
-	static QString getHint(void *hint, const char *id);
-	ALSAEnumerator();
+#include "HostAddress.h"
+#include "Net.h"
+#include "ServerAddress.h"
+#include "Timer.h"
+#include "UnresolvedServerAddress.h"
+
+struct FavoriteServer;
+class QUdpSocket;
+
+struct PublicInfo {
+	QString qsName;
+	QUrl quUrl;
+	QString qsIp;
+	QString qsCountry;
+	QString qsCountryCode;
+	QString qsContinentCode;
+	unsigned short usPort;
+	bool bCA;
 };
 
-static ALSAEnumerator *cards = nullptr;
-
-class ALSAAudioInputRegistrar : public AudioInputRegistrar {
-public:
-	ALSAAudioInputRegistrar();
-	virtual AudioInput *create();
-	virtual const QList< audioDevice > getDeviceChoices();
-	virtual void setDeviceChoice(const QVariant &, Settings &);
-	virtual bool canEcho(const QString &) const;
-};
-
-
-class ALSAAudioOutputRegistrar : public AudioOutputRegistrar {
-public:
-	ALSAAudioOutputRegistrar();
-	virtual AudioOutput *create();
-	virtual const QList< audioDevice > getDeviceChoices();
-	virtual void setDeviceChoice(const QVariant &, Settings &);
-};
-
-class ALSAInit : public DeferInit {
+struct PingStats {
+private:
+	Q_DISABLE_COPY(PingStats)
 protected:
-	ALSAAudioInputRegistrar *pairALSA;
-	ALSAAudioOutputRegistrar *paorALSA;
+	void init();
 
 public:
-	void initialize();
-	void destroy();
+	quint32 uiVersion;
+	quint32 uiPing;
+	quint32 uiPingSort;
+	quint32 uiUsers;
+	quint32 uiMaxUsers;
+	quint32 uiBandwidth;
+	quint32 uiSent;
+	quint32 uiRecv;
+
+	double dPing;
+
+	typedef boost::accumulators::accumulator_set<
+		double,
+		boost::accumulators::stats< boost::accumulators::tag::count, boost::accumulators::tag::extended_p_square > >
+		asQuantileType;
+	asQuantileType *asQuantile;
+
+	void reset();
+
+	PingStats();
+	~PingStats();
 };
 
-static ALSAInit aiInit;
-QMutex qmALSA;
+class ServerItem;
 
-void ALSAInit::initialize() {
-	pairALSA = nullptr;
-	paorALSA = nullptr;
-	cards    = nullptr;
+class ServerViewDelegate : public QStyledItemDelegate {
+	Q_OBJECT
+	Q_DISABLE_COPY(ServerViewDelegate)
+public:
+	ServerViewDelegate(QObject *p = nullptr);
+	~ServerViewDelegate();
 
-	int card = -1;
-	snd_card_next(&card);
-	if (card != -1) {
-		pairALSA = new ALSAAudioInputRegistrar();
-		paorALSA = new ALSAAudioOutputRegistrar();
-		cards    = new ALSAEnumerator();
-	} else {
-		qWarning("ALSAInit: No cards found, not initializing");
-	}
-}
+	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const Q_DECL_OVERRIDE;
+};
 
-void ALSAInit::destroy() {
-	QMutexLocker qml(&qmALSA);
-	delete pairALSA;
-	delete paorALSA;
-	delete cards;
-}
+class ServerView : public QTreeWidget {
+	Q_OBJECT
+	Q_DISABLE_COPY(ServerView)
+public:
+	ServerItem *siFavorite, *siLAN, *siPublic;
 
-ALSAAudioInputRegistrar::ALSAAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("ALSA"), 5) {
-}
+	ServerView(QWidget *);
+	~ServerView() Q_DECL_OVERRIDE;
 
-AudioInput *ALSAAudioInputRegistrar::create() {
-	return new ALSAAudioInput();
-}
+	void fixupName(ServerItem *si);
 
-const QList< audioDevice > ALSAAudioInputRegistrar::getDeviceChoices() {
-	QList< audioDevice > qlReturn;
+protected:
+	QMimeData *mimeData(const QList< QTreeWidgetItem * >) const Q_DECL_OVERRIDE;
+	QStringList mimeTypes() const Q_DECL_OVERRIDE;
+	Qt::DropActions supportedDropActions() const Q_DECL_OVERRIDE;
+	bool dropMimeData(QTreeWidgetItem *, int, const QMimeData *, Qt::DropAction) Q_DECL_OVERRIDE;
+};
 
-	QStringList qlInputDevs = cards->qhInput.keys();
-	std::sort(qlInputDevs.begin(), qlInputDevs.end());
+#include "ui_ConnectDialog.h"
+#include "ui_ConnectDialogEdit.h"
 
-	if (qlInputDevs.contains(g.s.qsALSAInput)) {
-		qlInputDevs.removeAll(g.s.qsALSAInput);
-		qlInputDevs.prepend(g.s.qsALSAInput);
-	}
+class ServerItem : public QTreeWidgetItem, public PingStats {
+	Q_DISABLE_COPY(ServerItem)
+protected:
+	void init();
 
-	foreach (const QString &dev, qlInputDevs) {
-		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhInput.value(dev));
-		qlReturn << audioDevice(t, dev);
-	}
+public:
+	enum ItemType { FavoriteType, LANType, PublicType };
 
-	return qlReturn;
-}
+	static QMap< QString, QIcon > qmIcons;
 
-void ALSAAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
-	s.qsALSAInput = choice.toString();
-}
+	bool bParent;
+	ServerItem *siParent;
+	QList< ServerItem * > qlChildren;
 
-bool ALSAAudioInputRegistrar::canEcho(const QString &) const {
-	return false;
-}
+	QString qsName;
 
-ALSAAudioOutputRegistrar::ALSAAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("ALSA"), 5) {
-}
+	QString qsHostname;
+	unsigned short usPort;
+	bool bCA;
 
-AudioOutput *ALSAAudioOutputRegistrar::create() {
-	return new ALSAAudioOutput();
-}
+	QString qsUsername;
+	QString qsPassword;
 
-const QList< audioDevice > ALSAAudioOutputRegistrar::getDeviceChoices() {
-	QList< audioDevice > qlReturn;
+	QString qsCountry;
+	QString qsCountryCode;
+	QString qsContinentCode;
 
-	QStringList qlOutputDevs = cards->qhOutput.keys();
-	std::sort(qlOutputDevs.begin(), qlOutputDevs.end());
-
-	if (qlOutputDevs.contains(g.s.qsALSAOutput)) {
-		qlOutputDevs.removeAll(g.s.qsALSAOutput);
-		qlOutputDevs.prepend(g.s.qsALSAOutput);
-	}
-
-	foreach (const QString &dev, qlOutputDevs) {
-		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhOutput.value(dev));
-		qlReturn << audioDevice(t, dev);
-	}
-
-	return qlReturn;
-}
-
-void ALSAAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
-	s.qsALSAOutput = choice.toString();
-}
-
-ALSAEnumerator::ALSAEnumerator() {
-	QMutexLocker qml(&qmALSA);
-
-	qhInput.insert(QLatin1String("default"), ALSAAudioInput::tr("Default ALSA Card"));
-	qhOutput.insert(QLatin1String("default"), ALSAAudioOutput::tr("Default ALSA Card"));
-
-#if SND_LIB_VERSION >= 0x01000e
-	void **hints = nullptr;
-	void **hint;
-	snd_config_t *basic = nullptr;
-	int r;
-
-	snd_config_update();
-	r = snd_config_search(snd_config, "defaults.namehint.extended", &basic);
-	if ((r == 0) && basic) {
-		if (snd_config_set_ascii(basic, "on"))
-			qWarning("ALSAEnumerator: Failed to set namehint");
-	} else {
-		qWarning("ALSAEnumerator: Namehint not found");
-	}
-
-	r = snd_device_name_hint(-1, "pcm", &hints);
-
-	if (r || !hints) {
-		qWarning("ALSAEnumerator: snd_device_name_hint: %d", r);
-	} else {
-		hint = hints;
-		while (*hint) {
-			const QString name = getHint(*hint, "NAME");
-			const QString ioid = getHint(*hint, "IOID");
-			QString desc       = getHint(*hint, "DESC");
-
-			desc.replace(QLatin1Char('\n'), QLatin1Char(' '));
-
-
-			// ALSA, in it's infinite wisdom, claims "dmix" is an input/output device.
-			// Since there seems to be no way to fetch the ctl interface for a matching device string
-			// without actually opening it, we'll simply have to start guessing.
-
-			bool caninput  = (ioid.isNull() || (ioid.compare(QLatin1String("Input"), Qt::CaseInsensitive) == 0));
-			bool canoutput = (ioid.isNull() || (ioid.compare(QLatin1String("Output"), Qt::CaseInsensitive) == 0));
-
-			if (name.startsWith(QLatin1String("dmix:")))
-				caninput = false;
-			else if (name.startsWith(QLatin1String("dsnoop:")))
-				canoutput = false;
-
-			if (caninput)
-				qhInput.insert(name, desc);
-			if (canoutput)
-				qhOutput.insert(name, desc);
-
-			++hint;
-		}
-		snd_device_name_free_hint(hints);
-	}
-
-	snd_config_update_free_global();
-	snd_config_update();
-#else
-	int card = -1;
-	snd_card_next(&card);
-	while (card != -1) {
-		char *name;
-		snd_ctl_t *ctl = nullptr;
-		snd_card_get_longname(card, &name);
-		QByteArray dev = QString::fromLatin1("hw:%1").arg(card).toUtf8();
-		if (snd_ctl_open(&ctl, dev.data(), SND_CTL_READONLY) >= 0) {
-			snd_pcm_info_t *info = nullptr;
-			snd_pcm_info_malloc(&info);
-
-			char *cname = nullptr;
-			snd_card_get_name(card, &cname);
-
-			int device = -1;
-			snd_ctl_pcm_next_device(ctl, &device);
-
-			bool play = false;
-			bool cap  = false;
-
-			while (device != -1) {
-				QString devname = QString::fromLatin1("hw:%1,%2").arg(card).arg(device);
-				snd_pcm_info_set_device(info, device);
-				snd_pcm_info_set_stream(info, SND_PCM_STREAM_CAPTURE);
-				if (snd_ctl_pcm_info(ctl, info) == 0) {
-					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
-					qhInput.insert(devname, fname);
-					cap = true;
-				}
-
-				snd_pcm_info_set_stream(info, SND_PCM_STREAM_PLAYBACK);
-				if (snd_ctl_pcm_info(ctl, info) == 0) {
-					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
-					qhOutput.insert(devname, fname);
-					play = true;
-				}
-
-				snd_ctl_pcm_next_device(ctl, &device);
-			}
-			if (play) {
-				qhOutput.insert(QString::fromLatin1("dmix:CARD=%1").arg(card), QLatin1String(cname));
-			}
-			if (cap) {
-				qhInput.insert(QString::fromLatin1("dsnoop:CARD=%1").arg(card), QLatin1String(cname));
-			}
-			snd_pcm_info_free(info);
-			snd_ctl_close(ctl);
-		}
-		snd_card_next(&card);
-	}
+	QString qsUrl;
+#ifdef USE_ZEROCONF
+	QString zeroconfHost;
+	BonjourRecord zeroconfRecord;
 #endif
-}
+	/// Contains the resolved addresses for
+	/// this ServerItem.
+	QList< ServerAddress > qlAddresses;
 
-QString ALSAEnumerator::getHint(void *hint, const char *id) {
-	QString s;
-#if SND_LIB_VERSION >= 0x01000e
-	char *value = snd_device_name_get_hint(hint, id);
-	if (value) {
-		s = QLatin1String(value);
-		free(value);
-	}
+	ItemType itType;
+
+	ServerItem(const FavoriteServer &fs);
+	ServerItem(const PublicInfo &pi);
+	ServerItem(const QString &name, const QString &host, unsigned short port, const QString &uname,
+			   const QString &password = QString());
+#ifdef USE_ZEROCONF
+	ServerItem(const BonjourRecord &br);
 #endif
-	return s;
-}
+	ServerItem(const QString &name, ItemType itype);
+	ServerItem(const ServerItem *si);
+	~ServerItem();
+
+	/// Converts given mime data into a ServerItem object
+	///
+	/// This function checks the clipboard for a valid mumble:// style
+	/// URL and converts it into a ServerItem ready to add to the connect
+	/// dialog. It also parses .lnk files of InternetShortcut/URL type
+	/// to enable those to be dropped onto the clipboard.
+	///
+	/// @note If needed can query the user for a user name using a modal dialog.
+	/// @note If a server item is returned it's the callers reponsibility to delete it.
+	///
+	/// @param mime Mime data to analyze
+	/// @param default_name If true the hostname is set as item name if none is given
+	/// @param p Parent widget to use in case the user has to be queried
+	/// @return Server item or nullptr if mime data invalid.
+	///
+	static ServerItem *fromMimeData(const QMimeData *mime, bool default_name = true, QWidget *p = nullptr,
+									bool convertHttpUrls = false);
+	/// Create a ServerItem from a mumble:// URL
+	static ServerItem *fromUrl(QUrl url, QWidget *p);
+
+	void addServerItem(ServerItem *child);
+
+	FavoriteServer toFavoriteServer() const;
+	QMimeData *toMimeData() const;
+	static QMimeData *toMimeData(const QString &name, const QString &host, unsigned short port,
+								 const QString &channel = QString());
+
+	static QIcon loadIcon(const QString &name);
+
+	void setDatas(double ping = 0.0, quint32 users = 0, quint32 maxusers = 0);
+	bool operator<(const QTreeWidgetItem &) const Q_DECL_OVERRIDE;
+
+	QVariant data(int column, int role) const Q_DECL_OVERRIDE;
+};
+
+class ConnectDialogEdit : public QDialog, protected Ui::ConnectDialogEdit {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ConnectDialogEdit)
+
+	void init();
+
+protected:
+	bool bOk;
+	bool bCustomLabel;
+	ServerItem *m_si;
+
+public slots:
+	void validate();
+	void accept();
+
+	void on_qbFill_clicked();
+	void on_qbDiscard_clicked();
+	void on_qcbShowPassword_toggled(bool);
+	void on_qleName_textEdited(const QString &);
+	void on_qleServer_textEdited(const QString &);
+	void showNotice(const QString &text);
+	bool updateFromClipboard();
+
+public:
+	QString qsName, qsHostname, qsUsername, qsPassword;
+	unsigned short usPort;
+	ConnectDialogEdit(QWidget *parent, const QString &name, const QString &host, const QString &user,
+					  unsigned short port, const QString &password);
+	/// Add a new Server
+	/// Prefills from clipboard content or the connected to server if available
+	ConnectDialogEdit(QWidget *parent);
+	virtual ~ConnectDialogEdit();
+};
+
+class ConnectDialog : public QDialog, public Ui::ConnectDialog {
+	friend class ServerView;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ConnectDialog)
+protected:
+	static QList< PublicInfo > qlPublicServers;
+	static QString qsUserCountry, qsUserCountryCode, qsUserContinentCode;
+	static Timer tPublicServers;
+
+	QMenu *qmPopup;
+	QPushButton *qpbEdit;
+
+	bool bPublicInit;
+	bool bAutoConnect;
+
+	Timer tPing;
+	Timer tCurrent, tHover, tRestart;
+	QUdpSocket *qusSocket4;
+	QUdpSocket *qusSocket6;
+	QTimer *qtPingTick;
+	QList< ServerItem * > qlItems;
+
+	ServerItem *siAutoConnect;
+
+	QList< UnresolvedServerAddress > qlDNSLookup;
+	QSet< UnresolvedServerAddress > qsDNSActive;
+	QHash< UnresolvedServerAddress, QSet< ServerItem * > > qhDNSWait;
+	QHash< UnresolvedServerAddress, QList< ServerAddress > > qhDNSCache;
+
+	QHash< ServerAddress, quint64 > qhPingRand;
+	QHash< ServerAddress, QSet< ServerItem * > > qhPings;
+
+	QMap< UnresolvedServerAddress, unsigned int > qmPingCache;
+
+	QString qsSearchServername;
+	QString qsSearchLocation;
+
+	bool bIPv4;
+	bool bIPv6;
+	int iPingIndex;
+
+	bool bLastFound;
+
+	/// bAllowPing determines whether ConnectDialog can use
+	/// UDP packets to ping remote hosts to be able to show a
+	/// ping latency and user count.
+	bool bAllowPing;
+	/// bAllowHostLookup determines whether ConnectDialog can
+	/// resolve hosts via DNS, Bonjour, and so on.
+	bool bAllowHostLookup;
+	/// bAllowZeroconf determines whether ConfigDialog can use
+	/// zeroconf to find nearby servers on the local network.
+	bool bAllowZeroconf;
+	/// bAllowFilters determines whether filters are available
+	/// in the ConfigDialog. If this option is diabled, the
+	/// 'Show All' filter is forced, and no other filter can
+	/// be chosen.
+	bool bAllowFilters;
 
 
-ALSAAudioInput::ALSAAudioInput() {
-	bRunning = true;
-}
+	void sendPing(const QHostAddress &, unsigned short port);
 
-ALSAAudioInput::~ALSAAudioInput() {
-	// Signal input thread to end
-	bRunning = false;
-	wait();
-}
+	void initList();
+	void fillList();
 
-#define ALSA_ERRBAIL(x)                                       \
-	if (!bOk) {                                               \
-	} else if ((err = static_cast< int >(x)) < 0) {           \
-		bOk = false;                                          \
-		qWarning("ALSAAudio: %s: %s", #x, snd_strerror(err)); \
-	}
-#define ALSA_ERRCHECK(x)                                                    \
-	if (!bOk) {                                                             \
-	} else if ((err = static_cast< int >(x)) < 0) {                         \
-		qWarning("ALSAAudio: Non-critical: %s: %s", #x, snd_strerror(err)); \
-	}
+	void startDns(ServerItem *);
+	void stopDns(ServerItem *);
 
-void ALSAAudioInput::run() {
-	QMutexLocker qml(&qmALSA);
-	snd_pcm_sframes_t readblapp;
+	/// Calls ConnectDialog::filterServer for each server in
+	/// the public server list
+	void filterPublicServerList() const;
+	/// Hides the given ServerItem according to the current
+	/// filter settings. It is checked that the name of the
+	/// given server matches ConnectDialog#qsSearchServername
+	/// and the location is equal to ConnectDialog#qsSearchLocation.
+	/// Lastly it is checked that the server is reachable or
+	/// populated, should the respective filters be set.
+	///
+	/// \param si  ServerItem that should be filtered
+	void filterServer(ServerItem *const si) const;
 
-	QByteArray device_name         = g.s.qsALSAInput.toLatin1();
-	snd_pcm_hw_params_t *hw_params = nullptr;
-	snd_pcm_t *capture_handle      = nullptr;
+	/// Enumerates all countries in ConnectDialog#qlPublicServers
+	/// and adds an entry to the location filter Combobox with
+	/// with the country name as text, the countrycode as
+	/// data and the flag of the country as the icon.
+	void addCountriesToSearchLocation() const;
+public slots:
+	void accept();
+	void fetched(QByteArray xmlData, QUrl, QMap< QString, QString >);
 
-	unsigned int rrate = SAMPLE_RATE;
-	bool bOk           = true;
+	void udpReply();
+	void lookedUp();
+	void timeTick();
 
-	int err = 0;
+	void on_qaFavoriteAdd_triggered();
+	void on_qaFavoriteAddNew_triggered();
+	void on_qaFavoriteEdit_triggered();
+	void on_qaFavoriteRemove_triggered();
+	void on_qaFavoriteCopy_triggered();
+	void on_qaFavoritePaste_triggered();
+	void on_qaUrl_triggered();
+	void on_qtwServers_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
+	void on_qtwServers_itemDoubleClicked(QTreeWidgetItem *, int);
+	void on_qtwServers_customContextMenuRequested(const QPoint &);
+	/// If the expanded item is the public server list
+	/// the user is asked (only once) for consent to transmit
+	/// the IP to all public servers. If the user does not
+	/// consent the public server list is disabled. If
+	/// the user does consent the public server list is
+	/// filled and the search dialog is shown.
+	/// Finally name resolution is triggered for all child
+	/// items of the expanded item.
+	void on_qtwServers_itemExpanded(QTreeWidgetItem *item);
+	/// Hides the search dialog if the collapsed item is
+	/// the public server list
+	void on_qtwServers_itemCollapsed(QTreeWidgetItem *item);
+	void OnSortChanged(int, Qt::SortOrder);
 
-	unsigned int iChannels = 1;
+public:
+	QString qsServer, qsUsername, qsPassword;
+	unsigned short usPort;
+	ConnectDialog(QWidget *parent, bool autoconnect);
+	~ConnectDialog();
 
-	qWarning("ALSAAudioInput: Initing audiocapture %s.", device_name.data());
+#ifdef USE_ZEROCONF
+protected:
+	QList< BonjourRecord > qlBonjourActive;
+public slots:
+	void onUpdateLanList(const QList< BonjourRecord > &);
 
-	snd_pcm_hw_params_alloca(&hw_params);
-
-	ALSA_ERRBAIL(snd_pcm_open(&capture_handle, device_name.data(), SND_PCM_STREAM_CAPTURE, 0));
-	ALSA_ERRCHECK(snd_pcm_hw_params_any(capture_handle, hw_params));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(capture_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(capture_handle, hw_params, SND_PCM_FORMAT_S16));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(capture_handle, hw_params, &rrate, nullptr));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(capture_handle, hw_params, &iChannels));
-
-	snd_pcm_uframes_t wantPeriod = (rrate * iFrameSize) / SAMPLE_RATE;
-	snd_pcm_uframes_t wantBuff   = wantPeriod * 8;
-
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(capture_handle, hw_params, &wantPeriod, nullptr));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(capture_handle, hw_params, &wantBuff));
-	ALSA_ERRBAIL(snd_pcm_hw_params(capture_handle, hw_params));
-
-	qWarning("ALSAAudioInput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels, wantBuff,
-			 wantPeriod);
-
-	ALSA_ERRBAIL(snd_pcm_hw_params_current(capture_handle, hw_params));
-	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iMicChannels));
-	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &iMicFreq, nullptr));
-
-#ifdef ALSA_VERBOSE
-	snd_output_t *log;
-	snd_output_stdio_attach(&log, stderr, 0);
-	if (capture_handle)
-		snd_pcm_dump(capture_handle, log);
+	void onResolved(const BonjourRecord, const QString, const uint16_t);
+	void onLanResolveError(const BonjourRecord);
 #endif
+private slots:
+	void on_qleSearchServername_textChanged(const QString &searchServername);
+	void on_qcbSearchLocation_currentIndexChanged(int searchLocationIndex);
+	void on_qcbFilter_currentIndexChanged(int filterIndex);
+};
 
-	ALSA_ERRBAIL(snd_pcm_prepare(capture_handle));
-	ALSA_ERRBAIL(snd_pcm_start(capture_handle));
-
-	if (!bOk) {
-		if (capture_handle) {
-			snd_pcm_drain(capture_handle);
-			snd_pcm_close(capture_handle);
-			capture_handle = nullptr;
-		}
-		g.mw->msgBox(
-			tr("Opening chosen ALSA Input failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
-		return;
-	}
-
-	eMicFormat = SampleShort;
-	initializeMixer();
-
-	char inbuff[wantPeriod * iChannels * sizeof(short)];
-
-	qml.unlock();
-
-	while (bRunning) {
-#ifdef ALSA_VERBOSE
-		snd_pcm_status_malloc(&status);
-		snd_pcm_status(capture_handle, status);
-		snd_pcm_status_dump(status, log);
-		snd_pcm_status_free(status);
 #endif
-		readblapp = snd_pcm_readi(capture_handle, inbuff, static_cast< int >(wantPeriod));
-		if (readblapp == -ESTRPIPE) {
-			qWarning("ALSAAudioInput: PCM suspended, trying to resume");
-			while (bRunning && snd_pcm_resume(capture_handle) == -EAGAIN)
-				msleep(1000);
-			if ((err = snd_pcm_prepare(capture_handle)) < 0)
-				qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
-		} else if (readblapp == -EPIPE) {
-			err = snd_pcm_prepare(capture_handle);
-			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
-		} else if (readblapp < 0) {
-			err = snd_pcm_prepare(capture_handle);
-			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
-		} else if (wantPeriod == static_cast< unsigned int >(readblapp)) {
-			addMic(inbuff, static_cast< int >(readblapp));
-		}
-	}
-
-	snd_pcm_drop(capture_handle);
-	snd_pcm_close(capture_handle);
-
-	qWarning("ALSAAudioInput: Releasing ALSA Mic.");
-}
-
-ALSAAudioOutput::ALSAAudioOutput() {
-	qWarning("ALSAAudioOutput: Initialized");
-	bRunning = true;
-}
-
-ALSAAudioOutput::~ALSAAudioOutput() {
-	bRunning = false;
-	// Call destructor of all children
-	wipe();
-	// Wait for terminate
-	wait();
-	qWarning("ALSAAudioOutput: Destroyed");
-}
-
-void ALSAAudioOutput::run() {
-	QMutexLocker qml(&qmALSA);
-	snd_pcm_t *pcm_handle = nullptr;
-	struct pollfd fds[16];
-	int count;
-	bool stillRun = true;
-	int err       = 0;
-	bool bOk      = true;
-
-
-	snd_pcm_hw_params_t *hw_params = nullptr;
-	snd_pcm_sw_params_t *sw_params = nullptr;
-	QByteArray device_name         = g.s.qsALSAOutput.toLatin1();
-
-	snd_pcm_hw_params_alloca(&hw_params);
-	snd_pcm_sw_params_alloca(&sw_params);
-
-	ALSA_ERRBAIL(snd_pcm_open(&pcm_handle, device_name.data(), SND_PCM_STREAM_PLAYBACK, 0));
-	ALSA_ERRCHECK(snd_pcm_hw_params_any(pcm_handle, hw_params));
-
-	iChannels = 1;
-	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels_max(hw_params, &iChannels));
-	if (iChannels > 9) {
-		qWarning("ALSAAudioOutput: ALSA reports %d output channels. Clamping to 2.", iChannels);
-		iChannels = 2;
-	}
-
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S16));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(pcm_handle, hw_params, &iChannels));
-	unsigned int rrate = SAMPLE_RATE;
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &rrate, nullptr));
-
-	unsigned int iOutputSize = (iFrameSize * rrate) / SAMPLE_RATE;
-
-	snd_pcm_uframes_t period_size = iOutputSize;
-	snd_pcm_uframes_t buffer_size = iOutputSize * (g.s.iOutputDelay + 1);
-
-	int dir = 1;
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(pcm_handle, hw_params, &period_size, &dir));
-	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(pcm_handle, hw_params, &buffer_size));
-
-	ALSA_ERRBAIL(snd_pcm_hw_params(pcm_handle, hw_params));
-	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
-	ALSA_ERRBAIL(snd_pcm_hw_params_get_period_size(hw_params, &period_size, &dir));
-	ALSA_ERRBAIL(snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size));
-
-	qWarning("ALSAAudioOutput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels,
-			 buffer_size, period_size);
-
-	ALSA_ERRBAIL(snd_pcm_sw_params_current(pcm_handle, sw_params));
-	ALSA_ERRBAIL(snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, period_size));
-	ALSA_ERRBAIL(snd_pcm_sw_params_set_start_threshold(pcm_handle, sw_params, buffer_size - period_size));
-	ALSA_ERRBAIL(snd_pcm_sw_params_set_stop_threshold(pcm_handle, sw_params, buffer_size));
-	ALSA_ERRBAIL(snd_pcm_sw_params(pcm_handle, sw_params));
-
-#ifdef ALSA_VERBOSE
-	snd_output_t *log;
-	snd_output_stdio_attach(&log, stderr, 0);
-	if (pcm_handle)
-		snd_pcm_dump(pcm_handle, log);
-#endif
-
-	ALSA_ERRBAIL(snd_pcm_prepare(pcm_handle));
-
-	const unsigned int buffsize = static_cast< unsigned int >(period_size * iChannels);
-
-	float zerobuff[buffsize];
-	float outbuff[buffsize];
-
-	for (unsigned int i = 0; i < buffsize; i++)
-		zerobuff[i] = 0;
-
-	// Fill buffer
-	if (bOk && pcm_handle)
-		for (unsigned int i = 0; i < buffer_size / period_size; i++)
-			snd_pcm_writei(pcm_handle, zerobuff, period_size);
-
-	if (!bOk) {
-		g.mw->msgBox(
-			tr("Opening chosen ALSA Output failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
-		if (pcm_handle) {
-			snd_pcm_close(pcm_handle);
-			pcm_handle = nullptr;
-		}
-		return;
-	}
-
-	const unsigned int chanmasks[32] = { SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT,  SPEAKER_BACK_LEFT,
-										 SPEAKER_BACK_RIGHT, SPEAKER_FRONT_CENTER, SPEAKER_LOW_FREQUENCY,
-										 SPEAKER_SIDE_LEFT,  SPEAKER_SIDE_RIGHT,   SPEAKER_BACK_CENTER };
-
-	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
-	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iChannels));
-	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &rrate, nullptr));
-	iMixerFreq    = rrate;
-	eSampleFormat = SampleShort;
-
-	qWarning("ALSAAudioOutput: Initializing %d channel, %d hz mixer", iChannels, iMixerFreq);
-	initializeMixer(chanmasks);
-
-	count = snd_pcm_poll_descriptors_count(pcm_handle);
-	snd_pcm_poll_descriptors(pcm_handle, fds, count);
-
-	qml.unlock();
-
-	while (bRunning && bOk) {
-		poll(fds, count, 20);
-		unsigned short revents;
-
-		snd_pcm_poll_descriptors_revents(pcm_handle, fds, count, &revents);
-		if (revents & POLLERR) {
-			snd_pcm_prepare(pcm_handle);
-		} else if (revents & POLLOUT) {
-			snd_pcm_sframes_t avail{};
-			ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
-			while (avail >= static_cast< int >(period_size)) {
-				stillRun = mix(outbuff, static_cast< int >(period_size));
-				if (stillRun) {
-					snd_pcm_sframes_t w = 0;
-					ALSA_ERRCHECK(w = snd_pcm_writei(pcm_handle, outbuff, period_size));
-					if (w < 0) {
-						avail = w;
-						break;
-					}
-				} else
-					break;
-				ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
-			}
-
-			if (avail == -EPIPE) {
-				snd_pcm_drain(pcm_handle);
-				ALSA_ERRCHECK(snd_pcm_prepare(pcm_handle));
-				for (unsigned int i = 0; i < buffer_size / period_size; ++i)
-					ALSA_ERRCHECK(snd_pcm_writei(pcm_handle, zerobuff, period_size));
-			}
-
-			if (!stillRun) {
-				snd_pcm_drain(pcm_handle);
-
-				while (bRunning && !mix(outbuff, static_cast< unsigned int >(period_size))) {
-					this->msleep(10);
-				}
-
-				if (!bRunning)
-					break;
-
-				snd_pcm_prepare(pcm_handle);
-
-				// Fill one frame
-				for (unsigned int i = 0; i < (buffer_size / period_size) - 1; i++)
-					snd_pcm_writei(pcm_handle, zerobuff, period_size);
-
-				snd_pcm_writei(pcm_handle, outbuff, period_size);
-			}
-		}
-	}
-	snd_pcm_close(pcm_handle);
-}
