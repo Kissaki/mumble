@@ -3,90 +3,272 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CLIENTUSER_H_
-#define MUMBLE_MUMBLE_CLIENTUSER_H_
+#include "ConfigDialog.h"
 
-#include <QtCore/QHash>
-#include <QtCore/QReadWriteLock>
+#include "AudioInput.h"
+#include "AudioOutput.h"
+#include "Global.h"
 
-#include "Settings.h"
-#include "Timer.h"
-#include "User.h"
+#include <QScrollArea>
+#include <QtCore/QMutexLocker>
+#include <QtGui/QScreen>
+#include <QtWidgets/QDesktopWidget>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
 
-class ClientUser : public QObject, public User {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ClientUser)
 
-protected:
-	float m_localVolume = 1.0f;
+// init static member fields
+QMutex ConfigDialog::s_existingWidgetsMutex;
+QHash< QString, ConfigWidget * > ConfigDialog::s_existingWidgets;
 
-public:
-	Settings::TalkState tsState;
-	Timer tLastTalkStateChange;
-	bool bLocalIgnore;
-	bool bLocalIgnoreTTS;
-	bool bLocalMute;
+ConfigDialog::ConfigDialog(QWidget *p) : QDialog(p) {
+	setupUi(this);
 
-	float fPowerMin, fPowerMax;
-	float fAverageAvailable;
+	qlwIcons->setAccessibleName(tr("Configuration categories"));
 
-	int iFrames;
-	int iSequence;
+	{
+		QMutexLocker lock(&s_existingWidgetsMutex);
+		s_existingWidgets.clear();
+	}
 
-	QByteArray qbaTextureFormat;
-	QString qsFriendName;
 
-	QString getFlagsString() const;
-	ClientUser(QObject *p = nullptr);
+	s = g.s;
 
-	float getLocalVolumeAdjustments() const;
+	unsigned int idx = 0;
+	ConfigWidgetNew cwn;
+	foreach (cwn, *ConfigRegistrar::c_qmNew) {
+		ConfigWidget *cw = cwn(s);
+		{
+			QMutexLocker lock(&s_existingWidgetsMutex);
+			s_existingWidgets.insert(cw->getName(), cw);
+		}
 
-	/**
-	 * Determines whether a user is active or not
-	 * A user is active when it is currently speaking or when the user has
-	 * spoken within Settings::uiActiveTime amount of seconds.
-	 */
-	bool isActive();
+		addPage(cw, ++idx);
+	}
 
-	static QHash< unsigned int, ClientUser * > c_qmUsers;
-	static QReadWriteLock c_qrwlUsers;
+	updateListView();
 
-	static QList< ClientUser * > c_qlTalking;
-	static QReadWriteLock c_qrwlTalking;
-	static QList< ClientUser * > getTalking();
-	static QList< ClientUser * > getActive();
+	QPushButton *okButton = dialogButtonBox->button(QDialogButtonBox::Ok);
+	okButton->setToolTip(tr("Accept changes"));
+	okButton->setWhatsThis(tr("This button will accept current settings and return to the application.<br />"
+							  "The settings will be stored to disk when you leave the application."));
 
-	static void sortUsersOverlay(QList< ClientUser * > &list);
+	QPushButton *cancelButton = dialogButtonBox->button(QDialogButtonBox::Cancel);
+	cancelButton->setToolTip(tr("Reject changes"));
+	cancelButton->setWhatsThis(tr("This button will reject all changes and return to the application.<br />"
+								  "The settings will be reset to the previous positions."));
 
-	static ClientUser *get(unsigned int);
-	static bool isValid(unsigned int);
-	static ClientUser *add(unsigned int, QObject *p = nullptr);
-	static ClientUser *match(const ClientUser *p, bool matchname = false);
-	static void remove(unsigned int);
-	static void remove(ClientUser *);
+	QPushButton *applyButton = dialogButtonBox->button(QDialogButtonBox::Apply);
+	applyButton->setToolTip(tr("Apply changes"));
+	applyButton->setWhatsThis(tr("This button will immediately apply all changes."));
 
-protected:
-	static bool lessThanOverlay(const ClientUser *, const ClientUser *);
-public slots:
-	void setTalking(Settings::TalkState ts);
-	void setMute(bool mute);
-	void setDeaf(bool deaf);
-	void setSuppress(bool suppress);
-	void setLocalIgnore(bool ignore);
-	void setLocalIgnoreTTS(bool ignoreTTS);
-	void setLocalMute(bool mute);
-	void setSelfMute(bool mute);
-	void setSelfDeaf(bool deaf);
-	void setPrioritySpeaker(bool priority);
-	void setRecording(bool recording);
-	void setLocalVolumeAdjustment(float adjustment);
-signals:
-	void talkingStateChanged();
-	void muteDeafStateChanged();
-	void prioritySpeakerStateChanged();
-	void recordingStateChanged();
-	void localVolumeAdjustmentsChanged(float newAdjustment, float oldAdjustment);
-};
+	QPushButton *resetButton = pageButtonBox->addButton(QDialogButtonBox::Reset);
+	resetButton->setToolTip(tr("Undo changes for current page"));
+	resetButton->setWhatsThis(
+		tr("This button will revert any changes done on the current page to the most recent applied settings."));
 
+	QPushButton *restoreButton = pageButtonBox->addButton(QDialogButtonBox::RestoreDefaults);
+	restoreButton->setToolTip(tr("Restore defaults for current page"));
+	restoreButton->setWhatsThis(
+		tr("This button will restore the defaults for the settings on the current page. Other pages will not be "
+		   "changed.<br />"
+		   "To restore all settings to their defaults, you can press the \"Defaults (All)\" button."));
+
+	QPushButton *restoreAllButton =
+		pageButtonBox->addButton(QString::fromLatin1("Defaults (All)"), QDialogButtonBox::ResetRole);
+	restoreAllButton->setToolTip(tr("Restore all defaults"));
+	restoreAllButton->setWhatsThis(tr("This button will restore the defaults for all settings."));
+
+	if (!g.s.qbaConfigGeometry.isEmpty()) {
+#ifdef USE_OVERLAY
+		if (!g.ocIntercept)
 #endif
+			restoreGeometry(g.s.qbaConfigGeometry);
+	}
+}
+
+void ConfigDialog::addPage(ConfigWidget *cw, unsigned int idx) {
+	int w = INT_MAX, h = INT_MAX;
+
+	const QList< QScreen * > screens = qApp->screens();
+	for (int i = 0; i < screens.size(); ++i) {
+		const QRect ds = screens[i]->availableGeometry();
+		if (ds.isValid()) {
+			w = qMin(w, ds.width());
+			h = qMin(h, ds.height());
+		}
+	}
+
+	QSize ms = cw->minimumSizeHint();
+	cw->resize(ms);
+	cw->setMinimumSize(ms);
+
+	ms.rwidth() += 128;
+	ms.rheight() += 192;
+	if ((ms.width() > w) || (ms.height() > h)) {
+		QScrollArea *qsa = new QScrollArea();
+		qsa->setFrameShape(QFrame::NoFrame);
+		qsa->setWidgetResizable(true);
+		qsa->setWidget(cw);
+		qhPages.insert(cw, qsa);
+		qswPages->addWidget(qsa);
+	} else {
+		qhPages.insert(cw, cw);
+		qswPages->addWidget(cw);
+	}
+	qmWidgets.insert(idx, cw);
+	cw->load(g.s);
+}
+
+ConfigDialog::~ConfigDialog() {
+	{
+		QMutexLocker lock(&s_existingWidgetsMutex);
+		s_existingWidgets.clear();
+	}
+
+	foreach (QWidget *qw, qhPages)
+		delete qw;
+}
+
+ConfigWidget *ConfigDialog::getConfigWidget(const QString &name) {
+	QMutexLocker lock(&s_existingWidgetsMutex);
+
+	return s_existingWidgets.value(name, nullptr);
+}
+
+void ConfigDialog::on_pageButtonBox_clicked(QAbstractButton *b) {
+	ConfigWidget *conf = qobject_cast< ConfigWidget * >(qswPages->currentWidget());
+	if (!conf) {
+		QScrollArea *qsa = qobject_cast< QScrollArea * >(qswPages->currentWidget());
+		if (qsa)
+			conf = qobject_cast< ConfigWidget * >(qsa->widget());
+	}
+	if (!conf)
+		return;
+	switch (pageButtonBox->standardButton(b)) {
+		case QDialogButtonBox::RestoreDefaults: {
+			Settings def;
+			conf->load(def);
+			break;
+		}
+		case QDialogButtonBox::Reset: {
+			conf->load(g.s);
+			break;
+		}
+		// standardButton returns NoButton for any custom buttons. The only custom button
+		// in the pageButtonBox is the one for resetting all settings.
+		case QDialogButtonBox::NoButton: {
+			// Ask for confirmation before resetting **all** settings
+			QMessageBox msgBox;
+			msgBox.setIcon(QMessageBox::Question);
+			msgBox.setText(QObject::tr("Reset all settings?"));
+			msgBox.setInformativeText(QObject::tr("Do you really want to reset all settings (not only the ones currently visible) to their default value?"));
+			msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+			msgBox.setDefaultButton(QMessageBox::No);
+
+			if (msgBox.exec() == QMessageBox::Yes) {
+				Settings defaultSetting;
+				foreach (ConfigWidget *cw, qmWidgets) {
+					cw->load(defaultSetting);
+				}
+			}
+			break;
+		}
+		default:
+			break;
+	}
+}
+
+void ConfigDialog::on_dialogButtonBox_clicked(QAbstractButton *b) {
+	switch (dialogButtonBox->standardButton(b)) {
+		case QDialogButtonBox::Apply: {
+			apply();
+			break;
+		}
+		default:
+			break;
+	}
+}
+
+void ConfigDialog::on_qlwIcons_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous) {
+	if (!current)
+		current = previous;
+
+	if (current) {
+		QWidget *w = qhPages.value(qmIconWidgets.value(current));
+		if (w)
+			qswPages->setCurrentWidget(w);
+	}
+}
+
+void ConfigDialog::updateListView() {
+	QWidget *ccw         = qmIconWidgets.value(qlwIcons->currentItem());
+	QListWidgetItem *sel = nullptr;
+
+	qmIconWidgets.clear();
+	qlwIcons->clear();
+
+	QFontMetrics qfm(qlwIcons->font());
+	int configNavbarWidth = 0;
+
+	foreach (ConfigWidget *cw, qmWidgets) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+		configNavbarWidth = qMax(configNavbarWidth, qfm.horizontalAdvance(cw->title()));
+#else
+		configNavbarWidth = qMax(configNavbarWidth, qfm.width(cw->title()));
+#endif
+
+		QListWidgetItem *i = new QListWidgetItem(qlwIcons);
+		i->setIcon(cw->icon());
+		i->setText(cw->title());
+		i->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+
+		qmIconWidgets.insert(i, cw);
+		if (cw == ccw)
+			sel = i;
+	}
+
+	// Add space for icon and some padding.
+	configNavbarWidth += qlwIcons->iconSize().width() + 25;
+
+	qlwIcons->setMinimumWidth(configNavbarWidth);
+	qlwIcons->setMaximumWidth(configNavbarWidth);
+
+	if (sel)
+		qlwIcons->setCurrentItem(sel);
+	else
+		qlwIcons->setCurrentRow(0);
+}
+
+void ConfigDialog::apply() {
+	Audio::stop();
+
+	foreach (ConfigWidget *cw, qmWidgets)
+		cw->save();
+
+	g.s = s;
+
+	foreach (ConfigWidget *cw, qmWidgets)
+		cw->accept();
+
+	if (!g.s.bAttenuateOthersOnTalk)
+		g.bAttenuateOthers = false;
+
+	// They might have changed their keys.
+	g.iPushToTalk = 0;
+
+	Audio::start();
+
+	emit settingsAccepted();
+}
+
+void ConfigDialog::accept() {
+	apply();
+
+#ifdef USE_OVERLAY
+	if (!g.ocIntercept)
+#endif
+		g.s.qbaConfigGeometry = saveGeometry();
+
+	QDialog::accept();
+}
