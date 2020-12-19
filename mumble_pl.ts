@@ -3,124 +3,146 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-/* Copyright (C) 2015, Fredrik Nordin <freedick@ludd.ltu.se>
+#include "TextToSpeech.h"
 
-   All rights reserved.
+#ifdef USE_SPEECHD
+#	ifdef USE_SPEECHD_PKGCONFIG
+#		include <speech-dispatcher/libspeechd.h>
+#	else
+#		include <libspeechd.h>
+#	endif
+#endif
 
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions
-   are met:
-
-   - Redistributions of source code must retain the above copyright notice,
-	 this list of conditions and the following disclaimer.
-   - Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-   - Neither the name of the Mumble Developers nor the names of its
-	 contributors may be used to endorse or promote products derived from this
-	 software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR
-   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-
-#include "UserLocalVolumeDialog.h"
-#include "ClientUser.h"
-#include "Database.h"
-#include "MainWindow.h"
-
-#include <QtGui/QCloseEvent>
-#include <QtWidgets/QPushButton>
-
-#include <cmath>
+#include <QtCore/QLocale>
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-UserLocalVolumeDialog::UserLocalVolumeDialog(unsigned int sessionId,
-											 QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker)
-	: QDialog(nullptr), m_clientSession(sessionId), m_qmUserVolTracker(qmUserVolTracker) {
-	setupUi(this);
-	qsUserLocalVolume->setAccessibleName(tr("User volume"));
-	qsbUserLocalVolume->setAccessibleName(tr("User volume"));
+class TextToSpeechPrivate {
+#ifdef USE_SPEECHD
+protected:
+	SPDConnection *spd;
+	/// Used to store the requested volume of the TextToSpeech object
+	/// before speech-dispatcher has been initialized.
+	int volume;
+	bool initialized;
+	void ensureInitialized();
+#endif
+public:
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
+	void say(const QString &text);
+	void setVolume(int v);
+};
 
-	ClientUser *user = ClientUser::get(sessionId);
-	if (user) {
-		QString title = tr("Adjusting local volume for %1").arg(user->qsName);
-		setWindowTitle(title);
-		qsUserLocalVolume->setValue(qRound(log2(user->getLocalVolumeAdjustments()) * 6.0));
-		m_originalVolumeAdjustmentDecibel = qsUserLocalVolume->value();
-	}
+#ifdef USE_SPEECHD
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	initialized = false;
+	volume      = -1;
+	spd         = nullptr;
+}
 
-	if (g.mw && g.mw->windowFlags() & Qt::WindowStaysOnTopHint) {
-		// If the main window is set to always be on top of other windows, we should make the
-		// volume dialog behave the same in order for it to not get hidden behind the main window.
-		setWindowFlags(Qt::WindowStaysOnTopHint);
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	if (spd) {
+		spd_close(spd);
+		spd = nullptr;
 	}
 }
 
-void UserLocalVolumeDialog::closeEvent(QCloseEvent *event) {
-	m_qmUserVolTracker->remove(m_clientSession);
-	event->accept();
-}
+void TextToSpeechPrivate::ensureInitialized() {
+	if (initialized) {
+		return;
+	}
 
-void UserLocalVolumeDialog::present(unsigned int sessionId,
-									QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker) {
-	if (qmUserVolTracker->contains(sessionId)) {
-		qmUserVolTracker->value(sessionId)->raise();
+	spd = spd_open("Mumble", nullptr, nullptr, SPD_MODE_THREADED);
+	if (!spd) {
+		qWarning("TextToSpeech: Failed to contact speech dispatcher.");
 	} else {
-		UserLocalVolumeDialog *uservol = new UserLocalVolumeDialog(sessionId, qmUserVolTracker);
-		uservol->show();
-		qmUserVolTracker->insert(sessionId, uservol);
-	}
-}
-
-void UserLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
-	qsbUserLocalVolume->setValue(value);
-	ClientUser *user = ClientUser::get(m_clientSession);
-	if (user) {
-		// Decibel formula: +6db = *2
-		user->setLocalVolumeAdjustment(static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
-	}
-}
-
-void UserLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
-	qsUserLocalVolume->setValue(value);
-}
-
-void UserLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
-		qsUserLocalVolume->setValue(0);
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
-		ClientUser *user = ClientUser::get(m_clientSession);
-		if (user) {
-			if (!user->qsHash.isEmpty()) {
-				g.db->setUserLocalVolume(user->qsHash, user->getLocalVolumeAdjustments());
-			} else {
-				g.mw->logChangeNotPermanent(QObject::tr("Local Volume Adjustment..."), user);
+		QString lang;
+		if (!g.s.qsTTSLanguage.isEmpty()) {
+			lang = g.s.qsTTSLanguage;
+		} else if (!g.s.qsLanguage.isEmpty()) {
+			QLocale locale(g.s.qsLanguage);
+			lang = locale.bcp47Name();
+		} else {
+			QLocale systemLocale;
+			lang = systemLocale.bcp47Name();
+		}
+		if (!lang.isEmpty()) {
+			if (spd_set_language(spd, lang.toLocal8Bit().constData()) != 0) {
+				qWarning("TextToSpeech: Failed to set language.");
 			}
 		}
-		UserLocalVolumeDialog::close();
+
+		if (spd_set_punctuation(spd, SPD_PUNCT_NONE) != 0)
+			qWarning("TextToSpech: Failed to set punctuation mode.");
+		if (spd_set_spelling(spd, SPD_SPELL_ON) != 0)
+			qWarning("TextToSpeech: Failed to set spelling mode.");
 	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
-		qsUserLocalVolume->setValue(m_originalVolumeAdjustmentDecibel);
-		UserLocalVolumeDialog::close();
+
+	initialized = true;
+
+	if (volume != -1) {
+		setVolume(volume);
 	}
 }
 
-void UserLocalVolumeDialog::reject() {
-	m_qmUserVolTracker->remove(m_clientSession);
-	UserLocalVolumeDialog::close();
+void TextToSpeechPrivate::say(const QString &txt) {
+	ensureInitialized();
+
+	if (spd)
+		spd_say(spd, SPD_MESSAGE, txt.toUtf8());
+}
+
+void TextToSpeechPrivate::setVolume(int vol) {
+	if (!initialized) {
+		volume = vol;
+		return;
+	}
+
+	if (spd)
+		spd_set_volume(spd, vol * 2 - 100);
+}
+#else
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	qWarning("TextToSpeech: Compiled without support for speech-dispatcher");
+}
+
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+}
+
+void TextToSpeechPrivate::say(const QString &) {
+}
+
+void TextToSpeechPrivate::setVolume(int) {
+}
+#endif
+
+
+TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+	enabled = true;
+	d       = new TextToSpeechPrivate();
+}
+
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
+
+void TextToSpeech::say(const QString &text) {
+	if (enabled)
+		d->say(text);
+}
+
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
+
+void TextToSpeech::setVolume(int volume) {
+	d->setVolume(volume);
+}
+
+
+bool TextToSpeech::isEnabled() const {
+	return enabled;
 }
