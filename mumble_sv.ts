@@ -3,159 +3,91 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ViewCert.h"
+#ifndef MUMBLE_MUMBLE_WEBFETCH_H_
+#define MUMBLE_MUMBLE_WEBFETCH_H_
 
+#include <QtCore/QByteArray>
+#include <QtCore/QMap>
+#include <QtCore/QObject>
 #include <QtCore/QUrl>
-#include <QtNetwork/QSslKey>
-#include <QtWidgets/QDialogButtonBox>
-#include <QtWidgets/QGroupBox>
-#include <QtWidgets/QHBoxLayout>
-#include <QtWidgets/QListWidget>
-#include <QtWidgets/QVBoxLayout>
 
-static QString decode_utf8_qssl_string(const QString &input) {
-	QString i = input;
-	return QUrl::fromPercentEncoding(i.replace(QLatin1String("\\x"), QLatin1String("%")).toLatin1());
-}
+class QNetworkReply;
 
-static QStringList processQSslCertificateInfo(QStringList in) {
-	QStringList list;
-	foreach (QString str, in) { list << decode_utf8_qssl_string(str); }
-	return list;
-}
+/// WebFetch is a utility class to download data from Mumble services.
+class WebFetch : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(WebFetch)
+protected:
+	QObject *qoObject;
+	const char *cpSlot;
+	QNetworkReply *qnr;
+	QString m_service;
 
-static void addQSslCertificateInfo(QStringList &l, const QString &label, const QStringList &items) {
-	foreach (const QString &item, items) { l << QString(QLatin1String("%1: %2")).arg(label, item); }
-}
+	QString prefixedServiceHost() const;
+	QString serviceHost() const;
 
-static QString certificateFriendlyName(const QSslCertificate &cert) {
-	QStringList cnList  = processQSslCertificateInfo(cert.subjectInfo(QSslCertificate::CommonName));
-	QStringList orgList = processQSslCertificateInfo(cert.subjectInfo(QSslCertificate::Organization));
+	WebFetch(QString service, QUrl url, QObject *obj, const char *slot);
+signals:
+	void fetched(QByteArray data, QUrl url, QMap< QString, QString > headers);
+protected slots:
+	void finished();
 
-	QString cn;
-	if (cnList.count() > 0) {
-		cn = cnList.at(0);
-	}
+public:
+	/// The fetch function downloads the resource specified by the url parameter from the
+	/// Mumble service given in the service parameter. Once the download completes, the
+	/// function invokes the slot specified via the slot parameter.
+	///
+	/// Only the path part of the url parameter
+	/// is used to construct the final, fully-qualified URL from which the resource is
+	/// downloaded.
+	///
+	/// By default, the service parameter and the url parameter are combined to create
+	/// a service as follows:
+	///
+	///     fullyQualifiedURL = https://${service}.mumble.info/${url.path}
+	///
+	/// When a resource is downloaded from a Mumble service, the service may optionally
+	/// specify a service prefix to use for future requests to all Mumble services. This
+	/// is communicated via the Use-Service-Prefix HTTP header in HTTP responses from
+	/// Mumble services. When this function encounters such a response header, it stores
+	/// the service prefix in the "net/serviceprefix" Mumble setting. If this setting
+	/// is non-empty, the fully-qualified URL is instead constructed as such:
+	///
+	///     fullyQualifiedURL = https://${serivcePrefixSetting}-${service}.mumble.info/${url.path}
+	///
+	/// The service prefix must only contain ASCII characters 'A' through 'Z' (upper case)
+	/// or 'a' through 'z (lower case).
+	///
+	/// @param  service  The Mumble service name to use for this request.
+	///
+	///                  The service name specified is used to create base URL
+	///                  used by the final, fully-qualified URL as follows:
+	///
+	///                      baseURL = https://${service}.mumble.info
+	///
+	///                  If the Mumble setting "net/serviceprefix" is non-empty,
+	///                  it will be used as a prefix to the base URL. In this case,
+	///                  the base URL will be constructed as follows:
+	///
+	///                      baseURL = https://${servicePrefixSetting}-${service}.mumble.info
+	///
+	/// @param  url      The path to the endpoint that the request is targetted at.
+	///                  Only the path of the URL will be used. The specified path is
+	///                  used in combination with the base URL constructed by the service
+	///                  parameter to construct the fully-qualified URL for the HTTP request
+	///                  that will be sent by this function.
+	///                  The path is used in combination with the base URL from the service
+	///                  parameter as follows:
+	///
+	///                      fullyQualifiedURL = ${baseURL}/${url.path}
+	///
+	/// @param  slot     A Qt slot of the form fetched(QByteArray data, QUrl url,
+	///                                                QMap<QString,QString> httpHeaders)
+	///                  If the download initiated by the function was succesful, the data
+	///                  parameter will be a non-null QByteArray.
+	///                  If the download failed, the data parameter will be a null QByteArray.
+	static void fetch(const QString &service, const QUrl &url, QObject *obj, const char *slot);
+};
 
-	QString org;
-	if (orgList.count() > 0) {
-		org = orgList.at(0);
-	}
-
-	return QString(QLatin1String("%1 %2")).arg(cn, org);
-}
-
-ViewCert::ViewCert(QList< QSslCertificate > cl, QWidget *p) : QDialog(p) {
-	qlCerts = cl;
-
-	setWindowTitle(tr("Certificate Chain Details"));
-
-	QHBoxLayout *h;
-	QVBoxLayout *v;
-	QGroupBox *qcbChain, *qcbDetails;
-
-	qcbChain = new QGroupBox(tr("Certificate chain"), this);
-	h        = new QHBoxLayout(qcbChain);
-	qlwChain = new QListWidget(qcbChain);
-	qlwChain->setObjectName(QLatin1String("Chain"));
-
-	// load certs into a set as a hacky fix to #2141
-#if QT_VERSION >= 0x050400
-	QSet< QSslCertificate > qlCertSet;
-#else
-	QList< QSslCertificate > qlCertSet;
 #endif
-	foreach (QSslCertificate c, qlCerts) {
-		if (!qlCertSet.contains(c)) {
-			qlwChain->addItem(certificateFriendlyName(c));
-			qlCertSet << c;
-		}
-	}
-	h->addWidget(qlwChain);
-
-	qcbDetails = new QGroupBox(tr("Certificate details"), this);
-	h          = new QHBoxLayout(qcbDetails);
-	qlwCert    = new QListWidget(qcbDetails);
-	h->addWidget(qlwCert);
-
-	QDialogButtonBox *qdbb = new QDialogButtonBox(QDialogButtonBox::Ok, Qt::Horizontal, this);
-
-	v = new QVBoxLayout(this);
-	v->addWidget(qcbChain);
-	v->addWidget(qcbDetails);
-	v->addWidget(qdbb);
-
-	QMetaObject::connectSlotsByName(this);
-	connect(qdbb, SIGNAL(accepted()), this, SLOT(accept()));
-
-	resize(510, 300);
-}
-
-QString ViewCert::prettifyDigest(QString digest) {
-	QString pretty_digest = digest.toUpper();
-	int step              = 2;
-	QChar separator       = QChar::fromLatin1(':');
-	for (int i = step; i < pretty_digest.size(); i += step + 1) {
-		pretty_digest.insert(i, separator);
-	}
-	return pretty_digest;
-}
-
-void ViewCert::on_Chain_currentRowChanged(int idx) {
-	qlwCert->clear();
-	if ((idx < 0) || (idx >= qlCerts.size()))
-		return;
-
-	QStringList l;
-	const QSslCertificate &c = qlCerts.at(idx);
-
-	addQSslCertificateInfo(l, tr("Common Name"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::CommonName)));
-	addQSslCertificateInfo(l, tr("Organization"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::Organization)));
-	addQSslCertificateInfo(l, tr("Subunit"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::OrganizationalUnitName)));
-	addQSslCertificateInfo(l, tr("Country"), processQSslCertificateInfo(c.subjectInfo(QSslCertificate::CountryName)));
-	addQSslCertificateInfo(l, tr("Locality"), processQSslCertificateInfo(c.subjectInfo(QSslCertificate::LocalityName)));
-	addQSslCertificateInfo(l, tr("State"),
-						   processQSslCertificateInfo(c.subjectInfo(QSslCertificate::StateOrProvinceName)));
-	l << tr("Valid from: %1").arg(c.effectiveDate().toString());
-	l << tr("Valid to: %1").arg(c.expiryDate().toString());
-	l << tr("Serial: %1").arg(QString::fromLatin1(c.serialNumber().toHex()));
-	l << tr("Public Key: %1 bits %2")
-			 .arg(c.publicKey().length())
-			 .arg((c.publicKey().algorithm() == QSsl::Rsa) ? tr("RSA") : tr("DSA"));
-	l << tr("Digest (SHA-1): %1").arg(prettifyDigest(QString::fromLatin1(c.digest(QCryptographicHash::Sha1).toHex())));
-	l << tr("Digest (SHA-256): %1")
-			 .arg(prettifyDigest(QString::fromLatin1(c.digest(QCryptographicHash::Sha256).toHex())));
-
-	const QMultiMap< QSsl::AlternativeNameEntryType, QString > &alts = c.subjectAlternativeNames();
-	QMultiMap< QSsl::AlternativeNameEntryType, QString >::const_iterator i;
-
-	for (i = alts.constBegin(); i != alts.constEnd(); ++i) {
-		switch (i.key()) {
-			case QSsl::EmailEntry: {
-				l << tr("Email: %1").arg(i.value());
-			} break;
-			case QSsl::DnsEntry: {
-				l << tr("DNS: %1").arg(i.value());
-			} break;
-			default:
-				break;
-		}
-	}
-
-	l << QString();
-	l << tr("Issued by:");
-	addQSslCertificateInfo(l, tr("Common Name"), processQSslCertificateInfo(c.issuerInfo(QSslCertificate::CommonName)));
-	addQSslCertificateInfo(l, tr("Organization"),
-						   processQSslCertificateInfo(c.issuerInfo(QSslCertificate::Organization)));
-	addQSslCertificateInfo(l, tr("Unit Name"),
-						   processQSslCertificateInfo(c.issuerInfo(QSslCertificate::OrganizationalUnitName)));
-	addQSslCertificateInfo(l, tr("Country"), processQSslCertificateInfo(c.issuerInfo(QSslCertificate::CountryName)));
-	addQSslCertificateInfo(l, tr("Locality"), processQSslCertificateInfo(c.issuerInfo(QSslCertificate::LocalityName)));
-	addQSslCertificateInfo(l, tr("State"),
-						   processQSslCertificateInfo(c.issuerInfo(QSslCertificate::StateOrProvinceName)));
-
-	qlwCert->addItems(l);
-}
