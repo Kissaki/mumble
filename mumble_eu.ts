@@ -1,103 +1,61 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2019-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_LCD_H_
-#define MUMBLE_MUMBLE_LCD_H_
+#include "Screen.h"
 
-#include "ConfigDialog.h"
-#include "Timer.h"
+#include "MumbleApplication.h"
 
-#include "ui_LCD.h"
+#include <QScreen>
+#include <QWidget>
+#include <QWindow>
 
-class User;
-class LCDDevice;
+QWindow *Screen::windowFromWidget(const QWidget &widget) {
+	QWindow *window = widget.windowHandle();
+	if (window) {
+		return window;
+	}
 
-class LCDConfig : public ConfigWidget, public Ui::LCDConfig {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDConfig)
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	LCDConfig(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void on_qsMinColWidth_valueChanged(int v);
-	void on_qsSplitterWidth_valueChanged(int v);
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-};
+	const QWidget *parent = widget.nativeParentWidget();
+	if (parent) {
+		return parent->windowHandle();
+	}
 
-class LCDEngine : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCDEngine)
-protected:
-	QList< LCDDevice * > qlDevices;
+	return nullptr;
+}
 
-public:
-	LCDEngine();
-	virtual ~LCDEngine() Q_DECL_OVERRIDE;
-	virtual QList< LCDDevice * > devices() const = 0;
-};
+QScreen *Screen::screenFromWidget(const QWidget &widget) {
+	const QWindow *window = windowFromWidget(widget);
+	if (window && window->screen()) {
+		return window->screen();
+	}
 
-class LCDDevice {
-public:
-	LCDDevice();
-	virtual ~LCDDevice();
-	virtual bool enabled()                                  = 0;
-	virtual void setEnabled(bool e)                         = 0;
-	virtual void blitImage(QImage *img, bool alert = false) = 0;
-	virtual QString name() const                            = 0;
-	virtual QSize size() const                              = 0;
-};
+	return qApp->primaryScreen();
+}
 
-typedef LCDEngine *(*LCDEngineNew)(void);
+QScreen *Screen::screenAt(const QPoint &point) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+	return qApp->screenAt(point);
+#else
+	// Adapted from qguiapplication.cpp (Qt)
+	QVarLengthArray< const QScreen *, 8 > visitedScreens;
 
-class LCDEngineRegistrar Q_DECL_FINAL {
-protected:
-	LCDEngineNew n;
+	for (const QScreen *screen : qApp->screens()) {
+		if (visitedScreens.contains(screen)) {
+			continue;
+		}
 
-public:
-	static QList< LCDEngineNew > *qlInitializers;
-	LCDEngineRegistrar(LCDEngineNew n);
-	~LCDEngineRegistrar();
-};
+		// The virtual siblings include the screen itself, so iterate directly
+		for (QScreen *sibling : screen->virtualSiblings()) {
+			if (sibling->geometry().contains(point)) {
+				return sibling;
+			}
 
-class LCD : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LCD)
-protected:
-	QFont qfNormal, qfBold, qfItalic, qfItalicBold;
-	QMap< unsigned int, Timer > qmSpeaking;
-	QMap< unsigned int, Timer > qmNew;
-	QMap< unsigned int, Timer > qmOld;
-	QMap< unsigned int, QString > qmNameCache;
+			visitedScreens.append(sibling);
+		}
+	}
 
-	int iFontHeight;
-	int iFrameIndex;
-	QHash< QSize, unsigned char * > qhImageBuffers;
-	QHash< QSize, QImage * > qhImages;
-	void initBuffers();
-	void destroyBuffers();
-	QImage qiLogo;
-	QTimer *qtTimer;
-public slots:
-	void tick();
-
-public:
-	LCD();
-	~LCD() Q_DECL_OVERRIDE;
-	void updateUserView();
-	bool hasDevices();
-};
-
-uint qHash(const QSize &size);
-
+	return nullptr;
 #endif
+}
