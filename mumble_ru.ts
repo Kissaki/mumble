@@ -3,82 +3,101 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_RICHTEXTEDITOR_H_
-#define MUMBLE_MUMBLE_RICHTEXTEDITOR_H_
+#ifndef MUMBLE_MUMBLE_LCD_H_
+#define MUMBLE_MUMBLE_LCD_H_
 
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QTextEdit>
+#include "ConfigDialog.h"
+#include "Timer.h"
 
-class LogDocument;
+#include "ui_LCD.h"
 
-class RichTextHtmlEdit : public QTextEdit {
+class User;
+class LCDDevice;
+
+class LCDConfig : public ConfigWidget, public Ui::LCDConfig {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(RichTextHtmlEdit)
-protected:
-	void insertFromMimeData(const QMimeData *source);
-
+	Q_DISABLE_COPY(LCDConfig)
 public:
-	RichTextHtmlEdit(QWidget *p);
-
-private:
-	LogDocument *m_document;
-};
-
-#include "ui_RichTextEditor.h"
-#include "ui_RichTextEditorLink.h"
-
-
-class RichTextEditorLink : public QDialog, Ui::RichTextEditorLink {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(RichTextEditorLink)
-public:
-	RichTextEditorLink(const QString &text = QString(), QWidget *p = nullptr);
-	QString text() const;
-};
-
-class RichTextEditor : public QTabWidget, Ui::RichTextEditor {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(RichTextEditor)
-protected:
-	bool bModified;
-	bool bChanged;
-	bool bReadOnly;
-	void richToPlain();
-	QColor qcColor;
-	bool eventFilter(QObject *obj, QEvent *event) Q_DECL_OVERRIDE;
-
-public:
-	RichTextEditor(QWidget *p = nullptr);
-	QString text();
-	bool isModified() const;
-signals:
-	/// The accept signal is emitted when Ctrl-Enter is pressed inside the RichTextEditor.
-	void accept();
+	/// The unique name of this ConfigWidget
+	static const QString name;
+	LCDConfig(Settings &st);
+	QString title() const Q_DECL_OVERRIDE;
+	const QString &getName() const Q_DECL_OVERRIDE;
+	QIcon icon() const Q_DECL_OVERRIDE;
 public slots:
-	void setText(const QString &text, bool readonly = false);
-	void updateColor(const QColor &);
-	void updateActions();
-protected slots:
-	void on_qaBold_triggered(bool);
-	void on_qaItalic_triggered(bool);
-	void on_qaUnderline_triggered(bool);
-	void on_qaColor_triggered();
-	void on_qaLink_triggered();
-	void on_qaImage_triggered();
-
-	void on_qptePlainText_textChanged();
-	void on_qteRichText_textChanged();
-	void on_qteRichText_cursorPositionChanged();
-	void on_qteRichText_currentCharFormatChanged();
-	void onCurrentChanged(int);
+	void on_qsMinColWidth_valueChanged(int v);
+	void on_qsSplitterWidth_valueChanged(int v);
+	void accept() const Q_DECL_OVERRIDE;
+	void save() const Q_DECL_OVERRIDE;
+	void load(const Settings &r) Q_DECL_OVERRIDE;
 };
 
-class RichTextImage {
+class LCDEngine : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(LCDEngine)
+protected:
+	QList< LCDDevice * > qlDevices;
+
 public:
-	static bool isValidImage(const QByteArray &buf, QByteArray &fmt);
+	LCDEngine();
+	virtual ~LCDEngine() Q_DECL_OVERRIDE;
+	virtual QList< LCDDevice * > devices() const = 0;
 };
+
+class LCDDevice {
+public:
+	LCDDevice();
+	virtual ~LCDDevice();
+	virtual bool enabled()                                  = 0;
+	virtual void setEnabled(bool e)                         = 0;
+	virtual void blitImage(QImage *img, bool alert = false) = 0;
+	virtual QString name() const                            = 0;
+	virtual QSize size() const                              = 0;
+};
+
+typedef LCDEngine *(*LCDEngineNew)(void);
+
+class LCDEngineRegistrar Q_DECL_FINAL {
+protected:
+	LCDEngineNew n;
+
+public:
+	static QList< LCDEngineNew > *qlInitializers;
+	LCDEngineRegistrar(LCDEngineNew n);
+	~LCDEngineRegistrar();
+};
+
+class LCD : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(LCD)
+protected:
+	QFont qfNormal, qfBold, qfItalic, qfItalicBold;
+	QMap< unsigned int, Timer > qmSpeaking;
+	QMap< unsigned int, Timer > qmNew;
+	QMap< unsigned int, Timer > qmOld;
+	QMap< unsigned int, QString > qmNameCache;
+
+	int iFontHeight;
+	int iFrameIndex;
+	QHash< QSize, unsigned char * > qhImageBuffers;
+	QHash< QSize, QImage * > qhImages;
+	void initBuffers();
+	void destroyBuffers();
+	QImage qiLogo;
+	QTimer *qtTimer;
+public slots:
+	void tick();
+
+public:
+	LCD();
+	~LCD() Q_DECL_OVERRIDE;
+	void updateUserView();
+	bool hasDevices();
+};
+
+uint qHash(const QSize &size);
 
 #endif
