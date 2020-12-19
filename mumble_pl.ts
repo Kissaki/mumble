@@ -3,94 +3,88 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_COREAUDIO_H_
-#	define MUMBLE_MUMBLE_COREAUDIO_H_
+#ifndef MUMBLE_MUMBLE_DATABASE_H_
+#define MUMBLE_MUMBLE_DATABASE_H_
 
-#	include "AudioInput.h"
-#	include "AudioOutput.h"
+#include "Settings.h"
+#include "UnresolvedServerAddress.h"
+#include <QSqlDatabase>
 
-#	include <AudioToolbox/AudioToolbox.h>
-#	include <Carbon/Carbon.h>
+struct FavoriteServer {
+	QString qsName;
+	QString qsUsername;
+	QString qsPassword;
+	QString qsHostname;
+	QString qsUrl;
+	unsigned short usPort;
+};
 
-#	include "Global.h"
-
-class CoreAudioSystem : public QObject {
+class Database : public QObject {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(CoreAudioSystem)
-public:
-	static CFStringRef QStringToCFString(const QString &str);
-	static const QHash< QString, QString > getDevices(bool input);
-	static const QList< audioDevice > getDeviceChoices(bool input);
-};
+	Q_DISABLE_COPY(Database)
 
-class CoreAudioInput : public AudioInput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(CoreAudioInput)
-protected:
-	AudioUnit au;
-	AUEventListenerRef el;
-	AudioBufferList buflist;
-	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
-							   AudioUnitElement element);
-	static OSStatus inputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
-								  UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
+	QSqlDatabase db;
+	/// This function is called when no database location is configured
+	/// in the config file. It tries to find an existing database file and
+	/// creates a new one if none was found.
+	bool findOrCreateDatabase();
 
 public:
-	CoreAudioInput();
-	~CoreAudioInput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
+	Database(const QString &dbname);
+	~Database() Q_DECL_OVERRIDE;
+
+	QList< FavoriteServer > getFavorites();
+	void setFavorites(const QList< FavoriteServer > &servers);
+	void setPassword(const QString &host, unsigned short port, const QString &user, const QString &pw);
+	bool fuzzyMatch(QString &name, QString &user, QString &pw, QString &host, unsigned short port);
+
+	bool isLocalIgnored(const QString &hash);
+	void setLocalIgnored(const QString &hash, bool ignored);
+
+	bool isLocalIgnoredTTS(const QString &hash);
+	void setLocalIgnoredTTS(const QString &hash, bool ignoredTTS);
+
+	bool isLocalMuted(const QString &hash);
+	void setLocalMuted(const QString &hash, bool muted);
+
+	float getUserLocalVolume(const QString &hash);
+	void setUserLocalVolume(const QString &hash, float volume);
+
+	bool isChannelFiltered(const QByteArray &server_cert_digest, const int channel_id);
+	void setChannelFiltered(const QByteArray &server_cert_digest, const int channel_id, bool hidden);
+
+	QMap< UnresolvedServerAddress, unsigned int > getPingCache();
+	void setPingCache(const QMap< UnresolvedServerAddress, unsigned int > &cache);
+
+	bool seenComment(const QString &hash, const QByteArray &commenthash);
+	void setSeenComment(const QString &hash, const QByteArray &commenthash);
+
+	QByteArray blob(const QByteArray &hash);
+	void setBlob(const QByteArray &hash, const QByteArray &blob);
+
+	QStringList getTokens(const QByteArray &digest);
+	void setTokens(const QByteArray &digest, QStringList &tokens);
+
+	QList< Shortcut > getShortcuts(const QByteArray &digest);
+	bool setShortcuts(const QByteArray &digest, QList< Shortcut > &shortcuts);
+
+	void addFriend(const QString &name, const QString &hash);
+	void removeFriend(const QString &hash);
+	const QString getFriend(const QString &hash);
+	const QMap< QString, QString > getFriends();
+
+	const QString getDigest(const QString &hostname, unsigned short port);
+	void setDigest(const QString &hostname, unsigned short port, const QString &digest);
+
+	bool getUdp(const QByteArray &digest);
+	void setUdp(const QByteArray &digest, bool udp);
+
+	QList< int > getChannelListeners(const QByteArray &digest);
+	void setChannelListeners(const QByteArray &digest, const QSet< int > &channelIDs);
+
+	QHash< int, float > getChannelListenerLocalVolumeAdjustments(const QByteArray &digest);
+	void setChannelListenerLocalVolumeAdjustments(const QByteArray &digest, const QHash< int, float > &volumeMap);
 };
 
-class CoreAudioOutput : public AudioOutput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(CoreAudioOutput)
-protected:
-	AudioUnit au;
-	AUEventListenerRef el;
-	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
-							   AudioUnitElement element);
-	static OSStatus outputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
-								   UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
-
-public:
-	CoreAudioOutput();
-	~CoreAudioOutput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
-};
-
-class CoreAudioInputRegistrar : public AudioInputRegistrar {
-public:
-	CoreAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("CoreAudio"), 10) {}
-	virtual AudioInput *create();
-	virtual const QList< audioDevice > getDeviceChoices();
-	virtual void setDeviceChoice(const QVariant &, Settings &);
-	virtual bool canEcho(const QString &) const;
-};
-
-class CoreAudioOutputRegistrar : public AudioOutputRegistrar {
-public:
-	CoreAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("CoreAudio"), 10) {}
-	virtual AudioOutput *create();
-	virtual const QList< audioDevice > getDeviceChoices();
-	virtual void setDeviceChoice(const QVariant &, Settings &);
-	bool canMuteOthers() const;
-};
-
-class CoreAudioInit : public DeferInit {
-	CoreAudioInputRegistrar *cairReg;
-	CoreAudioOutputRegistrar *caorReg;
-
-public:
-	CoreAudioInit() : cairReg(nullptr), caorReg(nullptr) {}
-	void initialize();
-	void destroy();
-};
-
-#else
-class CoreAudioSystem;
-class CoreAudioInput;
-class CoreAudioOutput;
 #endif
