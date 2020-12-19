@@ -3,463 +3,656 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_SETTINGS_H_
-#define MUMBLE_MUMBLE_SETTINGS_H_
-
-#include <QtCore/QList>
-#include <QtCore/QPair>
-#include <QtCore/QRectF>
-#include <QtCore/QSettings>
-#include <QtCore/QStringList>
-#include <QtCore/QVariant>
-#include <QtGui/QColor>
-#include <QtGui/QFont>
-#include <QtNetwork/QSslCertificate>
-#include <QtNetwork/QSslKey>
-
-// Global helper classes to spread variables around across threads
-// especially helpful to initialize things like the stored
-// preference for audio transmission, since the GUI elements
-// will be created long before the AudioInput object, and the
-// latter lives in a separate thread and so cannot touch the
-// GUI.
-
-struct Shortcut {
-	int iIndex;
-	QList< QVariant > qlButtons;
-	QVariant qvData;
-	bool bSuppress;
-	bool operator<(const Shortcut &) const;
-	bool isServerSpecific() const;
-	bool operator==(const Shortcut &) const;
-};
-
-struct ShortcutTarget {
-	bool bCurrentSelection;
-	bool bUsers;
-	QStringList qlUsers;
-	QList< unsigned int > qlSessions;
-	int iChannel;
-	QString qsGroup;
-	bool bLinks;
-	bool bChildren;
-	bool bForceCenter;
-	ShortcutTarget();
-	bool isServerSpecific() const;
-	bool operator<(const ShortcutTarget &) const;
-	bool operator==(const ShortcutTarget &) const;
-};
-
-quint32 qHash(const ShortcutTarget &);
-quint32 qHash(const QList< ShortcutTarget > &);
-
-QDataStream &operator<<(QDataStream &, const ShortcutTarget &);
-QDataStream &operator>>(QDataStream &, ShortcutTarget &);
-Q_DECLARE_METATYPE(ShortcutTarget)
-
-struct OverlaySettings {
-	enum OverlayPresets { AvatarAndName, LargeSquareAvatar };
-
-	enum OverlayShow { Talking, Active, HomeChannel, LinkedChannels };
-
-	enum OverlaySort { Alphabetical, LastStateChange };
-
-	enum OverlayExclusionMode { LauncherFilterExclusionMode, WhitelistExclusionMode, BlacklistExclusionMode };
-
-	bool bEnable;
-
-	QString qsStyle;
-
-	OverlayShow osShow;
-	bool bAlwaysSelf;
-	int uiActiveTime; // Time in seconds for a user to stay active after talking
-	OverlaySort osSort;
-
-	float fX;
-	float fY;
-
-	qreal fZoom;
-	unsigned int uiColumns;
-
-	QColor qcUserName[5];
-	QFont qfUserName;
-
-	QColor qcChannel;
-	QFont qfChannel;
-
-	QColor qcFps;
-	QFont qfFps;
-
-	qreal fBoxPad;
-	qreal fBoxPenWidth;
-	QColor qcBoxPen;
-	QColor qcBoxFill;
-
-	bool bUserName;
-	bool bChannel;
-	bool bMutedDeafened;
-	bool bAvatar;
-	bool bBox;
-	bool bFps;
-	bool bTime;
-
-	qreal fUserName;
-	qreal fChannel;
-	qreal fMutedDeafened;
-	qreal fAvatar;
-	qreal fUser[5];
-	qreal fFps;
-
-	QRectF qrfUserName;
-	QRectF qrfChannel;
-	QRectF qrfMutedDeafened;
-	QRectF qrfAvatar;
-	QRectF qrfFps;
-	QRectF qrfTime;
-
-	Qt::Alignment qaUserName;
-	Qt::Alignment qaChannel;
-	Qt::Alignment qaMutedDeafened;
-	Qt::Alignment qaAvatar;
-
-	OverlayExclusionMode oemOverlayExcludeMode;
-	QStringList qslLaunchers;
-	QStringList qslLaunchersExclude;
-	QStringList qslWhitelist;
-	QStringList qslWhitelistExclude;
-	QStringList qslPaths;
-	QStringList qslPathsExclude;
-	QStringList qslBlacklist;
-	QStringList qslBlacklistExclude;
-
-	OverlaySettings();
-	void setPreset(const OverlayPresets preset = AvatarAndName);
-
-	void load();
-	void load(QSettings *);
-	void save();
-	void save(QSettings *);
-};
-
-struct Settings {
-	enum AudioTransmit { Continuous, VAD, PushToTalk };
-	enum VADSource { Amplitude, SignalToNoise };
-	enum LoopMode { None, Local, Server };
-	enum ChannelExpand { NoChannels, ChannelsWithUsers, AllChannels };
-	enum ChannelDrag { Ask, DoNothing, Move };
-	enum ServerShow { ShowPopulated, ShowReachable, ShowAll };
-	enum TalkState { Passive, Talking, Whispering, Shouting, MutedTalking };
-	enum IdleAction { Nothing, Deafen, Mute };
-	enum NoiseCancel { NoiseCancelOff, NoiseCancelSpeex, NoiseCancelRNN, NoiseCancelBoth };
-	typedef QPair< QList< QSslCertificate >, QSslKey > KeyPair;
-
-	AudioTransmit atTransmit;
-	quint64 uiDoublePush;
-	quint64 pttHold;
-
-	bool bTxAudioCue;
-	static const QString cqsDefaultPushClickOn;
-	static const QString cqsDefaultPushClickOff;
-	QString qsTxAudioCueOn;
-	QString qsTxAudioCueOff;
-
-	bool bTransmitPosition;
-	bool bMute, bDeaf;
-	bool bTTS;
-	bool bUserTop;
-	bool bWhisperFriends;
-	bool bTTSMessageReadBack;
-	bool bTTSNoScope;
-	bool bTTSNoAuthor;
-	int iTTSVolume, iTTSThreshold;
-	/// The Text-to-Speech language to use. This setting overrides
-	/// the default language for the Text-to-Speech engine, which
-	/// is usually inferred from the current locale.
-	///
-	/// The language is expected to be in BCP47 form.
-	///
-	/// The setting is currently only supported by the speech-dispatcher
-	/// backend.
-	QString qsTTSLanguage;
-	int iQuality, iMinLoudness, iVoiceHold, iJitterBufferSize;
-	bool bAllowLowDelay;
-	NoiseCancel noiseCancelMode;
-	int iSpeexNoiseCancelStrength;
-	quint64 uiAudioInputChannelMask;
-
-	// Idle auto actions
-	unsigned int iIdleTime;
-	IdleAction iaeIdleAction;
-	bool bUndoIdleActionUponActivity;
-
-	VADSource vsVAD;
-	float fVADmin, fVADmax;
-	int iFramesPerPacket;
-	QString qsAudioInput, qsAudioOutput;
-	float fVolume;
-	float fOtherVolume;
-	bool bAttenuateOthersOnTalk;
-	bool bAttenuateOthers;
-	bool bAttenuateUsersOnPrioritySpeak;
-	bool bOnlyAttenuateSameOutput;
-	bool bAttenuateLoopbacks;
-	int iOutputDelay;
-
-	QString qsALSAInput, qsALSAOutput;
-	QString qsPulseAudioInput, qsPulseAudioOutput;
-	QString qsJackClientName, qsJackAudioOutput;
-	bool bJackStartServer, bJackAutoConnect;
-	QString qsOSSInput, qsOSSOutput;
-	int iPortAudioInput, iPortAudioOutput;
-
-	bool bASIOEnable;
-	QString qsASIOclass;
-	QList< QVariant > qlASIOmic;
-	QList< QVariant > qlASIOspeaker;
-
-	QString qsCoreAudioInput, qsCoreAudioOutput;
-
-	QString qsWASAPIInput, qsWASAPIOutput;
-	/// qsWASAPIRole is configured via 'wasapi/role'.
-	/// It is a string explaining Mumble's purpose for opening
-	/// the audio device. This can be used to force Windows
-	/// to not treat Mumble as a communications program
-	/// (the default).
-	///
-	/// The default is "communications". When this is set,
-	/// Windows treats Mumble as a telephony app, including
-	/// potential audio ducking.
-	///
-	/// Other values include:
-	///
-	///   "console", which should be used for games, system
-	///              notification sounds, and voice commands.
-	///
-	///   "multimedia", which should be used for music, movies,
-	///                 narration, and live music recording.
-	///
-	/// This is practically a direct mapping of the ERole enum
-	/// from Windows: https://msdn.microsoft.com/en-us/library/windows/desktop/dd370842
-	QString qsWASAPIRole;
-
-	bool bExclusiveInput, bExclusiveOutput;
-	bool bEcho;
-	bool bEchoMulti;
-	bool bPositionalAudio;
-	bool bPositionalHeadphone;
-	float fAudioMinDistance, fAudioMaxDistance, fAudioMaxDistVolume, fAudioBloom;
-	QMap< QString, bool > qmPositionalAudioPlugins;
-
-	OverlaySettings os;
-
-	int iOverlayWinHelperRestartCooldownMsec;
-	bool bOverlayWinHelperX86Enable;
-	bool bOverlayWinHelperX64Enable;
-
-	int iLCDUserViewMinColWidth;
-	int iLCDUserViewSplitterWidth;
-	QMap< QString, bool > qmLCDDevices;
-
-	bool bShortcutEnable;
-	bool bSuppressMacEventTapWarning;
-	bool bEnableEvdev;
-	bool bEnableXInput2;
-	bool bEnableGKey;
-	bool bEnableXboxInput;
-	bool bEnableWinHooks;
-	/// Enable verbose logging in GlobalShortcutWin's DirectInput backend.
-	bool bDirectInputVerboseLogging;
-	/// Enable use of UIAccess (Windows's UI automation feature). This allows
-	/// Mumble greater access to global shortcuts.
-	bool bEnableUIAccess;
-	QList< Shortcut > qlShortcuts;
-
-	enum MessageLog {
-		LogNone      = 0x00,
-		LogConsole   = 0x01,
-		LogTTS       = 0x02,
-		LogBalloon   = 0x04,
-		LogSoundfile = 0x08,
-		LogHighlight = 0x10
-	};
-	int iMaxLogBlocks;
-	bool bLog24HourClock;
-	int iChatMessageMargins;
-
-	static const QPoint UNSPECIFIED_POSITION;
-	QPoint qpTalkingUI_Position;
-	bool bShowTalkingUI;
-	bool bTalkingUI_LocalUserStaysVisible;
-	bool bTalkingUI_AbbreviateChannelNames;
-	bool bTalkingUI_AbbreviateCurrentChannel;
-	bool bTalkingUI_ShowLocalListeners;
-	/// relative font size in %
-	int iTalkingUI_RelativeFontSize;
-	int iTalkingUI_SilentUserLifeTime;
-	int iTalkingUI_ChannelHierarchyDepth;
-	int iTalkingUI_MaxChannelNameLength;
-	int iTalkingUI_PrefixCharCount;
-	int iTalkingUI_PostfixCharCount;
-	QString qsTalkingUI_ChannelSeparator;
-	QString qsTalkingUI_AbbreviationReplacement;
-
-	int manualPlugin_silentUserDisplaytime;
-
-	QMap< int, QString > qmMessageSounds;
-	QMap< int, quint32 > qmMessages;
-
-	QString qsLanguage;
-
-	/// Name of the theme to use. @see Themes
-	QString themeName;
-	/// Name of the style to use from theme. @see Themes
-	QString themeStyleName;
-
-	QByteArray qbaMainWindowGeometry, qbaMainWindowState, qbaMinimalViewGeometry, qbaMinimalViewState, qbaSplitterState,
-		qbaHeaderState;
-	QByteArray qbaConfigGeometry;
-	enum WindowLayout { LayoutClassic, LayoutStacked, LayoutHybrid, LayoutCustom };
-	WindowLayout wlWindowLayout;
-	ChannelExpand ceExpand;
-	ChannelDrag ceChannelDrag;
-	ChannelDrag ceUserDrag;
-	bool bMinimalView;
-	bool bHideFrame;
-	enum AlwaysOnTopBehaviour { OnTopNever, OnTopAlways, OnTopInMinimal, OnTopInNormal };
-	AlwaysOnTopBehaviour aotbAlwaysOnTop;
-	bool bAskOnQuit;
-	bool bEnableDeveloperMenu;
-	bool bLockLayout;
-	bool bHideInTray;
-	bool bStateInTray;
-	bool bUsage;
-	bool bShowUserCount;
-	bool bShowVolumeAdjustments;
-	bool bChatBarUseSelection;
-	bool bFilterHidesEmptyChannels;
-	bool bFilterActive;
-	QByteArray qbaConnectDialogHeader, qbaConnectDialogGeometry;
-	bool bShowContextMenuInMenuBar;
-
-	QString qsUsername;
-	QString qsLastServer;
-	ServerShow ssFilter;
-
-	QString qsImagePath;
-
-	bool bUpdateCheck;
-	bool bPluginCheck;
-
-	// PTT Button window
-	bool bShowPTTButtonWindow;
-	QByteArray qbaPTTButtonWindowGeometry;
-
-	// Network settings
-	enum ProxyType { NoProxy, HttpProxy, Socks5Proxy };
-	bool bTCPCompat;
-	bool bReconnect;
-	bool bAutoConnect;
-	bool bQoS;
-	/// Disables the "Public Internet" section in the connect dialog if set.
-	bool bDisablePublicList;
-	ProxyType ptProxyType;
-	QString qsProxyHost, qsProxyUsername, qsProxyPassword;
-	unsigned short usProxyPort;
-
-	/// The ping interval in milliseconds. The Mumble client
-	/// will regularly send TCP and UDP pings to the remote
-	/// server. This setting specifies the time (in milliseconds)
-	/// between each ping message.
-	int iPingIntervalMsec;
-
-	/// The connection timeout duration in milliseconds.
-	/// If a connection is not fully established to the
-	/// server within this duration, the client will
-	/// forcefully disconnect.
-	int iConnectionTimeoutDurationMsec;
-
-	/// bUdpForceTcpAddr forces Mumble to bind its UDP
-	/// socket to the same address as its TCP
-	/// connection is using.
-	bool bUdpForceTcpAddr;
-
-	/// iMaxInFlightTCPPings specifies the maximum
-	/// number of ping messages that the client has
-	/// sent, but not yet recieved a response for
-	/// from the server. This value is checked when
-	/// the client sends its next ping message. If
-	/// the maximum is reached, the connection will
-	/// be closed.
-	/// If this setting is assigned a value of 0 or
-	/// a negative number, the TCP ping check is
-	/// disabled.
-	int iMaxInFlightTCPPings;
-
-	/// The service prefix that the WebFetch class will use
-	/// when it constructs its fully-qualified URL. If this
-	/// is empty, no prefix is used.
-	///
-	/// When the WebFetch class receives a HTTP response which
-	/// includes the header "Use-Service-Prefix", this setting
-	/// is updated to reflect the received service prefix.
-	///
-	/// For more information, see the documentation for WebFetch::fetch().
-	QString qsServicePrefix;
-
-	// Network settings - SSL
-	QString qsSslCiphers;
-
-	// Privacy settings
-	bool bHideOS;
-
-	int iMaxImageWidth;
-	int iMaxImageHeight;
-	KeyPair kpCertificate;
-	bool bSuppressIdentity;
-
-	bool bShowTransmitModeComboBox;
-
-	// Accessibility
-	bool bHighContrast;
-
-	// Recording
-	QString qsRecordingPath;
-	QString qsRecordingFile;
-	enum RecordingMode { RecordingMixdown, RecordingMultichannel };
-	RecordingMode rmRecordingMode;
-	int iRecordingFormat;
-
-	// Special configuration options not exposed to UI
-
-	/// Codec kill-switch
-	bool bDisableCELT;
-
-	/// Removes the add and edit options in the connect dialog if set.
-	bool disableConnectDialogEditing;
-
-	/// Asks the user for consent to ping servers in the public server list if not set.
-	bool bPingServersDialogViewed;
-
-	// Config updates
-	unsigned int uiUpdateCounter;
-
-	/// Path to SQLite-DB
-	QString qsDatabaseLocation;
-
-	// Nonsaved
-	LoopMode lmLoopMode;
-	float dPacketLoss;
-	float dMaxPacketDelay;
-	/// If true settings in this structure require a client restart to apply fully
-	bool requireRestartToApply;
-
-	bool doEcho() const;
-	bool doPositionalAudio() const;
-
-	Settings();
-	void load();
-	void load(QSettings *);
-	void save();
-};
-
+#include "OverlayClient.h"
+#include "Channel.h"
+#include "Database.h"
+#include "MainWindow.h"
+#include "Message.h"
+#include "NetworkConfig.h"
+#include "OverlayEditor.h"
+#include "OverlayPositionableItem.h"
+#include "OverlayText.h"
+#include "ServerHandler.h"
+#include "Themes.h"
+#include "User.h"
+#include "Utils.h"
+#include "GlobalShortcut.h"
+
+#ifdef Q_OS_WIN
+#	include <QtGui/QBitmap>
 #endif
+
+#include <QtGui/QImageReader>
+#include <QtWidgets/QGraphicsProxyWidget>
+
+#ifdef Q_OS_WIN
+#	include <psapi.h>
+#endif
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+OverlayClient::OverlayClient(QLocalSocket *socket, QObject *p)
+	: QObject(p), framesPerSecond(0), ougUsers(&g.s.os), iMouseX(0), iMouseY(0) {
+	qlsSocket = socket;
+	qlsSocket->setParent(nullptr);
+	connect(qlsSocket, SIGNAL(readyRead()), this, SLOT(readyRead()));
+
+	omMsg.omh.iLength = -1;
+	smMem             = nullptr;
+	uiWidth = uiHeight = 0;
+
+	uiPid = ~0ULL;
+
+	bWasVisible = false;
+	bDelete     = false;
+
+	qgv.setScene(&qgs);
+	qgv.installEventFilter(this);
+	qgv.viewport()->installEventFilter(this);
+
+	// Make sure it has a native window id
+	qgv.winId();
+
+	qgpiCursor.reset(new OverlayMouse());
+	qgpiCursor->hide();
+	qgpiCursor->setZValue(10.0f);
+
+	ougUsers.setZValue(-1.0f);
+	qgs.addItem(&ougUsers);
+	ougUsers.show();
+
+	qgpiFPS.reset(new OverlayPositionableItem(&g.s.os.qrfFps));
+	qgs.addItem(qgpiFPS.data());
+	qgpiFPS->setPos(g.s.os.qrfFps.x(), g.s.os.qrfFps.y());
+	qgpiFPS->show();
+
+	// Time
+	qgpiTime.reset(new OverlayPositionableItem(&g.s.os.qrfTime));
+	qgs.addItem(qgpiTime.data());
+	qgpiTime->setPos(g.s.os.qrfTime.x(), g.s.os.qrfTime.y());
+	qgpiTime->show();
+
+	iOffsetX = iOffsetY = 0;
+
+	connect(&qgs, SIGNAL(changed(const QList< QRectF > &)), this, SLOT(changed(const QList< QRectF > &)));
+}
+
+OverlayClient::~OverlayClient() {
+	qlsSocket->disconnectFromServer();
+	if (!qlsSocket->waitForDisconnected(1000)) {
+		qDebug() << "OverlayClient: Failed to cleanly disconnect: " << qlsSocket->errorString();
+		qlsSocket->abort();
+	}
+
+	qlsSocket->deleteLater();
+
+	ougUsers.reset();
+}
+
+bool OverlayClient::eventFilter(QObject *o, QEvent *e) {
+	if (e->type() == QEvent::Paint) {
+		e->accept();
+		return true;
+	}
+	return QObject::eventFilter(o, e);
+}
+
+void OverlayClient::updateFPS() {
+	if (g.s.os.bFps) {
+		const BasepointPixmap &pm =
+			OverlayTextLine(QString(QLatin1String("%1")).arg(iroundf(framesPerSecond + 0.5f)), g.s.os.qfFps)
+				.createPixmap(g.s.os.qcFps);
+		qgpiFPS->setVisible(true);
+		qgpiFPS->setPixmap(pm);
+		// offset to use basepoint
+		// TODO: settings are providing a top left anchor, so shift down by ascent
+		qgpiFPS->setOffset(-pm.qpBasePoint + QPoint(0, pm.iAscent));
+		qgpiFPS->updateRender();
+	} else {
+		qgpiFPS->setVisible(false);
+	}
+}
+
+void OverlayClient::updateTime() {
+	if (g.s.os.bTime) {
+		const BasepointPixmap &pm =
+			OverlayTextLine(QString(QLatin1String("%1")).arg(QTime::currentTime().toString()), g.s.os.qfFps)
+				.createPixmap(g.s.os.qcFps);
+		qgpiTime->setVisible(true);
+		qgpiTime->setPixmap(pm);
+		qgpiTime->setOffset(-pm.qpBasePoint + QPoint(0, pm.iAscent));
+		qgpiTime->updateRender();
+	} else {
+		qgpiTime->setVisible(false);
+	}
+}
+
+#if !defined(Q_OS_MAC) || (defined(Q_OS_MAC) && defined(USE_MAC_UNIVERSAL))
+void OverlayClient::updateMouse() {
+#	if defined(Q_OS_WIN)
+	QPixmap pm;
+
+	HICON c = ::GetCursor();
+	ICONINFO info;
+	ZeroMemory(&info, sizeof(info));
+	if (c && ::GetIconInfo(c, &info)) {
+		extern QPixmap qt_pixmapFromWinHBITMAP(HBITMAP bitmap, int format = 0);
+
+		if (info.hbmColor) {
+			pm = qt_pixmapFromWinHBITMAP(info.hbmColor);
+			pm.setMask(QBitmap(qt_pixmapFromWinHBITMAP(info.hbmMask)));
+		} else {
+			QBitmap orig(qt_pixmapFromWinHBITMAP(info.hbmMask));
+			QImage img = orig.toImage();
+
+			int h = img.height() / 2;
+			int w = img.bytesPerLine() / sizeof(quint32);
+
+			QImage out(img.width(), h, QImage::Format_MonoLSB);
+			QImage outmask(img.width(), h, QImage::Format_MonoLSB);
+
+			for (int i = 0; i < h; ++i) {
+				const quint32 *srcimg  = reinterpret_cast< const quint32 * >(img.scanLine(i + h));
+				const quint32 *srcmask = reinterpret_cast< const quint32 * >(img.scanLine(i));
+
+				quint32 *dstimg  = reinterpret_cast< quint32 * >(out.scanLine(i));
+				quint32 *dstmask = reinterpret_cast< quint32 * >(outmask.scanLine(i));
+
+				for (int j = 0; j < w; ++j) {
+					dstmask[j] = srcmask[j];
+					dstimg[j]  = srcimg[j];
+				}
+			}
+			pm = QBitmap::fromImage(out);
+		}
+
+		if (info.hbmMask)
+			::DeleteObject(info.hbmMask);
+		if (info.hbmColor)
+			::DeleteObject(info.hbmColor);
+
+		iOffsetX = info.xHotspot;
+		iOffsetY = info.yHotspot;
+	}
+
+	qgpiCursor->setPixmap(pm);
+#	else
+#	endif
+
+	qgpiCursor->setPos(iMouseX - iOffsetX, iMouseY - iOffsetY);
+}
+#endif
+
+// Qt gets very very unhappy if we embed or unmbed the widget that an event is called from.
+// This means that if any modal dialog is open, we'll be in a event loop of an object
+// that we're about to reparent.
+
+void OverlayClient::showGui() {
+	int count = 0;
+
+	{
+		QWidgetList widgets = qApp->topLevelWidgets();
+		foreach (QWidget *w, widgets) {
+			if (w->isHidden() && (w != g.mw))
+				continue;
+			count++;
+		}
+	}
+	// If there's more than one window up, we're likely deep in a message loop.
+	if (count > 1)
+		return;
+
+	g.ocIntercept = this;
+
+	bWasVisible = !g.mw->isHidden();
+
+	if (bWasVisible) {
+		if (g.s.bMinimalView) {
+			g.s.qbaMinimalViewGeometry = g.mw->saveGeometry();
+			g.s.qbaMinimalViewState    = g.mw->saveState();
+		} else {
+			g.s.qbaMainWindowGeometry = g.mw->saveGeometry();
+			g.s.qbaMainWindowState    = g.mw->saveState();
+			g.s.qbaHeaderState        = g.mw->qtvUsers->header()->saveState();
+		}
+	}
+
+	{
+	outer:
+		QWidgetList widgets = qApp->topLevelWidgets();
+		widgets.removeAll(g.mw);
+		widgets.prepend(g.mw);
+
+		foreach (QWidget *w, widgets) {
+			if (!w->graphicsProxyWidget()) {
+				if ((w == g.mw) || (!w->isHidden())) {
+					QGraphicsProxyWidget *qgpw = new QGraphicsProxyWidget(nullptr, Qt::Window);
+					qgpw->setOpacity(0.90f);
+					qgpw->setWidget(w);
+					if (w == g.mw) {
+						qgpw->setPos(uiWidth / 10, uiHeight / 10);
+						qgpw->resize((uiWidth * 8) / 10, (uiHeight * 8) / 10);
+					}
+
+					qgs.addItem(qgpw);
+					qgpw->show();
+					qgpw->setActive(true);
+					goto outer;
+				}
+			}
+		}
+	}
+
+	QEvent activateEvent(QEvent::WindowActivate);
+	qApp->sendEvent(&qgs, &activateEvent);
+
+	QPoint p = QCursor::pos();
+	iMouseX  = qBound< int >(0, p.x(), uiWidth - 1);
+	iMouseY  = qBound< int >(0, p.y(), uiHeight - 1);
+
+	qgpiCursor->setPos(iMouseX, iMouseY);
+
+	qgs.setFocus();
+#ifndef Q_OS_MAC
+	g.mw->qteChat->activateWindow();
+#endif
+	g.mw->qteChat->setFocus();
+
+	qgv.setAttribute(Qt::WA_WState_Hidden, false);
+	qApp->setActiveWindow(&qgv);
+	qgv.setFocus();
+
+	ougUsers.bShowExamples = true;
+
+#ifdef Q_OS_MAC
+	qApp->setAttribute(Qt::AA_DontUseNativeMenuBar);
+	g.mw->setUnifiedTitleAndToolBarOnMac(false);
+	if (!g.s.os.qsStyle.isEmpty())
+		qApp->setStyle(g.s.os.qsStyle);
+#endif
+
+	setupScene(true);
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_INTERACTIVE;
+	om.omh.iLength = sizeof(struct OverlayMsgInteractive);
+	om.omin.state  = true;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	g.o->updateOverlay();
+}
+
+void OverlayClient::hideGui() {
+	ougUsers.bShowExamples = false;
+
+	QList< QWidget * > widgetlist;
+
+	foreach (QGraphicsItem *qgi, qgs.items(Qt::DescendingOrder)) {
+		QGraphicsProxyWidget *qgpw = qgraphicsitem_cast< QGraphicsProxyWidget * >(qgi);
+		if (qgpw && qgpw->widget()) {
+			QWidget *w = qgpw->widget();
+
+			qgpw->setVisible(false);
+			widgetlist << w;
+		}
+	}
+
+	foreach (QWidget *w, widgetlist) {
+		QGraphicsProxyWidget *qgpw = w->graphicsProxyWidget();
+		if (qgpw) {
+			qgpw->setVisible(false);
+			qgpw->setWidget(nullptr);
+			delete qgpw;
+		}
+	}
+
+	if (g.ocIntercept == this)
+		g.ocIntercept = nullptr;
+
+	foreach (QWidget *w, widgetlist) {
+		if (bWasVisible)
+			w->show();
+	}
+
+	if (bWasVisible) {
+		if (g.s.bMinimalView && !g.s.qbaMinimalViewGeometry.isNull()) {
+			g.mw->restoreGeometry(g.s.qbaMinimalViewGeometry);
+			g.mw->restoreState(g.s.qbaMinimalViewState);
+		} else if (!g.s.bMinimalView && !g.s.qbaMainWindowGeometry.isNull()) {
+			g.mw->restoreGeometry(g.s.qbaMainWindowGeometry);
+			g.mw->restoreState(g.s.qbaMainWindowState);
+		}
+	}
+
+#ifdef Q_OS_MAC
+	qApp->setAttribute(Qt::AA_DontUseNativeMenuBar, false);
+	g.mw->setUnifiedTitleAndToolBarOnMac(true);
+	Themes::apply();
+#endif
+
+	setupScene(false);
+
+	qgv.setAttribute(Qt::WA_WState_Hidden, true);
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_INTERACTIVE;
+	om.omh.iLength = sizeof(struct OverlayMsgInteractive);
+	om.omin.state  = false;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	g.o->updateOverlay();
+
+	if (bDelete)
+		deleteLater();
+}
+
+void OverlayClient::scheduleDelete() {
+	bDelete = true;
+	hideGui();
+}
+
+void OverlayClient::readyReadMsgInit(unsigned int length) {
+	if (length != sizeof(OverlayMsgInit)) {
+		return;
+	}
+
+	OverlayMsgInit *omi = &omMsg.omi;
+
+	uiWidth  = omi->uiWidth;
+	uiHeight = omi->uiHeight;
+	qrLast   = QRect();
+
+	delete smMem;
+
+	smMem = new SharedMemory2(this, uiWidth * uiHeight * 4);
+	if (!smMem->data()) {
+		qWarning() << "OverlayClient: Failed to create shared memory" << uiWidth << uiHeight;
+		delete smMem;
+		smMem = nullptr;
+		return;
+	}
+	QByteArray key = smMem->name().toUtf8();
+	key.append(static_cast< char >(0));
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_SHMEM;
+	om.omh.iLength = key.length();
+	Q_ASSERT(sizeof(om.oms.a_cName) >= static_cast< size_t >(key.length())); // Name should be auto-generated and short
+	memcpy(om.oms.a_cName, key.constData(), key.length());
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	setupRender();
+
+	Overlay *o = static_cast< Overlay * >(parent());
+	QTimer::singleShot(0, o, SLOT(updateOverlay()));
+}
+
+void OverlayClient::readyRead() {
+	while (true) {
+		quint64 ready = static_cast< quint64 >(qlsSocket->bytesAvailable());
+
+		if (omMsg.omh.iLength == -1) {
+			if (ready < sizeof(OverlayMsgHeader)) {
+				break;
+			} else {
+				qlsSocket->read(omMsg.headerbuffer, sizeof(OverlayMsgHeader));
+				if ((omMsg.omh.uiMagic != OVERLAY_MAGIC_NUMBER) || (omMsg.omh.iLength < 0)
+					|| (omMsg.omh.iLength > static_cast< int >(sizeof(OverlayMsgShmem)))) {
+					disconnect();
+					return;
+				}
+				ready -= sizeof(OverlayMsgHeader);
+			}
+		}
+
+		if (ready >= static_cast< unsigned int >(omMsg.omh.iLength)) {
+			qint64 length = qlsSocket->read(omMsg.msgbuffer, omMsg.omh.iLength);
+
+			if (length != omMsg.omh.iLength) {
+				disconnect();
+				return;
+			}
+
+			switch (omMsg.omh.uiType) {
+				case OVERLAY_MSGTYPE_INIT: {
+					readyReadMsgInit(static_cast< unsigned int >(length));
+				} break;
+				case OVERLAY_MSGTYPE_SHMEM: {
+					if (smMem)
+						smMem->systemRelease();
+				} break;
+				case OVERLAY_MSGTYPE_PID: {
+					if (length != static_cast< qint64 >(sizeof(OverlayMsgPid)))
+						break;
+
+					OverlayMsgPid *omp = &omMsg.omp;
+					uiPid              = omp->pid;
+#ifdef Q_OS_WIN
+					HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, (DWORD) uiPid);
+					if (h) {
+						wchar_t buf[MAX_PATH];
+						if (GetModuleFileNameEx(h, 0, buf, MAX_PATH) != 0) {
+							qsExecutablePath = QString::fromWCharArray(buf);
+						}
+						CloseHandle(h);
+					}
+#else
+					qsExecutablePath = QLatin1String("Unknown");
+#endif
+				} break;
+				case OVERLAY_MSGTYPE_FPS: {
+					if (length != sizeof(OverlayMsgFps))
+						break;
+
+					OverlayMsgFps *omf = &omMsg.omf;
+					framesPerSecond    = omf->fps;
+					// qWarning() << "FPS: " << omf->fps;
+
+					Overlay *o = static_cast< Overlay * >(parent());
+					QTimer::singleShot(0, o, SLOT(updateOverlay()));
+				} break;
+				default:
+					break;
+			}
+			omMsg.omh.iLength = -1;
+		} else {
+			break;
+		}
+	}
+}
+
+void OverlayClient::reset() {
+	if (!uiWidth || !uiHeight || !smMem)
+		return;
+
+	qgpiLogo.reset();
+
+	ougUsers.reset();
+
+	setupScene(g.ocIntercept == this);
+}
+
+void OverlayClient::setupScene(bool show) {
+	if (show) {
+		qgs.setBackgroundBrush(QColor(0, 0, 0, 64));
+
+		if (!qgpiLogo) {
+			qgpiLogo.reset(new OverlayMouse());
+			qgpiLogo->hide();
+			qgpiLogo->setOpacity(0.8f);
+			qgpiLogo->setZValue(-5.0f);
+
+
+			QImageReader qir(QLatin1String("skin:mumble.svg"));
+			QSize sz = qir.size();
+			sz.scale(uiWidth, uiHeight, Qt::KeepAspectRatio);
+			qir.setScaledSize(sz);
+
+			qgpiLogo->setPixmap(QPixmap::fromImage(qir.read()));
+
+			QRectF qrf = qgpiLogo->boundingRect();
+			qgpiLogo->setPos(iroundf((uiWidth - qrf.width()) / 2.0f + 0.5f),
+							 iroundf((uiHeight - qrf.height()) / 2.0f + 0.5f));
+		}
+
+		qgpiCursor->show();
+		qgs.addItem(qgpiCursor.data());
+
+		qgpiLogo->show();
+		qgs.addItem(qgpiLogo.data());
+	} else {
+		qgs.setBackgroundBrush(Qt::NoBrush);
+
+		if (qgpiCursor->scene())
+			qgs.removeItem(qgpiCursor.data());
+		qgpiCursor->hide();
+
+		if (qgpiLogo) {
+			if (qgpiLogo->scene())
+				qgs.removeItem(qgpiLogo.data());
+			qgpiLogo->hide();
+		}
+	}
+	ougUsers.updateUsers();
+	updateFPS();
+	updateTime();
+}
+
+void OverlayClient::setupRender() {
+	qgs.setSceneRect(0, 0, uiWidth, uiHeight);
+	qgv.setScene(nullptr);
+	qgv.setGeometry(-2, -2, uiWidth + 2, uiHeight + 2);
+	qgv.viewport()->setGeometry(0, 0, uiWidth, uiHeight);
+	qgv.setScene(&qgs);
+
+	smMem->erase();
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_BLIT;
+	om.omh.iLength = sizeof(OverlayMsgBlit);
+	om.omb.x       = 0;
+	om.omb.y       = 0;
+	om.omb.w       = uiWidth;
+	om.omb.h       = uiHeight;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgBlit));
+
+	reset();
+}
+
+bool OverlayClient::update() {
+	if (!uiWidth || !uiHeight || !smMem)
+		return true;
+
+	ougUsers.updateUsers();
+	updateFPS();
+	updateTime();
+
+	if (qlsSocket->bytesToWrite() > 1024) {
+		return (t.elapsed() <= 5000000ULL);
+	} else {
+		t.restart();
+		return true;
+	}
+}
+
+void OverlayClient::changed(const QList< QRectF > &region) {
+	if (region.isEmpty())
+		return;
+
+	qlDirty.append(region);
+	QMetaObject::invokeMethod(this, "render", Qt::QueuedConnection);
+}
+
+void OverlayClient::render() {
+	const QList< QRectF > region = qlDirty;
+	qlDirty.clear();
+
+	if (!uiWidth || !uiHeight || !smMem)
+		return;
+
+	QRect active;
+	QRectF dirtyf;
+
+	if (region.isEmpty())
+		return;
+
+	foreach (const QRectF &r, region) { dirtyf |= r; }
+
+
+	QRect dirty = dirtyf.toAlignedRect();
+	dirty       = dirty.intersected(QRect(0, 0, uiWidth, uiHeight));
+
+	if ((dirty.width() <= 0) || (dirty.height() <= 0))
+		return;
+
+	QRect target = dirty;
+	target.moveTo(0, 0);
+
+	QImage img(reinterpret_cast< unsigned char * >(smMem->data()), uiWidth, uiHeight,
+			   QImage::Format_ARGB32_Premultiplied);
+	QImage qi(target.size(), QImage::Format_ARGB32_Premultiplied);
+	qi.fill(0);
+
+	QPainter p;
+	p.begin(&qi);
+	p.setRenderHints(p.renderHints(), false);
+	p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+	qgs.render(&p, target, dirty, Qt::IgnoreAspectRatio);
+	p.end();
+
+	p.begin(&img);
+	p.setRenderHints(p.renderHints(), false);
+	p.setCompositionMode(QPainter::CompositionMode_Source);
+	p.drawImage(dirty.x(), dirty.y(), qi);
+	p.end();
+
+	if (dirty.isValid()) {
+		OverlayMsg om;
+		om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+		om.omh.uiType  = OVERLAY_MSGTYPE_BLIT;
+		om.omh.iLength = sizeof(OverlayMsgBlit);
+		om.omb.x       = dirty.x();
+		om.omb.y       = dirty.y();
+		om.omb.w       = dirty.width();
+		om.omb.h       = dirty.height();
+		qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgBlit));
+	}
+
+	if (qgpiCursor->isVisible()) {
+		active = QRect(0, 0, uiWidth, uiHeight);
+	} else {
+		active = qgs.itemsBoundingRect().toAlignedRect();
+		if (active.isEmpty())
+			active = QRect(0, 0, 0, 0);
+		active = active.intersected(QRect(0, 0, uiWidth, uiHeight));
+	}
+
+	if (active != qrLast) {
+		qrLast = active;
+
+		OverlayMsg om;
+		om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+		om.omh.uiType  = OVERLAY_MSGTYPE_ACTIVE;
+		om.omh.iLength = sizeof(OverlayMsgActive);
+		om.oma.x       = qrLast.x();
+		om.oma.y       = qrLast.y();
+		om.oma.w       = qrLast.width();
+		om.oma.h       = qrLast.height();
+		qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgActive));
+	}
+
+	qlsSocket->flush();
+}
+
+void OverlayClient::openEditor() {
+	OverlayEditor oe(g.mw, &ougUsers);
+	connect(&oe, SIGNAL(applySettings()), this, SLOT(updateLayout()));
+
+	oe.exec();
+}
