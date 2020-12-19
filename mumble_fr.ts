@@ -1,361 +1,568 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Markdown.h"
+#include "ALSAAudio.h"
 
-#include <QRegularExpression>
-#include <QRegularExpressionMatch>
+#include "MainWindow.h"
+#include "User.h"
+#include "Utils.h"
 
-namespace Markdown {
-// Placeholder constant
-const QLatin1String regularLineBreakPlaceholder("%<\\!!linebreak!!//>@");
+#include <alsa/asoundlib.h>
+#include <sys/poll.h>
 
-/// Tries to match and replace an escaped character at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processEscapedChar(QString &str, int &offset) {
-	static const QRegularExpression s_regex(QLatin1String("\\\\(.)"));
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
+#define NBLOCKS 8
 
-	if (match.hasMatch()) {
-		QString replacement = QString::fromLatin1("%1").arg(match.captured(1));
+class ALSAEnumerator {
+public:
+	QHash< QString, QString > qhInput;
+	QHash< QString, QString > qhOutput;
+	static QString getHint(void *hint, const char *id);
+	ALSAEnumerator();
+};
 
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
+static ALSAEnumerator *cards = nullptr;
 
-		offset += replacement.size();
+class ALSAAudioInputRegistrar : public AudioInputRegistrar {
+public:
+	ALSAAudioInputRegistrar();
+	virtual AudioInput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	virtual bool canEcho(const QString &) const;
+};
 
-		return true;
+
+class ALSAAudioOutputRegistrar : public AudioOutputRegistrar {
+public:
+	ALSAAudioOutputRegistrar();
+	virtual AudioOutput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+};
+
+class ALSAInit : public DeferInit {
+protected:
+	ALSAAudioInputRegistrar *pairALSA;
+	ALSAAudioOutputRegistrar *paorALSA;
+
+public:
+	void initialize();
+	void destroy();
+};
+
+static ALSAInit aiInit;
+QMutex qmALSA;
+
+void ALSAInit::initialize() {
+	pairALSA = nullptr;
+	paorALSA = nullptr;
+	cards    = nullptr;
+
+	int card = -1;
+	snd_card_next(&card);
+	if (card != -1) {
+		pairALSA = new ALSAAudioInputRegistrar();
+		paorALSA = new ALSAAudioOutputRegistrar();
+		cards    = new ALSAEnumerator();
+	} else {
+		qWarning("ALSAInit: No cards found, not initializing");
+	}
+}
+
+void ALSAInit::destroy() {
+	QMutexLocker qml(&qmALSA);
+	delete pairALSA;
+	delete paorALSA;
+	delete cards;
+}
+
+ALSAAudioInputRegistrar::ALSAAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("ALSA"), 5) {
+}
+
+AudioInput *ALSAAudioInputRegistrar::create() {
+	return new ALSAAudioInput();
+}
+
+const QList< audioDevice > ALSAAudioInputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
+
+	QStringList qlInputDevs = cards->qhInput.keys();
+	std::sort(qlInputDevs.begin(), qlInputDevs.end());
+
+	if (qlInputDevs.contains(g.s.qsALSAInput)) {
+		qlInputDevs.removeAll(g.s.qsALSAInput);
+		qlInputDevs.prepend(g.s.qsALSAInput);
 	}
 
+	foreach (const QString &dev, qlInputDevs) {
+		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhInput.value(dev));
+		qlReturn << audioDevice(t, dev);
+	}
+
+	return qlReturn;
+}
+
+void ALSAAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsALSAInput = choice.toString();
+}
+
+bool ALSAAudioInputRegistrar::canEcho(const QString &) const {
 	return false;
 }
 
-/// Tries to match and replace a markdown section header at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownHeader(QString &str, int &offset) {
-	// Match a markdown section heading. Also eat up a potential following newline in order to
-	// not create a huge spacing after the heading
-	static const QRegularExpression s_regex(QLatin1String("^(#+) (.*)"), QRegularExpression::MultilineOption);
-
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
-
-	if (match.hasMatch()) {
-		int sectionLevel    = match.captured(1).size();
-		QString sectionName = match.captured(2);
-
-		QString replacement = QString::fromLatin1("<h%1>%2</h%1>").arg(sectionLevel).arg(sectionName);
-
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
-
-		offset += replacement.size();
-
-		return true;
-	}
-
-	return false;
+ALSAAudioOutputRegistrar::ALSAAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("ALSA"), 5) {
 }
 
-/// Tries to match and replace a markdown link at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownLink(QString &str, int &offset) {
-	// Link in format [link text](url)
-	static const QRegularExpression s_regex(QLatin1String("\\[([^\\]\\[]+)\\]\\(([^\\)]+)\\)"));
+AudioOutput *ALSAAudioOutputRegistrar::create() {
+	return new ALSAAudioOutput();
+}
 
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
+const QList< audioDevice > ALSAAudioOutputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
 
-	if (match.hasMatch()) {
-		QString url = match.captured(2);
+	QStringList qlOutputDevs = cards->qhOutput.keys();
+	std::sort(qlOutputDevs.begin(), qlOutputDevs.end());
 
-		if (!url.startsWith(QLatin1String("http"), Qt::CaseInsensitive)) {
-			// For a markdown link to work, it has to start with the protocol specification, e.g. http or https
-			// As we can't know for sure that the given website supports https, we'll have to fall back to http
-			// Most browsers will upgrade the request to https whenver possible anyways though, so this shouldn't be
-			// too much of a problem.
-			url = QLatin1String("http://") + url;
+	if (qlOutputDevs.contains(g.s.qsALSAOutput)) {
+		qlOutputDevs.removeAll(g.s.qsALSAOutput);
+		qlOutputDevs.prepend(g.s.qsALSAOutput);
+	}
+
+	foreach (const QString &dev, qlOutputDevs) {
+		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhOutput.value(dev));
+		qlReturn << audioDevice(t, dev);
+	}
+
+	return qlReturn;
+}
+
+void ALSAAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsALSAOutput = choice.toString();
+}
+
+ALSAEnumerator::ALSAEnumerator() {
+	QMutexLocker qml(&qmALSA);
+
+	qhInput.insert(QLatin1String("default"), ALSAAudioInput::tr("Default ALSA Card"));
+	qhOutput.insert(QLatin1String("default"), ALSAAudioOutput::tr("Default ALSA Card"));
+
+#if SND_LIB_VERSION >= 0x01000e
+	void **hints = nullptr;
+	void **hint;
+	snd_config_t *basic = nullptr;
+	int r;
+
+	snd_config_update();
+	r = snd_config_search(snd_config, "defaults.namehint.extended", &basic);
+	if ((r == 0) && basic) {
+		if (snd_config_set_ascii(basic, "on"))
+			qWarning("ALSAEnumerator: Failed to set namehint");
+	} else {
+		qWarning("ALSAEnumerator: Namehint not found");
+	}
+
+	r = snd_device_name_hint(-1, "pcm", &hints);
+
+	if (r || !hints) {
+		qWarning("ALSAEnumerator: snd_device_name_hint: %d", r);
+	} else {
+		hint = hints;
+		while (*hint) {
+			const QString name = getHint(*hint, "NAME");
+			const QString ioid = getHint(*hint, "IOID");
+			QString desc       = getHint(*hint, "DESC");
+
+			desc.replace(QLatin1Char('\n'), QLatin1Char(' '));
+
+
+			// ALSA, in it's infinite wisdom, claims "dmix" is an input/output device.
+			// Since there seems to be no way to fetch the ctl interface for a matching device string
+			// without actually opening it, we'll simply have to start guessing.
+
+			bool caninput  = (ioid.isNull() || (ioid.compare(QLatin1String("Input"), Qt::CaseInsensitive) == 0));
+			bool canoutput = (ioid.isNull() || (ioid.compare(QLatin1String("Output"), Qt::CaseInsensitive) == 0));
+
+			if (name.startsWith(QLatin1String("dmix:")))
+				caninput = false;
+			else if (name.startsWith(QLatin1String("dsnoop:")))
+				canoutput = false;
+
+			if (caninput)
+				qhInput.insert(name, desc);
+			if (canoutput)
+				qhOutput.insert(name, desc);
+
+			++hint;
 		}
-
-		QString replacement = QString::fromLatin1("<a href=\"%1\">%2</a>").arg(url).arg(match.captured(1));
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
-
-		offset += replacement.size();
-
-		return true;
+		snd_device_name_free_hint(hints);
 	}
 
-	return false;
+	snd_config_update_free_global();
+	snd_config_update();
+#else
+	int card = -1;
+	snd_card_next(&card);
+	while (card != -1) {
+		char *name;
+		snd_ctl_t *ctl = nullptr;
+		snd_card_get_longname(card, &name);
+		QByteArray dev = QString::fromLatin1("hw:%1").arg(card).toUtf8();
+		if (snd_ctl_open(&ctl, dev.data(), SND_CTL_READONLY) >= 0) {
+			snd_pcm_info_t *info = nullptr;
+			snd_pcm_info_malloc(&info);
+
+			char *cname = nullptr;
+			snd_card_get_name(card, &cname);
+
+			int device = -1;
+			snd_ctl_pcm_next_device(ctl, &device);
+
+			bool play = false;
+			bool cap  = false;
+
+			while (device != -1) {
+				QString devname = QString::fromLatin1("hw:%1,%2").arg(card).arg(device);
+				snd_pcm_info_set_device(info, device);
+				snd_pcm_info_set_stream(info, SND_PCM_STREAM_CAPTURE);
+				if (snd_ctl_pcm_info(ctl, info) == 0) {
+					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
+					qhInput.insert(devname, fname);
+					cap = true;
+				}
+
+				snd_pcm_info_set_stream(info, SND_PCM_STREAM_PLAYBACK);
+				if (snd_ctl_pcm_info(ctl, info) == 0) {
+					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
+					qhOutput.insert(devname, fname);
+					play = true;
+				}
+
+				snd_ctl_pcm_next_device(ctl, &device);
+			}
+			if (play) {
+				qhOutput.insert(QString::fromLatin1("dmix:CARD=%1").arg(card), QLatin1String(cname));
+			}
+			if (cap) {
+				qhInput.insert(QString::fromLatin1("dsnoop:CARD=%1").arg(card), QLatin1String(cname));
+			}
+			snd_pcm_info_free(info);
+			snd_ctl_close(ctl);
+		}
+		snd_card_next(&card);
+	}
+#endif
 }
 
-/// Tries to match and replace a markdown bold-text at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownBold(QString &str, int &offset) {
-	// Bold text is marked as **bold**
-	static const QRegularExpression s_regex(QLatin1String("\\*\\*([^*]+)\\*\\*"));
+QString ALSAEnumerator::getHint(void *hint, const char *id) {
+	QString s;
+#if SND_LIB_VERSION >= 0x01000e
+	char *value = snd_device_name_get_hint(hint, id);
+	if (value) {
+		s = QLatin1String(value);
+		free(value);
+	}
+#endif
+	return s;
+}
 
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
 
-	if (match.hasMatch()) {
-		QString replacement = QString::fromLatin1("<b>%1</b>").arg(match.captured(1));
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
+ALSAAudioInput::ALSAAudioInput() {
+	bRunning = true;
+}
 
-		offset += replacement.size();
+ALSAAudioInput::~ALSAAudioInput() {
+	// Signal input thread to end
+	bRunning = false;
+	wait();
+}
 
-		return true;
+#define ALSA_ERRBAIL(x)                                       \
+	if (!bOk) {                                               \
+	} else if ((err = static_cast< int >(x)) < 0) {           \
+		bOk = false;                                          \
+		qWarning("ALSAAudio: %s: %s", #x, snd_strerror(err)); \
+	}
+#define ALSA_ERRCHECK(x)                                                    \
+	if (!bOk) {                                                             \
+	} else if ((err = static_cast< int >(x)) < 0) {                         \
+		qWarning("ALSAAudio: Non-critical: %s: %s", #x, snd_strerror(err)); \
 	}
 
-	return false;
-}
+void ALSAAudioInput::run() {
+	QMutexLocker qml(&qmALSA);
+	snd_pcm_sframes_t readblapp;
 
-/// Tries to match and replace a markdown italic-text at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownItalic(QString &str, int &offset) {
-	// Italic text is marked as *italic*
-	static const QRegularExpression s_regex(QLatin1String("\\*([^*]+)\\*"));
+	QByteArray device_name         = g.s.qsALSAInput.toLatin1();
+	snd_pcm_hw_params_t *hw_params = nullptr;
+	snd_pcm_t *capture_handle      = nullptr;
 
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
+	unsigned int rrate = SAMPLE_RATE;
+	bool bOk           = true;
 
-	if (match.hasMatch()) {
-		QString replacement = QString::fromLatin1("<i>%1</i>").arg(match.captured(1));
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
+	int err = 0;
 
-		offset += replacement.size();
+	unsigned int iChannels = 1;
 
-		return true;
+	qWarning("ALSAAudioInput: Initing audiocapture %s.", device_name.data());
+
+	snd_pcm_hw_params_alloca(&hw_params);
+
+	ALSA_ERRBAIL(snd_pcm_open(&capture_handle, device_name.data(), SND_PCM_STREAM_CAPTURE, 0));
+	ALSA_ERRCHECK(snd_pcm_hw_params_any(capture_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(capture_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(capture_handle, hw_params, SND_PCM_FORMAT_S16));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(capture_handle, hw_params, &rrate, nullptr));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(capture_handle, hw_params, &iChannels));
+
+	snd_pcm_uframes_t wantPeriod = (rrate * iFrameSize) / SAMPLE_RATE;
+	snd_pcm_uframes_t wantBuff   = wantPeriod * 8;
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(capture_handle, hw_params, &wantPeriod, nullptr));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(capture_handle, hw_params, &wantBuff));
+	ALSA_ERRBAIL(snd_pcm_hw_params(capture_handle, hw_params));
+
+	qWarning("ALSAAudioInput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels, wantBuff,
+			 wantPeriod);
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(capture_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iMicChannels));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &iMicFreq, nullptr));
+
+#ifdef ALSA_VERBOSE
+	snd_output_t *log;
+	snd_output_stdio_attach(&log, stderr, 0);
+	if (capture_handle)
+		snd_pcm_dump(capture_handle, log);
+#endif
+
+	ALSA_ERRBAIL(snd_pcm_prepare(capture_handle));
+	ALSA_ERRBAIL(snd_pcm_start(capture_handle));
+
+	if (!bOk) {
+		if (capture_handle) {
+			snd_pcm_drain(capture_handle);
+			snd_pcm_close(capture_handle);
+			capture_handle = nullptr;
+		}
+		g.mw->msgBox(
+			tr("Opening chosen ALSA Input failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
+		return;
 	}
 
-	return false;
-}
+	eMicFormat = SampleShort;
+	initializeMixer();
 
-/// Tries to match and replace a markdown strikethrough-text at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownStrikethrough(QString &str, int &offset) {
-	// Strikethrough text is marked as ~~text~~
-	static const QRegularExpression s_regex(QLatin1String("~~([^~]+)~~"));
+	char inbuff[wantPeriod * iChannels * sizeof(short)];
 
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
+	qml.unlock();
 
-	if (match.hasMatch()) {
-		QString replacement = QString::fromLatin1("<s>%1</s>").arg(match.captured(1));
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
-
-		offset += replacement.size();
-
-		return true;
+	while (bRunning) {
+#ifdef ALSA_VERBOSE
+		snd_pcm_status_malloc(&status);
+		snd_pcm_status(capture_handle, status);
+		snd_pcm_status_dump(status, log);
+		snd_pcm_status_free(status);
+#endif
+		readblapp = snd_pcm_readi(capture_handle, inbuff, static_cast< int >(wantPeriod));
+		if (readblapp == -ESTRPIPE) {
+			qWarning("ALSAAudioInput: PCM suspended, trying to resume");
+			while (bRunning && snd_pcm_resume(capture_handle) == -EAGAIN)
+				msleep(1000);
+			if ((err = snd_pcm_prepare(capture_handle)) < 0)
+				qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (readblapp == -EPIPE) {
+			err = snd_pcm_prepare(capture_handle);
+			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (readblapp < 0) {
+			err = snd_pcm_prepare(capture_handle);
+			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (wantPeriod == static_cast< unsigned int >(readblapp)) {
+			addMic(inbuff, static_cast< int >(readblapp));
+		}
 	}
 
-	return false;
+	snd_pcm_drop(capture_handle);
+	snd_pcm_close(capture_handle);
+
+	qWarning("ALSAAudioInput: Releasing ALSA Mic.");
 }
 
-/// Tries to match and replace a markdown quote (blockquote) at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownBlockQuote(QString &str, int &offset) {
-	// Block quotes are (consecutive) lines starting with "> "
-	static const QRegularExpression s_regex(QLatin1String("^(>|&gt;) (.|\\n(>|&gt;) )+"),
-											QRegularExpression::MultilineOption);
+ALSAAudioOutput::ALSAAudioOutput() {
+	qWarning("ALSAAudioOutput: Initialized");
+	bRunning = true;
+}
 
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
+ALSAAudioOutput::~ALSAAudioOutput() {
+	bRunning = false;
+	// Call destructor of all children
+	wipe();
+	// Wait for terminate
+	wait();
+	qWarning("ALSAAudioOutput: Destroyed");
+}
 
-	if (match.hasMatch()) {
-		QString quote = match.captured(0).replace(QLatin1String("&gt;"), QLatin1String(">"));
+void ALSAAudioOutput::run() {
+	QMutexLocker qml(&qmALSA);
+	snd_pcm_t *pcm_handle = nullptr;
+	struct pollfd fds[16];
+	int count;
+	bool stillRun = true;
+	int err       = 0;
+	bool bOk      = true;
 
-		QStringList lines = quote.split(QChar::fromLatin1('\n'));
 
-		quote.clear();
-		for (int i = 0; i < lines.size(); i++) {
-			// remove the leading "> "
-			quote += lines[i].right(lines[i].size() - 2);
+	snd_pcm_hw_params_t *hw_params = nullptr;
+	snd_pcm_sw_params_t *sw_params = nullptr;
+	QByteArray device_name         = g.s.qsALSAOutput.toLatin1();
 
-			if (i != lines.size() - 1) {
-				// Add linebreak back in
-				quote += QString::fromLatin1("\n");
+	snd_pcm_hw_params_alloca(&hw_params);
+	snd_pcm_sw_params_alloca(&sw_params);
+
+	ALSA_ERRBAIL(snd_pcm_open(&pcm_handle, device_name.data(), SND_PCM_STREAM_PLAYBACK, 0));
+	ALSA_ERRCHECK(snd_pcm_hw_params_any(pcm_handle, hw_params));
+
+	iChannels = 1;
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels_max(hw_params, &iChannels));
+	if (iChannels > 9) {
+		qWarning("ALSAAudioOutput: ALSA reports %d output channels. Clamping to 2.", iChannels);
+		iChannels = 2;
+	}
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S16));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(pcm_handle, hw_params, &iChannels));
+	unsigned int rrate = SAMPLE_RATE;
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &rrate, nullptr));
+
+	unsigned int iOutputSize = (iFrameSize * rrate) / SAMPLE_RATE;
+
+	snd_pcm_uframes_t period_size = iOutputSize;
+	snd_pcm_uframes_t buffer_size = iOutputSize * (g.s.iOutputDelay + 1);
+
+	int dir = 1;
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(pcm_handle, hw_params, &period_size, &dir));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(pcm_handle, hw_params, &buffer_size));
+
+	ALSA_ERRBAIL(snd_pcm_hw_params(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_period_size(hw_params, &period_size, &dir));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size));
+
+	qWarning("ALSAAudioOutput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels,
+			 buffer_size, period_size);
+
+	ALSA_ERRBAIL(snd_pcm_sw_params_current(pcm_handle, sw_params));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, period_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_start_threshold(pcm_handle, sw_params, buffer_size - period_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_stop_threshold(pcm_handle, sw_params, buffer_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params(pcm_handle, sw_params));
+
+#ifdef ALSA_VERBOSE
+	snd_output_t *log;
+	snd_output_stdio_attach(&log, stderr, 0);
+	if (pcm_handle)
+		snd_pcm_dump(pcm_handle, log);
+#endif
+
+	ALSA_ERRBAIL(snd_pcm_prepare(pcm_handle));
+
+	const unsigned int buffsize = static_cast< unsigned int >(period_size * iChannels);
+
+	float zerobuff[buffsize];
+	float outbuff[buffsize];
+
+	for (unsigned int i = 0; i < buffsize; i++)
+		zerobuff[i] = 0;
+
+	// Fill buffer
+	if (bOk && pcm_handle)
+		for (unsigned int i = 0; i < buffer_size / period_size; i++)
+			snd_pcm_writei(pcm_handle, zerobuff, period_size);
+
+	if (!bOk) {
+		g.mw->msgBox(
+			tr("Opening chosen ALSA Output failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
+		if (pcm_handle) {
+			snd_pcm_close(pcm_handle);
+			pcm_handle = nullptr;
+		}
+		return;
+	}
+
+	const unsigned int chanmasks[32] = { SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT,  SPEAKER_BACK_LEFT,
+										 SPEAKER_BACK_RIGHT, SPEAKER_FRONT_CENTER, SPEAKER_LOW_FREQUENCY,
+										 SPEAKER_SIDE_LEFT,  SPEAKER_SIDE_RIGHT,   SPEAKER_BACK_CENTER };
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iChannels));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &rrate, nullptr));
+	iMixerFreq    = rrate;
+	eSampleFormat = SampleShort;
+
+	qWarning("ALSAAudioOutput: Initializing %d channel, %d hz mixer", iChannels, iMixerFreq);
+	initializeMixer(chanmasks);
+
+	count = snd_pcm_poll_descriptors_count(pcm_handle);
+	snd_pcm_poll_descriptors(pcm_handle, fds, count);
+
+	qml.unlock();
+
+	while (bRunning && bOk) {
+		poll(fds, count, 20);
+		unsigned short revents;
+
+		snd_pcm_poll_descriptors_revents(pcm_handle, fds, count, &revents);
+		if (revents & POLLERR) {
+			snd_pcm_prepare(pcm_handle);
+		} else if (revents & POLLOUT) {
+			snd_pcm_sframes_t avail{};
+			ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
+			while (avail >= static_cast< int >(period_size)) {
+				stillRun = mix(outbuff, static_cast< int >(period_size));
+				if (stillRun) {
+					snd_pcm_sframes_t w = 0;
+					ALSA_ERRCHECK(w = snd_pcm_writei(pcm_handle, outbuff, period_size));
+					if (w < 0) {
+						avail = w;
+						break;
+					}
+				} else
+					break;
+				ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
+			}
+
+			if (avail == -EPIPE) {
+				snd_pcm_drain(pcm_handle);
+				ALSA_ERRCHECK(snd_pcm_prepare(pcm_handle));
+				for (unsigned int i = 0; i < buffer_size / period_size; ++i)
+					ALSA_ERRCHECK(snd_pcm_writei(pcm_handle, zerobuff, period_size));
+			}
+
+			if (!stillRun) {
+				snd_pcm_drain(pcm_handle);
+
+				while (bRunning && !mix(outbuff, static_cast< unsigned int >(period_size))) {
+					this->msleep(10);
+				}
+
+				if (!bRunning)
+					break;
+
+				snd_pcm_prepare(pcm_handle);
+
+				// Fill one frame
+				for (unsigned int i = 0; i < (buffer_size / period_size) - 1; i++)
+					snd_pcm_writei(pcm_handle, zerobuff, period_size);
+
+				snd_pcm_writei(pcm_handle, outbuff, period_size);
 			}
 		}
-
-		QString replacement =
-			QString::fromLatin1("<div><i>%1</i></div>").arg(quote.replace(QLatin1String("\n"), QLatin1String("<br/>")));
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
-
-		offset += replacement.size();
-
-		return true;
 	}
-
-	return false;
+	snd_pcm_close(pcm_handle);
 }
-
-/// Tries to match and replace a markdown inline code snippet at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownInlineCode(QString &str, int &offset) {
-	// Inline code fragments are marked as `code`
-	static const QRegularExpression s_regex(QLatin1String("`([^`\n]+)`"));
-
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
-
-	if (match.hasMatch()) {
-		QString replacement = QString::fromLatin1("<code>%1</code>").arg(match.captured(1));
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
-
-		offset += replacement.size();
-
-		return true;
-	}
-
-	return false;
-}
-
-/// Tries to match and replace a markdown code block at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processMarkdownCodeBlock(QString &str, int &offset) {
-	// Code blocks are marked as ```code```
-	// Also consume a potential following newline as the <pre> tag will cause a linebreak anyways
-	static const QRegularExpression s_regex(QLatin1String("```.*\\n([^`]+)```(\\r\\n|\\n|\\r)?"));
-
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
-
-	if (match.hasMatch()) {
-		QString code = match.captured(1);
-
-		// Trim away leading linebreaks
-		while (code.size() >= 1 && (code[0] == QLatin1Char('\n') || code[0] == QLatin1Char('\r'))) {
-			code = code.right(code.size() - 1);
-		}
-		// Trim end of string
-		while (code.size() >= 1 && code[code.size() - 1].isSpace()) {
-			code = code.left(code.size() - 1);
-		}
-
-		if (code.isEmpty()) {
-			return false;
-		}
-
-		// Replace linebreaks with a special placeholder as the linebreaks in a <pre> block must not be replaced
-		// with <br/>
-		QString replacement =
-			QString::fromLatin1("<pre>%1</pre>").arg(code.replace(QLatin1String("\n"), regularLineBreakPlaceholder));
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
-
-		offset += replacement.size();
-
-		return true;
-	}
-
-	return false;
-}
-
-/// Tries to match and replace a plain link at exactly the given offset in the string
-///
-/// @param str A reference to the String to work on
-/// @param offset The offset at which the matching shall be done. This will be modified to point right after
-/// 	replacement text, if such a replacement has been made.
-/// @returns Whether a replacement has been made
-bool processPlainLink(QString &str, int &offset) {
-	// We support links with prefixed protocol (e.g. https://bla.com) and prefixed with www (e.g. www.bla.com)
-	static const QRegularExpression s_regex(QLatin1String("([a-zA-Z]+://|[wW][wW][wW]\\.)[^ \\t\\n<]+"));
-
-	QRegularExpressionMatch match =
-		s_regex.match(str, offset, QRegularExpression::NormalMatch, QRegularExpression::AnchoredMatchOption);
-
-	if (match.hasMatch()) {
-		QString url     = match.captured(0);
-		QString urlText = url;
-
-		if (url.startsWith(QLatin1String("www"), Qt::CaseInsensitive)) {
-			// Link is missing a protocol specification.
-			// Use http as the default
-			url = QLatin1String("http://") + url;
-		}
-
-		QString replacement = QString::fromLatin1("<a href=\"%1\">%2</a>").arg(url).arg(urlText);
-		str.replace(match.capturedStart(), match.capturedEnd() - match.capturedStart(), replacement);
-
-		offset += replacement.size();
-
-		return true;
-	}
-
-	return false;
-}
-
-QString markdownToHTML(const QString &markdownInput) {
-	QString htmlString = markdownInput;
-	int offset         = 0;
-
-	while (offset < htmlString.size()) {
-		// The trick here is to know that in a condition the or-branches are only
-		// processed until the first expression returns true. At this point no
-		// lower or-branch will be executed. This results in each of these functions
-		// being called in succession until the first returns true (meaning that it
-		// was able to recognize and replace a pattern).
-		// Each function will only try to match its pattern at the exact offset given.
-		// If a function was able to match and replace, it'll update the offset by
-		// itself in order for the processing to start over right after the replacement
-		// text (avoiding replacing parts of the replacement text which will probably
-		// render the initial replacement invalid).
-		// If no function matches, we increase the offset manually.
-		// Do this until the end of the text has been reached.
-		if (!(processMarkdownHeader(htmlString, offset) || processMarkdownLink(htmlString, offset)
-			  || processMarkdownBold(htmlString, offset) || processMarkdownItalic(htmlString, offset)
-			  || processMarkdownStrikethrough(htmlString, offset) || processMarkdownBlockQuote(htmlString, offset)
-			  || processMarkdownCodeBlock(htmlString, offset) || processMarkdownInlineCode(htmlString, offset)
-			  || processPlainLink(htmlString, offset) || processEscapedChar(htmlString, offset))) {
-			offset++;
-		}
-	}
-
-	// Replace linebreaks afterwards in order to not mess up the RegEx used by the
-	// different functions.
-	static const QRegularExpression s_lineBreakRegEx(QLatin1String("\r\n|\n|\r"));
-	htmlString.replace(s_lineBreakRegEx, QLatin1String("</br>"));
-
-	// Resore linebreaks in <pre> blocks
-	htmlString.replace(regularLineBreakPlaceholder, QLatin1String("\n"));
-
-	return htmlString;
-}
-}; // namespace Markdown
