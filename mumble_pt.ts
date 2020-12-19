@@ -1,290 +1,72 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>ConnectDialogEdit</class>
- <widget class="QDialog" name="ConnectDialogEdit">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>430</width>
-    <height>356</height>
-   </rect>
-  </property>
-  <property name="sizePolicy">
-   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-    <horstretch>0</horstretch>
-    <verstretch>0</verstretch>
-   </sizepolicy>
-  </property>
-  <property name="minimumSize">
-   <size>
-    <width>430</width>
-    <height>0</height>
-   </size>
-  </property>
-  <property name="windowTitle">
-   <string>Edit Server</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="1" column="0" colspan="2">
-    <widget class="QWidget" name="qwInlineNotice" native="true">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QLabel" name="qlPasteNotice">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>4</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QWidget" name="qwActions" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>1</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <layout class="QVBoxLayout" name="qlActions">
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QPushButton" name="qbFill">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>&amp;Fill</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="qbDiscard">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>&amp;Ignore</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="qliServer">
-     <property name="text">
-      <string>A&amp;ddress</string>
-     </property>
-     <property name="buddy">
-      <cstring>qleServer</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QLineEdit" name="qleServer">
-     <property name="toolTip">
-      <string>Internet address of the server.</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Address&lt;/b&gt;&lt;br/&gt;
-Internet address of the server. This can be a normal hostname, an IPv4/IPv6 address or a Bonjour service identifier. Bonjour service identifiers have to be prefixed with a '@' to be recognized by Mumble.</string>
-     </property>
-     <property name="placeholderText">
-      <string>127.0.0.1</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="qliPort">
-     <property name="text">
-      <string>&amp;Port</string>
-     </property>
-     <property name="buddy">
-      <cstring>qlePort</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="1">
-    <widget class="QLineEdit" name="qlePort">
-     <property name="toolTip">
-      <string>Port on which the server is listening</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Port&lt;/b&gt;&lt;br/&gt;
-Port on which the server is listening. If the server is identified by a Bonjour service identifier this field will be ignored.</string>
-     </property>
-     <property name="placeholderText">
-      <string>64738</string>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="0">
-    <widget class="QLabel" name="qliUsername">
-     <property name="text">
-      <string>&amp;Username</string>
-     </property>
-     <property name="buddy">
-      <cstring>qleUsername</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="0">
-    <widget class="QLabel" name="qliPassword">
-     <property name="text">
-      <string>Password</string>
-     </property>
-     <property name="buddy">
-      <cstring>qlePassword</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="1">
-    <widget class="QLineEdit" name="qleUsername">
-     <property name="toolTip">
-      <string>Username to send to the server</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Username&lt;/b&gt;&lt;br/&gt;
-Username to send to the server. Be aware that the server can impose restrictions on how a username might look like. Also your username could already be taken by another user.</string>
-     </property>
-     <property name="placeholderText">
-      <string>Your username</string>
-     </property>
-    </widget>
-   </item>
-   <item row="9" column="1">
-    <widget class="QDialogButtonBox" name="qdbbButtonBox">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="1">
-    <widget class="QLineEdit" name="qlePassword">
-     <property name="toolTip">
-      <string>Password to send to the server</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Password&lt;/b&gt;&lt;br/&gt;
-Password to be sent to the server on connect. This password is needed when connecting as &lt;i&gt;SuperUser&lt;/i&gt; or to a server using password authentication. If not entered here the password will be queried on connect.</string>
-     </property>
-     <property name="placeholderText">
-      <string>Your password</string>
-     </property>
-    </widget>
-   </item>
-   <item row="8" column="1">
-    <widget class="QCheckBox" name="qcbShowPassword">
-     <property name="toolTip">
-      <string/>
-     </property>
-     <property name="text">
-      <string>Show password</string>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="0">
-    <widget class="QLabel" name="qliName">
-     <property name="text">
-      <string>Label</string>
-     </property>
-     <property name="buddy">
-      <cstring>qleName</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="1">
-    <widget class="QLineEdit" name="qleName">
-     <property name="toolTip">
-      <string>Name of the server</string>
-     </property>
-     <property name="whatsThis">
-      <string>&lt;b&gt;Label&lt;/b&gt;&lt;br/&gt;
-Label of the server. This is what the server will be named like in your server list and can be chosen freely.</string>
-     </property>
-     <property name="placeholderText">
-      <string>Local server label</string>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <tabstops>
-  <tabstop>qleServer</tabstop>
-  <tabstop>qlePort</tabstop>
-  <tabstop>qleUsername</tabstop>
-  <tabstop>qlePassword</tabstop>
-  <tabstop>qleName</tabstop>
-  <tabstop>qcbShowPassword</tabstop>
-  <tabstop>qdbbButtonBox</tabstop>
- </tabstops>
- <resources/>
- <connections>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>ConnectDialogEdit</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>175</x>
-     <y>231</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>50</x>
-     <y>198</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qdbbButtonBox</sender>
-   <signal>rejected()</signal>
-   <receiver>ConnectDialogEdit</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>254</x>
-     <y>231</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>224</x>
-     <y>268</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "CELTCodec.h"
+
+#include "Audio.h"
+#include "Version.h"
+
+CELTCodec::CELTCodec(const QString &version) {
+	bValid            = true;
+	cmMode            = nullptr;
+	qsVersion         = version;
+	iBitstreamVersion = INT_MIN;
+
+	this->celt_encoder_destroy = ::celt_encoder_destroy;
+	this->celt_encoder_ctl     = ::celt_encoder_ctl;
+
+	this->celt_decoder_destroy = ::celt_decoder_destroy;
+	this->celt_decoder_ctl     = ::celt_decoder_ctl;
+}
+
+CELTCodec::~CELTCodec() {
+	if (cmMode)
+		::celt_mode_destroy(const_cast< CELTMode * >(cmMode));
+}
+
+bool CELTCodec::isValid() const {
+	return bValid;
+}
+
+int CELTCodec::bitstreamVersion() const {
+	if (cmMode && iBitstreamVersion == INT_MIN)
+		::celt_mode_info(cmMode, CELT_GET_BITSTREAM_VERSION, reinterpret_cast< celt_int32 * >(&iBitstreamVersion));
+
+	return iBitstreamVersion;
+}
+
+QString CELTCodec::version() const {
+	return qsVersion;
+}
+
+void CELTCodec::report() const {
+	qWarning("CELT bitstream %08x from internal CELT with SBCELT decoding", bitstreamVersion());
+}
+
+CELTCodecSBCELT::CELTCodecSBCELT() : CELTCodec(QLatin1String("0.7.0")) {
+	if (bValid) {
+		cmMode       = ::celt_mode_create(SAMPLE_RATE, SAMPLE_RATE / 100, nullptr);
+		cmSBCELTMode = ::sbcelt_mode_create(SAMPLE_RATE, SAMPLE_RATE / 100, nullptr);
+
+		this->celt_decoder_destroy = ::sbcelt_decoder_destroy;
+		this->celt_decoder_ctl     = ::sbcelt_decoder_ctl;
+	}
+}
+
+CELTEncoder *CELTCodecSBCELT::encoderCreate() {
+	return ::celt_encoder_create(cmMode, 1, nullptr);
+}
+
+CELTDecoder *CELTCodecSBCELT::decoderCreate() {
+	return ::sbcelt_decoder_create(cmSBCELTMode, 1, nullptr);
+}
+
+int CELTCodecSBCELT::encode(CELTEncoder *st, const celt_int16 *pcm, unsigned char *compressed, int nbCompressedBytes) {
+	return ::celt_encode(st, pcm, nullptr, compressed, nbCompressedBytes);
+}
+
+int CELTCodecSBCELT::decode_float(CELTDecoder *st, const unsigned char *data, int len, float *pcm) {
+	return ::sbcelt_decode_float(st, data, len, pcm);
+}
