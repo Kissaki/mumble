@@ -1,100 +1,96 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
-#define MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+#ifndef MUMBLE_MUMBLE_COREAUDIO_H_
+#	define MUMBLE_MUMBLE_COREAUDIO_H_
 
-#include "TalkingUIComponent.h"
-#include "TalkingUIEntry.h"
+#	include "AudioInput.h"
+#	include "AudioOutput.h"
 
-#include <QString>
+#	include <AudioToolbox/AudioToolbox.h>
+#	include <Carbon/Carbon.h>
 
-#include <memory>
+#	include "Global.h"
 
-class QWidget;
-class QGroupBox;
-class TalkingUI;
-
-enum class ContainerType { CHANNEL };
-
-class TalkingUIContainer : public TalkingUIComponent {
-	friend class TalkingUIUser;
-
-protected:
-	std::vector< std::unique_ptr< TalkingUIEntry > > m_entries;
-
-	int m_associatedChannelID = -1;
-
-	bool m_permanent = false;
-
-	TalkingUI &m_talkingUI;
-
-	virtual int find(unsigned int associatedUserSession, EntryType type) const;
-
+class CoreAudioSystem : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CoreAudioSystem)
 public:
-	TalkingUIContainer(int associatedChannelID, TalkingUI &talkingUI);
-	virtual ~TalkingUIContainer() = default;
-
-	virtual QString getName() const = 0;
-
-	virtual int compare(const TalkingUIContainer &other) const = 0;
-
-	virtual ContainerType getType() const = 0;
-
-	virtual int getAssociatedChannelID() const;
-
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(const TalkingUIEntry *entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type);
-
-	virtual std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries();
-	virtual const std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries() const;
-
-	virtual bool contains(unsigned int associatedUserSession, EntryType type) const;
-
-	virtual std::size_t size() const;
-	virtual bool isEmpty() const;
-
-	virtual void setPermanent(bool permanent);
-	virtual bool isPermanent() const;
-
-	virtual TalkingUIEntry *get(unsigned int associatedUserSession, EntryType type);
-
-	bool operator==(const TalkingUIContainer &other) const;
-	bool operator!=(const TalkingUIContainer &other) const;
-	bool operator>(const TalkingUIContainer &other) const;
-	bool operator>=(const TalkingUIContainer &other) const;
-	bool operator<(const TalkingUIContainer &other) const;
-	bool operator<=(const TalkingUIContainer &other) const;
+	static CFStringRef QStringToCFString(const QString &str);
+	static const QHash< QString, QString > getDevices(bool input);
+	static const QList< audioDevice > getDeviceChoices(bool input);
 };
 
-
-class TalkingUIChannel : public TalkingUIContainer {
+class CoreAudioInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CoreAudioInput)
 protected:
-	QGroupBox *m_channelBox;
-
-	EntryPriority m_highestUserPriority = EntryPriority::LOWEST;
-
-	void updatePriority();
+	AudioUnit au;
+	AUEventListenerRef el;
+	AudioBufferList buflist;
+	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+							   AudioUnitElement element);
+	static OSStatus inputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+								  UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
 
 public:
-	TalkingUIChannel(int associatedChannelID, QString name, TalkingUI &talkingUI);
-	virtual ~TalkingUIChannel();
-
-	virtual QString getName() const override;
-	virtual void setName(const QString &name);
-
-	virtual int compare(const TalkingUIContainer &other) const override;
-
-	virtual QWidget *getWidget() override;
-	virtual const QWidget *getWidget() const override;
-
-	virtual ContainerType getType() const override;
-
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry) override;
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type) override;
+	CoreAudioInput();
+	~CoreAudioInput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
 };
 
-#endif // MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+class CoreAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CoreAudioOutput)
+protected:
+	AudioUnit au;
+	AUEventListenerRef el;
+	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+							   AudioUnitElement element);
+	static OSStatus outputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+								   UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
+
+public:
+	CoreAudioOutput();
+	~CoreAudioOutput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
+class CoreAudioInputRegistrar : public AudioInputRegistrar {
+public:
+	CoreAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("CoreAudio"), 10) {}
+	virtual AudioInput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	virtual bool canEcho(const QString &) const;
+};
+
+class CoreAudioOutputRegistrar : public AudioOutputRegistrar {
+public:
+	CoreAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("CoreAudio"), 10) {}
+	virtual AudioOutput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	bool canMuteOthers() const;
+};
+
+class CoreAudioInit : public DeferInit {
+	CoreAudioInputRegistrar *cairReg;
+	CoreAudioOutputRegistrar *caorReg;
+
+public:
+	CoreAudioInit() : cairReg(nullptr), caorReg(nullptr) {}
+	void initialize();
+	void destroy();
+};
+
+#else
+class CoreAudioSystem;
+class CoreAudioInput;
+class CoreAudioOutput;
+#endif
