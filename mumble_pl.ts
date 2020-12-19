@@ -1,100 +1,60 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
-#define MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+#include "TextToSpeech.h"
 
-#include "TalkingUIComponent.h"
-#include "TalkingUIEntry.h"
+#include <QTextToSpeech>
 
-#include <QString>
-
-#include <memory>
-
-class QWidget;
-class QGroupBox;
-class TalkingUI;
-
-enum class ContainerType { CHANNEL };
-
-class TalkingUIContainer : public TalkingUIComponent {
-	friend class TalkingUIUser;
-
-protected:
-	std::vector< std::unique_ptr< TalkingUIEntry > > m_entries;
-
-	int m_associatedChannelID = -1;
-
-	bool m_permanent = false;
-
-	TalkingUI &m_talkingUI;
-
-	virtual int find(unsigned int associatedUserSession, EntryType type) const;
-
+class TextToSpeechPrivate {
 public:
-	TalkingUIContainer(int associatedChannelID, TalkingUI &talkingUI);
-	virtual ~TalkingUIContainer() = default;
-
-	virtual QString getName() const = 0;
-
-	virtual int compare(const TalkingUIContainer &other) const = 0;
-
-	virtual ContainerType getType() const = 0;
-
-	virtual int getAssociatedChannelID() const;
-
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(const TalkingUIEntry *entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type);
-
-	virtual std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries();
-	virtual const std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries() const;
-
-	virtual bool contains(unsigned int associatedUserSession, EntryType type) const;
-
-	virtual std::size_t size() const;
-	virtual bool isEmpty() const;
-
-	virtual void setPermanent(bool permanent);
-	virtual bool isPermanent() const;
-
-	virtual TalkingUIEntry *get(unsigned int associatedUserSession, EntryType type);
-
-	bool operator==(const TalkingUIContainer &other) const;
-	bool operator!=(const TalkingUIContainer &other) const;
-	bool operator>(const TalkingUIContainer &other) const;
-	bool operator>=(const TalkingUIContainer &other) const;
-	bool operator<(const TalkingUIContainer &other) const;
-	bool operator<=(const TalkingUIContainer &other) const;
+	QTextToSpeech *m_tts;
+	QVector< QVoice > m_voices;
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
+	void say(const QString &text);
+	void setVolume(int v);
 };
 
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	m_tts = new QTextToSpeech();
+}
 
-class TalkingUIChannel : public TalkingUIContainer {
-protected:
-	QGroupBox *m_channelBox;
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	delete m_tts;
+}
 
-	EntryPriority m_highestUserPriority = EntryPriority::LOWEST;
+void TextToSpeechPrivate::say(const QString &text) {
+	m_tts->say(text);
+}
 
-	void updatePriority();
+void TextToSpeechPrivate::setVolume(int volume) {
+	m_tts->setVolume(volume);
+}
 
-public:
-	TalkingUIChannel(int associatedChannelID, QString name, TalkingUI &talkingUI);
-	virtual ~TalkingUIChannel();
+TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+	enabled = true;
+	d       = new TextToSpeechPrivate();
+}
 
-	virtual QString getName() const override;
-	virtual void setName(const QString &name);
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
 
-	virtual int compare(const TalkingUIContainer &other) const override;
+void TextToSpeech::say(const QString &text) {
+	if (enabled)
+		d->say(text);
+}
 
-	virtual QWidget *getWidget() override;
-	virtual const QWidget *getWidget() const override;
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
 
-	virtual ContainerType getType() const override;
+void TextToSpeech::setVolume(int volume) {
+	d->setVolume(volume);
+}
 
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry) override;
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type) override;
-};
-
-#endif // MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+bool TextToSpeech::isEnabled() const {
+	return enabled;
+}
