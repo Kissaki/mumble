@@ -3,57 +3,69 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CONFIGWIDGET_H_
-#define MUMBLE_MUMBLE_CONFIGWIDGET_H_
+#include "ConfigWidget.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QWidget>
+#include "MumbleApplication.h"
 
-struct Settings;
-class ConfigDialog;
-class QSlider;
-class QAbstractButton;
-class QComboBox;
+#include <QtCore/QMap>
+#include <QtGui/QIcon>
+#include <QtWidgets/QAbstractButton>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QSlider>
 
-class ConfigWidget : public QWidget {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ConfigWidget)
-protected:
-	void loadSlider(QSlider *, int);
-	void loadCheckBox(QAbstractButton *, bool);
-	void loadComboBox(QComboBox *, int);
-signals:
-	void intSignal(int);
+QMap< int, ConfigWidgetNew > *ConfigRegistrar::c_qmNew;
 
-public:
-	Settings &s;
-	ConfigWidget(Settings &st);
-	virtual QString title() const          = 0;
-	virtual const QString &getName() const = 0;
-	virtual QIcon icon() const;
-public slots:
-	virtual void accept() const;
-	virtual void save() const            = 0;
-	virtual void load(const Settings &r) = 0;
-};
+ConfigRegistrar::ConfigRegistrar(int priority, ConfigWidgetNew n) {
+	if (!c_qmNew)
+		c_qmNew = new QMap< int, ConfigWidgetNew >();
+	iPriority = priority;
+	c_qmNew->insert(priority, n);
+}
 
-typedef ConfigWidget *(*ConfigWidgetNew)(Settings &st);
+ConfigRegistrar::~ConfigRegistrar() {
+	c_qmNew->remove(iPriority);
+	if (c_qmNew->isEmpty()) {
+		delete c_qmNew;
+		c_qmNew = nullptr;
+	}
+}
 
-class ConfigRegistrar Q_DECL_FINAL {
-	friend class ConfigDialog;
-	friend class ConfigDialogMac;
+ConfigWidget::ConfigWidget(Settings &st) : s(st) {
+}
 
-private:
-	Q_DISABLE_COPY(ConfigRegistrar)
-protected:
-	int iPriority;
-	static QMap< int, ConfigWidgetNew > *c_qmNew;
+QIcon ConfigWidget::icon() const {
+	return qApp->windowIcon();
+}
 
-public:
-	ConfigRegistrar(int priority, ConfigWidgetNew n);
-	~ConfigRegistrar();
-};
+void ConfigWidget::accept() const {
+}
 
-#endif
+void ConfigWidget::loadSlider(QSlider *slider, int v) {
+	if (v != slider->value()) {
+		slider->setValue(v);
+	} else {
+		connect(this, SIGNAL(intSignal(int)), slider, SIGNAL(valueChanged(int)));
+		emit intSignal(v);
+		disconnect(SIGNAL(intSignal(int)));
+	}
+}
+
+void ConfigWidget::loadCheckBox(QAbstractButton *c, bool v) {
+	if (v != c->isChecked()) {
+		c->setChecked(v);
+	} else {
+		connect(this, SIGNAL(intSignal(int)), c, SIGNAL(stateChanged(int)));
+		emit intSignal(v ? 1 : 0);
+		disconnect(SIGNAL(intSignal(int)));
+	}
+}
+
+void ConfigWidget::loadComboBox(QComboBox *c, int v) {
+	if (c->currentIndex() != v) {
+		c->setCurrentIndex(v);
+	} else {
+		connect(this, SIGNAL(intSignal(int)), c, SIGNAL(currentIndexChanged(int)));
+		emit intSignal(v);
+		disconnect(SIGNAL(intSignal(int)));
+	}
+}
