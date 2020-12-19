@@ -3,144 +3,106 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TALKINGUIENTRY_H_
-#define MUMBLE_MUMBLE_TALKINGUIENTRY_H_
+#include "TalkingUISelection.h"
+#include "MainWindow.h"
+#include "UserModel.h"
 
-#include "Settings.h"
-#include "TalkingUIComponent.h"
+#include <QVariant>
+#include <QWidget>
 
-#include <QIcon>
-#include <QLatin1String>
-#include <QString>
-#include <QTimer>
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-#include <vector>
-
-class QWidget;
-class QLabel;
-class TalkingUIContainer;
-class ClientUser;
-class Channel;
-
-enum class EntryType { USER, LISTENER };
-
-enum class EntryPriority { LOWEST, LOW, DEFAULT, HIGH };
+TalkingUISelection::TalkingUISelection(QWidget *widget) : m_widget(widget) {
+}
 
 
-class TalkingUIEntry : public TalkingUIComponent {
-	// Needed in order for the container class to be able to modify m_container
-	friend class TalkingUIContainer;
+void TalkingUISelection::setActive(bool active) {
+	if (m_widget) {
+		m_widget->setProperty("selected", active);
+		// Unpolish the widget's style so that the new property can take effect
+		m_widget->style()->unpolish(m_widget);
+	}
+}
 
-protected:
-	unsigned int m_associatedUserSession;
+void TalkingUISelection::apply() {
+	setActive(true);
+}
 
-	TalkingUIContainer *m_container = nullptr;
+void TalkingUISelection::discard() {
+	setActive(false);
+}
 
-	EntryPriority m_priority = EntryPriority::DEFAULT;
+bool TalkingUISelection::operator==(const TalkingUISelection &other) const {
+	return m_widget == other.m_widget;
+}
 
-public:
-	TalkingUIEntry(unsigned int associatedUserSession);
-	virtual ~TalkingUIEntry() = default;
+bool TalkingUISelection::operator!=(const TalkingUISelection &other) const {
+	return m_widget != other.m_widget;
+}
 
-	virtual EntryType getType() const = 0;
+bool TalkingUISelection::operator==(const QWidget *widget) const {
+	return m_widget == widget;
+}
 
-	virtual unsigned int getAssociatedUserSession() const;
-
-	virtual TalkingUIContainer *getContainer();
-	virtual const TalkingUIContainer *getContainer() const;
-
-	virtual void setPriority(EntryPriority priority);
-	virtual EntryPriority getPriority() const;
-
-	virtual void setIconSize(int size) = 0;
-
-	virtual void setDisplayString(const QString &displayString) = 0;
-
-	virtual int compare(const TalkingUIEntry &other) const;
-
-	bool operator==(const TalkingUIEntry &other) const;
-	bool operator!=(const TalkingUIEntry &other) const;
-	bool operator<(const TalkingUIEntry &other) const;
-	bool operator<=(const TalkingUIEntry &other) const;
-	bool operator>(const TalkingUIEntry &other) const;
-	bool operator>=(const TalkingUIEntry &other) const;
-};
+bool TalkingUISelection::operator!=(const QWidget *widget) const {
+	return m_widget != widget;
+}
 
 
-class TalkingUIUser : public TalkingUIEntry {
-protected:
-	QWidget *m_backgroundWidget = nullptr;
+UserSelection::UserSelection(QWidget *widget, unsigned int userSession)
+	: TalkingUISelection(widget), m_userSession(userSession) {
+}
 
-	QLabel *m_talkingIcon = nullptr;
-	QLabel *m_nameLabel   = nullptr;
-	QLabel *m_statusIcons = nullptr;
+void UserSelection::syncToMainWindow() const {
+	if (g.mw && g.mw->pmModel) {
+		g.mw->pmModel->setSelectedUser(m_userSession);
+	}
+}
 
-	QString m_name;
-
-	int m_iconSize                     = 5;
-	Settings::TalkState m_talkingState = Settings::Passive;
-
-	QTimer m_timer;
-	bool m_restrictLifetime = false;
-
-	const QIcon &getTalkingIcon(Settings::TalkState talkState) const;
-
-	virtual void updateTalkingIcon();
-
-public:
-	struct UserStatus {
-		bool muted, selfMuted, localMuted, deafened, selfDeafened;
-	};
-
-	TalkingUIUser(const ClientUser &user);
-	virtual ~TalkingUIUser() override;
-
-	virtual QWidget *getWidget() override;
-	virtual const QWidget *getWidget() const override;
-
-	virtual EntryType getType() const override;
-
-	virtual QString getName() const;
-
-	virtual int compare(const TalkingUIEntry &other) const override;
-
-	virtual void setTalkingState(Settings::TalkState talkState);
-
-	virtual void setIconSize(int size) override;
-
-	virtual void setDisplayString(const QString &displayString) override;
-
-	virtual void setLifeTime(unsigned int time);
-	virtual void restrictLifetime(bool restrict);
-
-	virtual void setStatus(UserStatus status);
-};
+std::unique_ptr< TalkingUISelection > UserSelection::cloneToHeap() const {
+	return std::make_unique< UserSelection >(*this);
+}
 
 
-class TalkingUIChannelListener : public TalkingUIEntry {
-protected:
-	QWidget *m_backgroundWidget = nullptr;
 
-	QLabel *m_icon      = nullptr;
-	QLabel *m_nameLabel = nullptr;
+ChannelSelection::ChannelSelection(QWidget *widget, int channelID)
+	: TalkingUISelection(widget), m_channelID(channelID) {
+}
 
-	int m_channelID;
-	QString m_name;
+void ChannelSelection::syncToMainWindow() const {
+	if (g.mw && g.mw->pmModel) {
+		g.mw->pmModel->setSelectedChannel(m_channelID);
+	}
+}
 
-public:
-	TalkingUIChannelListener(const ClientUser &user, const Channel &channel);
-	virtual ~TalkingUIChannelListener() override;
+std::unique_ptr< TalkingUISelection > ChannelSelection::cloneToHeap() const {
+	return std::make_unique< ChannelSelection >(*this);
+}
 
-	virtual EntryType getType() const override;
 
-	virtual QWidget *getWidget() override;
-	virtual const QWidget *getWidget() const override;
 
-	virtual void setIconSize(int size) override;
+ListenerSelection::ListenerSelection(QWidget *widget, unsigned int userSession, int channelID)
+	: TalkingUISelection(widget), m_userSession(userSession), m_channelID(channelID) {
+}
 
-	virtual void setDisplayString(const QString &displayString) override;
+void ListenerSelection::syncToMainWindow() const {
+	if (g.mw && g.mw->pmModel) {
+		g.mw->pmModel->setSelectedChannelListener(m_userSession, m_channelID);
+	}
+}
 
-	virtual int getAssociatedChannelID() const;
-};
+std::unique_ptr< TalkingUISelection > ListenerSelection::cloneToHeap() const {
+	return std::make_unique< ListenerSelection >(*this);
+}
 
-#endif // MUMBLE_MUMBLE_TALKINGUIENTRY_H_
+
+
+void EmptySelection::syncToMainWindow() const {
+	// Do nothing
+}
+
+std::unique_ptr< TalkingUISelection > EmptySelection::cloneToHeap() const {
+	return std::make_unique< EmptySelection >(*this);
+}
