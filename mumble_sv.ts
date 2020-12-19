@@ -1,86 +1,60 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>TextMessage</class>
- <widget class="QDialog" name="TextMessage">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>397</width>
-    <height>297</height>
-   </rect>
-  </property>
-  <layout class="QVBoxLayout">
-   <item>
-    <layout class="QVBoxLayout" name="verticalLayout">
-     <item>
-      <widget class="RichTextEditor" name="rteMessage" native="true"/>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="QCheckBox" name="qcbTreeMessage">
-     <property name="toolTip">
-      <string>If checked the message is recursively sent to all subchannels</string>
-     </property>
-     <property name="text">
-      <string>Send recursively to subchannels</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QDialogButtonBox" name="qbbButtons">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>RichTextEditor</class>
-   <extends>QWidget</extends>
-   <header>RichTextEditor.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>accepted()</signal>
-   <receiver>TextMessage</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>257</x>
-     <y>287</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>157</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>rejected()</signal>
-   <receiver>TextMessage</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>325</x>
-     <y>287</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "TextToSpeech.h"
+
+#include <QTextToSpeech>
+
+class TextToSpeechPrivate {
+public:
+	QTextToSpeech *m_tts;
+	QVector< QVoice > m_voices;
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
+	void say(const QString &text);
+	void setVolume(int v);
+};
+
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	m_tts = new QTextToSpeech();
+}
+
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	delete m_tts;
+}
+
+void TextToSpeechPrivate::say(const QString &text) {
+	m_tts->say(text);
+}
+
+void TextToSpeechPrivate::setVolume(int volume) {
+	m_tts->setVolume(volume);
+}
+
+TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+	enabled = true;
+	d       = new TextToSpeechPrivate();
+}
+
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
+
+void TextToSpeech::say(const QString &text) {
+	if (enabled)
+		d->say(text);
+}
+
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
+
+void TextToSpeech::setVolume(int volume) {
+	d->setVolume(volume);
+}
+
+bool TextToSpeech::isEnabled() const {
+	return enabled;
+}
