@@ -3,199 +3,24 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "XMLTools.h"
-
-#include <QStringList>
-#include <QXmlStreamReader>
-#include <QXmlStreamWriter>
-
-void XMLTools::recurseParse(QXmlStreamReader &reader, QXmlStreamWriter &writer, int &paragraphs,
-							const QMap< QString, QString > &opstyle, const int close, bool ignore) {
-	while (!reader.atEnd()) {
-		QXmlStreamReader::TokenType tt = reader.readNext();
-
-		QXmlStreamAttributes a = reader.attributes();
-		QMap< QString, QString > style;
-		QMap< QString, QString > pstyle = opstyle;
-
-		QStringRef styleref = a.value(QLatin1String("style"));
-		if (!styleref.isNull()) {
-			QString stylestring = styleref.toString();
-#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
-			QStringList styles = stylestring.split(QLatin1String(";"), Qt::SkipEmptyParts);
-#else
-			// Qt 5.14 introduced the Qt::SplitBehavior flags deprecating the QString fields
-			QStringList styles = stylestring.split(QLatin1String(";"), QString::SkipEmptyParts);
+#include <windows.h>
+#include <audioclient.h>
+#include <avrt.h>
+#include <functiondiscoverykeys.h>
+#include <initguid.h>
+#include <ksmedia.h>
+#include <mmdeviceapi.h>
+#include <mmreg.h>
+#include <propkey.h>
+#include <strsafe.h>
+#include <wtypes.h>
+#ifdef _INC_FUNCTIONDISCOVERYKEYS
+#	undef _INC_FUNCTIONDISCOVERYKEYS
 #endif
-			foreach (QString s, styles) {
-				s           = s.simplified();
-				int idx     = s.indexOf(QLatin1Char(':'));
-				QString key = (idx > 0) ? s.left(idx).simplified() : s;
-				QString val = (idx > 0) ? s.mid(idx + 1).simplified() : QString();
+#include <audiopolicy.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propidl.h>
 
-				if (!pstyle.contains(key) || (pstyle.value(key) != val)) {
-					style.insert(key, val);
-					pstyle.insert(key, val);
-				}
-			}
-		}
-
-		switch (tt) {
-			case QXmlStreamReader::StartElement: {
-				QString name = reader.name().toString();
-				int rclose   = 1;
-				if (name == QLatin1String("body")) {
-					rclose = 0;
-					ignore = false;
-				} else if (name == QLatin1String("span")) {
-					// Substitute style with <b>, <i> and <u>
-
-					rclose = 0;
-					if (style.value(QLatin1String("font-weight")) == QLatin1String("600")) {
-						writer.writeStartElement(QLatin1String("b"));
-						rclose++;
-						style.remove(QLatin1String("font-weight"));
-					}
-					if (style.value(QLatin1String("font-style")) == QLatin1String("italic")) {
-						writer.writeStartElement(QLatin1String("i"));
-						rclose++;
-						style.remove(QLatin1String("font-style"));
-					}
-					if (style.value(QLatin1String("text-decoration")) == QLatin1String("underline")) {
-						writer.writeStartElement(QLatin1String("u"));
-						rclose++;
-						style.remove(QLatin1String("text-decoration"));
-					}
-					if (!style.isEmpty()) {
-						rclose++;
-						writer.writeStartElement(name);
-
-						QStringList qsl;
-						QMap< QString, QString >::const_iterator i;
-						for (i = style.constBegin(); i != style.constEnd(); ++i) {
-							if (!i.value().isEmpty())
-								qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
-							else
-								qsl << i.key();
-						}
-
-						writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
-					}
-				} else if (name == QLatin1String("p")) {
-					paragraphs++;
-					if (paragraphs == 1) {
-						// Ignore first paragraph. If it is styled empty drop its contents (e.g. <br />) too.
-						if (style.value(QLatin1String("-qt-paragraph-type")) == QLatin1String("empty")) {
-							reader.skipCurrentElement();
-							continue;
-						}
-						rclose = 0;
-					} else {
-						rclose = 1;
-						writer.writeStartElement(name);
-
-						if (!style.isEmpty()) {
-							QStringList qsl;
-							QMap< QString, QString >::const_iterator i;
-							for (i = style.constBegin(); i != style.constEnd(); ++i) {
-								if (!i.value().isEmpty())
-									qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
-								else
-									qsl << i.key();
-							}
-
-							writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
-						}
-					}
-				} else if (name == QLatin1String("a")) {
-					// Set pstyle to include implicit blue underline.
-					rclose = 1;
-					writer.writeCurrentToken(reader);
-					pstyle.insert(QLatin1String("text-decoration"), QLatin1String("underline"));
-					pstyle.insert(QLatin1String("color"), QLatin1String("#0000ff"));
-				} else if (!ignore) {
-					rclose = 1;
-					writer.writeCurrentToken(reader);
-				}
-
-				recurseParse(reader, writer, paragraphs, pstyle, rclose, ignore);
-				break;
-			}
-			case QXmlStreamReader::EndElement:
-				if (!ignore)
-					for (int i = 0; i < close; ++i)
-						writer.writeEndElement();
-				return;
-			case QXmlStreamReader::Characters:
-				if (!ignore)
-					writer.writeCharacters(reader.text().toString());
-				break;
-			default:
-				break;
-		}
-	}
-}
-
-bool XMLTools::unduplicateTags(QXmlStreamReader &reader, QXmlStreamWriter &writer) {
-	bool changed   = false;
-	bool needclose = false;
-
-	QStringList qslConcat;
-	qslConcat << QLatin1String("b");
-	qslConcat << QLatin1String("i");
-	qslConcat << QLatin1String("u");
-	qslConcat << QLatin1String("a");
-
-	QList< QString > qlNames;
-	QList< QXmlStreamAttributes > qlAttributes;
-
-	while (!reader.atEnd()) {
-		QXmlStreamReader::TokenType tt = reader.readNext();
-		QString name                   = reader.name().toString();
-		switch (tt) {
-			case QXmlStreamReader::StartDocument:
-			case QXmlStreamReader::EndDocument:
-				break;
-			case QXmlStreamReader::StartElement: {
-				QXmlStreamAttributes a = reader.attributes();
-
-				if (name == QLatin1String("unduplicate"))
-					break;
-
-				if (needclose) {
-					needclose = false;
-
-					if ((a == qlAttributes.last()) && (name == qlNames.last()) && (qslConcat.contains(name))) {
-						changed = true;
-						break;
-					}
-					qlNames.takeLast();
-					qlAttributes.takeLast();
-					writer.writeEndElement();
-				}
-				writer.writeCurrentToken(reader);
-				qlNames.append(name);
-				qlAttributes.append(a);
-			} break;
-			case QXmlStreamReader::EndElement: {
-				if (name == QLatin1String("unduplicate"))
-					break;
-				if (needclose) {
-					qlNames.takeLast();
-					qlAttributes.takeLast();
-					writer.writeCurrentToken(reader);
-				}
-				needclose = true;
-			} break;
-			default:
-				if (needclose) {
-					writer.writeEndElement();
-					needclose = false;
-				}
-				writer.writeCurrentToken(reader);
-		}
-	}
-	if (needclose)
-		writer.writeEndElement();
-	return changed;
-}
+DEFINE_GUID(IID_IVistaAudioSessionControl2, 0x33969B1DL, 0xD06F, 0x4281, 0xB8, 0x37, 0x7E, 0xAA, 0xFD, 0x21, 0xA9,
+			0xC0);
+DEFINE_GUID(IID_IAudioSessionQuery, 0x94BE9D30L, 0x53AC, 0x4802, 0x82, 0x9C, 0xF1, 0x3E, 0x5A, 0xD3, 0x47, 0x75);
