@@ -3,173 +3,104 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_LOG_H_
-#define MUMBLE_MUMBLE_LOG_H_
+#include "Log.h"
 
-#include <QtCore/QDate>
-#include <QtCore/QMutex>
-#include <QtCore/QVector>
-#include <QtGui/QTextCursor>
-#include <QtGui/QTextDocument>
+#include <QtCore/QOperatingSystemVersion>
 
-#include "ConfigDialog.h"
-#include "ui_Log.h"
+#include <Foundation/Foundation.h>
 
-#ifndef USE_NO_TTS
-class TextToSpeech;
-#endif
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-class LogConfig : public ConfigWidget, public Ui::LogConfig {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LogConfig)
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
 
-	QTreeWidgetItem *allMessagesItem;
+@interface MUUserNotificationCenterDelegate : NSObject <NSUserNotificationCenterDelegate>
+@end
 
-protected:
-	void updateSelectAllButtons();
+@implementation MUUserNotificationCenterDelegate
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didDeliverNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
+}
 
-public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	enum Column { ColMessage, ColConsole, ColNotification, ColHighlight, ColTTS, ColStaticSound, ColStaticSoundPath };
-	LogConfig(Settings &st);
-	QString title() const Q_DECL_OVERRIDE;
-	const QString &getName() const Q_DECL_OVERRIDE;
-	QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &) Q_DECL_OVERRIDE;
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
+	[center removeDeliveredNotification:notification];
+}
 
-	void on_qtwMessages_itemChanged(QTreeWidgetItem *, int);
-	void on_qtwMessages_itemClicked(QTreeWidgetItem *, int);
-	void on_qtwMessages_itemDoubleClicked(QTreeWidgetItem *, int);
-	void browseForAudioFile();
-};
+- (BOOL) userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
 
-class ClientUser;
-class Channel;
-class LogMessage;
+	return NO;
+}
+@end
 
-class Log : public QObject {
-	friend class LogConfig;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(Log)
-public:
-	enum MsgType {
-		DebugInfo,
-		CriticalError,
-		Warning,
-		Information,
-		ServerConnected,
-		ServerDisconnected,
-		UserJoin,
-		UserLeave,
-		Recording,
-		YouKicked,
-		UserKicked,
-		SelfMute,
-		OtherSelfMute,
-		YouMuted,
-		YouMutedOther,
-		OtherMutedOther,
-		ChannelJoin,
-		ChannelLeave,
-		PermissionDenied,
-		TextMessage,
-		SelfUnmute,
-		SelfDeaf,
-		SelfUndeaf,
-		UserRenamed,
-		SelfChannelJoin,
-		SelfChannelJoinOther,
-		ChannelJoinConnect,
-		ChannelLeaveDisconnect,
-		PrivateTextMessage,
-		ChannelListeningAdd,
-		ChannelListeningRemove
-	};
-	enum LogColorType { Time, Server, Privilege, Source, Target };
-	static const MsgType firstMsgType = DebugInfo;
-	static const MsgType lastMsgType  = ChannelListeningRemove;
-
-	// Display order in settingsscreen, allows to insert new events without breaking config-compatibility with older
-	// versions.
-	static const MsgType msgOrder[];
-
-protected:
-	/// Mutex for qvDeferredLogs
-	static QMutex qmDeferredLogs;
-	/// A vector containing deferred log messages
-	static QVector< LogMessage > qvDeferredLogs;
-
-	QHash< MsgType, int > qmIgnore;
-	static const char *msgNames[];
-	static const char *colorClasses[];
-#ifndef USE_NO_TTS
-	TextToSpeech *tts;
-#endif
-	unsigned int uiLastId;
-	QDate qdDate;
-	static const QStringList allowedSchemes();
-	void postNotification(MsgType mt, const QString &plain);
-	void postQtNotification(MsgType mt, const QString &plain);
-
-public:
-	Log(QObject *p = nullptr);
-	QString msgName(MsgType t) const;
-	void setIgnore(MsgType t, int ignore = 1 << 30);
-	void clearIgnore();
-	static QString validHtml(const QString &html, QTextCursor *tc = nullptr);
-	static QString imageToImg(const QByteArray &format, const QByteArray &image);
-	static QString imageToImg(QImage img);
-	static QString msgColor(const QString &text, LogColorType t);
-	static QString formatClientUser(ClientUser *cu, LogColorType t, const QString &displayName = QString());
-	static QString formatChannel(::Channel *c);
-	/// Either defers the LogMessage or defers it, depending on whether Global::l is created already
-	/// (if it is, it is used to directly log the msg)
-	static void logOrDefer(Log::MsgType mt, const QString &console, const QString &terse = QString(),
-						   bool ownMessage = false, const QString &overrideTTS = QString(), bool ignoreTTS = false);
-public slots:
-	void log(MsgType mt, const QString &console, const QString &terse = QString(), bool ownMessage = false,
-			 const QString &overrideTTS = QString(), bool ignoreTTS = false);
-	/// Logs LogMessages that have been deferred so far
-	void processDeferredLogs();
-};
-
-class LogMessage {
-public:
-	Log::MsgType mt;
-	QString console;
-	QString terse;
-	bool ownMessage;
-	QString overrideTTS;
-	bool ignoreTTS;
-
-	LogMessage() = default;
-	LogMessage(Log::MsgType mt, const QString &console, const QString &terse, bool ownMessage,
-			   const QString &overrideTTS, bool ignoreTTS);
-};
-
-class LogDocument : public QTextDocument {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(LogDocument)
-public:
-	LogDocument(QObject *p = nullptr);
-	QVariant loadResource(int, const QUrl &) Q_DECL_OVERRIDE;
-public slots:
-	void finished();
-};
-
-class LogDocumentResourceAddedEvent : public QEvent {
-public:
-	static const QEvent::Type Type = static_cast< QEvent::Type >(20145);
-
-	LogDocumentResourceAddedEvent();
-};
+static NSString *Log_QString_to_NSString(const QString& string) {
+	return const_cast<NSString *>(reinterpret_cast<const NSString *>(CFStringCreateWithCharacters(kCFAllocatorDefault,
+	                                reinterpret_cast<const UniChar *>(string.unicode()), string.length())));
+}
 
 #endif
+
+#if QT_VERSION < 0x050800
+extern bool qt_mac_execute_apple_script(const QString &script, AEDesc *ret);
+
+static bool growl_available() {
+	static int isAvailable = -1;
+	if (isAvailable == -1)  {
+		OSStatus err = LSFindApplicationForInfo('GRRR', CFSTR("com.Growl.GrowlHelperApp"), CFSTR("GrowlHelperApp.app"), nullptr, nullptr);
+		isAvailable = (err != kLSApplicationNotFoundErr) ? 1 : 0;
+		if (isAvailable) {
+			QStringList qslAllEvents;
+			for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
+				Log::MsgType t = static_cast<Log::MsgType>(i);
+				qslAllEvents << QString::fromLatin1("\"%1\"").arg(g.l->msgName(t));
+			}
+			QString qsScript = QString::fromLatin1(
+				"tell application \"GrowlHelperApp\"\n"
+				"	set the allNotificationsList to {%1}\n"
+				"	set the enabledNotificationsList to {%1}\n"
+				"	register as application \"Mumble\""
+				"		all notifications allNotificationsList"
+				"		default notifications enabledNotificationsList"
+				"		icon of application \"Mumble\"\n"
+				"end tell\n").arg(qslAllEvents.join(QLatin1String(",")));
+			qt_mac_execute_apple_script(qsScript, nullptr);
+		}
+	}
+	return isAvailable == 1;
+}
+#endif // QT_VERSION
+
+void Log::postNotification(MsgType mt, const QString &plain) {
+	QString title = msgName(mt);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+# if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+	const QOperatingSystemVersion current = QOperatingSystemVersion::current();
+	if (current.majorVersion() > 10 || (current.majorVersion() == 10 && current.minorVersion() >= 8)) {
+# else
+	if (QSysInfo::MacintoshVersion >= QSysInfo::MV_MOUNTAINLION) {
+# endif
+		NSUserNotificationCenter *userNotificationCenter = [NSUserNotificationCenter defaultUserNotificationCenter];
+		if (userNotificationCenter.delegate == nil) {
+			// We hand the delegate property a delegate with a retain count of 1.  We don't keep
+			// a reference to the delegate anywhere else, so it's not really a leak.
+			userNotificationCenter.delegate = [[MUUserNotificationCenterDelegate alloc] init];
+		}
+		NSUserNotification *userNotification = [[[NSUserNotification alloc] init] autorelease];
+		userNotification.title = [Log_QString_to_NSString(title) autorelease];
+		userNotification.informativeText = [Log_QString_to_NSString(plain) autorelease];
+		[userNotificationCenter scheduleNotification:userNotification];
+	} else
+#endif
+	{
+#if QT_VERSION < 0x050800
+		QString qsScript = QString::fromLatin1(
+			"tell application \"GrowlHelperApp\"\n"
+			"	notify with name \"%1\" title \"%1\" description \"%2\" application name \"Mumble\"\n"
+			"end tell\n").arg(title).arg(plain);
+		if (growl_available())
+			qt_mac_execute_apple_script(qsScript, nullptr);
+#endif
+	}
+}
