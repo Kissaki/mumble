@@ -3,87 +3,66 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_THEMEINFO_H_
-#define MUMBLE_MUMBLE_THEMEINFO_H_
+#ifndef MUMBLE_MUMBLE_THEMES_H_
+#define MUMBLE_MUMBLE_THEMES_H_
 
-#include <QMetaType>
-#include <QtCore/QFileInfo>
-#include <QtCore/QMap>
-#include <QtCore/QString>
+#include <Settings.h>
+#include <ThemeInfo.h>
 #ifndef Q_MOC_RUN
 #	include <boost/optional.hpp>
 #endif
 
-class QSettings;
-class QDir;
-
-class ThemeInfo;
-typedef QMap< QString, ThemeInfo > ThemeMap;
-
-/// Description of a Mumble theme with multiple styles
-class ThemeInfo {
+class Themes {
 public:
-	/// A specific style of a Mumble theme
+	/// Returns the style configured in the given settings structure
+	static boost::optional< ThemeInfo::StyleInfo > getConfiguredStyle(const Settings &settings);
+
+	/// Updates the given settings object to be configured to the given style
 	///
-	/// Multiple styles can for example be used to differentiate light/dark
-	/// variants of a theme.
+	/// @note Does not apply the theme @see apply
 	///
-	/// A single style can refer to multiple run-time platform specific qss
-	/// theme files.
-	class StyleInfo {
-	public:
-		/// Name of the theme containing this style
-		QString themeName;
-		/// Name for the style
-		QString name;
+	/// @param settings Settings object to update
+	/// @param style Style to set
+	/// @param outChanged Will be set to true if the style in settings actually changed. Will not be changed otherwise.
+	static void setConfiguredStyle(Settings &settings, boost::optional< ThemeInfo::StyleInfo > style, bool &outChanged);
 
-		/// @return Returns platform specific qss or defaultQss if none available
-		QFileInfo getPlatformQss() const;
-
-		/// Default QSS file for the style
-		QFileInfo defaultQss;
-		/// Platform specific QSS files available
-		QMap< QString, QFileInfo > qssFiles;
-	};
-
-	typedef QMap< QString, StyleInfo > StylesMap;
-
-	/// Takes stock of all mumble themes in the given folders.
+	/// Applies the theme
 	///
-	/// If a theme with the same name is available in multiple directories
-	/// only the last occurance will be returned.
-	///
-	/// @param themesDirectories List of directories to search for theme directories.
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectories(const QVector< QDir > &themesDirectories);
+	/// @note Can only apply a theme before MainWindow etc. is opened
+	static bool apply();
 
-	/// Takes stock of all mumble themes in the given folder
-	///
-	/// Uses loadThemeInfoFromDirectory on each directory in the folder
-	/// to find themes. Themes with the same names will override each other.
-	///
-	/// @param themesDirectory Directory to scan for theme directories
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectory(const QDir &themesDirectory);
+	/// Return a theme name to theme map
+	static ThemeMap getThemes();
 
-	/// Loads the theme description from a given directory
-	///
-	/// @param themeDirectory
-	/// @return Theme if description was correctly loaded. boost::none if not.
-	static boost::optional< ThemeInfo > load(const QDir &themeDirectory);
+	/// Returns the per user themes directory
+	static QDir getUserThemesDirectory();
 
-	/// @return Style with given name or default
-	StyleInfo getStyle(QString name_) const;
+private:
+	/// Applies the fallback stylesheet
+	static void applyFallback();
 
-	/// Ideally unique theme name. A theme with identical name can override.
-	QString name;
-	/// Style name to style mapping.
-	StylesMap styles;
-	/// Default style
-	QString defaultStyle;
+	/// Tries to apply the configured theme.
+	/// @return True on success. False on failure.
+	static bool applyConfigured();
+
+	// Sets the theme to a QSS theme
+	static void setTheme(QString &themeQss, QStringList &skinPaths);
+
+	/// Returns list of theme search directories ordered ascending by priorty (lowest first)
+	static QVector< QDir > getSearchDirectories();
+
+	/// Returns default style-sheet used for fall-backs
+	static QString getDefaultStylesheet();
+
+	/// userStylesheetPath returns the absolute path to the
+	/// user.qss file.
+	static QString userStylesheetPath();
+
+	/// readStylesheet fills stylesheetContent with the content
+	/// of the file at stylesheetFn, if available.
+	/// If a the file is is available, the function returns true.
+	/// If no file is available, it returns false.
+	static bool readStylesheet(const QString &stylesheetFn, QString &stylesheetContent);
 };
 
-Q_DECLARE_METATYPE(ThemeInfo);
-Q_DECLARE_METATYPE(ThemeInfo::StyleInfo);
-
-#endif // MUMBLE_MUMBLE_THEMEINFO_H_
+#endif // MUMBLE_MUMBLE_THEMES_H_
