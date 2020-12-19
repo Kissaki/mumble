@@ -3,106 +3,127 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TalkingUISelection.h"
-#include "MainWindow.h"
-#include "UserModel.h"
+#ifndef MUMBLE_MUMBLE_TALKINGUI_H_
+#define MUMBLE_MUMBLE_TALKINGUI_H_
 
-#include <QVariant>
 #include <QWidget>
+#include <QtCore/QHash>
+#include <QtCore/QSet>
+#include <QtGui/QIcon>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include <memory>
+#include <vector>
 
-TalkingUISelection::TalkingUISelection(QWidget *widget) : m_widget(widget) {
-}
+#include "Settings.h"
+#include "TalkingUIContainer.h"
+#include "TalkingUIEntry.h"
+#include "TalkingUISelection.h"
 
+class QLabel;
+class QGroupBox;
+class QTimer;
+class QMouseEvent;
 
-void TalkingUISelection::setActive(bool active) {
-	if (m_widget) {
-		m_widget->setProperty("selected", active);
-		// Unpolish the widget's style so that the new property can take effect
-		m_widget->style()->unpolish(m_widget);
-	}
-}
+class Channel;
+class ClientUser;
+class TalkingUIComponent;
 
-void TalkingUISelection::apply() {
-	setActive(true);
-}
+/// The talking UI is a widget that will display the users you are currently
+/// hearing to you.
+class TalkingUI : public QWidget {
+	friend class TalkingUIUser;
 
-void TalkingUISelection::discard() {
-	setActive(false);
-}
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(TalkingUI);
 
-bool TalkingUISelection::operator==(const TalkingUISelection &other) const {
-	return m_widget == other.m_widget;
-}
+	std::vector< std::unique_ptr< TalkingUIContainer > > m_containers;
+	/// The Entry corresponding to the currently selected user
+	std::unique_ptr< TalkingUISelection > m_currentSelection;
 
-bool TalkingUISelection::operator!=(const TalkingUISelection &other) const {
-	return m_widget != other.m_widget;
-}
+	/// The current line height of an entry in the TalkingUI
+	int m_currentLineHeight;
 
-bool TalkingUISelection::operator==(const QWidget *widget) const {
-	return m_widget == widget;
-}
+	int findContainer(int associatedChannelID, ContainerType type) const;
+	std::unique_ptr< TalkingUIContainer > removeContainer(const TalkingUIContainer &container);
+	std::unique_ptr< TalkingUIContainer > removeContainer(int associatedChannelID, ContainerType type);
+	std::unique_ptr< TalkingUIContainer > removeIfSuperfluous(const TalkingUIContainer &container);
 
-bool TalkingUISelection::operator!=(const QWidget *widget) const {
-	return m_widget != widget;
-}
+	void sortContainers();
 
+	TalkingUIUser *findUser(unsigned int userSession);
+	void removeUser(unsigned int userSession);
 
-UserSelection::UserSelection(QWidget *widget, unsigned int userSession)
-	: TalkingUISelection(widget), m_userSession(userSession) {
-}
+	void addListener(const ClientUser *user, const Channel *channel);
+	TalkingUIChannelListener *findListener(unsigned int userSession, int channelID);
+	void removeListener(unsigned int userSession, int channelID);
+	void removeAllListeners();
 
-void UserSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedUser(m_userSession);
-	}
-}
+	/// Sets up the UI components
+	void setupUI();
+	/// Hides an user
+	///
+	/// @param session The session ID of the user that shall be hidden
+	void hideUser(unsigned int session);
+	/// Adds an UI entry for the given Channel, if none exists yet.
+	///
+	/// @param channel A pointer to the channel that shall be added
+	void addChannel(const Channel *channel);
+	;
+	/// Adds an UI entry for the given User, if none exists yet.
+	///
+	/// @param channel A pointer to the user that shall be added
+	/// @returns The pointer to the respective user entry in the TalkingUI
+	/// (may be nullptr in case of an error)
+	TalkingUIUser *findOrAddUser(const ClientUser *user);
+	/// Moves the given user into the given channel
+	///
+	/// @paam userSession The session ID of the user
+	/// @param channelID The channel ID of the channel
+	void moveUserToChannel(unsigned int userSession, int channelID);
 
-std::unique_ptr< TalkingUISelection > UserSelection::cloneToHeap() const {
-	return std::make_unique< UserSelection >(*this);
-}
+	/// Update (resize) the UI to its content
+	void updateUI();
 
+	/// Sets the font size according to the settings
+	///
+	/// @param widget a pointer to the widget to set the font size for
+	void setFontSize(QWidget *widget);
 
+	/// Updates the user's status icons (reflecting e.g. its mut-state)
+	///
+	/// @param user A pointer to the user that shall be processed
+	void updateStatusIcons(const ClientUser *user);
 
-ChannelSelection::ChannelSelection(QWidget *widget, int channelID)
-	: TalkingUISelection(widget), m_channelID(channelID) {
-}
+	/// Set the current selection
+	///
+	/// @param selection The new selection
+	void setSelection(const TalkingUISelection &selection);
 
-void ChannelSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannel(m_channelID);
-	}
-}
+	bool isSelected(const TalkingUIComponent &component) const;
 
-std::unique_ptr< TalkingUISelection > ChannelSelection::cloneToHeap() const {
-	return std::make_unique< ChannelSelection >(*this);
-}
+	void mousePressEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
 
+public:
+	TalkingUI(QWidget *parent = nullptr);
 
+	void setVisible(bool visible) Q_DECL_OVERRIDE;
+	QSize sizeHint() const Q_DECL_OVERRIDE;
+	QSize minimumSizeHint() const Q_DECL_OVERRIDE;
 
-ListenerSelection::ListenerSelection(QWidget *widget, unsigned int userSession, int channelID)
-	: TalkingUISelection(widget), m_userSession(userSession), m_channelID(channelID) {
-}
+public slots:
+	void on_talkingStateChanged();
+	void on_mainWindowSelectionChanged(const QModelIndex &current, const QModelIndex &previous);
+	void on_serverSynchronized();
+	void on_serverDisconnected();
+	void on_channelChanged(QObject *user);
+	void on_settingsChanged();
+	void on_clientDisconnected(unsigned int userSession);
+	void on_muteDeafStateChanged();
+	void on_userLocalVolumeAdjustmentsChanged(float newAdjustment, float oldAdjustment);
+	void on_channelListenerAdded(const ClientUser *user, const Channel *channel);
+	void on_channelListenerRemoved(const ClientUser *user, const Channel *channel);
+	void on_channelListenerLocalVolumeAdjustmentChanged(int channelID, float newAdjustment, float oldAdjustment);
+};
 
-void ListenerSelection::syncToMainWindow() const {
-	if (g.mw && g.mw->pmModel) {
-		g.mw->pmModel->setSelectedChannelListener(m_userSession, m_channelID);
-	}
-}
-
-std::unique_ptr< TalkingUISelection > ListenerSelection::cloneToHeap() const {
-	return std::make_unique< ListenerSelection >(*this);
-}
-
-
-
-void EmptySelection::syncToMainWindow() const {
-	// Do nothing
-}
-
-std::unique_ptr< TalkingUISelection > EmptySelection::cloneToHeap() const {
-	return std::make_unique< EmptySelection >(*this);
-}
+#endif // MUMBLE_MUMBLE_TALKINGUI_H_
