@@ -3,69 +3,69 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ConfigWidget.h"
+#ifndef MUMBLE_MUMBLE_AUDIOSTATS_H_
+#	define MUMBLE_MUMBLE_AUDIOSTATS_H_
 
-#include "MumbleApplication.h"
+#	include <QtCore/QList>
+#	include <QtCore/QTimer>
+#	include <QtCore/QtGlobal>
+#	include <QtWidgets/QWidget>
 
-#include <QtCore/QMap>
-#include <QtGui/QIcon>
-#include <QtWidgets/QAbstractButton>
-#include <QtWidgets/QComboBox>
-#include <QtWidgets/QSlider>
+class AudioBar : public QWidget {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioBar)
+protected:
+	void paintEvent(QPaintEvent *event) Q_DECL_OVERRIDE;
 
-QMap< int, ConfigWidgetNew > *ConfigRegistrar::c_qmNew;
+public:
+	AudioBar(QWidget *parent = nullptr);
+	int iMin, iMax;
+	int iBelow, iAbove;
+	int iValue, iPeak;
+	QColor qcBelow, qcInside, qcAbove;
 
-ConfigRegistrar::ConfigRegistrar(int priority, ConfigWidgetNew n) {
-	if (!c_qmNew)
-		c_qmNew = new QMap< int, ConfigWidgetNew >();
-	iPriority = priority;
-	c_qmNew->insert(priority, n);
-}
+	QList< QColor > qlReplacableColors;
+	QList< Qt::BrushStyle > qlReplacementBrushes;
+};
 
-ConfigRegistrar::~ConfigRegistrar() {
-	c_qmNew->remove(iPriority);
-	if (c_qmNew->isEmpty()) {
-		delete c_qmNew;
-		c_qmNew = nullptr;
-	}
-}
+class AudioEchoWidget : public QWidget {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioEchoWidget)
+public:
+	AudioEchoWidget(QWidget *parent);
+protected slots:
+	void paintEvent(QPaintEvent *event) Q_DECL_OVERRIDE;
+};
 
-ConfigWidget::ConfigWidget(Settings &st) : s(st) {
-}
+class AudioNoiseWidget : public QWidget {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioNoiseWidget)
+public:
+	AudioNoiseWidget(QWidget *parent);
+protected slots:
+	void paintEvent(QPaintEvent *event) Q_DECL_OVERRIDE;
+};
 
-QIcon ConfigWidget::icon() const {
-	return qApp->windowIcon();
-}
+#	include "ui_AudioStats.h"
 
-void ConfigWidget::accept() const {
-}
+class AudioStats : public QDialog, public Ui::AudioStats {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioStats)
+protected:
+	QTimer *qtTick;
+	bool bTalking;
 
-void ConfigWidget::loadSlider(QSlider *slider, int v) {
-	if (v != slider->value()) {
-		slider->setValue(v);
-	} else {
-		connect(this, SIGNAL(intSignal(int)), slider, SIGNAL(valueChanged(int)));
-		emit intSignal(v);
-		disconnect(SIGNAL(intSignal(int)));
-	}
-}
+public:
+	AudioStats(QWidget *parent);
+	~AudioStats() Q_DECL_OVERRIDE;
+public slots:
+	void on_Tick_timeout();
+};
 
-void ConfigWidget::loadCheckBox(QAbstractButton *c, bool v) {
-	if (v != c->isChecked()) {
-		c->setChecked(v);
-	} else {
-		connect(this, SIGNAL(intSignal(int)), c, SIGNAL(stateChanged(int)));
-		emit intSignal(v ? 1 : 0);
-		disconnect(SIGNAL(intSignal(int)));
-	}
-}
-
-void ConfigWidget::loadComboBox(QComboBox *c, int v) {
-	if (c->currentIndex() != v) {
-		c->setCurrentIndex(v);
-	} else {
-		connect(this, SIGNAL(intSignal(int)), c, SIGNAL(currentIndexChanged(int)));
-		emit intSignal(v);
-		disconnect(SIGNAL(intSignal(int)));
-	}
-}
+#else
+class AudioStats;
+#endif
