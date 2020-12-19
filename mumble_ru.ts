@@ -3,29 +3,47 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "PTTButtonWidget.h"
+#ifndef MUMBLE_MUMBLE_OVERLAYUSER_H_
+#define MUMBLE_MUMBLE_OVERLAYUSER_H_
 
-#include "Global.h"
+#include <QtCore/QtGlobal>
 
-PTTButtonWidget::PTTButtonWidget(QWidget *p) : QWidget(p) {
-	setupUi(this);
+#include "Overlay.h"
 
-	setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint);
+class OverlayUser : public OverlayGroup {
+private:
+	Q_DISABLE_COPY(OverlayUser)
+public:
+	enum { Type = UserType + 1 };
 
-	if (!g.s.qbaPTTButtonWindowGeometry.isEmpty()) {
-		restoreGeometry(g.s.qbaPTTButtonWindowGeometry);
-	}
-}
+protected:
+	QGraphicsPixmapItem *qgpiMuted, *qgpiDeafened;
+	QGraphicsPixmapItem *qgpiAvatar;
+	QGraphicsPixmapItem *qgpiName[4];
+	QGraphicsPixmapItem *qgpiChannel;
+	QGraphicsPathItem *qgpiBox;
 
-void PTTButtonWidget::closeEvent(QCloseEvent *e) {
-	g.s.qbaPTTButtonWindowGeometry = saveGeometry();
-	QWidget::closeEvent(e);
-}
+	OverlaySettings *os;
 
-void PTTButtonWidget::on_qpbPushToTalk_pressed() {
-	emit triggered(true, QVariant());
-}
+	unsigned int uiSize;
+	ClientUser *cuUser;
+	Settings::TalkState tsColor;
 
-void PTTButtonWidget::on_qpbPushToTalk_released() {
-	emit triggered(false, QVariant());
-}
+	QString qsName;
+	QString qsChannelName;
+	QByteArray qbaAvatar;
+
+	void setup();
+
+public:
+	OverlayUser(ClientUser *cu, unsigned int uiSize, OverlaySettings *osptr);
+	OverlayUser(Settings::TalkState ts, unsigned int uiSize, OverlaySettings *osptr);
+	void updateUser();
+	void updateLayout();
+
+	int type() const Q_DECL_OVERRIDE;
+	static QRectF scaledRect(const QRectF &qr, qreal scale);
+	static QPointF alignedPosition(const QRectF &box, const QRectF &item, Qt::Alignment a);
+};
+
+#endif
