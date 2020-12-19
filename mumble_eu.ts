@@ -3,320 +3,95 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "SocketRPC.h"
+#include "SharedMemory.h"
 
-#include "Channel.h"
-#include "ClientUser.h"
-#include "MainWindow.h"
-#include "ServerHandler.h"
+#include "win.h"
 
-#include <QtCore/QProcessEnvironment>
-#include <QtCore/QUrlQuery>
-#include <QtNetwork/QLocalServer>
-#include <QtXml/QDomDocument>
+#include <QtCore/QDebug>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+struct SharedMemory2Private {
+	HANDLE hMemory;
+};
 
-SocketRPCClient::SocketRPCClient(QLocalSocket *s, QObject *p) : QObject(p), qlsSocket(s), qbBuffer(nullptr) {
-	qlsSocket->setParent(this);
+SharedMemory2::SharedMemory2(QObject *p, unsigned int minsize, const QString &memname) : QObject(p) {
+	a_ucData = nullptr;
 
-	connect(qlsSocket, SIGNAL(disconnected()), this, SLOT(disconnected()));
-	connect(qlsSocket, SIGNAL(error(QLocalSocket::LocalSocketError)), this,
-			SLOT(error(QLocalSocket::LocalSocketError)));
-	connect(qlsSocket, SIGNAL(readyRead()), this, SLOT(readyRead()));
+	d          = new SharedMemory2Private();
+	d->hMemory = nullptr;
 
-	qxsrReader.setDevice(qlsSocket);
-	qxswWriter.setAutoFormatting(true);
+	if (memname.isEmpty()) {
+		// Create a new segment
 
-	qbBuffer = new QBuffer(&qbaOutput, this);
-	qbBuffer->open(QIODevice::WriteOnly);
-	qxswWriter.setDevice(qbBuffer);
-}
-
-void SocketRPCClient::disconnected() {
-	deleteLater();
-}
-
-void SocketRPCClient::error(QLocalSocket::LocalSocketError) {
-}
-
-void SocketRPCClient::readyRead() {
-	forever {
-		switch (qxsrReader.readNext()) {
-			case QXmlStreamReader::Invalid: {
-				if (qxsrReader.error() != QXmlStreamReader::PrematureEndOfDocumentError) {
-					qWarning() << "Malformed" << qxsrReader.error();
-					qlsSocket->abort();
-				}
-				return;
-			} break;
-			case QXmlStreamReader::EndDocument: {
-				qxswWriter.writeCurrentToken(qxsrReader);
-
-				processXml();
-
-				qxsrReader.clear();
-				qxsrReader.setDevice(qlsSocket);
-
-				qxswWriter.setDevice(nullptr);
-				delete qbBuffer;
-				qbaOutput = QByteArray();
-				qbBuffer  = new QBuffer(&qbaOutput, this);
-				qbBuffer->open(QIODevice::WriteOnly);
-				qxswWriter.setDevice(qbBuffer);
-			} break;
-			default:
-				qxswWriter.writeCurrentToken(qxsrReader);
+		for (int i = 0; i < 100; ++i) {
+			qsName     = QString::fromLatin1("Local\\MumbleOverlayMemory%1").arg(++uiIndex);
+			d->hMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, minsize,
+											qsName.toStdWString().c_str());
+			if (d->hMemory && GetLastError() != ERROR_ALREADY_EXISTS) {
 				break;
+			}
+
+			if (d->hMemory)
+				CloseHandle(d->hMemory);
+			d->hMemory = nullptr;
 		}
-	}
-}
-
-void SocketRPCClient::processXml() {
-	QDomDocument qdd;
-	qdd.setContent(qbaOutput, false);
-
-	QDomElement request = qdd.firstChildElement();
-
-	if (!request.isNull()) {
-		bool ack = false;
-		QMap< QString, QVariant > qmRequest;
-		QMap< QString, QVariant > qmReply;
-		QMap< QString, QVariant >::const_iterator iter;
-
-		QDomNamedNodeMap attributes = request.attributes();
-		for (int i = 0; i < attributes.count(); ++i) {
-			QDomAttr attr = attributes.item(i).toAttr();
-			qmRequest.insert(attr.name(), attr.value());
-		}
-		QDomNodeList childNodes = request.childNodes();
-		for (int i = 0; i < childNodes.count(); ++i) {
-			QDomElement child = childNodes.item(i).toElement();
-			if (!child.isNull())
-				qmRequest.insert(child.nodeName(), child.text());
-		}
-
-		iter = qmRequest.find(QLatin1String("reqid"));
-		if (iter != qmRequest.constEnd())
-			qmReply.insert(iter.key(), iter.value());
-
-		if (request.nodeName() == QLatin1String("focus")) {
-			g.mw->show();
-			g.mw->raise();
-			g.mw->activateWindow();
-
-			ack = true;
-		} else if (request.nodeName() == QLatin1String("self")) {
-			iter = qmRequest.find(QLatin1String("mute"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set != g.s.bMute) {
-					g.mw->qaAudioMute->setChecked(!set);
-					g.mw->qaAudioMute->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("unmute"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bMute) {
-					g.mw->qaAudioMute->setChecked(set);
-					g.mw->qaAudioMute->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("togglemute"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bMute) {
-					g.mw->qaAudioMute->setChecked(set);
-					g.mw->qaAudioMute->trigger();
-				} else {
-					g.mw->qaAudioMute->setChecked(!set);
-					g.mw->qaAudioMute->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("deaf"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set != g.s.bDeaf) {
-					g.mw->qaAudioDeaf->setChecked(!set);
-					g.mw->qaAudioDeaf->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("undeaf"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bDeaf) {
-					g.mw->qaAudioDeaf->setChecked(set);
-					g.mw->qaAudioDeaf->trigger();
-				}
-			}
-			iter = qmRequest.find(QLatin1String("toggledeaf"));
-			if (iter != qmRequest.constEnd()) {
-				bool set = iter.value().toBool();
-				if (set == g.s.bDeaf) {
-					g.mw->qaAudioDeaf->setChecked(set);
-					g.mw->qaAudioDeaf->trigger();
-				} else {
-					g.mw->qaAudioDeaf->setChecked(!set);
-					g.mw->qaAudioDeaf->trigger();
-				}
-			}
-			ack = true;
-		} else if (request.nodeName() == QLatin1String("url")) {
-			if (g.sh && g.sh->isRunning() && g.uiSession) {
-				QString host, user, pw;
-				unsigned short port;
-				QUrl u;
-
-				g.sh->getConnectionInfo(host, port, user, pw);
-				u.setScheme(QLatin1String("mumble"));
-				u.setHost(host);
-				u.setPort(port);
-				u.setUserName(user);
-
-				QUrlQuery query;
-				query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
-				u.setQuery(query);
-
-				QStringList path;
-				Channel *c = ClientUser::get(g.uiSession)->cChannel;
-				while (c->cParent) {
-					path.prepend(c->qsName);
-					c = c->cParent;
-				}
-				u.setPath(path.join(QLatin1String("/")));
-				qmReply.insert(QLatin1String("href"), u);
-			}
-
-			iter = qmRequest.find(QLatin1String("href"));
-			if (iter != qmRequest.constEnd()) {
-				QUrl u = iter.value().toUrl();
-				if (u.isValid() && u.scheme() == QLatin1String("mumble")) {
-					OpenURLEvent *oue = new OpenURLEvent(u);
-					qApp->postEvent(g.mw, oue);
-					ack = true;
-				}
-			} else {
-				ack = true;
-			}
-		}
-
-		QDomDocument replydoc;
-		QDomElement reply = replydoc.createElement(QLatin1String("reply"));
-
-		qmReply.insert(QLatin1String("succeeded"), ack);
-
-		for (iter = qmReply.constBegin(); iter != qmReply.constEnd(); ++iter) {
-			QDomElement elem = replydoc.createElement(iter.key());
-			QDomText text    = replydoc.createTextNode(iter.value().toString());
-			elem.appendChild(text);
-			reply.appendChild(elem);
-		}
-
-		replydoc.appendChild(reply);
-
-		qlsSocket->write(replydoc.toByteArray());
-	}
-}
-
-SocketRPC::SocketRPC(const QString &basename, QObject *p) : QObject(p) {
-	qlsServer = new QLocalServer(this);
-
-	QString pipepath;
-
-#ifdef Q_OS_WIN
-	pipepath = basename;
-#else
-	{
-		QString xdgRuntimePath = QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_RUNTIME_DIR"));
-		QDir xdgRuntimeDir     = QDir(xdgRuntimePath);
-
-		if (!xdgRuntimePath.isNull() && xdgRuntimeDir.exists()) {
-			pipepath = xdgRuntimeDir.absoluteFilePath(basename + QLatin1String("Socket"));
-		} else {
-			pipepath = QDir::home().absoluteFilePath(QLatin1String(".") + basename + QLatin1String("Socket"));
-		}
-	}
-
-	{
-		QFile f(pipepath);
-		if (f.exists()) {
-			qWarning() << "SocketRPC: Removing old socket on" << pipepath;
-			f.remove();
-		}
-	}
-#endif
-
-	if (!qlsServer->listen(pipepath)) {
-		qWarning() << "SocketRPC: Listen failed";
-		delete qlsServer;
-		qlsServer = nullptr;
 	} else {
-		connect(qlsServer, SIGNAL(newConnection()), this, SLOT(newConnection()));
-	}
-}
+		// Open existing segment
 
-void SocketRPC::newConnection() {
-	while (true) {
-		QLocalSocket *qls = qlsServer->nextPendingConnection();
-		if (!qls)
-			break;
-		new SocketRPCClient(qls, this);
-	}
-}
-
-bool SocketRPC::send(const QString &basename, const QString &request, const QMap< QString, QVariant > &param) {
-	QString pipepath;
-
-#ifdef Q_OS_WIN
-	pipepath = basename;
-#else
-	{
-		QString xdgRuntimePath = QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_RUNTIME_DIR"));
-		QDir xdgRuntimeDir     = QDir(xdgRuntimePath);
-
-		if (!xdgRuntimePath.isNull() && xdgRuntimeDir.exists()) {
-			pipepath = xdgRuntimeDir.absoluteFilePath(basename + QLatin1String("Socket"));
-		} else {
-			pipepath = QDir::home().absoluteFilePath(QLatin1String(".") + basename + QLatin1String("Socket"));
+		qsName     = memname;
+		d->hMemory = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, minsize,
+										qsName.toStdWString().c_str());
+		qWarning("%p %lx", d->hMemory, GetLastError());
+		if (GetLastError() != ERROR_ALREADY_EXISTS) {
+			qWarning() << "SharedMemory2: Memory doesn't exist" << qsName;
+			if (d->hMemory) {
+				CloseHandle(d->hMemory);
+				d->hMemory = nullptr;
+			}
 		}
 	}
-#endif
 
-	QLocalSocket qls;
-	qls.connectToServer(pipepath);
-	if (!qls.waitForConnected(1000)) {
-		return false;
+	if (!d->hMemory) {
+		qWarning() << "SharedMemory2: CreateFileMapping failed for" << qsName;
+	} else {
+		a_ucData = reinterpret_cast< unsigned char * >(MapViewOfFile(d->hMemory, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+
+		if (!a_ucData) {
+			qWarning() << "SharedMemory2: Failed to map memory" << qsName;
+		} else {
+			MEMORY_BASIC_INFORMATION mbi;
+			memset(&mbi, 0, sizeof(mbi));
+			if ((VirtualQuery(a_ucData, &mbi, sizeof(mbi)) == 0) || (mbi.RegionSize < minsize)) {
+				qWarning() << "SharedMemory2: Memory too small" << qsName << mbi.RegionSize;
+			} else {
+				uiSize = mbi.RegionSize;
+				return;
+			}
+		}
 	}
 
-	QDomDocument requestdoc;
-	QDomElement req = requestdoc.createElement(request);
-	for (QMap< QString, QVariant >::const_iterator iter = param.constBegin(); iter != param.constEnd(); ++iter) {
-		QDomElement elem = requestdoc.createElement(iter.key());
-		QDomText text    = requestdoc.createTextNode(iter.value().toString());
-		elem.appendChild(text);
-		req.appendChild(elem);
+	if (a_ucData) {
+		UnmapViewOfFile(a_ucData);
+		a_ucData = nullptr;
 	}
-	requestdoc.appendChild(req);
-
-	qls.write(requestdoc.toByteArray());
-	qls.flush();
-
-	if (!qls.waitForReadyRead(2000)) {
-		return false;
+	if (d->hMemory) {
+		CloseHandle(d->hMemory);
+		d->hMemory = nullptr;
 	}
+}
 
-	QByteArray qba = qls.readAll();
+SharedMemory2::~SharedMemory2() {
+	if (a_ucData)
+		UnmapViewOfFile(a_ucData);
+	if (d->hMemory)
+		CloseHandle(d->hMemory);
 
-	QDomDocument replydoc;
-	replydoc.setContent(qba);
+	delete d;
+}
 
-	QDomElement succ = replydoc.firstChildElement(QLatin1String("reply"));
-	succ             = succ.firstChildElement(QLatin1String("succeeded"));
-	if (succ.isNull())
-		return false;
-
-	return QVariant(succ.text()).toBool();
+void SharedMemory2::systemRelease() {
+	// This doesn't really do anything on Win32, since it has delete-on-close semantics anyway
+	if (d->hMemory) {
+		CloseHandle(d->hMemory);
+		d->hMemory = nullptr;
+	}
 }
