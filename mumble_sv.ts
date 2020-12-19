@@ -1,89 +1,129 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_THEMEINFO_H_
-#define MUMBLE_MUMBLE_THEMEINFO_H_
+#ifndef MUMBLE_MUMBLE_TALKINGUI_H_
+#define MUMBLE_MUMBLE_TALKINGUI_H_
 
-#include <QMetaType>
-#include <QtCore/QFileInfo>
-#include <QtCore/QMap>
-#include <QtCore/QString>
-#ifndef Q_MOC_RUN
-#	include <boost/optional.hpp>
-#endif
+#include <QWidget>
+#include <QtCore/QHash>
+#include <QtCore/QSet>
+#include <QtGui/QIcon>
 
-class QSettings;
-class QDir;
+#include <memory>
+#include <vector>
 
-class ThemeInfo;
-typedef QMap< QString, ThemeInfo > ThemeMap;
+#include "Settings.h"
+#include "TalkingUIContainer.h"
+#include "TalkingUIEntry.h"
+#include "TalkingUISelection.h"
 
-/// Description of a Mumble theme with multiple styles
-class ThemeInfo {
+class QLabel;
+class QGroupBox;
+class QTimer;
+class QMouseEvent;
+
+class Channel;
+class ClientUser;
+class TalkingUIComponent;
+
+/// The talking UI is a widget that will display the users you are currently
+/// hearing to you.
+class TalkingUI : public QWidget {
+	friend class TalkingUIUser;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(TalkingUI);
+
+	std::vector< std::unique_ptr< TalkingUIContainer > > m_containers;
+	/// The Entry corresponding to the currently selected user
+	std::unique_ptr< TalkingUISelection > m_currentSelection;
+
+	/// The current line height of an entry in the TalkingUI
+	int m_currentLineHeight;
+
+	int findContainer(int associatedChannelID, ContainerType type) const;
+	std::unique_ptr< TalkingUIContainer > removeContainer(const TalkingUIContainer &container);
+	std::unique_ptr< TalkingUIContainer > removeContainer(int associatedChannelID, ContainerType type);
+	std::unique_ptr< TalkingUIContainer > removeIfSuperfluous(const TalkingUIContainer &container);
+
+	void sortContainers();
+
+	TalkingUIUser *findUser(unsigned int userSession);
+	void removeUser(unsigned int userSession);
+
+	void addListener(const ClientUser *user, const Channel *channel);
+	TalkingUIChannelListener *findListener(unsigned int userSession, int channelID);
+	void removeListener(unsigned int userSession, int channelID);
+	void removeAllListeners();
+
+	/// Sets up the UI components
+	void setupUI();
+	/// Hides an user
+	///
+	/// @param session The session ID of the user that shall be hidden
+	void hideUser(unsigned int session);
+	/// Adds an UI entry for the given Channel, if none exists yet.
+	///
+	/// @param channel A pointer to the channel that shall be added
+	void addChannel(const Channel *channel);
+	;
+	/// Adds an UI entry for the given User, if none exists yet.
+	///
+	/// @param channel A pointer to the user that shall be added
+	/// @returns The pointer to the respective user entry in the TalkingUI
+	/// (may be nullptr in case of an error)
+	TalkingUIUser *findOrAddUser(const ClientUser *user);
+	/// Moves the given user into the given channel
+	///
+	/// @paam userSession The session ID of the user
+	/// @param channelID The channel ID of the channel
+	void moveUserToChannel(unsigned int userSession, int channelID);
+
+	/// Update (resize) the UI to its content
+	void updateUI();
+
+	/// Sets the font size according to the settings
+	///
+	/// @param widget a pointer to the widget to set the font size for
+	void setFontSize(QWidget *widget);
+
+	/// Updates the user's status icons (reflecting e.g. its mut-state)
+	///
+	/// @param user A pointer to the user that shall be processed
+	void updateStatusIcons(const ClientUser *user);
+
+	/// Set the current selection
+	///
+	/// @param selection The new selection
+	void setSelection(const TalkingUISelection &selection);
+
+	bool isSelected(const TalkingUIComponent &component) const;
+
+	void mousePressEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
+
 public:
-	/// A specific style of a Mumble theme
-	///
-	/// Multiple styles can for example be used to differentiate light/dark
-	/// variants of a theme.
-	///
-	/// A single style can refer to multiple run-time platform specific qss
-	/// theme files.
-	class StyleInfo {
-	public:
-		/// Name of the theme containing this style
-		QString themeName;
-		/// Name for the style
-		QString name;
+	TalkingUI(QWidget *parent = nullptr);
 
-		/// @return Returns platform specific qss or defaultQss if none available
-		QFileInfo getPlatformQss() const;
+	void setVisible(bool visible) Q_DECL_OVERRIDE;
+	QSize sizeHint() const Q_DECL_OVERRIDE;
+	QSize minimumSizeHint() const Q_DECL_OVERRIDE;
 
-		/// Default QSS file for the style
-		QFileInfo defaultQss;
-		/// Platform specific QSS files available
-		QMap< QString, QFileInfo > qssFiles;
-	};
-
-	typedef QMap< QString, StyleInfo > StylesMap;
-
-	/// Takes stock of all mumble themes in the given folders.
-	///
-	/// If a theme with the same name is available in multiple directories
-	/// only the last occurance will be returned.
-	///
-	/// @param themesDirectories List of directories to search for theme directories.
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectories(const QVector< QDir > &themesDirectories);
-
-	/// Takes stock of all mumble themes in the given folder
-	///
-	/// Uses loadThemeInfoFromDirectory on each directory in the folder
-	/// to find themes. Themes with the same names will override each other.
-	///
-	/// @param themesDirectory Directory to scan for theme directories
-	/// @return Map of theme name to Theme
-	static ThemeMap scanDirectory(const QDir &themesDirectory);
-
-	/// Loads the theme description from a given directory
-	///
-	/// @param themeDirectory
-	/// @return Theme if description was correctly loaded. boost::none if not.
-	static boost::optional< ThemeInfo > load(const QDir &themeDirectory);
-
-	/// @return Style with given name or default
-	StyleInfo getStyle(QString name_) const;
-
-	/// Ideally unique theme name. A theme with identical name can override.
-	QString name;
-	/// Style name to style mapping.
-	StylesMap styles;
-	/// Default style
-	QString defaultStyle;
+public slots:
+	void on_talkingStateChanged();
+	void on_mainWindowSelectionChanged(const QModelIndex &current, const QModelIndex &previous);
+	void on_serverSynchronized();
+	void on_serverDisconnected();
+	void on_channelChanged(QObject *user);
+	void on_settingsChanged();
+	void on_clientDisconnected(unsigned int userSession);
+	void on_muteDeafStateChanged();
+	void on_userLocalVolumeAdjustmentsChanged(float newAdjustment, float oldAdjustment);
+	void on_channelListenerAdded(const ClientUser *user, const Channel *channel);
+	void on_channelListenerRemoved(const ClientUser *user, const Channel *channel);
+	void on_channelListenerLocalVolumeAdjustmentChanged(int channelID, float newAdjustment, float oldAdjustment);
 };
 
-Q_DECLARE_METATYPE(ThemeInfo);
-Q_DECLARE_METATYPE(ThemeInfo::StyleInfo);
-
-#endif // MUMBLE_MUMBLE_THEMEINFO_H_
+#endif // MUMBLE_MUMBLE_TALKINGUI_H_
