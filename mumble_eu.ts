@@ -3,177 +3,70 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "UserEdit.h"
+#include "Usage.h"
 
-#include "Channel.h"
-#include "ServerHandler.h"
-#include "User.h"
-#include "UserListModel.h"
-
-#include <QtCore/QItemSelectionModel>
-#include <QtWidgets/QMenu>
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "ClientUser.h"
+#include "LCD.h"
+#include "NetworkConfig.h"
+#include "OSInfo.h"
+#include "Version.h"
 #include "Global.h"
 
-UserEdit::UserEdit(const MumbleProto::UserList &userList, QWidget *p)
-	: QDialog(p), m_model(new UserListModel(userList, this)), m_filter(new UserListFilterProxyModel(this)) {
-	setupUi(this);
-	qlSearch->setAccessibleName(tr("Search"));
-	qcbInactive->setAccessibleName(tr("Inactive for"));
-	qsbInactive->setAccessibleName(tr("Inactive for"));
-	qtvUserList->setAccessibleName(tr("User list"));
+#include <QtCore/QTimer>
+#include <QtNetwork/QHostAddress>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QtXml/QDomElement>
 
-	const int userCount = userList.users_size();
-	setWindowTitle(tr("Registered users: %n account(s)", "", userCount));
+Usage::Usage(QObject *p) : QObject(p) {
+	qbReport.open(QBuffer::ReadWrite);
+	qdsReport.setDevice(&qbReport);
+	qdsReport.setVersion(QDataStream::Qt_4_4);
+	qdsReport << static_cast< unsigned int >(2);
 
-	m_filter->setSourceModel(m_model);
-	qtvUserList->setModel(m_filter);
-
-	QItemSelectionModel *selectionModel = qtvUserList->selectionModel();
-	connect(selectionModel, SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this,
-			SLOT(onSelectionChanged(QItemSelection, QItemSelection)));
-	connect(selectionModel, SIGNAL(currentRowChanged(QModelIndex, QModelIndex)), this,
-			SLOT(onCurrentRowChanged(QModelIndex, QModelIndex)));
-
-	qtvUserList->setFocus();
-	qtvUserList->setContextMenuPolicy(Qt::CustomContextMenu);
-	qtvUserList->header()->setSectionResizeMode(UserListModel::COL_NICK, QHeaderView::Stretch);
-
-	if (!m_model->isLegacy()) {
-		qtvUserList->header()->setSectionResizeMode(UserListModel::COL_INACTIVEDAYS, QHeaderView::ResizeToContents);
-		qtvUserList->header()->setSectionResizeMode(UserListModel::COL_LASTCHANNEL, QHeaderView::Stretch);
-	}
-
-	if (m_model->isLegacy()) {
-		qlInactive->hide();
-		qsbInactive->hide();
-		qcbInactive->hide();
-	}
-
-	qtvUserList->sortByColumn(UserListModel::COL_NICK, Qt::AscendingOrder);
+	// Wait 10 minutes (so we know they're actually using this), then...
+	QTimer::singleShot(60 * 10 * 1000, this, SLOT(registerUsage()));
 }
 
-void UserEdit::accept() {
-	if (m_model->isUserListDirty()) {
-		MumbleProto::UserList userList = m_model->getUserListUpdate();
-		g.sh->sendMessage(userList);
-	}
-
-	QDialog::accept();
-}
-
-void UserEdit::on_qlSearch_textChanged(QString pattern) {
-	m_filter->setFilterWildcard(pattern);
-}
-
-
-void UserEdit::on_qpbRename_clicked() {
-	QModelIndex current = qtvUserList->selectionModel()->currentIndex();
-	if (!current.isValid())
+void Usage::registerUsage() {
+	if (!g.s.bUsage
+		|| g.s.uiUpdateCounter == 0) // Only register usage if allowed by the user and first wizard run has finished
 		return;
 
-	QModelIndex nickIndex = current.sibling(current.row(), UserListModel::COL_NICK);
-	qtvUserList->edit(nickIndex);
-}
+	QDomDocument doc;
+	QDomElement root = doc.createElement(QLatin1String("usage"));
+	doc.appendChild(root);
 
-void UserEdit::on_qpbRemove_clicked() {
-	m_filter->removeRowsInSelection(qtvUserList->selectionModel()->selection());
-}
+	QDomElement tag;
+	QDomText t;
 
-void UserEdit::on_qtvUserList_customContextMenuRequested(const QPoint &point) {
-	QMenu *menu = new QMenu(this);
+	OSInfo::fillXml(doc, root);
 
-	if (qtvUserList->selectionModel()->currentIndex().isValid()) {
-		QAction *renameAction = menu->addAction(tr("Rename"));
-		connect(renameAction, SIGNAL(triggered()), this, SLOT(on_qpbRename_clicked()));
+	tag = doc.createElement(QLatin1String("in"));
+	root.appendChild(tag);
+	t = doc.createTextNode(g.s.qsAudioInput);
+	tag.appendChild(t);
 
-		menu->addSeparator();
-	}
+	tag = doc.createElement(QLatin1String("out"));
+	root.appendChild(tag);
+	t = doc.createTextNode(g.s.qsAudioOutput);
+	tag.appendChild(t);
 
-	QAction *removeMenuAction = menu->addAction(tr("Remove"));
-	connect(removeMenuAction, SIGNAL(triggered()), this, SLOT(on_qpbRemove_clicked()));
+	tag = doc.createElement(QLatin1String("lcd"));
+	root.appendChild(tag);
+	t = doc.createTextNode(QString::number(g.lcd->hasDevices() ? 1 : 0));
+	tag.appendChild(t);
 
-	menu->exec(qtvUserList->mapToGlobal(point));
-	delete menu;
-}
+	QBuffer *qb = new QBuffer();
+	qb->setData(doc.toString().toUtf8());
+	qb->open(QIODevice::ReadOnly);
 
-void UserEdit::onSelectionChanged(const QItemSelection & /*selected*/, const QItemSelection & /*deselected*/) {
-	const bool somethingSelected = !(qtvUserList->selectionModel()->selection().empty());
-	qpbRemove->setEnabled(somethingSelected);
-}
+	QNetworkRequest req(QUrl(QLatin1String("https://usage-report.mumble.info/v1/report")));
+	Network::prepareRequest(req);
+	req.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("text/xml"));
 
-void UserEdit::onCurrentRowChanged(const QModelIndex &current, const QModelIndex &) {
-	qpbRename->setEnabled(current.isValid());
-}
+	QNetworkReply *rep = g.nam->post(req, qb);
+	qb->setParent(rep);
 
-void UserEdit::on_qsbInactive_valueChanged(int) {
-	updateInactiveDaysFilter();
-}
-
-void UserEdit::on_qcbInactive_currentIndexChanged(int) {
-	updateInactiveDaysFilter();
-}
-
-void UserEdit::updateInactiveDaysFilter() {
-	const int timespanUnit  = qcbInactive->currentIndex();
-	const int timespanCount = qsbInactive->value();
-
-	int minimumInactiveDays = 0;
-	switch (timespanUnit) {
-		case TU_DAYS:
-			minimumInactiveDays = timespanCount;
-			break;
-		case TU_WEEKS:
-			minimumInactiveDays = timespanCount * 7;
-			break;
-		case TU_MONTHS:
-			minimumInactiveDays = timespanCount * 30;
-			break;
-		case TU_YEARS:
-			minimumInactiveDays = timespanCount * 365;
-			break;
-		default:
-			break;
-	}
-
-	m_filter->setFilterMinimumInactiveDays(minimumInactiveDays);
-}
-
-
-UserListFilterProxyModel::UserListFilterProxyModel(QObject *parent_)
-	: QSortFilterProxyModel(parent_), m_minimumInactiveDays(0) {
-	setFilterKeyColumn(UserListModel::COL_NICK);
-	setFilterCaseSensitivity(Qt::CaseInsensitive);
-	setSortLocaleAware(true);
-	setDynamicSortFilter(true);
-}
-
-bool UserListFilterProxyModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const {
-	if (!QSortFilterProxyModel::filterAcceptsRow(source_row, source_parent)) {
-		return false;
-	}
-
-	const QModelIndex inactiveDaysIdx =
-		sourceModel()->index(source_row, UserListModel::COL_INACTIVEDAYS, source_parent);
-
-	bool ok;
-	const int inactiveDays = inactiveDaysIdx.data().toInt(&ok);
-
-	// If inactiveDaysIdx doesn't store an int the account hasn't been seen yet and mustn't be filtered
-	if (ok && inactiveDays < m_minimumInactiveDays)
-		return false;
-
-	return true;
-}
-
-void UserListFilterProxyModel::setFilterMinimumInactiveDays(int minimumInactiveDays) {
-	m_minimumInactiveDays = minimumInactiveDays;
-	invalidateFilter();
-}
-
-void UserListFilterProxyModel::removeRowsInSelection(const QItemSelection &selection) {
-	QItemSelection sourceSelection = mapSelectionToSource(selection);
-	qobject_cast< UserListModel * >(sourceModel())->removeRowsInSelection(sourceSelection);
+	connect(rep, SIGNAL(finished()), rep, SLOT(deleteLater()));
 }
