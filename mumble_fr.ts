@@ -1,26 +1,40 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
-#define MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
-
-#include "ui_PTTButtonWidget.h"
-
-class PTTButtonWidget : public QWidget, public Ui::qwPTTButtonWidget {
-	Q_OBJECT
-	Q_DISABLE_COPY(PTTButtonWidget)
-protected:
-	void closeEvent(QCloseEvent *e) Q_DECL_OVERRIDE;
-
-public:
-	PTTButtonWidget(QWidget *p = 0);
-public slots:
-	void on_qpbPushToTalk_pressed();
-	void on_qpbPushToTalk_released();
-signals:
-	void triggered(bool checked, QVariant);
-};
-
-#endif // PTTBUTTONWIDGET_H_
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>qwPTTButtonWidget</class>
+ <widget class="QWidget" name="qwPTTButtonWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>100</width>
+    <height>100</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Mumble PTT</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="margin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QPushButton" name="qpbPushToTalk">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="text">
+      <string>Push to talk</string>
+     </property>
+     <property name="default">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
