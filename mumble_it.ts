@@ -3,85 +3,70 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayPositionableItem.h"
+#ifndef MUMBLE_MUMBLE_OVERLAYEDITORSCENE_H_
+#define MUMBLE_MUMBLE_OVERLAYEDITORSCENE_H_
 
-#include "Utils.h"
-
-#include <QtCore/QEvent>
-#include <QtGui/QPen>
+#include <QtCore/QtGlobal>
 #include <QtWidgets/QGraphicsScene>
 
-OverlayPositionableItem::OverlayPositionableItem(QRectF *posPtr, const bool isPositionable)
-	: m_position(posPtr), m_isPositionEditable(isPositionable), m_qgeiHandle(nullptr) {
-}
+#include "Settings.h"
 
-OverlayPositionableItem::~OverlayPositionableItem() {
-	delete m_qgeiHandle;
-	m_qgeiHandle = nullptr;
-}
+class OverlayEditorScene : public QGraphicsScene {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(OverlayEditorScene)
 
-void OverlayPositionableItem::createPositioningHandle() {
-	m_qgeiHandle = new QGraphicsEllipseItem(QRectF(-4.0f, -4.0f, 8.0f, 8.0f));
-	m_qgeiHandle->setPen(QPen(Qt::darkRed, 0.0f));
-	m_qgeiHandle->setBrush(Qt::red);
-	m_qgeiHandle->setZValue(0.5f);
-	m_qgeiHandle->setFlag(QGraphicsItem::ItemIsMovable);
-	m_qgeiHandle->setFlag(QGraphicsItem::ItemIsSelectable);
-	scene()->addItem(m_qgeiHandle);
-	m_qgeiHandle->installSceneEventFilter(this);
-}
+protected:
+	QGraphicsItem *qgiGroup;
 
-bool OverlayPositionableItem::sceneEventFilter(QGraphicsItem *watched, QEvent *e) {
-	switch (e->type()) {
-		case QEvent::GraphicsSceneMouseMove:
-		case QEvent::GraphicsSceneMouseRelease:
-			QMetaObject::invokeMethod(this, "onMove", Qt::QueuedConnection);
-			break;
-		default:
-			break;
-	}
-	return QGraphicsItem::sceneEventFilter(watched, e);
-}
+	QGraphicsPixmapItem *qgpiMuted;
+	QGraphicsPixmapItem *qgpiAvatar;
+	QGraphicsPixmapItem *qgpiName;
+	QGraphicsPixmapItem *qgpiChannel;
+	QGraphicsPathItem *qgpiBox;
+	QGraphicsRectItem *qgriSelected;
+	QGraphicsPixmapItem *qgpiSelected;
+	int iDragCorner;
 
-void OverlayPositionableItem::onMove() {
-	if (!m_qgeiHandle) {
-		return;
-	}
+	Qt::WindowFrameSection wfsHover;
 
-	const QRectF &sr = scene()->sceneRect();
-	const QPointF &p = m_qgeiHandle->pos();
+	unsigned int uiSize;
 
-	m_position->setX(qBound< qreal >(0.0f, p.x() / sr.width(), 1.0f));
-	m_position->setY(qBound< qreal >(0.0f, p.y() / sr.height(), 1.0f));
+	void setup();
 
-	m_qgeiHandle->setPos(m_position->x() * sr.width(), m_position->y() * sr.height());
+	void contextMenuEvent(QGraphicsSceneContextMenuEvent *e) Q_DECL_OVERRIDE;
+	void mousePressEvent(QGraphicsSceneMouseEvent *e) Q_DECL_OVERRIDE;
+	void mouseMoveEvent(QGraphicsSceneMouseEvent *e) Q_DECL_OVERRIDE;
+	void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) Q_DECL_OVERRIDE;
+	void updateCursorShape(const QPointF &point);
 
-	updateRender();
-}
+	void drawBackground(QPainter *, const QRectF &) Q_DECL_OVERRIDE;
 
-void OverlayPositionableItem::updateRender() {
-	const QRectF &sr = scene()->sceneRect();
-	// Translate the 0..1 float position to the real scene coordinates (relative to absolute position)
-	QPoint absPos(iroundf(sr.width() * m_position->x() + 0.5f), iroundf(sr.height() * m_position->y() + 0.5f));
+	QGraphicsPixmapItem *childAt(const QPointF &);
+	QRectF selectedRect() const;
 
-	if (m_isPositionEditable) {
-		if (!m_qgeiHandle) {
-			createPositioningHandle();
-		}
-		m_qgeiHandle->setPos(absPos.x(), absPos.y());
-	}
+	static Qt::WindowFrameSection rectSection(const QRectF &rect, const QPointF &point, qreal dist = 3.0f);
 
-	QRectF br = boundingRect();
-	// Limit the position by the elements width (to make sure it is right-/bottom-bound rather than outside of the scene
-	QPoint maxPos(iroundf(sr.width() - br.width() + 0.5f), iroundf(sr.height() - br.height() + 0.5f));
-	int basex = qBound< int >(0, absPos.x(), maxPos.x());
-	int basey = qBound< int >(0, absPos.y(), maxPos.y());
-	setPos(basex, basey);
-}
+public:
+	Settings::TalkState tsColor;
+	unsigned int uiZoom;
+	OverlaySettings os;
 
-void OverlayPositionableItem::setItemVisible(const bool &visible) {
-	setVisible(visible);
-	if (m_qgeiHandle) {
-		m_qgeiHandle->setVisible(visible);
-	}
-}
+	OverlayEditorScene(const OverlaySettings &, QObject *p = nullptr);
+public slots:
+	void resync();
+	void updateSelected();
+
+	void updateMuted();
+	void updateUserName();
+	void updateChannel();
+	void updateAvatar();
+
+	void moveMuted();
+	void moveUserName();
+	void moveChannel();
+	void moveAvatar();
+	void moveBox();
+};
+
+#endif
