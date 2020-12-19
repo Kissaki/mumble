@@ -3,24 +3,34 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "AudioOutputUser.h"
+#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTUSER_H_
+#define MUMBLE_MUMBLE_AUDIOOUTPUTUSER_H_
 
-AudioOutputUser::AudioOutputUser(const QString &name) : qsName(name) {
-}
+#include <QtCore/QObject>
 
-AudioOutputUser::~AudioOutputUser() {
-	delete[] pfBuffer;
-	delete[] pfVolume;
-}
+class AudioOutputUser : public QObject {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(AudioOutputUser)
+protected:
+	unsigned int iBufferSize;
 
-void AudioOutputUser::resizeBuffer(unsigned int newsize) {
-	if (newsize > iBufferSize) {
-		float *n = new float[newsize];
-		if (pfBuffer) {
-			memcpy(n, pfBuffer, sizeof(float) * iBufferSize);
-			delete[] pfBuffer;
-		}
-		pfBuffer    = n;
-		iBufferSize = newsize;
-	}
-}
+	/// Used to resize the buffer.
+	/// WARNING:
+	///          Audio callback is a dedicated place that can be executed
+	///          in a special thread or interrupt handler. Allocating
+	///          memory will probably crash the program!
+	void resizeBuffer(unsigned int newsize);
+
+public:
+	AudioOutputUser(const QString &name);
+	~AudioOutputUser() Q_DECL_OVERRIDE;
+	const QString qsName;
+	float *pfBuffer = nullptr;
+	float *pfVolume = nullptr;
+	float fPos[3]   = { 0.0, 0.0, 0.0 };
+	bool bStereo;
+	virtual bool prepareSampleBuffer(unsigned int snum) = 0;
+};
+
+#endif // AUDIOOUTPUTUSER_H_
