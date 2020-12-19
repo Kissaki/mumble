@@ -3,272 +3,199 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "VoiceRecorderDialog.h"
+#include "XMLTools.h"
 
-#include "AudioOutput.h"
-#include "ServerHandler.h"
-#include "VoiceRecorder.h"
+#include <QStringList>
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 
-#include <QtGui/QCloseEvent>
-#include <QtWidgets/QFileDialog>
-#include <QtWidgets/QMessageBox>
+void XMLTools::recurseParse(QXmlStreamReader &reader, QXmlStreamWriter &writer, int &paragraphs,
+							const QMap< QString, QString > &opstyle, const int close, bool ignore) {
+	while (!reader.atEnd()) {
+		QXmlStreamReader::TokenType tt = reader.readNext();
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+		QXmlStreamAttributes a = reader.attributes();
+		QMap< QString, QString > style;
+		QMap< QString, QString > pstyle = opstyle;
 
-VoiceRecorderDialog::VoiceRecorderDialog(QWidget *p) : QDialog(p), qtTimer(new QTimer(this)) {
-	qtTimer->setObjectName(QLatin1String("qtTimer"));
-	qtTimer->setInterval(200);
-	setupUi(this);
-	qcbFormat->setAccessibleName(tr("Output format"));
-	qleTargetDirectory->setAccessibleName(tr("Target directory"));
-	qleFilename->setAccessibleName(tr("Filename"));
+		QStringRef styleref = a.value(QLatin1String("style"));
+		if (!styleref.isNull()) {
+			QString stylestring = styleref.toString();
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+			QStringList styles = stylestring.split(QLatin1String(";"), Qt::SkipEmptyParts);
+#else
+			// Qt 5.14 introduced the Qt::SplitBehavior flags deprecating the QString fields
+			QStringList styles = stylestring.split(QLatin1String(";"), QString::SkipEmptyParts);
+#endif
+			foreach (QString s, styles) {
+				s           = s.simplified();
+				int idx     = s.indexOf(QLatin1Char(':'));
+				QString key = (idx > 0) ? s.left(idx).simplified() : s;
+				QString val = (idx > 0) ? s.mid(idx + 1).simplified() : QString();
 
-	qleTargetDirectory->setText(g.s.qsRecordingPath);
-	qleFilename->setText(g.s.qsRecordingFile);
-	qrbDownmix->setChecked(g.s.rmRecordingMode == Settings::RecordingMixdown);
-	qrbMultichannel->setChecked(g.s.rmRecordingMode == Settings::RecordingMultichannel);
-
-	QString qsTooltip = QString::fromLatin1("%1"
-											"<table>"
-											"  <tr>"
-											"    <td width=\"25%\">%user</td>"
-											"    <td>%2</td>"
-											"  </tr>"
-											"  <tr>"
-											"    <td>%date</td>"
-											"    <td>%3</td>"
-											"  </tr>"
-											"  <tr>"
-											"    <td>%time</td>"
-											"    <td>%4</td>"
-											"  </tr>"
-											"  <tr>"
-											"    <td>%host</td>"
-											"    <td>%5</td>"
-											"  </tr>"
-											"</table>")
-							.arg(tr("Valid variables are:"))
-							.arg(tr("Inserts the user's name"))
-							.arg(tr("Inserts the current date"))
-							.arg(tr("Inserts the current time"))
-							.arg(tr("Inserts the hostname"));
-
-	qleTargetDirectory->setToolTip(qsTooltip);
-	qleFilename->setToolTip(qsTooltip);
-
-	// Populate available codecs
-	Q_ASSERT(VoiceRecorderFormat::kEnd != 0);
-	for (int fm = 0; fm < VoiceRecorderFormat::kEnd; fm++) {
-		qcbFormat->addItem(VoiceRecorderFormat::getFormatDescription(static_cast< VoiceRecorderFormat::Format >(fm)));
-	}
-
-	if (g.s.iRecordingFormat < 0 || g.s.iRecordingFormat > VoiceRecorderFormat::kEnd)
-		g.s.iRecordingFormat = 0;
-
-	qcbFormat->setCurrentIndex(g.s.iRecordingFormat);
-}
-
-VoiceRecorderDialog::~VoiceRecorderDialog() {
-	reset();
-}
-
-void VoiceRecorderDialog::closeEvent(QCloseEvent *evt) {
-	if (g.sh) {
-		VoiceRecorderPtr recorder(g.sh->recorder);
-		if (recorder && recorder->isRunning()) {
-			int ret = QMessageBox::warning(this, tr("Recorder still running"),
-										   tr("Closing the recorder without stopping it will discard unwritten audio. "
-											  "Do you really want to close the recorder?"),
-										   QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-
-			if (ret == QMessageBox::No) {
-				evt->ignore();
-				return;
+				if (!pstyle.contains(key) || (pstyle.value(key) != val)) {
+					style.insert(key, val);
+					pstyle.insert(key, val);
+				}
 			}
+		}
 
-			recorder->stop(true);
+		switch (tt) {
+			case QXmlStreamReader::StartElement: {
+				QString name = reader.name().toString();
+				int rclose   = 1;
+				if (name == QLatin1String("body")) {
+					rclose = 0;
+					ignore = false;
+				} else if (name == QLatin1String("span")) {
+					// Substitute style with <b>, <i> and <u>
+
+					rclose = 0;
+					if (style.value(QLatin1String("font-weight")) == QLatin1String("600")) {
+						writer.writeStartElement(QLatin1String("b"));
+						rclose++;
+						style.remove(QLatin1String("font-weight"));
+					}
+					if (style.value(QLatin1String("font-style")) == QLatin1String("italic")) {
+						writer.writeStartElement(QLatin1String("i"));
+						rclose++;
+						style.remove(QLatin1String("font-style"));
+					}
+					if (style.value(QLatin1String("text-decoration")) == QLatin1String("underline")) {
+						writer.writeStartElement(QLatin1String("u"));
+						rclose++;
+						style.remove(QLatin1String("text-decoration"));
+					}
+					if (!style.isEmpty()) {
+						rclose++;
+						writer.writeStartElement(name);
+
+						QStringList qsl;
+						QMap< QString, QString >::const_iterator i;
+						for (i = style.constBegin(); i != style.constEnd(); ++i) {
+							if (!i.value().isEmpty())
+								qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
+							else
+								qsl << i.key();
+						}
+
+						writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
+					}
+				} else if (name == QLatin1String("p")) {
+					paragraphs++;
+					if (paragraphs == 1) {
+						// Ignore first paragraph. If it is styled empty drop its contents (e.g. <br />) too.
+						if (style.value(QLatin1String("-qt-paragraph-type")) == QLatin1String("empty")) {
+							reader.skipCurrentElement();
+							continue;
+						}
+						rclose = 0;
+					} else {
+						rclose = 1;
+						writer.writeStartElement(name);
+
+						if (!style.isEmpty()) {
+							QStringList qsl;
+							QMap< QString, QString >::const_iterator i;
+							for (i = style.constBegin(); i != style.constEnd(); ++i) {
+								if (!i.value().isEmpty())
+									qsl << QString::fromLatin1("%1:%2").arg(i.key(), i.value());
+								else
+									qsl << i.key();
+							}
+
+							writer.writeAttribute(QLatin1String("style"), qsl.join(QLatin1String("; ")));
+						}
+					}
+				} else if (name == QLatin1String("a")) {
+					// Set pstyle to include implicit blue underline.
+					rclose = 1;
+					writer.writeCurrentToken(reader);
+					pstyle.insert(QLatin1String("text-decoration"), QLatin1String("underline"));
+					pstyle.insert(QLatin1String("color"), QLatin1String("#0000ff"));
+				} else if (!ignore) {
+					rclose = 1;
+					writer.writeCurrentToken(reader);
+				}
+
+				recurseParse(reader, writer, paragraphs, pstyle, rclose, ignore);
+				break;
+			}
+			case QXmlStreamReader::EndElement:
+				if (!ignore)
+					for (int i = 0; i < close; ++i)
+						writer.writeEndElement();
+				return;
+			case QXmlStreamReader::Characters:
+				if (!ignore)
+					writer.writeCharacters(reader.text().toString());
+				break;
+			default:
+				break;
 		}
 	}
-
-	g.s.qsRecordingPath = qleTargetDirectory->text();
-	g.s.qsRecordingFile = qleFilename->text();
-	if (qrbDownmix->isChecked())
-		g.s.rmRecordingMode = Settings::RecordingMixdown;
-	else
-		g.s.rmRecordingMode = Settings::RecordingMultichannel;
-
-	int i                = qcbFormat->currentIndex();
-	g.s.iRecordingFormat = (i == -1) ? 0 : i;
-
-	reset();
-	evt->accept();
-
-	QDialog::closeEvent(evt);
 }
 
-void VoiceRecorderDialog::on_qpbStart_clicked() {
-	if (!g.uiSession || !g.sh) {
-		QMessageBox::critical(this, tr("Recorder"), tr("Unable to start recording. Not connected to a server."));
-		reset();
-		return;
-	}
+bool XMLTools::unduplicateTags(QXmlStreamReader &reader, QXmlStreamWriter &writer) {
+	bool changed   = false;
+	bool needclose = false;
 
-	if (g.sh->uiVersion < 0x010203) {
-		QMessageBox::critical(this, tr("Recorder"),
-							  tr("The server you are currently connected to is version 1.2.2 or older. "
-								 "For privacy reasons, recording on servers of versions older than 1.2.3 "
-								 "is not possible.\nPlease contact your server administrator for further "
-								 "information."));
-		return;
-	}
+	QStringList qslConcat;
+	qslConcat << QLatin1String("b");
+	qslConcat << QLatin1String("i");
+	qslConcat << QLatin1String("u");
+	qslConcat << QLatin1String("a");
 
-	if (g.sh->recorder) {
-		QMessageBox::information(this, tr("Recorder"), tr("There is already a recorder active for this server."));
-		return;
-	}
+	QList< QString > qlNames;
+	QList< QXmlStreamAttributes > qlAttributes;
 
-	// Check validity of input
-	int ifm = qcbFormat->currentIndex();
-	if (ifm == -1) {
-		QMessageBox::critical(this, tr("Recorder"), tr("Please select a recording format."));
-		return;
-	}
+	while (!reader.atEnd()) {
+		QXmlStreamReader::TokenType tt = reader.readNext();
+		QString name                   = reader.name().toString();
+		switch (tt) {
+			case QXmlStreamReader::StartDocument:
+			case QXmlStreamReader::EndDocument:
+				break;
+			case QXmlStreamReader::StartElement: {
+				QXmlStreamAttributes a = reader.attributes();
 
-	QString dstr = qleTargetDirectory->text();
-	if (dstr.isEmpty()) {
-		on_qpbTargetDirectoryBrowse_clicked();
-		dstr = qleTargetDirectory->text();
-		if (dstr.isEmpty())
-			return;
-	}
-	QDir dir(dstr);
+				if (name == QLatin1String("unduplicate"))
+					break;
 
-	QFileInfo fi(qleFilename->text());
-	QString basename(fi.baseName());
-	QString suffix(fi.completeSuffix());
-	if (suffix.isEmpty())
-		suffix = VoiceRecorderFormat::getFormatDefaultExtension(static_cast< VoiceRecorderFormat::Format >(ifm));
+				if (needclose) {
+					needclose = false;
 
-
-	if (basename.isEmpty()) {
-		basename = QLatin1String("%user");
-	}
-
-	qleFilename->setText(basename);
-
-	AudioOutputPtr ao(g.ao);
-	if (!ao)
-		return;
-
-	g.sh->announceRecordingState(true);
-
-	// Create the recorder
-	VoiceRecorder::Config config;
-	config.sampleRate      = ao->getMixerFreq();
-	config.fileName        = dir.absoluteFilePath(basename + QLatin1Char('.') + suffix);
-	config.mixDownMode     = qrbDownmix->isChecked();
-	config.recordingFormat = static_cast< VoiceRecorderFormat::Format >(ifm);
-
-	g.sh->recorder.reset(new VoiceRecorder(this, config));
-	VoiceRecorderPtr recorder(g.sh->recorder);
-
-	// Wire it up
-	connect(&*recorder, SIGNAL(recording_started()), this, SLOT(onRecorderStarted()));
-	connect(&*recorder, SIGNAL(recording_stopped()), this, SLOT(onRecorderStopped()));
-	connect(&*recorder, SIGNAL(error(int, QString)), this, SLOT(onRecorderError(int, QString)));
-
-	recorder->start();
-
-	qpbStart->setDisabled(true);
-	qpbStop->setEnabled(true);
-	qgbMode->setDisabled(true);
-	qgbOutput->setDisabled(true);
-}
-
-void VoiceRecorderDialog::on_qpbStop_clicked() {
-	if (!g.sh) {
-		reset();
-		return;
-	}
-
-	VoiceRecorderPtr recorder(g.sh->recorder);
-	if (!recorder) {
-		reset();
-		return;
-	}
-
-	// Stop clock and recording
-	qtTimer->stop();
-	recorder->stop();
-
-	// Disable stop botton to indicate we reacted
-	qpbStop->setDisabled(true);
-	qpbStop->setText(tr("Stopping"));
-}
-
-void VoiceRecorderDialog::on_qtTimer_timeout() {
-	if (!g.sh) {
-		reset();
-		return;
-	}
-
-	if (!g.uiSession) {
-		reset(false);
-		return;
-	}
-
-	VoiceRecorderPtr recorder(g.sh->recorder);
-	if (!g.sh->recorder) {
-		reset();
-		return;
-	}
-
-	const QTime elapsedTime = QTime(0, 0).addMSecs(static_cast< int >(recorder->getElapsedTime() / 1000));
-	qlTime->setText(elapsedTime.toString());
-}
-
-void VoiceRecorderDialog::on_qpbTargetDirectoryBrowse_clicked() {
-	QString dir = QFileDialog::getExistingDirectory(this, tr("Select target directory"), QString(),
-													QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-	if (!dir.isEmpty())
-		qleTargetDirectory->setText(dir);
-}
-
-void VoiceRecorderDialog::reset(bool resettimer) {
-	qtTimer->stop();
-
-	if (g.sh) {
-		VoiceRecorderPtr recorder(g.sh->recorder);
-		if (recorder) {
-			g.sh->recorder.reset();
-			g.sh->announceRecordingState(false);
+					if ((a == qlAttributes.last()) && (name == qlNames.last()) && (qslConcat.contains(name))) {
+						changed = true;
+						break;
+					}
+					qlNames.takeLast();
+					qlAttributes.takeLast();
+					writer.writeEndElement();
+				}
+				writer.writeCurrentToken(reader);
+				qlNames.append(name);
+				qlAttributes.append(a);
+			} break;
+			case QXmlStreamReader::EndElement: {
+				if (name == QLatin1String("unduplicate"))
+					break;
+				if (needclose) {
+					qlNames.takeLast();
+					qlAttributes.takeLast();
+					writer.writeCurrentToken(reader);
+				}
+				needclose = true;
+			} break;
+			default:
+				if (needclose) {
+					writer.writeEndElement();
+					needclose = false;
+				}
+				writer.writeCurrentToken(reader);
 		}
 	}
-
-	qpbStart->setEnabled(true);
-	qpbStop->setDisabled(true);
-	qpbStop->setText(tr("S&top"));
-
-	qgbMode->setEnabled(true);
-	qgbOutput->setEnabled(true);
-
-	if (resettimer)
-		qlTime->setText(QLatin1String("00:00:00"));
-}
-
-void VoiceRecorderDialog::onRecorderStopped() {
-	reset(false);
-}
-
-void VoiceRecorderDialog::onRecorderStarted() {
-	qlTime->setText(QLatin1String("00:00:00"));
-	qtTimer->start();
-}
-
-void VoiceRecorderDialog::onRecorderError(int err, QString strerr) {
-	Q_UNUSED(err);
-	QMessageBox::critical(this, tr("Recorder"), strerr);
-	reset(false);
+	if (needclose)
+		writer.writeEndElement();
+	return changed;
 }
