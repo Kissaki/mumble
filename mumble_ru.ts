@@ -1,1283 +1,974 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "AudioInput.h"
-
-#include "AudioOutput.h"
-#include "CELTCodec.h"
-#ifdef USE_OPUS
-#	include "OpusCodec.h"
-#endif
-#include "MainWindow.h"
-#include "Message.h"
-#include "NetworkConfig.h"
-#include "PacketDataStream.h"
-#include "Plugins.h"
-#include "ServerHandler.h"
-#include "User.h"
-#include "Utils.h"
-#include "VoiceRecorder.h"
-#include "Global.h"
-
-#ifdef USE_RNNOISE
-extern "C" {
-#	include "rnnoise.h"
-}
-#endif
-
-void Resynchronizer::addMic(short *mic) {
-	bool drop = false;
-	{
-		std::unique_lock< std::mutex > l(m);
-		micQueue.push_back(mic);
-		switch (state) {
-			case S0:
-				state = S1a;
-				break;
-			case S1a:
-				state = S2;
-				break;
-			case S1b:
-				state = S2;
-				break;
-			case S2:
-				state = S3;
-				break;
-			case S3:
-				state = S4a;
-				break;
-			case S4a:
-				state = S5;
-				break;
-			case S4b:
-				drop = true;
-				break;
-			case S5:
-				drop = true;
-				break;
-		}
-		if (drop) {
-			delete[] micQueue.front();
-			micQueue.pop_front();
-		}
-	}
-	if (bDebugPrintQueue) {
-		if (drop)
-			qWarning("Resynchronizer::addMic(): dropped microphone chunk due to overflow");
-		printQueue('+');
-	}
-}
-
-AudioChunk Resynchronizer::addSpeaker(short *speaker) {
-	AudioChunk result;
-	bool drop = false;
-	{
-		std::unique_lock< std::mutex > l(m);
-		switch (state) {
-			case S0:
-				drop = true;
-				break;
-			case S1a:
-				drop = true;
-				break;
-			case S1b:
-				state = S0;
-				break;
-			case S2:
-				state = S1b;
-				break;
-			case S3:
-				state = S2;
-				break;
-			case S4a:
-				state = S3;
-				break;
-			case S4b:
-				state = S3;
-				break;
-			case S5:
-				state = S4b;
-				break;
-		}
-		if (drop == false) {
-			result = AudioChunk(micQueue.front(), speaker);
-			micQueue.pop_front();
-		}
-	}
-	if (drop)
-		delete[] speaker;
-	if (bDebugPrintQueue) {
-		if (drop)
-			qWarning("Resynchronizer::addSpeaker(): dropped speaker chunk due to underflow");
-		printQueue('-');
-	}
-	return result;
-}
-
-void Resynchronizer::reset() {
-	if (bDebugPrintQueue)
-		qWarning("Resetting echo queue");
-	std::unique_lock< std::mutex > l(m);
-	state = S0;
-	while (!micQueue.empty()) {
-		delete[] micQueue.front();
-		micQueue.pop_front();
-	}
-}
-
-Resynchronizer::~Resynchronizer() {
-	reset();
-}
-
-void Resynchronizer::printQueue(char who) {
-	unsigned int mic;
-	{
-		std::unique_lock< std::mutex > l(m);
-		mic = static_cast< unsigned int >(micQueue.size());
-	}
-	std::string line;
-	line.reserve(32);
-	line += who;
-	line += " Echo queue [";
-	for (unsigned int i = 0; i < 5; i++)
-		line += i < mic ? '#' : ' ';
-	line += "]\r";
-	// This relies on \r to retrace always on the same line, can't use qWarining
-	printf("%s", line.c_str());
-	fflush(stdout);
-}
-
-// Remember that we cannot use static member classes that are not pointers, as the constructor
-// for AudioInputRegistrar() might be called before they are initialized, as the constructor
-// is called from global initialization.
-// Hence, we allocate upon first call.
-
-QMap< QString, AudioInputRegistrar * > *AudioInputRegistrar::qmNew;
-QString AudioInputRegistrar::current = QString();
-
-AudioInputRegistrar::AudioInputRegistrar(const QString &n, int p) : name(n), priority(p) {
-	if (!qmNew)
-		qmNew = new QMap< QString, AudioInputRegistrar * >();
-	qmNew->insert(name, this);
-}
-
-AudioInputRegistrar::~AudioInputRegistrar() {
-	qmNew->remove(name);
-}
-
-AudioInputPtr AudioInputRegistrar::newFromChoice(QString choice) {
-	if (!qmNew)
-		return AudioInputPtr();
-
-	if (!choice.isEmpty() && qmNew->contains(choice)) {
-		g.s.qsAudioInput = choice;
-		current          = choice;
-		return AudioInputPtr(qmNew->value(current)->create());
-	}
-	choice = g.s.qsAudioInput;
-	if (qmNew->contains(choice)) {
-		current = choice;
-		return AudioInputPtr(qmNew->value(choice)->create());
-	}
-
-	AudioInputRegistrar *r = nullptr;
-	foreach (AudioInputRegistrar *air, *qmNew)
-		if (!r || (air->priority > r->priority))
-			r = air;
-	if (r) {
-		current = r->name;
-		return AudioInputPtr(r->create());
-	}
-	return AudioInputPtr();
-}
-
-bool AudioInputRegistrar::canExclusive() const {
-	return false;
-}
-
-AudioInput::AudioInput() : opusBuffer(g.s.iFramesPerPacket * (SAMPLE_RATE / 100)) {
-	bDebugDumpInput         = g.bDebugDumpInput;
-	resync.bDebugPrintQueue = g.bDebugPrintQueue;
-	if (bDebugDumpInput) {
-		outMic.open("raw_microphone_dump", std::ios::binary);
-		outSpeaker.open("speaker_dump", std::ios::binary);
-		outProcessed.open("processed_microphone_dump", std::ios::binary);
-	}
-
-	adjustBandwidth(g.iMaxBandwidth, iAudioQuality, iAudioFrames, bAllowLowDelay);
-
-	g.iAudioBandwidth = getNetworkBandwidth(iAudioQuality, iAudioFrames);
-
-	umtType = MessageHandler::UDPVoiceCELTAlpha;
-
-	activityState = ActivityStateActive;
-	oCodec        = nullptr;
-	opusState     = nullptr;
-	cCodec        = nullptr;
-	ceEncoder     = nullptr;
-
-#ifdef USE_OPUS
-	oCodec = g.oCodec;
-	if (oCodec) {
-		if (bAllowLowDelay && iAudioQuality >= 64000) { // > 64 kbit/s bitrate and low delay allowed
-			opusState = oCodec->opus_encoder_create(SAMPLE_RATE, 1, OPUS_APPLICATION_RESTRICTED_LOWDELAY, nullptr);
-			qWarning("AudioInput: Opus encoder set for low delay");
-		} else if (iAudioQuality >= 32000) { // > 32 kbit/s bitrate
-			opusState = oCodec->opus_encoder_create(SAMPLE_RATE, 1, OPUS_APPLICATION_AUDIO, nullptr);
-			qWarning("AudioInput: Opus encoder set for high quality speech");
-		} else {
-			opusState = oCodec->opus_encoder_create(SAMPLE_RATE, 1, OPUS_APPLICATION_VOIP, nullptr);
-			qWarning("AudioInput: Opus encoder set for low quality speech");
-		}
-
-		oCodec->opus_encoder_ctl(opusState, OPUS_SET_VBR(0)); // CBR
-	}
-#endif
-
-#ifdef USE_RNNOISE
-	denoiseState = rnnoise_create();
-#endif
-
-	qWarning("AudioInput: %d bits/s, %d hz, %d sample", iAudioQuality, iSampleRate, iFrameSize);
-	iEchoFreq = iMicFreq = iSampleRate;
-
-	iFrameCounter   = 0;
-	iSilentFrames   = 0;
-	iHoldFrames     = 0;
-	iBufferedFrames = 0;
-
-	bResetProcessor = true;
-
-	bEchoMulti = false;
-
-	sppPreprocess = nullptr;
-	sesEcho       = nullptr;
-	srsMic = srsEcho = nullptr;
-
-	iEchoChannels = iMicChannels = 0;
-	iEchoFilled = iMicFilled = 0;
-	eMicFormat = eEchoFormat = SampleFloat;
-	iMicSampleSize = iEchoSampleSize = 0;
-
-	bPreviousVoice = false;
-
-	bResetEncoder = true;
-
-	pfMicInput = pfEchoInput = nullptr;
-
-	iBitrate    = 0;
-	dPeakSignal = dPeakSpeaker = dPeakMic = dPeakCleanMic = 0.0;
-
-	if (g.uiSession) {
-		setMaxBandwidth(g.iMaxBandwidth);
-	}
-
-	bRunning = true;
-
-	connect(this, SIGNAL(doDeaf()), g.mw->qaAudioDeaf, SLOT(trigger()), Qt::QueuedConnection);
-	connect(this, SIGNAL(doMute()), g.mw->qaAudioMute, SLOT(trigger()), Qt::QueuedConnection);
-}
-
-AudioInput::~AudioInput() {
-	bRunning = false;
-	wait();
-
-#ifdef USE_OPUS
-	if (opusState) {
-		oCodec->opus_encoder_destroy(opusState);
-	}
-#endif
-
-#ifdef USE_RNNOISE
-	if (denoiseState) {
-		rnnoise_destroy(denoiseState);
-	}
-#endif
-
-	if (ceEncoder) {
-		cCodec->celt_encoder_destroy(ceEncoder);
-	}
-
-	if (sppPreprocess)
-		speex_preprocess_state_destroy(sppPreprocess);
-	if (sesEcho)
-		speex_echo_state_destroy(sesEcho);
-
-	if (srsMic)
-		speex_resampler_destroy(srsMic);
-	if (srsEcho)
-		speex_resampler_destroy(srsEcho);
-
-	delete[] pfMicInput;
-	delete[] pfEchoInput;
-}
-
-bool AudioInput::isTransmitting() const {
-	return bPreviousVoice;
-};
-
-#define IN_MIXER_FLOAT(channels)                                                                             \
-	static void inMixerFloat##channels(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, \
-									   unsigned int N, quint64 mask) {                                       \
-		const float *RESTRICT input = reinterpret_cast< const float * >(ipt);                                \
-		const float m               = 1.0f / static_cast< float >(channels);                                 \
-		Q_UNUSED(N);                                                                                         \
-		Q_UNUSED(mask);                                                                                      \
-		for (unsigned int i = 0; i < nsamp; ++i) {                                                           \
-			float v = 0.0f;                                                                                  \
-			for (unsigned int j = 0; j < channels; ++j)                                                      \
-				v += input[i * channels + j];                                                                \
-			buffer[i] = v * m;                                                                               \
-		}                                                                                                    \
-	}
-
-#define IN_MIXER_SHORT(channels)                                                                             \
-	static void inMixerShort##channels(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, \
-									   unsigned int N, quint64 mask) {                                       \
-		const short *RESTRICT input = reinterpret_cast< const short * >(ipt);                                \
-		const float m               = 1.0f / (32768.f * static_cast< float >(channels));                     \
-		Q_UNUSED(N);                                                                                         \
-		Q_UNUSED(mask);                                                                                      \
-		for (unsigned int i = 0; i < nsamp; ++i) {                                                           \
-			float v = 0.0f;                                                                                  \
-			for (unsigned int j = 0; j < channels; ++j)                                                      \
-				v += static_cast< float >(input[i * channels + j]);                                          \
-			buffer[i] = v * m;                                                                               \
-		}                                                                                                    \
-	}
-
-static void inMixerFloatMask(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, unsigned int N,
-							 quint64 mask) {
-	const float *RESTRICT input = reinterpret_cast< const float * >(ipt);
-
-	unsigned int chancount = 0;
-	STACKVAR(unsigned int, chanindex, N);
-	for (unsigned int j = 0; j < N; ++j) {
-		if ((mask & (1ULL << j)) == 0) {
-			continue;
-		}
-		chanindex[chancount] = j; // Use chancount as index into chanindex.
-		++chancount;
-	}
-
-	const float m = 1.0f / static_cast< float >(chancount);
-	for (unsigned int i = 0; i < nsamp; ++i) {
-		float v = 0.0f;
-		for (unsigned int j = 0; j < chancount; ++j) {
-			v += input[i * N + chanindex[j]];
-		}
-		buffer[i] = v * m;
-	}
-}
-
-static void inMixerShortMask(float *RESTRICT buffer, const void *RESTRICT ipt, unsigned int nsamp, unsigned int N,
-							 quint64 mask) {
-	const short *RESTRICT input = reinterpret_cast< const short * >(ipt);
-
-	unsigned int chancount = 0;
-	STACKVAR(unsigned int, chanindex, N);
-	for (unsigned int j = 0; j < N; ++j) {
-		if ((mask & (1ULL << j)) == 0) {
-			continue;
-		}
-		chanindex[chancount] = j; // Use chancount as index into chanindex.
-		++chancount;
-	}
-
-	const float m = 1.0f / static_cast< float >(chancount);
-	for (unsigned int i = 0; i < nsamp; ++i) {
-		float v = 0.0f;
-		for (unsigned int j = 0; j < chancount; ++j) {
-			v += static_cast< float >(input[i * N + chanindex[j]]);
-		}
-		buffer[i] = v * m;
-	}
-}
-
-IN_MIXER_FLOAT(1)
-IN_MIXER_FLOAT(2)
-IN_MIXER_FLOAT(3)
-IN_MIXER_FLOAT(4)
-IN_MIXER_FLOAT(5)
-IN_MIXER_FLOAT(6)
-IN_MIXER_FLOAT(7)
-IN_MIXER_FLOAT(8)
-IN_MIXER_FLOAT(N)
-
-IN_MIXER_SHORT(1)
-IN_MIXER_SHORT(2)
-IN_MIXER_SHORT(3)
-IN_MIXER_SHORT(4)
-IN_MIXER_SHORT(5)
-IN_MIXER_SHORT(6)
-IN_MIXER_SHORT(7)
-IN_MIXER_SHORT(8)
-IN_MIXER_SHORT(N)
-
-AudioInput::inMixerFunc AudioInput::chooseMixer(const unsigned int nchan, SampleFormat sf, quint64 chanmask) {
-	inMixerFunc r = nullptr;
-
-	if (chanmask != 0xffffffffffffffffULL) {
-		if (sf == SampleFloat) {
-			r = inMixerFloatMask;
-		} else if (sf == SampleShort) {
-			r = inMixerShortMask;
-		}
-		return r;
-	}
-
-	if (sf == SampleFloat) {
-		switch (nchan) {
-			case 1:
-				r = inMixerFloat1;
-				break;
-			case 2:
-				r = inMixerFloat2;
-				break;
-			case 3:
-				r = inMixerFloat3;
-				break;
-			case 4:
-				r = inMixerFloat4;
-				break;
-			case 5:
-				r = inMixerFloat5;
-				break;
-			case 6:
-				r = inMixerFloat6;
-				break;
-			case 7:
-				r = inMixerFloat7;
-				break;
-			case 8:
-				r = inMixerFloat8;
-				break;
-			default:
-				r = inMixerFloatN;
-				break;
-		}
-	} else {
-		switch (nchan) {
-			case 1:
-				r = inMixerShort1;
-				break;
-			case 2:
-				r = inMixerShort2;
-				break;
-			case 3:
-				r = inMixerShort3;
-				break;
-			case 4:
-				r = inMixerShort4;
-				break;
-			case 5:
-				r = inMixerShort5;
-				break;
-			case 6:
-				r = inMixerShort6;
-				break;
-			case 7:
-				r = inMixerShort7;
-				break;
-			case 8:
-				r = inMixerShort8;
-				break;
-			default:
-				r = inMixerShortN;
-				break;
-		}
-	}
-	return r;
-}
-
-void AudioInput::initializeMixer() {
-	int err;
-
-	if (srsMic)
-		speex_resampler_destroy(srsMic);
-	if (srsEcho)
-		speex_resampler_destroy(srsEcho);
-	delete[] pfMicInput;
-	delete[] pfEchoInput;
-
-	if (iMicFreq != iSampleRate)
-		srsMic = speex_resampler_init(1, iMicFreq, iSampleRate, 3, &err);
-
-	iMicLength = (iFrameSize * iMicFreq) / iSampleRate;
-
-	pfMicInput = new float[iMicLength];
-
-	if (iEchoChannels > 0) {
-		bEchoMulti = g.s.bEchoMulti;
-		if (iEchoFreq != iSampleRate)
-			srsEcho = speex_resampler_init(bEchoMulti ? iEchoChannels : 1, iEchoFreq, iSampleRate, 3, &err);
-		iEchoLength    = (iFrameSize * iEchoFreq) / iSampleRate;
-		iEchoMCLength  = bEchoMulti ? iEchoLength * iEchoChannels : iEchoLength;
-		iEchoFrameSize = bEchoMulti ? iFrameSize * iEchoChannels : iFrameSize;
-		pfEchoInput    = new float[iEchoMCLength];
-	} else {
-		srsEcho     = nullptr;
-		pfEchoInput = nullptr;
-	}
-
-	uiMicChannelMask = g.s.uiAudioInputChannelMask;
-
-	// There is no channel mask setting for the echo canceller, so allow all channels.
-	uiEchoChannelMask = 0xffffffffffffffffULL;
-
-	imfMic  = chooseMixer(iMicChannels, eMicFormat, uiMicChannelMask);
-	imfEcho = chooseMixer(iEchoChannels, eEchoFormat, uiEchoChannelMask);
-
-	iMicSampleSize = static_cast< int >(iMicChannels * ((eMicFormat == SampleFloat) ? sizeof(float) : sizeof(short)));
-	iEchoSampleSize =
-		static_cast< int >(iEchoChannels * ((eEchoFormat == SampleFloat) ? sizeof(float) : sizeof(short)));
-
-	bResetProcessor = true;
-
-	qWarning("AudioInput: Initialized mixer for %d channel %d hz mic and %d channel %d hz echo", iMicChannels, iMicFreq,
-			 iEchoChannels, iEchoFreq);
-	if (uiMicChannelMask != 0xffffffffffffffffULL) {
-		qWarning("AudioInput: using mic channel mask 0x%llx", static_cast< unsigned long long >(uiMicChannelMask));
-	}
-}
-
-void AudioInput::addMic(const void *data, unsigned int nsamp) {
-	while (nsamp > 0) {
-		// Make sure we don't overrun the frame buffer
-		const unsigned int left = qMin(nsamp, iMicLength - iMicFilled);
-
-		// Append mix into pfMicInput frame buffer (converts 16bit pcm->float if necessary)
-		imfMic(pfMicInput + iMicFilled, data, left, iMicChannels, uiMicChannelMask);
-
-		iMicFilled += left;
-		nsamp -= left;
-
-		// If new samples are left offset data pointer to point at the first one for next iteration
-		if (nsamp > 0) {
-			if (eMicFormat == SampleFloat)
-				data = reinterpret_cast< const float * >(data) + left * iMicChannels;
-			else
-				data = reinterpret_cast< const short * >(data) + left * iMicChannels;
-		}
-
-		if (iMicFilled == iMicLength) {
-			// Frame complete
-			iMicFilled = 0;
-
-			// If needed resample frame
-			float *pfOutput = srsMic ? (float *) alloca(iFrameSize * sizeof(float)) : nullptr;
-			float *ptr      = srsMic ? pfOutput : pfMicInput;
-
-			if (srsMic) {
-				spx_uint32_t inlen  = iMicLength;
-				spx_uint32_t outlen = iFrameSize;
-				speex_resampler_process_float(srsMic, 0, pfMicInput, &inlen, pfOutput, &outlen);
-			}
-
-			// If echo cancellation is enabled the pointer ends up in the resynchronizer queue
-			// and may need to outlive this function's frame
-			short *psMic = iEchoChannels > 0 ? new short[iFrameSize] : (short *) alloca(iFrameSize * sizeof(short));
-
-			// Convert float to 16bit PCM
-			const float mul = 32768.f;
-			for (int j = 0; j < iFrameSize; ++j)
-				psMic[j] = static_cast< short >(qBound(-32768.f, (ptr[j] * mul), 32767.f));
-
-			// If we have echo cancellation enabled...
-			if (iEchoChannels > 0) {
-				resync.addMic(psMic);
-			} else {
-				encodeAudioFrame(AudioChunk(psMic));
-			}
-		}
-	}
-}
-
-void AudioInput::addEcho(const void *data, unsigned int nsamp) {
-	while (nsamp > 0) {
-		// Make sure we don't overrun the echo frame buffer
-		const unsigned int left = qMin(nsamp, iEchoLength - iEchoFilled);
-
-		if (bEchoMulti) {
-			const unsigned int samples = left * iEchoChannels;
-
-			if (eEchoFormat == SampleFloat) {
-				for (unsigned int i = 0; i < samples; ++i)
-					pfEchoInput[i + iEchoFilled * iEchoChannels] = reinterpret_cast< const float * >(data)[i];
-			} else {
-				// 16bit PCM -> float
-				for (unsigned int i = 0; i < samples; ++i)
-					pfEchoInput[i + iEchoFilled * iEchoChannels] =
-						static_cast< float >(reinterpret_cast< const short * >(data)[i]) * (1.0f / 32768.f);
-			}
-		} else {
-			// Mix echo channels (converts 16bit PCM -> float if needed)
-			imfEcho(pfEchoInput + iEchoFilled, data, left, iEchoChannels, uiEchoChannelMask);
-		}
-
-		iEchoFilled += left;
-		nsamp -= left;
-
-		// If new samples are left offset data pointer to point at the first one for next iteration
-		if (nsamp > 0) {
-			if (eEchoFormat == SampleFloat)
-				data = reinterpret_cast< const float * >(data) + left * iEchoChannels;
-			else
-				data = reinterpret_cast< const short * >(data) + left * iEchoChannels;
-		}
-
-		if (iEchoFilled == iEchoLength) {
-			// Frame complete
-
-			iEchoFilled = 0;
-
-			// Resample if necessary
-			float *pfOutput = srsEcho ? (float *) alloca(iEchoFrameSize * sizeof(float)) : nullptr;
-			float *ptr      = srsEcho ? pfOutput : pfEchoInput;
-
-			if (srsEcho) {
-				spx_uint32_t inlen  = iEchoLength;
-				spx_uint32_t outlen = iFrameSize;
-				speex_resampler_process_interleaved_float(srsEcho, pfEchoInput, &inlen, pfOutput, &outlen);
-			}
-
-			short *outbuff = new short[iEchoFrameSize];
-
-			// float -> 16bit PCM
-			const float mul = 32768.f;
-			for (int j = 0; j < iEchoFrameSize; ++j) {
-				outbuff[j] = static_cast< short >(qBound(-32768.f, (ptr[j] * mul), 32767.f));
-			}
-
-			auto chunk = resync.addSpeaker(outbuff);
-			if (!chunk.empty()) {
-				encodeAudioFrame(chunk);
-				delete[] chunk.mic;
-				delete[] chunk.speaker;
-			}
-		}
-	}
-}
-
-void AudioInput::adjustBandwidth(int bitspersec, int &bitrate, int &frames, bool &allowLowDelay) {
-	frames        = g.s.iFramesPerPacket;
-	bitrate       = g.s.iQuality;
-	allowLowDelay = g.s.bAllowLowDelay;
-
-	if (bitspersec == -1) {
-		// No limit
-	} else {
-		if (getNetworkBandwidth(bitrate, frames) > bitspersec) {
-			if ((frames <= 4) && (bitspersec <= 32000))
-				frames = 4;
-			else if ((frames == 1) && (bitspersec <= 64000))
-				frames = 2;
-			else if ((frames == 2) && (bitspersec <= 48000))
-				frames = 4;
-			if (getNetworkBandwidth(bitrate, frames) > bitspersec) {
-				do {
-					bitrate -= 1000;
-				} while ((bitrate > 8000) && (getNetworkBandwidth(bitrate, frames) > bitspersec));
-			}
-		}
-	}
-	if (bitrate <= 8000)
-		bitrate = 8000;
-}
-
-void AudioInput::setMaxBandwidth(int bitspersec) {
-	if (bitspersec == g.iMaxBandwidth)
-		return;
-
-	int frames;
-	int bitrate;
-	bool allowLowDelay;
-	adjustBandwidth(bitspersec, bitrate, frames, allowLowDelay);
-
-	g.iMaxBandwidth = bitspersec;
-
-	if (bitspersec != -1) {
-		if ((bitrate != g.s.iQuality) || (frames != g.s.iFramesPerPacket))
-			g.mw->msgBox(tr("Server maximum network bandwidth is only %1 kbit/s. Audio quality auto-adjusted to %2 "
-							"kbit/s (%3 ms)")
-							 .arg(bitspersec / 1000)
-							 .arg(bitrate / 1000)
-							 .arg(frames * 10));
-	}
-
-	AudioInputPtr ai = g.ai;
-	if (ai) {
-		g.iAudioBandwidth  = getNetworkBandwidth(bitrate, frames);
-		ai->iAudioQuality  = bitrate;
-		ai->iAudioFrames   = frames;
-		ai->bAllowLowDelay = allowLowDelay;
-		return;
-	}
-
-	ai.reset();
-
-	Audio::stopInput();
-	Audio::startInput();
-}
-
-int AudioInput::getNetworkBandwidth(int bitrate, int frames) {
-	int overhead =
-		20 + 8 + 4 + 1 + 2 + (g.s.bTransmitPosition ? 12 : 0) + (NetworkConfig::TcpModeEnabled() ? 12 : 0) + frames;
-	overhead *= (800 / frames);
-	int bw = overhead + bitrate;
-
-	return bw;
-}
-
-void AudioInput::resetAudioProcessor() {
-	if (!bResetProcessor)
-		return;
-
-	int iArg;
-
-	if (sppPreprocess)
-		speex_preprocess_state_destroy(sppPreprocess);
-	if (sesEcho)
-		speex_echo_state_destroy(sesEcho);
-
-	sppPreprocess = speex_preprocess_state_init(iFrameSize, iSampleRate);
-	resync.reset();
-	selectNoiseCancel();
-
-	iArg = 1;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_VAD, &iArg);
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC, &iArg);
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_DEREVERB, &iArg);
-
-	iArg = 30000;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_TARGET, &iArg);
-
-	float v = 30000.0f / static_cast< float >(g.s.iMinLoudness);
-	iArg    = iroundf(floorf(20.0f * log10f(v)));
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_MAX_GAIN, &iArg);
-
-	iArg = -60;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_DECREMENT, &iArg);
-
-	if (noiseCancel == Settings::NoiseCancelSpeex) {
-		iArg = g.s.iSpeexNoiseCancelStrength;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_NOISE_SUPPRESS, &iArg);
-	}
-
-	if (iEchoChannels > 0) {
-		int filterSize = iFrameSize * (10 + resync.getNominalLag());
-		sesEcho        = speex_echo_state_init_mc(iFrameSize, filterSize, 1, bEchoMulti ? iEchoChannels : 1);
-		iArg           = iSampleRate;
-		speex_echo_ctl(sesEcho, SPEEX_ECHO_SET_SAMPLING_RATE, &iArg);
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_ECHO_STATE, sesEcho);
-
-		qWarning("AudioInput: ECHO CANCELLER ACTIVE");
-	} else {
-		sesEcho = nullptr;
-	}
-
-	bResetEncoder = true;
-
-	bResetProcessor = false;
-}
-
-bool AudioInput::selectCodec() {
-	bool useOpus = false;
-
-	// Currently talking, use previous Opus status.
-	if (bPreviousVoice) {
-		useOpus = (umtType == MessageHandler::UDPVoiceOpus);
-	} else {
-#ifdef USE_OPUS
-		if (g.bOpus || (g.s.lmLoopMode == Settings::Local)) {
-			useOpus = true;
-		}
-#endif
-	}
-
-	if (!useOpus) {
-		CELTCodec *switchto = nullptr;
-		if ((!g.uiSession || (g.s.lmLoopMode == Settings::Local)) && (!g.qmCodecs.isEmpty())) {
-			// Use latest for local loopback
-			QMap< int, CELTCodec * >::const_iterator i = g.qmCodecs.constEnd();
-			--i;
-			switchto = i.value();
-		} else {
-			// Currently talking, don't switch unless you must.
-			if (cCodec && bPreviousVoice) {
-				int v = cCodec->bitstreamVersion();
-				if ((v == g.iCodecAlpha) || (v == g.iCodecBeta))
-					switchto = cCodec;
-			}
-		}
-		if (!switchto) {
-			switchto = g.qmCodecs.value(g.bPreferAlpha ? g.iCodecAlpha : g.iCodecBeta);
-			if (!switchto)
-				switchto = g.qmCodecs.value(g.bPreferAlpha ? g.iCodecBeta : g.iCodecAlpha);
-		}
-		if (switchto != cCodec) {
-			if (cCodec && ceEncoder) {
-				cCodec->celt_encoder_destroy(ceEncoder);
-				ceEncoder = nullptr;
-			}
-			cCodec = switchto;
-			if (cCodec)
-				ceEncoder = cCodec->encoderCreate();
-		}
-
-		if (!cCodec)
-			return false;
-	}
-
-	MessageHandler::UDPMessageType previousType = umtType;
-	if (useOpus) {
-		umtType = MessageHandler::UDPVoiceOpus;
-	} else {
-		if (!g.uiSession) {
-			umtType = MessageHandler::UDPVoiceCELTAlpha;
-		} else {
-			int v = cCodec->bitstreamVersion();
-			if (v == g.iCodecAlpha)
-				umtType = MessageHandler::UDPVoiceCELTAlpha;
-			else if (v == g.iCodecBeta)
-				umtType = MessageHandler::UDPVoiceCELTBeta;
-			else {
-				qWarning() << "Couldn't find message type for codec version" << v;
-			}
-		}
-	}
-
-	if (umtType != previousType) {
-		iBufferedFrames = 0;
-		qlFrames.clear();
-		opusBuffer.clear();
-	}
-
-	return true;
-}
-
-void AudioInput::selectNoiseCancel() {
-	noiseCancel = g.s.noiseCancelMode;
-
-	if (noiseCancel == Settings::NoiseCancelRNN || noiseCancel == Settings::NoiseCancelBoth) {
-#ifdef USE_RNNOISE
-		if (!denoiseState || iFrameSize != 480) {
-			qWarning("AudioInput: Ignoring request to enable RNNoise: internal error");
-			noiseCancel = Settings::NoiseCancelSpeex;
-		}
-#else
-		qWarning("AudioInput: Ignoring request to enable RNNoise: Mumble was built without support for it");
-		noiseCancel = Settings::NoiseCancelSpeex;
-#endif
-	}
-
-	int iArg = 0;
-	switch (noiseCancel) {
-		case Settings::NoiseCancelOff:
-			qWarning("AudioInput: Noise canceller disabled");
-			break;
-		case Settings::NoiseCancelSpeex:
-			qWarning("AudioInput: Using Speex as noise canceller");
-			iArg = 1;
-			break;
-		case Settings::NoiseCancelRNN:
-			qWarning("AudioInput: Using RNNoise as noise canceller");
-			break;
-		case Settings::NoiseCancelBoth:
-			iArg = 1;
-			qWarning("AudioInput: Using RNNoise and Speex as noise canceller");
-			break;
-	}
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_DENOISE, &iArg);
-}
-
-int AudioInput::encodeOpusFrame(short *source, int size, EncodingOutputBuffer &buffer) {
-#ifdef USE_OPUS
-	int len;
-	if (!oCodec) {
-		return 0;
-	}
-
-	if (bResetEncoder) {
-		oCodec->opus_encoder_ctl(opusState, OPUS_RESET_STATE, nullptr);
-		bResetEncoder = false;
-	}
-
-	oCodec->opus_encoder_ctl(opusState, OPUS_SET_BITRATE(iAudioQuality));
-
-	len = oCodec->opus_encode(opusState, source, size, &buffer[0], static_cast< opus_int32 >(buffer.size()));
-	const int tenMsFrameCount = (size / iFrameSize);
-	iBitrate                  = (len * 100 * 8) / tenMsFrameCount;
-	return len;
-#else
-	return 0;
-#endif
-}
-
-int AudioInput::encodeCELTFrame(short *psSource, EncodingOutputBuffer &buffer) {
-	int len;
-	if (!cCodec)
-		return 0;
-
-	if (bResetEncoder) {
-		cCodec->celt_encoder_ctl(ceEncoder, CELT_RESET_STATE);
-		bResetEncoder = false;
-	}
-
-	cCodec->celt_encoder_ctl(ceEncoder, CELT_SET_PREDICTION(0));
-
-	cCodec->celt_encoder_ctl(ceEncoder, CELT_SET_VBR_RATE(iAudioQuality));
-	len      = cCodec->encode(ceEncoder, psSource, &buffer[0],
-                         qMin< int >(iAudioQuality / (8 * 100), static_cast< int >(buffer.size())));
-	iBitrate = len * 100 * 8;
-
-	return len;
-}
-
-void AudioInput::encodeAudioFrame(AudioChunk chunk) {
-	int iArg;
-	int i;
-	float sum;
-	short max;
-
-	short *psSource;
-
-	iFrameCounter++;
-
-	// As g.iTarget is not protected by any locks, we avoid race-conditions by
-	// copying it once at this point and stick to whatever value it is here. Thus
-	// if the value of g.iTarget changes during the execution of this function,
-	// it won't cause any inconsistencies and the change is reflected once this
-	// function is called again.
-	int voiceTargetID = g.iTarget;
-
-	if (!bRunning)
-		return;
-
-	sum = 1.0f;
-	max = 1;
-	for (i = 0; i < iFrameSize; i++) {
-		sum += static_cast< float >(chunk.mic[i] * chunk.mic[i]);
-		max = std::max(static_cast< short >(abs(chunk.mic[i])), max);
-	}
-	dPeakMic = qMax(20.0f * log10f(sqrtf(sum / static_cast< float >(iFrameSize)) / 32768.0f), -96.0f);
-	dMaxMic  = max;
-
-	if (chunk.speaker && (iEchoChannels > 0)) {
-		sum = 1.0f;
-		for (i = 0; i < iEchoFrameSize; ++i) {
-			sum += static_cast< float >(chunk.speaker[i] * chunk.speaker[i]);
-		}
-		dPeakSpeaker = qMax(20.0f * log10f(sqrtf(sum / static_cast< float >(iFrameSize)) / 32768.0f), -96.0f);
-	} else {
-		dPeakSpeaker = 0.0;
-	}
-
-	QMutexLocker l(&qmSpeex);
-	resetAudioProcessor();
-
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_GET_AGC_GAIN, &iArg);
-	float gainValue = static_cast< float >(iArg);
-	if (noiseCancel == Settings::NoiseCancelSpeex || noiseCancel == Settings::NoiseCancelBoth) {
-		iArg = g.s.iSpeexNoiseCancelStrength - iArg;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_NOISE_SUPPRESS, &iArg);
-	}
-
-	short psClean[iFrameSize];
-	if (sesEcho && chunk.speaker) {
-		speex_echo_cancellation(sesEcho, chunk.mic, chunk.speaker, psClean);
-		psSource = psClean;
-	} else {
-		psSource = chunk.mic;
-	}
-
-#ifdef USE_RNNOISE
-	// At the time of writing this code, RNNoise only supports a sample rate of 48000 Hz.
-	if (noiseCancel == Settings::NoiseCancelRNN || noiseCancel == Settings::NoiseCancelBoth) {
-		float denoiseFrames[480];
-		for (int i = 0; i < 480; i++) {
-			denoiseFrames[i] = psSource[i];
-		}
-
-		rnnoise_process_frame(denoiseState, denoiseFrames, denoiseFrames);
-
-		for (int i = 0; i < 480; i++) {
-			psSource[i] = denoiseFrames[i];
-		}
-	}
-#endif
-
-	speex_preprocess_run(sppPreprocess, psSource);
-
-	sum = 1.0f;
-	for (i = 0; i < iFrameSize; i++)
-		sum += static_cast< float >(psSource[i] * psSource[i]);
-	float micLevel = sqrtf(sum / static_cast< float >(iFrameSize));
-	dPeakSignal    = qMax(20.0f * log10f(micLevel / 32768.0f), -96.0f);
-
-	if (bDebugDumpInput) {
-		outMic.write(reinterpret_cast< const char * >(chunk.mic), iFrameSize * sizeof(short));
-		if (chunk.speaker) {
-			outSpeaker.write(reinterpret_cast< const char * >(chunk.speaker), iEchoFrameSize * sizeof(short));
-		}
-		outProcessed.write(reinterpret_cast< const char * >(psSource), iFrameSize * sizeof(short));
-	}
-
-	spx_int32_t prob = 0;
-	speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_GET_PROB, &prob);
-	fSpeechProb = static_cast< float >(prob) / 100.0f;
-
-	// clean microphone level: peak of filtered signal attenuated by AGC gain
-	dPeakCleanMic = qMax(dPeakSignal - gainValue, -96.0f);
-	float level   = (g.s.vsVAD == Settings::SignalToNoise) ? fSpeechProb : (1.0f + dPeakCleanMic / 96.0f);
-
-	bool bIsSpeech = false;
-
-	if (level > g.s.fVADmax) {
-		// Voice-activation threshold has been reached
-		bIsSpeech = true;
-	} else if (level > g.s.fVADmin && bPreviousVoice) {
-		// Voice-deactivation threshold has not yet been reached
-		bIsSpeech = true;
-	}
-
-	if (!bIsSpeech) {
-		iHoldFrames++;
-		if (iHoldFrames < g.s.iVoiceHold)
-			bIsSpeech = true;
-	} else {
-		iHoldFrames = 0;
-	}
-
-	if (g.s.atTransmit == Settings::Continuous) {
-		// Continous transmission is enabled
-		bIsSpeech = true;
-	} else if (g.s.atTransmit == Settings::PushToTalk) {
-		// PTT is enabled, so check if it is currently active
-		bIsSpeech =
-			g.s.uiDoublePush && ((g.uiDoublePush < g.s.uiDoublePush) || (g.tDoublePush.elapsed() < g.s.uiDoublePush));
-	}
-
-	// If g.iPushToTalk > 0 that means that we are currently in some sort of PTT action. For
-	// instance this could mean we're currently whispering
-	bIsSpeech = bIsSpeech || (g.iPushToTalk > 0);
-
-	ClientUser *p = ClientUser::get(g.uiSession);
-	if (g.s.bMute || ((g.s.lmLoopMode != Settings::Local) && p && (p->bMute || p->bSuppress)) || g.bPushToMute
-		|| (voiceTargetID < 0)) {
-		bIsSpeech = false;
-	}
-
-	if (bIsSpeech) {
-		iSilentFrames = 0;
-	} else {
-		iSilentFrames++;
-		if (iSilentFrames > 500)
-			iFrameCounter = 0;
-	}
-
-	if (p) {
-		if (!bIsSpeech)
-			p->setTalking(Settings::Passive);
-		else if (voiceTargetID == 0)
-			p->setTalking(Settings::Talking);
-		else
-			p->setTalking(Settings::Shouting);
-	}
-
-	if (g.s.bTxAudioCue && g.uiSession != 0) {
-		AudioOutputPtr ao = g.ao;
-		if (bIsSpeech && !bPreviousVoice && ao)
-			ao->playSample(g.s.qsTxAudioCueOn);
-		else if (ao && !bIsSpeech && bPreviousVoice)
-			ao->playSample(g.s.qsTxAudioCueOff);
-	}
-
-	if (!bIsSpeech && !bPreviousVoice) {
-		iBitrate = 0;
-
-		if ((tIdle.elapsed() / 1000000ULL) > g.s.iIdleTime) {
-			activityState = ActivityStateIdle;
-			tIdle.restart();
-			if (g.s.iaeIdleAction == Settings::Deafen && !g.s.bDeaf) {
-				emit doDeaf();
-			} else if (g.s.iaeIdleAction == Settings::Mute && !g.s.bMute) {
-				emit doMute();
-			}
-		}
-
-		if (activityState == ActivityStateReturnedFromIdle) {
-			activityState = ActivityStateActive;
-			if (g.s.iaeIdleAction != Settings::Nothing && g.s.bUndoIdleActionUponActivity) {
-				if (g.s.iaeIdleAction == Settings::Deafen && g.s.bDeaf) {
-					emit doDeaf();
-				} else if (g.s.iaeIdleAction == Settings::Mute && g.s.bMute) {
-					emit doMute();
-				}
-			}
-		}
-
-		spx_int32_t increment = 0;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_INCREMENT, &increment);
-		return;
-	} else {
-		spx_int32_t increment = 12;
-		speex_preprocess_ctl(sppPreprocess, SPEEX_PREPROCESS_SET_AGC_INCREMENT, &increment);
-	}
-
-	if (bIsSpeech && !bPreviousVoice) {
-		bResetEncoder = true;
-	}
-
-	tIdle.restart();
-
-	EncodingOutputBuffer buffer;
-	Q_ASSERT(buffer.size() >= static_cast< size_t >(iAudioQuality / 100 * iAudioFrames / 8));
-
-	int len = 0;
-
-	bool encoded = true;
-	if (!selectCodec())
-		return;
-
-	if (umtType == MessageHandler::UDPVoiceCELTAlpha || umtType == MessageHandler::UDPVoiceCELTBeta) {
-		len = encodeCELTFrame(psSource, buffer);
-		if (len <= 0) {
-			iBitrate = 0;
-			qWarning() << "encodeCELTFrame failed" << iBufferedFrames << iFrameSize << len;
-			return;
-		}
-		++iBufferedFrames;
-	} else if (umtType == MessageHandler::UDPVoiceOpus) {
-		encoded = false;
-		opusBuffer.insert(opusBuffer.end(), psSource, psSource + iFrameSize);
-		++iBufferedFrames;
-
-		if (!bIsSpeech || iBufferedFrames >= iAudioFrames) {
-			if (iBufferedFrames < iAudioFrames) {
-				// Stuff frame to framesize if speech ends and we don't have enough audio
-				// this way we are guaranteed to have a valid framecount and won't cause
-				// a codec configuration switch by suddenly using a wildly different
-				// framecount per packet.
-				const int missingFrames = iAudioFrames - iBufferedFrames;
-				opusBuffer.insert(opusBuffer.end(), iFrameSize * missingFrames, 0);
-				iBufferedFrames += missingFrames;
-				iFrameCounter += missingFrames;
-			}
-
-			Q_ASSERT(iBufferedFrames == iAudioFrames);
-
-			len = encodeOpusFrame(&opusBuffer[0], iBufferedFrames * iFrameSize, buffer);
-			opusBuffer.clear();
-			if (len <= 0) {
-				iBitrate = 0;
-				qWarning() << "encodeOpusFrame failed" << iBufferedFrames << iFrameSize << len;
-				iBufferedFrames = 0; // These are lost. Make sure not to mess up our sequence counter next flushCheck.
-				return;
-			}
-			encoded = true;
-		}
-	}
-
-	if (encoded) {
-		flushCheck(QByteArray(reinterpret_cast< char * >(&buffer[0]), len), !bIsSpeech, voiceTargetID);
-	}
-
-	if (!bIsSpeech)
-		iBitrate = 0;
-
-	bPreviousVoice = bIsSpeech;
-}
-
-static void sendAudioFrame(const char *data, PacketDataStream &pds) {
-	ServerHandlerPtr sh = g.sh;
-	if (sh) {
-		VoiceRecorderPtr recorder(sh->recorder);
-		if (recorder)
-			recorder->getRecordUser().addFrame(QByteArray(data, pds.size() + 1));
-	}
-
-	if (g.s.lmLoopMode == Settings::Local)
-		LoopUser::lpLoopy.addFrame(QByteArray(data, pds.size() + 1));
-	else if (sh)
-		sh->sendMessage(data, pds.size() + 1);
-}
-
-void AudioInput::flushCheck(const QByteArray &frame, bool terminator, int voiceTargetID) {
-	qlFrames << frame;
-
-	if (!terminator && iBufferedFrames < iAudioFrames)
-		return;
-
-	int flags = 0;
-	if (voiceTargetID > 0) {
-		flags = voiceTargetID;
-	}
-	if (terminator && g.iPrevTarget > 0) {
-		// If we have been whispering to some target but have just ended, terminator will be true. However
-		// in the case of whispering this means that we just released the whisper key so this here is the
-		// last audio frame that is sent for whispering. The whisper key being released means that g.iTarget
-		// is reset to 0 by now. In order to send the last whisper frame correctly, we have to use
-		// g.iPrevTarget which is set to whatever g.iTarget has been before its last change.
-
-		flags = g.iPrevTarget;
-
-		// We reset g.iPrevTarget as it has fulfilled its purpose for this whisper-action. It'll be set
-		// accordingly once the client whispers for the next time.
-		g.iPrevTarget = 0;
-	}
-
-	if (g.s.lmLoopMode == Settings::Server)
-		flags = 0x1f; // Server loopback
-
-	flags |= (umtType << 5);
-
-	char data[1024];
-	data[0] = static_cast< unsigned char >(flags);
-
-	int frames      = iBufferedFrames;
-	iBufferedFrames = 0;
-
-	PacketDataStream pds(data + 1, 1023);
-	// Sequence number
-	pds << iFrameCounter - frames;
-
-	if (umtType == MessageHandler::UDPVoiceOpus) {
-		const QByteArray &qba = qlFrames.takeFirst();
-		int size              = qba.size();
-		if (terminator)
-			size |= 1 << 13;
-		pds << size;
-		pds.append(qba.constData(), qba.size());
-	} else {
-		if (terminator) {
-			qlFrames << QByteArray();
-			++frames;
-		}
-
-		for (int i = 0; i < frames; ++i) {
-			const QByteArray &qba = qlFrames.takeFirst();
-			unsigned char head    = static_cast< unsigned char >(qba.size());
-			if (i < frames - 1)
-				head |= 0x80;
-			pds.append(head);
-			pds.append(qba.constData(), qba.size());
-		}
-	}
-
-	if (g.s.bTransmitPosition && g.p && !g.bCenterPosition && g.p->fetch()) {
-		pds << g.p->fPosition[0];
-		pds << g.p->fPosition[1];
-		pds << g.p->fPosition[2];
-	}
-
-	sendAudioFrame(data, pds);
-
-	Q_ASSERT(qlFrames.isEmpty());
-}
-
-bool AudioInput::isAlive() const {
-	return isRunning();
-}
+# Copyright 2019-2020 The Mumble Developers. All rights reserved.
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file at the root of the
+# Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+set(MUMBLE_RC "${CMAKE_CURRENT_BINARY_DIR}/mumble.rc")
+set(MUMBLE_DLL_RC "${CMAKE_CURRENT_BINARY_DIR}/mumble_dll.rc")
+set(MUMBLE_PLIST "${CMAKE_CURRENT_BINARY_DIR}/mumble.plist")
+
+set(MUMBLE_ICON "${CMAKE_SOURCE_DIR}/icons/mumble.ico")
+set(MUMBLE_ICNS "${CMAKE_SOURCE_DIR}/icons/mumble.icns")
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mumble.rc.in" "${MUMBLE_RC}")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mumble_dll.rc.in" "${MUMBLE_DLL_RC}")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mumble.plist.in" "${MUMBLE_PLIST}")
+
+include(qt-utils)
+include(install-library)
+
+option(update "Check for updates by default." ON)
+
+option(translations "Include languages other than English." ON)
+
+option(classic-theme "Include the classic theme." ON)
+
+option(bundled-opus "Build the included version of Opus instead of looking for one on the system." ON)
+option(bundled-celt "Build the included version of CELT instead of looking for one on the system." ON)
+option(bundled-speex "Build the included version of Speex instead of looking for one on the system." ON)
+option(rnnoise "Build RNNoise for machine learning noise reduction" ON)
+
+option(manual-plugin "Include the built-in \"manual\" positional audio plugin." ON)
+
+option(qtspeech "Use Qt's text-to-speech system (part of the Qt Speech module) instead of Mumble's own OS-specific text-to-speech implementations." OFF)
+
+option(jackaudio "Build support for JackAudio." ON)
+option(portaudio "Build support for PortAudio" ON)
+
+if(WIN32)
+	option(asio "Build support for ASIO audio input." OFF)
+	option(wasapi "Build support for WASAPI." ON)
+	option(xboxinput "Build support for global shortcuts from Xbox controllers via the XInput DLL." ON)
+	option(gkey "Build support for Logitech G-Keys. Note: This feature does not require any build-time dependencies, and requires Logitech Gaming Software to be installed to have any effect at runtime." ON)
+elseif(UNIX)
+	if(APPLE)
+		option(coreaudio "Build support for CoreAudio." ON)
+	elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
+		option(oss "Build support for OSS." ON)
+	elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+		option(alsa "Build support for ALSA." ON)
+		option(pulseaudio "Build support for PulseAudio." ON)
+		option(speechd "Build support for Speech Dispatcher." ON)
+		option(xinput2 "Build support for XI2" ON)
+	endif()
+endif()
+
+if(NOT APPLE)
+	option(g15 "Include support for the G15 keyboard (and compatible devices)." OFF)
+endif()
+
+if(WIN32 OR APPLE)
+	option(crash-report "Include support for reporting crashes to the Mumble developers." ON)
+endif()
+
+if(MSVC)
+	option(elevation "Set \"uiAccess=true\", required for global shortcuts to work with privileged applications. Requires the client's executable to be signed with a trusted code signing certificate." OFF)
+endif()
+
+find_pkg(Qt5
+	COMPONENTS
+		Concurrent
+		Sql
+		Svg
+		Widgets
+	REQUIRED
+)
+
+set(MUMBLE_SOURCES
+	"main.cpp"
+	"About.cpp"
+	"About.h"
+	"ACLEditor.cpp"
+	"ACLEditor.h"
+	"ACLEditor.ui"
+	"ApplicationPalette.h"
+	"AudioConfigDialog.cpp"
+	"AudioConfigDialog.h"
+	"Audio.cpp"
+	"Audio.h"
+	"AudioInput.cpp"
+	"AudioInput.h"
+	"AudioInput.ui"
+	"AudioOutput.cpp"
+	"AudioOutput.h"
+	"AudioOutputSample.cpp"
+	"AudioOutputSample.h"
+	"AudioOutputSpeech.cpp"
+	"AudioOutputSpeech.h"
+	"AudioOutput.ui"
+	"AudioOutputUser.cpp"
+	"AudioOutputUser.h"
+	"AudioStats.cpp"
+	"AudioStats.h"
+	"AudioStats.ui"
+	"AudioWizard.cpp"
+	"AudioWizard.h"
+	"AudioWizard.ui"
+	"BanEditor.cpp"
+	"BanEditor.h"
+	"BanEditor.ui"
+	"CELTCodec.cpp"
+	"CELTCodec.h"
+	"Cert.cpp"
+	"Cert.h"
+	"Cert.ui"
+	"ClientUser.cpp"
+	"ClientUser.h"
+	"ConfigDialog.cpp"
+	"ConfigDialog.h"
+	"ConfigDialog.ui"
+	"ConfigWidget.cpp"
+	"ConfigWidget.h"
+	"ConnectDialog.cpp"
+	"ConnectDialogEdit.ui"
+	"ConnectDialog.h"
+	"ConnectDialog.ui"
+	"CustomElements.cpp"
+	"CustomElements.h"
+	"Database.cpp"
+	"Database.h"
+	"DeveloperConsole.cpp"
+	"DeveloperConsole.h"
+	"Global.cpp"
+	"Global.h"
+	"GlobalShortcut.cpp"
+	"GlobalShortcut.h"
+	"GlobalShortcutTarget.ui"
+	"GlobalShortcut.ui"
+	"LCD.cpp"
+	"LCD.h"
+	"LCD.ui"
+	"ListenerLocalVolumeDialog.cpp"
+	"Log.cpp"
+	"Log.h"
+	"Log.ui"
+	"LookConfig.cpp"
+	"LookConfig.h"
+	"LookConfig.ui"
+	"MainWindow.cpp"
+	"MainWindow.h"
+	"MainWindow.ui"
+	"Markdown.cpp"
+	"Markdown.h"
+	"Messages.cpp"
+	"MumbleApplication.cpp"
+	"MumbleApplication.h"
+	"NetworkConfig.cpp"
+	"NetworkConfig.h"
+	"NetworkConfig.ui"
+	"OpusCodec.cpp"
+	"OpusCodec.h"
+	"Plugins.cpp"
+	"Plugins.h"
+	"Plugins.ui"
+	"PTTButtonWidget.cpp"
+	"PTTButtonWidget.h"
+	"PTTButtonWidget.ui"
+	"RichTextEditor.cpp"
+	"RichTextEditor.h"
+	"RichTextEditorLink.ui"
+	"RichTextEditor.ui"
+	"Screen.cpp"
+	"Screen.h"
+	"ServerHandler.cpp"
+	"ServerHandler.h"
+	"Settings.cpp"
+	"Settings.h"
+	"SharedMemory.cpp"
+	"SharedMemory.h"
+	"SocketRPC.cpp"
+	"SocketRPC.h"
+	"SvgIcon.cpp"
+	"SvgIcon.h"
+	"TalkingUI.cpp"
+	"TalkingUI.h"
+	"TalkingUIContainer.cpp"
+	"TalkingUIContainer.h"
+	"TalkingUIEntry.cpp"
+	"TalkingUIEntry.h"
+	"TalkingUISelection.cpp"
+	"TalkingUISelection.h"
+	"TextMessage.cpp"
+	"TextMessage.h"
+	"TextMessage.ui"
+	"TextToSpeech.h"
+	"ThemeInfo.cpp"
+	"ThemeInfo.h"
+	"Themes.cpp"
+	"Themes.h"
+	"Tokens.cpp"
+	"Tokens.h"
+	"Tokens.ui"
+	"Usage.cpp"
+	"Usage.h"
+	"UserEdit.cpp"
+	"UserEdit.h"
+	"UserEdit.ui"
+	"UserInformation.cpp"
+	"UserInformation.h"
+	"UserInformation.ui"
+	"UserListModel.cpp"
+	"UserListModel.h"
+	"UserLocalVolumeDialog.cpp"
+	"UserLocalVolumeDialog.h"
+	"UserLocalVolumeDialog.ui"
+	"UserModel.cpp"
+	"UserModel.h"
+	"UserView.cpp"
+	"UserView.h"
+	"VersionCheck.cpp"
+	"VersionCheck.h"
+	"ViewCert.cpp"
+	"ViewCert.h"
+	"VoiceRecorder.cpp"
+	"VoiceRecorderDialog.cpp"
+	"VoiceRecorderDialog.h"
+	"VoiceRecorderDialog.ui"
+	"VoiceRecorder.h"
+	"WebFetch.cpp"
+	"WebFetch.h"
+	"XMLTools.cpp"
+	"XMLTools.h"
+
+	"widgets/MUComboBox.cpp"
+	"widgets/MUComboBox.h"
+
+	"${SHARED_SOURCE_DIR}/ACL.cpp"
+	"${SHARED_SOURCE_DIR}/ACL.h"
+	"${SHARED_SOURCE_DIR}/Channel.cpp"
+	"${SHARED_SOURCE_DIR}/Channel.h"
+	"${SHARED_SOURCE_DIR}/ChannelListener.cpp"
+	"${SHARED_SOURCE_DIR}/ChannelListener.h"
+	"${SHARED_SOURCE_DIR}/Connection.cpp"
+	"${SHARED_SOURCE_DIR}/Connection.h"
+	"${SHARED_SOURCE_DIR}/Group.cpp"
+	"${SHARED_SOURCE_DIR}/Group.h"
+	"${SHARED_SOURCE_DIR}/SignalCurry.h"
+
+	"${3RDPARTY_DIR}/smallft/smallft.cpp"
+
+	"mumble.qrc"
+	"flags/mumble_flags_0.qrc"
+	"${CMAKE_SOURCE_DIR}/themes/MumbleTheme.qrc"
+)
+
+if(static AND WIN32)
+	# On Windows, building a static client means building the main app into a DLL.
+	add_library(mumble SHARED ${MUMBLE_SOURCES})
+	add_compile_definitions(mumble PRIVATE "MUMBLEAPP_DLL")
+
+	set_target_properties(mumble PROPERTIES OUTPUT_NAME "mumble_app")
+	if(MINGW)
+		# Remove "lib" prefix.
+		set_target_properties(mumble PROPERTIES PREFIX "")
+	endif()
+
+	target_sources(mumble PRIVATE "${MUMBLE_DLL_RC}")
+
+	add_subdirectory("${SHARED_SOURCE_DIR}/mumble_exe" "${CMAKE_BINARY_DIR}/mumble_exe")
+else()
+	add_executable(mumble ${MUMBLE_SOURCES})
+
+	if(WIN32)
+		target_sources(mumble
+			PRIVATE
+				"mumble.appcompat.manifest"
+				"${MUMBLE_RC}"
+		)
+
+		if(elevation)
+			set_property(TARGET mumble APPEND_STRING PROPERTY LINK_FLAGS " /MANIFESTUAC:\"level=\'asInvoker\' uiAccess=\'true\'\"")
+		endif()
+	elseif(APPLE)
+		set_target_properties(mumble
+			PROPERTIES
+				OUTPUT_NAME "Mumble"
+				MACOSX_BUNDLE TRUE
+				RESOURCE ${MUMBLE_ICNS}
+				MACOSX_BUNDLE_INFO_PLIST ${MUMBLE_PLIST}
+		)
+	endif()
+endif()
+
+target_compile_definitions(mumble
+	PRIVATE
+		"MUMBLE_LIBRARY_PATH=${MUMBLE_INSTALL_LIBDIR}"
+		"MUMBLE_PLUGIN_PATH=${MUMBLE_INSTALL_PLUGINDIR}"
+)
+
+set_target_properties(mumble
+	PROPERTIES
+		AUTOMOC ON
+		AUTORCC ON
+		AUTOUIC ON
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+if(WIN32)
+	install(TARGETS mumble RUNTIME DESTINATION "${MUMBLE_INSTALL_EXECUTABLEDIR}" COMPONENT mumble_client)
+else()
+	if(NOT APPLE)
+		install(TARGETS mumble RUNTIME DESTINATION "${MUMBLE_INSTALL_EXECUTABLEDIR}" COMPONENT mumble_client)
+	else()
+		install(TARGETS mumble BUNDLE DESTINATION "${MUMBLE_INSTALL_EXECUTABLEDIR}" COMPONENT mumble_client)
+	endif()
+
+	# Install Mumble man files
+	install(FILES "${CMAKE_SOURCE_DIR}/man/mumble.1" DESTINATION "${MUMBLE_INSTALL_MANDIR}" COMPONENT doc)
+endif()
+
+target_compile_definitions(mumble
+	PRIVATE
+		"MUMBLE"
+		"USE_OPUS"
+		"QT_RESTRICTED_CAST_FROM_ASCII"
+)
+
+target_include_directories(mumble
+	PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR} # This is required for includes in current folder to be found by files from the shared directory.
+		"widgets"
+		${SHARED_SOURCE_DIR}
+		"${3RDPARTY_DIR}/smallft"
+)
+
+find_pkg("LibSndFile;sndfile" REQUIRED)
+
+if(static AND TARGET sndfile-static)
+	target_link_libraries(mumble PRIVATE sndfile-static)
+elseif(TARGET sndfile)
+	target_link_libraries(mumble PRIVATE sndfile)
+else()
+	target_link_libraries(mumble PRIVATE ${sndfile_LIBRARIES})
+endif()
+
+target_link_libraries(mumble
+	PRIVATE
+		shared
+		Qt5::Concurrent
+		Qt5::Sql
+		Qt5::Svg
+		Qt5::Widgets
+)
+
+if(static)
+	if(TARGET Qt5::QSQLiteDriverPlugin)
+		include_qt_plugin(mumble PRIVATE "QSQLiteDriverPlugin")
+		target_link_libraries(mumble PRIVATE Qt5::QSQLiteDriverPlugin)
+	endif()
+	if(TARGET Qt5::QSvgIconPlugin)
+		include_qt_plugin(mumble PRIVATE "QSvgIconPlugin")
+		target_link_libraries(mumble PRIVATE Qt5::QSvgIconPlugin)
+	endif()
+	if(TARGET Qt5::QSvgPlugin)
+		include_qt_plugin(mumble PRIVATE "QSvgPlugin")
+		target_link_libraries(mumble PRIVATE Qt5::QSvgPlugin)
+	endif()
+endif()
+
+if(MSVC)
+	target_compile_definitions(mumble PRIVATE "RESTRICT=")
+else()
+	target_compile_definitions(mumble PRIVATE "RESTRICT=__restrict__")
+endif()
+
+if(WIN32)
+	target_sources(mumble PRIVATE
+		"GlobalShortcut_win.cpp"
+		"GlobalShortcut_win.h"
+		"Log_win.cpp"
+		"SharedMemory_win.cpp"
+		"TaskList.cpp"
+		"UserLockFile_win.cpp"
+		"WinGUIDs.cpp"
+		"os_early_win.cpp"
+		"os_win.cpp"
+
+		"${CMAKE_SOURCE_DIR}/overlay/ods.cpp"
+	)
+
+	find_pkg(Boost
+		COMPONENTS
+			system
+			thread
+		REQUIRED
+	)
+
+	if(static AND TARGET Qt5::QWindowsIntegrationPlugin)
+		include_qt_plugin(mumble PRIVATE QWindowsIntegrationPlugin)
+		target_link_libraries(mumble PRIVATE Qt5::QWindowsIntegrationPlugin)
+	endif()
+
+	add_subdirectory("${3RDPARTY_DIR}/xinputcheck-build" "${CMAKE_CURRENT_BINARY_DIR}/xinputcheck")
+
+	# Disable all warnings that the xinputcheck code may emit
+	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/xinputcheck-build")
+
+	target_link_libraries(mumble PRIVATE xinputcheck)
+
+	if(MSVC)
+		target_link_libraries(mumble
+			PRIVATE
+				Boost::dynamic_linking
+				Delayimp.lib
+			)
+		set_property(TARGET mumble APPEND_STRING PROPERTY LINK_FLAGS " /DELAYLOAD:user32.dll /DELAYLOAD:qwave.dll")
+	endif()
+
+	target_link_libraries(mumble
+		PRIVATE
+			Boost::system
+			Boost::thread
+	)
+
+	target_link_libraries(mumble
+		PRIVATE
+			dbghelp.lib
+			dinput8.lib
+			dxguid.lib
+			wintrust.lib
+	)
+else()
+	target_sources(mumble PRIVATE "SharedMemory_unix.cpp")
+
+	if(NOT APPLE)
+		find_pkg(X11 COMPONENTS Xext REQUIRED)
+
+		if(xinput2)
+			find_pkg(X11 COMPONENTS Xi REQUIRED)
+			target_link_libraries(mumble PRIVATE X11::Xi)
+		else()
+			target_compile_definitions(mumble PRIVATE "NO_XINPUT2")
+		endif()
+
+		if(static AND TARGET Qt5::QXcbIntegrationPlugin)
+			include_qt_plugin(mumble PRIVATE QXcbIntegrationPlugin)
+			target_link_libraries(mumble PRIVATE Qt5::QXcbIntegrationPlugin)
+		endif()
+
+		target_sources(mumble
+			PRIVATE
+				"GlobalShortcut_unix.cpp"
+				"GlobalShortcut_unix.h"
+				"Log_unix.cpp"
+				"os_unix.cpp"
+		)
+
+		if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+			find_library(LIB_RT rt)
+			target_link_libraries(mumble PRIVATE ${LIB_RT})
+		endif()
+
+		target_link_libraries(mumble PRIVATE X11::Xext)
+	else()
+		find_library(LIB_APPKIT "AppKit")
+		find_library(LIB_APPLICATIONSERVICES "ApplicationServices")
+		find_library(LIB_CARBON "Carbon")
+		find_library(LIB_SCRIPTINGBRIDGE "ScriptingBridge")
+		find_library(LIB_SECURITY "Security")
+		find_library(LIB_XAR "xar")
+
+		target_sources(mumble
+			PRIVATE
+				"AppNap.h"
+				"AppNap.mm"
+				"GlobalShortcut_macx.h"
+				"GlobalShortcut_macx.mm"
+				"Log_macx.mm"
+				"os_macx.mm"
+		)
+
+		if(static AND TARGET Qt5::QCocoaIntegrationPlugin)
+			include_qt_plugin(mumble PRIVATE QCocoaIntegrationPlugin)
+			target_link_libraries(mumble PRIVATE Qt5::QCocoaIntegrationPlugin)
+		endif()
+
+		target_link_libraries(mumble
+			PRIVATE
+				${LIB_APPKIT}
+				${LIB_APPLICATIONSERVICES}
+				${LIB_CARBON}
+				${LIB_SCRIPTINGBRIDGE}
+				${LIB_SECURITY}
+				${LIB_XAR}
+		)
+	endif()
+endif()
+
+if(bundled-opus)
+	option(OPUS_BUILD_SHARED_LIBRARY "" ON)
+	if(MINGW)
+		option(OPUS_STACK_PROTECTOR "" OFF)
+	endif()
+
+	add_subdirectory("${3RDPARTY_DIR}/opus" "${CMAKE_CURRENT_BINARY_DIR}/opus")
+
+	# Disable all warnings that the Opus code may emit
+	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/opus")
+
+	add_dependencies(mumble opus)
+
+	target_include_directories(mumble PRIVATE "${3RDPARTY_DIR}/opus/include")
+
+	if(tests)
+		set_target_properties(test_opus_decode test_opus_padding PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+	endif()
+
+	if(WIN32)
+		# Shared library on Windows (e.g. ".dll")
+		set_target_properties(opus PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	else()
+		# Shared library on UNIX (e.g. ".so")
+		set_target_properties(opus PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	endif()
+
+	install_library(opus mumble_client)
+else()
+	find_pkg(opus REQUIRED)
+	target_include_directories(mumble PRIVATE ${opus_INCLUDE_DIRS})
+endif()
+
+if(bundled-celt)
+	add_subdirectory("${3RDPARTY_DIR}/celt-0.7.0-build" "${CMAKE_CURRENT_BINARY_DIR}/celt")
+
+	# Disable all warnings that the Celt code may emit
+	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/celt-0.7.0-build")
+
+	# celt_types.h has some logic of checking whether or not it may include
+	# stdint.h or not. In order to avoid this logic to mess up, we provide
+	# it with the hint that it may indeed include stdint.h and be done with it
+	target_compile_definitions(celt
+		PRIVATE
+			HAVE_STDINT_H
+	)
+	# We also set this flag for Mumble as it includes the problematic
+	# header file indirectly at some points
+	target_compile_definitions(mumble
+		PRIVATE
+			HAVE_STDINT_H
+	)
+
+	add_dependencies(mumble celt)
+
+	target_include_directories(mumble PRIVATE "${3RDPARTY_DIR}/celt-0.7.0-src/libcelt")
+
+	if(WIN32)
+		# Shared library on Windows (e.g. ".dll")
+		set_target_properties(celt PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	else()
+		# Shared library on UNIX (e.g. ".so")
+		set_target_properties(celt PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	endif()
+
+	install_library(celt mumble_client)
+else()
+	find_pkg(celt REQUIRED)
+	target_include_directories(mumble PRIVATE ${celt_INCLUDE_DIRS})
+endif()
+
+if(bundled-speex)
+	add_subdirectory("${3RDPARTY_DIR}/speex-build" "${CMAKE_CURRENT_BINARY_DIR}/speex")
+
+	# Disable all warnings that the speex code may emit
+	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/speex-build")
+
+	target_link_libraries(mumble PRIVATE speex)
+
+	if(WIN32)
+		# Shared library on Windows (e.g. ".dll")
+		set_target_properties(speex PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	else()
+		# Shared library on UNIX (e.g. ".so")
+		set_target_properties(speex PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	endif()
+
+	install_library(speex mumble_client)
+else()
+	find_pkg(speex REQUIRED)
+	find_pkg(speexdsp REQUIRED)
+
+	target_link_libraries(mumble
+		PRIVATE
+			${speex_LIBRARIES}
+			${speexdsp_LIBRARIES}
+	)
+endif()
+
+if(rnnoise)
+	add_subdirectory("${3RDPARTY_DIR}/rnnoise-build" "${CMAKE_CURRENT_BINARY_DIR}/rnnoise")
+
+	# Disable all warnings that the RNNoise code may emit
+	disable_warnings_for_all_targets_in("${3RDPARTY_DIR}/rnnoise-build")
+
+	target_compile_definitions(mumble PRIVATE "USE_RNNOISE")
+	target_link_libraries(mumble PRIVATE rnnoise)
+
+	if(WIN32)
+		# Shared library on Windows (e.g. ".dll")
+		set_target_properties(rnnoise PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	else()
+		# Shared library on UNIX (e.g. ".so")
+		set_target_properties(rnnoise PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+	endif()
+
+	install_library(rnnoise mumble_client)
+endif()
+
+if(qtspeech)
+	find_pkg(Qt5 COMPONENTS TextToSpeech REQUIRED)
+	target_sources(mumble PRIVATE "TextToSpeech.cpp")
+	target_link_libraries(mumble PRIVATE Qt5::TextToSpeech)
+elseif(WIN32)
+	target_sources(mumble PRIVATE "TextToSpeech_win.cpp")
+	if(MINGW)
+		target_link_libraries(mumble PRIVATE sapi.lib)
+	endif()
+elseif(APPLE)
+	target_sources(mumble PRIVATE "TextToSpeech_macx.mm")
+else()
+	target_sources(mumble PRIVATE "TextToSpeech_unix.cpp")
+
+	if(speechd)
+		find_pkg("speech-dispatcher" REQUIRED)
+
+		target_compile_definitions(mumble
+			PRIVATE
+				"USE_SPEECHD"
+				"USE_SPEECHD_PKGCONFIG"
+		)
+		target_link_libraries(mumble PRIVATE ${speech-dispatcher_LIBRARIES})
+	else()
+		target_compile_definitions(mumble PRIVATE "USE_NO_TTS")
+	endif()
+endif()
+
+if(crash-report)
+	target_sources(mumble
+		PRIVATE
+			"CrashReporter.cpp"
+			"CrashReporter.h"
+	)
+else()
+	target_compile_definitions(mumble PRIVATE "NO_CRASH_REPORT")
+endif()
+
+if(manual-plugin)
+	target_sources(mumble
+		PRIVATE
+			"ManualPlugin.cpp"
+			"ManualPlugin.h"
+			"ManualPlugin.ui"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_MANUAL_PLUGIN")
+endif()
+
+if(NOT update)
+	target_compile_definitions(mumble PRIVATE "NO_UPDATE_CHECK")
+endif()
+
+if(dbus AND NOT WIN32 AND NOT APPLE)
+	find_pkg(Qt5 COMPONENTS DBus REQUIRED)
+
+	target_sources(mumble
+		PRIVATE
+			"DBus.cpp"
+			"DBus.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_DBUS")
+	target_link_libraries(mumble PRIVATE Qt5::DBus)
+endif()
+
+if(translations)
+	set(ts_files
+		"mumble_ar.ts"
+		"mumble_be.ts"
+		"mumble_bg.ts"
+		"mumble_br.ts"
+		"mumble_ca_ES.ts"
+		"mumble_ca.ts"
+		"mumble_cs.ts"
+		"mumble_cy.ts"
+		"mumble_da.ts"
+		"mumble_de.ts"
+		"mumble_el_GR.ts"
+		"mumble_el.ts"
+		"mumble_en_GB.ts"
+		"mumble_en.ts"
+		"mumble_eo.ts"
+		"mumble_es.ts"
+		"mumble_eu.ts"
+		"mumble_fa_IR.ts"
+		"mumble_fi.ts"
+		"mumble_fr.ts"
+		"mumble_gl.ts"
+		"mumble_he.ts"
+		"mumble_hi.ts"
+		"mumble_hu.ts"
+		"mumble_it.ts"
+		"mumble_ja.ts"
+		"mumble_ko.ts"
+		"mumble_lt.ts"
+		"mumble_nb_NO.ts"
+		"mumble_nl_BE.ts"
+		"mumble_nl.ts"
+		"mumble_no.ts"
+		"mumble_pl.ts"
+		"mumble_pt_BR.ts"
+		"mumble_pt_PT.ts"
+		"mumble_ro.ts"
+		"mumble_ru.ts"
+		"mumble_sk.ts"
+		"mumble_sv.ts"
+		"mumble_te.ts"
+		"mumble_th.ts"
+		"mumble_tr.ts"
+		"mumble_uk.ts"
+		"mumble_vi.ts"
+		"mumble_zh_CN.ts"
+		"mumble_zh_HK.ts"
+		"mumble_zh_TW.ts"
+	)
+
+	create_translations_qrc(${CMAKE_CURRENT_SOURCE_DIR} "${ts_files}" "translations.qrc")
+	target_sources(mumble PRIVATE "translations.qrc")
+endif()
+
+if(classic-theme)
+	target_sources(mumble PRIVATE "${CMAKE_SOURCE_DIR}/themes/ClassicTheme.qrc")
+endif()
+
+if(overlay)
+	target_sources(mumble
+		PRIVATE
+			"Overlay.cpp"
+			"Overlay.h"
+			"Overlay.ui"
+			"OverlayClient.cpp"
+			"OverlayClient.h"
+			"OverlayConfig.cpp"
+			"OverlayConfig.h"
+			"OverlayEditor.cpp"
+			"OverlayEditor.h"
+			"OverlayEditor.ui"
+			"OverlayEditorScene.cpp"
+			"OverlayEditorScene.h"
+			"OverlayPositionableItem.cpp"
+			"OverlayPositionableItem.h"
+			"OverlayText.cpp"
+			"OverlayText.h"
+			"OverlayUser.cpp"
+			"OverlayUser.h"
+			"OverlayUserGroup.cpp"
+			"OverlayUserGroup.h"
+			"PathListWidget.cpp"
+			"PathListWidget.h"
+	)
+
+	if(WIN32)
+		target_sources(mumble
+			PRIVATE
+				"Overlay_win.cpp"
+				"Overlay_win.h"
+		)
+	else()
+		if(APPLE)
+			target_sources(mumble PRIVATE "Overlay_macx.mm")
+		else()
+			target_sources(mumble PRIVATE "Overlay_unix.cpp")
+		endif()
+	endif()
+
+	target_compile_definitions(mumble PRIVATE "USE_OVERLAY")
+endif()
+
+if(xboxinput)
+	target_sources(mumble
+		PRIVATE
+			"XboxInput.cpp"
+			"XboxInput.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_XBOXINPUT")
+endif()
+
+if(gkey)
+	target_sources(mumble
+		PRIVATE
+			"GKey.cpp"
+			"GKey.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_GKEY")
+endif()
+
+if(g15)
+	if(WIN32 OR APPLE)
+		target_sources(mumble
+			PRIVATE
+				"G15LCDEngine_helper.cpp"
+				"G15LCDEngine_helper.h"
+	)
+	else()
+		find_library(LIB_G15DAEMON_CLIENT "g15daemon_client")
+		if(LIB_G15DAEMON_CLIENT-NOTFOUND)
+			message(FATAL_ERROR "G15 library not found!")
+		endif()
+
+		target_sources(mumble
+			PRIVATE
+				"G15LCDEngine_unix.cpp"
+				"G15LCDEngine_unix.h"
+		)
+
+		target_compile_definitions(mumble PRIVATE "USE_G15")
+		target_link_libraries(mumble PRIVATE ${LIB_G15DAEMON_CLIENT})
+	endif()
+endif()
+
+if(zeroconf)
+	if(NOT APPLE)
+		find_pkg(avahi-compat-libdns_sd QUIET)
+		if(avahi-compat-libdns_sd_FOUND)
+			target_include_directories(mumble PRIVATE ${avahi-compat-libdns_sd_INCLUDE_DIRS})
+			target_link_libraries(mumble PRIVATE ${avahi-compat-libdns_sd_LIBRARIES})
+		else()
+			find_library(LIB_DNSSD "dnssd")
+			if(${LIB_DNSSD} STREQUAL "LIB_DNSSD-NOTFOUND")
+				message(FATAL_ERROR "DNS-SD library not found!")
+			endif()
+			target_link_libraries(mumble PRIVATE ${LIB_DNSSD})
+		endif()
+	endif()
+
+	target_sources(mumble
+		PRIVATE
+			"Zeroconf.cpp"
+			"Zeroconf.h"
+			# Unlike what the name implies, this 3rdparty helper is not actually related to Bonjour.
+			# It just uses the API provided by mDNSResponder, making it compatible with Avahi too.
+			"${3RDPARTY_DIR}/qqbonjour/BonjourRecord.h"
+			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceBrowser.cpp"
+			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceBrowser.h"
+			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceResolver.cpp"
+			"${3RDPARTY_DIR}/qqbonjour/BonjourServiceResolver.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_ZEROCONF")
+	target_include_directories(mumble PRIVATE "${3RDPARTY_DIR}/qqbonjour")
+endif()
+
+if(alsa)
+	find_pkg(ALSA REQUIRED)
+	target_sources(mumble
+		PRIVATE
+			"ALSAAudio.cpp"
+			"ALSAAudio.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_ALSA")
+	target_link_libraries(mumble PRIVATE ALSA::ALSA)
+endif()
+
+if(asio)
+	if(NOT ASIO_DIR)
+		set(ASIO_DIR "${3RDPARTY_DIR}/asio")
+	endif()
+
+	target_sources(mumble
+		PRIVATE
+			"ASIOInput.cpp"
+			"ASIOInput.h"
+			"ASIOInput.ui"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_ASIO")
+	target_include_directories(mumble
+		PRIVATE SYSTEM
+			"${ASIO_DIR}/common"
+			"${ASIO_DIR}/host"
+			"${ASIO_DIR}/host/pc"
+	)
+endif()
+
+if(coreaudio)
+	find_library(LIB_AUDIOUNIT "AudioUnit")
+	find_library(LIB_COREAUDIO "CoreAudio")
+
+	target_sources(mumble
+		PRIVATE
+			"CoreAudio.cpp"
+			"CoreAudio.h"
+	)
+
+	target_link_libraries(mumble
+		PRIVATE
+			${LIB_AUDIOUNIT}
+			${LIB_COREAUDIO}
+	)
+endif()
+
+if(jackaudio)
+	target_sources(mumble
+		PRIVATE
+			"JackAudio.cpp"
+			"JackAudio.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_JACKAUDIO")
+	target_include_directories(mumble PRIVATE SYSTEM "${3RDPARTY_DIR}/jack")
+endif()
+
+if(oss)
+	target_sources(mumble
+		PRIVATE
+			"OSS.cpp"
+			"OSS.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_OSS")
+	target_include_directories(mumble PRIVATE SYSTEM "/usr/lib/oss/include")
+endif()
+
+if(portaudio)
+	target_sources(mumble
+		PRIVATE
+			"PAAudio.cpp"
+			"PAAudio.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_PORTAUDIO")
+	target_include_directories(mumble PRIVATE SYSTEM "${3RDPARTY_DIR}/portaudio")
+endif()
+
+if(pulseaudio)
+	target_sources(mumble
+		PRIVATE
+			"PulseAudio.cpp"
+			"PulseAudio.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_PULSEAUDIO")
+	target_include_directories(mumble PRIVATE SYSTEM "${3RDPARTY_DIR}/pulseaudio")
+endif()
+
+if(wasapi)
+	target_sources(mumble
+		PRIVATE
+			"WASAPI.cpp"
+			"WASAPI.h"
+			"WASAPINotificationClient.cpp"
+			"WASAPINotificationClient.h"
+	)
+
+	target_compile_definitions(mumble PRIVATE "USE_WASAPI")
+	target_link_libraries(mumble PRIVATE avrt.lib)
+	if(MINGW)
+		target_link_libraries(mumble PRIVATE ksuser.lib)
+	endif()
+
+	if(MSVC)
+		set_property(TARGET mumble APPEND_STRING PROPERTY LINK_FLAGS " /DELAYLOAD:avrt.dll")
+	endif()
+endif()
