@@ -3,646 +3,566 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "ASIOInput.h"
+#include "ALSAAudio.h"
 
 #include "MainWindow.h"
+#include "User.h"
 #include "Utils.h"
 
-#include <QtWidgets/QMessageBox>
-
-#include <cmath>
+#include <alsa/asoundlib.h>
+#include <sys/poll.h>
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-// From os_win.cpp.
-extern HWND mumble_mw_hwnd;
+#define NBLOCKS 8
 
-const QString ASIOConfig::name = QLatin1String("ASIOConfig");
-
-class ASIOAudioInputRegistrar : public AudioInputRegistrar {
+class ALSAEnumerator {
 public:
-	ASIOAudioInputRegistrar();
+	QHash< QString, QString > qhInput;
+	QHash< QString, QString > qhOutput;
+	static QString getHint(void *hint, const char *id);
+	ALSAEnumerator();
+};
+
+static ALSAEnumerator *cards = nullptr;
+
+class ALSAAudioInputRegistrar : public AudioInputRegistrar {
+public:
+	ALSAAudioInputRegistrar();
 	virtual AudioInput *create();
 	virtual const QList< audioDevice > getDeviceChoices();
 	virtual void setDeviceChoice(const QVariant &, Settings &);
 	virtual bool canEcho(const QString &) const;
 };
 
-ASIOAudioInputRegistrar::ASIOAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("ASIO")) {
-}
 
-AudioInput *ASIOAudioInputRegistrar::create() {
-	return new ASIOInput();
-}
-const QList< audioDevice > ASIOAudioInputRegistrar::getDeviceChoices() {
-	QList< audioDevice > qlReturn;
-	return qlReturn;
-}
+class ALSAAudioOutputRegistrar : public AudioOutputRegistrar {
+public:
+	ALSAAudioOutputRegistrar();
+	virtual AudioOutput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+};
 
-bool ASIOAudioInputRegistrar::canEcho(const QString &) const {
-	return true;
-}
-
-void ASIOAudioInputRegistrar::setDeviceChoice(const QVariant &, Settings &) {
-}
-
-static ConfigWidget *ASIOConfigDialogNew(Settings &st) {
-	return new ASIOConfig(st);
-}
-
-class ASIOInit : public DeferInit {
-	ASIOAudioInputRegistrar *airASIO;
-	ConfigRegistrar *crASIO;
+class ALSAInit : public DeferInit {
+protected:
+	ALSAAudioInputRegistrar *pairALSA;
+	ALSAAudioOutputRegistrar *paorALSA;
 
 public:
-	ASIOInit() : airASIO(nullptr), crASIO(nullptr) {}
 	void initialize();
 	void destroy();
 };
 
-void ASIOInit::initialize() {
-	HKEY hkDevs;
-	HKEY hk;
-	FILETIME ft;
+static ALSAInit aiInit;
+QMutex qmALSA;
 
-	airASIO = nullptr;
-	crASIO  = nullptr;
+void ALSAInit::initialize() {
+	pairALSA = nullptr;
+	paorALSA = nullptr;
+	cards    = nullptr;
 
-	bool bFound = false;
+	int card = -1;
+	snd_card_next(&card);
+	if (card != -1) {
+		pairALSA = new ALSAAudioInputRegistrar();
+		paorALSA = new ALSAAudioOutputRegistrar();
+		cards    = new ALSAEnumerator();
+	} else {
+		qWarning("ALSAInit: No cards found, not initializing");
+	}
+}
 
-	if (!g.s.bASIOEnable) {
-		qWarning("ASIOInput: ASIO forcefully disabled via 'asio/enable' config option.");
-		return;
+void ALSAInit::destroy() {
+	QMutexLocker qml(&qmALSA);
+	delete pairALSA;
+	delete paorALSA;
+	delete cards;
+}
+
+ALSAAudioInputRegistrar::ALSAAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("ALSA"), 5) {
+}
+
+AudioInput *ALSAAudioInputRegistrar::create() {
+	return new ALSAAudioInput();
+}
+
+const QList< audioDevice > ALSAAudioInputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
+
+	QStringList qlInputDevs = cards->qhInput.keys();
+	std::sort(qlInputDevs.begin(), qlInputDevs.end());
+
+	if (qlInputDevs.contains(g.s.qsALSAInput)) {
+		qlInputDevs.removeAll(g.s.qsALSAInput);
+		qlInputDevs.prepend(g.s.qsALSAInput);
 	}
 
-	// List of devices known to misbehave or be totally useless
-	QStringList blacklist;
-	blacklist << QLatin1String("{a91eaba1-cf4c-11d3-b96a-00a0c9c7b61a}"); // ASIO DirectX
-	blacklist << QLatin1String("{e3186861-3a74-11d1-aef8-0080ad153287}"); // ASIO Multimedia
-#ifdef QT_NO_DEBUG
-	blacklist << QLatin1String("{232685c6-6548-49d8-846d-4141a3ef7560}"); // ASIO4ALL
+	foreach (const QString &dev, qlInputDevs) {
+		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhInput.value(dev));
+		qlReturn << audioDevice(t, dev);
+	}
+
+	return qlReturn;
+}
+
+void ALSAAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsALSAInput = choice.toString();
+}
+
+bool ALSAAudioInputRegistrar::canEcho(const QString &) const {
+	return false;
+}
+
+ALSAAudioOutputRegistrar::ALSAAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("ALSA"), 5) {
+}
+
+AudioOutput *ALSAAudioOutputRegistrar::create() {
+	return new ALSAAudioOutput();
+}
+
+const QList< audioDevice > ALSAAudioOutputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
+
+	QStringList qlOutputDevs = cards->qhOutput.keys();
+	std::sort(qlOutputDevs.begin(), qlOutputDevs.end());
+
+	if (qlOutputDevs.contains(g.s.qsALSAOutput)) {
+		qlOutputDevs.removeAll(g.s.qsALSAOutput);
+		qlOutputDevs.prepend(g.s.qsALSAOutput);
+	}
+
+	foreach (const QString &dev, qlOutputDevs) {
+		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhOutput.value(dev));
+		qlReturn << audioDevice(t, dev);
+	}
+
+	return qlReturn;
+}
+
+void ALSAAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsALSAOutput = choice.toString();
+}
+
+ALSAEnumerator::ALSAEnumerator() {
+	QMutexLocker qml(&qmALSA);
+
+	qhInput.insert(QLatin1String("default"), ALSAAudioInput::tr("Default ALSA Card"));
+	qhOutput.insert(QLatin1String("default"), ALSAAudioOutput::tr("Default ALSA Card"));
+
+#if SND_LIB_VERSION >= 0x01000e
+	void **hints = nullptr;
+	void **hint;
+	snd_config_t *basic = nullptr;
+	int r;
+
+	snd_config_update();
+	r = snd_config_search(snd_config, "defaults.namehint.extended", &basic);
+	if ((r == 0) && basic) {
+		if (snd_config_set_ascii(basic, "on"))
+			qWarning("ALSAEnumerator: Failed to set namehint");
+	} else {
+		qWarning("ALSAEnumerator: Namehint not found");
+	}
+
+	r = snd_device_name_hint(-1, "pcm", &hints);
+
+	if (r || !hints) {
+		qWarning("ALSAEnumerator: snd_device_name_hint: %d", r);
+	} else {
+		hint = hints;
+		while (*hint) {
+			const QString name = getHint(*hint, "NAME");
+			const QString ioid = getHint(*hint, "IOID");
+			QString desc       = getHint(*hint, "DESC");
+
+			desc.replace(QLatin1Char('\n'), QLatin1Char(' '));
+
+
+			// ALSA, in it's infinite wisdom, claims "dmix" is an input/output device.
+			// Since there seems to be no way to fetch the ctl interface for a matching device string
+			// without actually opening it, we'll simply have to start guessing.
+
+			bool caninput  = (ioid.isNull() || (ioid.compare(QLatin1String("Input"), Qt::CaseInsensitive) == 0));
+			bool canoutput = (ioid.isNull() || (ioid.compare(QLatin1String("Output"), Qt::CaseInsensitive) == 0));
+
+			if (name.startsWith(QLatin1String("dmix:")))
+				caninput = false;
+			else if (name.startsWith(QLatin1String("dsnoop:")))
+				canoutput = false;
+
+			if (caninput)
+				qhInput.insert(name, desc);
+			if (canoutput)
+				qhOutput.insert(name, desc);
+
+			++hint;
+		}
+		snd_device_name_free_hint(hints);
+	}
+
+	snd_config_update_free_global();
+	snd_config_update();
+#else
+	int card = -1;
+	snd_card_next(&card);
+	while (card != -1) {
+		char *name;
+		snd_ctl_t *ctl = nullptr;
+		snd_card_get_longname(card, &name);
+		QByteArray dev = QString::fromLatin1("hw:%1").arg(card).toUtf8();
+		if (snd_ctl_open(&ctl, dev.data(), SND_CTL_READONLY) >= 0) {
+			snd_pcm_info_t *info = nullptr;
+			snd_pcm_info_malloc(&info);
+
+			char *cname = nullptr;
+			snd_card_get_name(card, &cname);
+
+			int device = -1;
+			snd_ctl_pcm_next_device(ctl, &device);
+
+			bool play = false;
+			bool cap  = false;
+
+			while (device != -1) {
+				QString devname = QString::fromLatin1("hw:%1,%2").arg(card).arg(device);
+				snd_pcm_info_set_device(info, device);
+				snd_pcm_info_set_stream(info, SND_PCM_STREAM_CAPTURE);
+				if (snd_ctl_pcm_info(ctl, info) == 0) {
+					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
+					qhInput.insert(devname, fname);
+					cap = true;
+				}
+
+				snd_pcm_info_set_stream(info, SND_PCM_STREAM_PLAYBACK);
+				if (snd_ctl_pcm_info(ctl, info) == 0) {
+					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
+					qhOutput.insert(devname, fname);
+					play = true;
+				}
+
+				snd_ctl_pcm_next_device(ctl, &device);
+			}
+			if (play) {
+				qhOutput.insert(QString::fromLatin1("dmix:CARD=%1").arg(card), QLatin1String(cname));
+			}
+			if (cap) {
+				qhInput.insert(QString::fromLatin1("dsnoop:CARD=%1").arg(card), QLatin1String(cname));
+			}
+			snd_pcm_info_free(info);
+			snd_ctl_close(ctl);
+		}
+		snd_card_next(&card);
+	}
 #endif
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\ASIO", 0, KEY_READ, &hkDevs) == ERROR_SUCCESS) {
-		DWORD idx        = 0;
-		DWORD keynamelen = 255;
-		WCHAR keyname[255];
-		while (RegEnumKeyEx(hkDevs, idx++, keyname, &keynamelen, nullptr, nullptr, nullptr, &ft) == ERROR_SUCCESS) {
-			QString name = QString::fromUtf16(reinterpret_cast< ushort * >(keyname), keynamelen);
-			if (RegOpenKeyEx(hkDevs, keyname, 0, KEY_READ, &hk) == ERROR_SUCCESS) {
-				DWORD dtype = REG_SZ;
-				WCHAR wclsid[255];
-				DWORD datasize = 255;
-				CLSID clsid;
-				if (RegQueryValueEx(hk, L"CLSID", 0, &dtype, reinterpret_cast< BYTE * >(wclsid), &datasize)
-					== ERROR_SUCCESS) {
-					if (datasize > 76)
-						datasize = 76;
-					QString qsCls =
-						QString::fromUtf16(reinterpret_cast< ushort * >(wclsid), datasize / 2).toLower().trimmed();
-					if (!blacklist.contains(qsCls.toLower()) && !FAILED(CLSIDFromString(wclsid, &clsid))) {
-						bFound = true;
-					}
-				}
-				RegCloseKey(hk);
-			}
-			keynamelen = 255;
-		}
-		RegCloseKey(hkDevs);
-	}
-
-	if (bFound) {
-		airASIO = new ASIOAudioInputRegistrar();
-		crASIO  = new ConfigRegistrar(2002, ASIOConfigDialogNew);
-	} else {
-		qWarning("ASIO: No valid devices found, disabling");
-	}
 }
 
-void ASIOInit::destroy() {
-	delete airASIO;
-	delete crASIO;
-}
-
-static class ASIOInit asioinit;
-
-ASIOInput *ASIOInput::aiSelf;
-
-ASIOConfig::ASIOConfig(Settings &st) : ConfigWidget(st) {
-	setupUi(this);
-
-	qcbDevice->setAccessibleName(tr("Device to use for microphone"));
-	qlwMic->setAccessibleName(tr("List of microphones"));
-	qlwSpeaker->setAccessibleName(tr("List of speakers"));
-
-	// List of devices known to misbehave or be totally useless
-	QStringList blacklist;
-	blacklist << QLatin1String("{a91eaba1-cf4c-11d3-b96a-00a0c9c7b61a}"); // ASIO DirectX
-	blacklist << QLatin1String("{e3186861-3a74-11d1-aef8-0080ad153287}"); // ASIO Multimedia
-#ifdef QT_NO_DEBUG
-	blacklist << QLatin1String("{232685c6-6548-49d8-846d-4141a3ef7560}"); // ASIO4ALL
+QString ALSAEnumerator::getHint(void *hint, const char *id) {
+	QString s;
+#if SND_LIB_VERSION >= 0x01000e
+	char *value = snd_device_name_get_hint(hint, id);
+	if (value) {
+		s = QLatin1String(value);
+		free(value);
+	}
 #endif
-	HKEY hkDevs;
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\ASIO", 0, KEY_READ, &hkDevs) == ERROR_SUCCESS) {
-		const DWORD keynamebufsize = 255;
-		WCHAR keyname[keynamebufsize];
-
-		FILETIME ft;
-		DWORD idx        = 0;
-		DWORD keynamelen = keynamebufsize;
-		while (RegEnumKeyEx(hkDevs, idx++, keyname, &keynamelen, nullptr, nullptr, nullptr, &ft) == ERROR_SUCCESS) {
-			QString name = QString::fromUtf16(reinterpret_cast< ushort * >(keyname), keynamelen);
-			HKEY hk;
-			if (RegOpenKeyEx(hkDevs, keyname, 0, KEY_READ, &hk) == ERROR_SUCCESS) {
-				DWORD dtype = REG_SZ;
-				WCHAR wclsid[255];
-				DWORD datasize = 255;
-				if (RegQueryValueEx(hk, L"CLSID", 0, &dtype, reinterpret_cast< BYTE * >(wclsid), &datasize)
-					== ERROR_SUCCESS) {
-					if (datasize > 76)
-						datasize = 76;
-					QString qsCls =
-						QString::fromUtf16(reinterpret_cast< ushort * >(wclsid), datasize / 2).toLower().trimmed();
-					CLSID clsid;
-					if (!blacklist.contains(qsCls) && !FAILED(CLSIDFromString(wclsid, &clsid))) {
-						ASIODev ad(name, qsCls);
-						qlDevs << ad;
-					}
-				}
-				RegCloseKey(hk);
-			}
-			keynamelen = keynamebufsize;
-		}
-		RegCloseKey(hkDevs);
-	}
-
-	bOk = false;
-
-	ASIODev ad;
-
-	foreach (ad, qlDevs) { qcbDevice->addItem(ad.first, QVariant(ad.second)); }
-
-	if (qlDevs.count() == 0) {
-		qpbQuery->setEnabled(false);
-		qpbConfig->setEnabled(false);
-	}
+	return s;
 }
 
-void ASIOConfig::on_qpbQuery_clicked() {
-	QString qsCls = qcbDevice->itemData(qcbDevice->currentIndex()).toString();
-	CLSID clsid;
-	IASIO *iasio;
 
-	clearQuery();
-
-	CLSIDFromString(const_cast< wchar_t * >(reinterpret_cast< const wchar_t * >(qsCls.utf16())), &clsid);
-	if (CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, clsid, reinterpret_cast< void ** >(&iasio)) == S_OK) {
-		SleepEx(10, false);
-		if (iasio->init(mumble_mw_hwnd)) {
-			SleepEx(10, false);
-			char buff[512];
-			memset(buff, 0, 512);
-
-			iasio->getDriverName(buff);
-			SleepEx(10, false);
-
-			long ver = iasio->getDriverVersion();
-			SleepEx(10, false);
-
-			ASIOSampleRate srate = 0.0;
-			iasio->setSampleRate(48000.0);
-			iasio->getSampleRate(&srate);
-			SleepEx(10, false);
-
-			long minSize, maxSize, prefSize, granSize;
-			iasio->getBufferSize(&minSize, &maxSize, &prefSize, &granSize);
-			SleepEx(10, false);
-
-			QString str = tr("%1 (version %2)").arg(QLatin1String(buff)).arg(ver);
-			qlName->setText(str);
-
-			str = tr("%1 -> %2 samples buffer, with %3 sample resolution (%4 preferred) at %5 Hz")
-					  .arg(minSize)
-					  .arg(maxSize)
-					  .arg(granSize)
-					  .arg(prefSize)
-					  .arg(srate, 0, 'f', 0);
-
-			qlBuffers->setText(str);
-
-			long ichannels, ochannels;
-			iasio->getChannels(&ichannels, &ochannels);
-			SleepEx(10, false);
-			long cnum;
-
-			bool match = (s.qsASIOclass == qsCls);
-
-			for (cnum = 0; cnum < ichannels; cnum++) {
-				ASIOChannelInfo aci;
-				aci.channel = cnum;
-				aci.isInput = true;
-				iasio->getChannelInfo(&aci);
-				SleepEx(10, false);
-				switch (aci.type) {
-					case ASIOSTFloat32LSB:
-					case ASIOSTInt32LSB:
-					case ASIOSTInt24LSB:
-					case ASIOSTInt16LSB: {
-						QListWidget *widget = qlwUnused;
-						QVariant v          = static_cast< int >(cnum);
-						if (match && s.qlASIOmic.contains(v))
-							widget = qlwMic;
-						else if (match && s.qlASIOspeaker.contains(v))
-							widget = qlwSpeaker;
-						QListWidgetItem *item = new QListWidgetItem(QLatin1String(aci.name), widget);
-						item->setData(Qt::UserRole, static_cast< int >(cnum));
-					} break;
-					default:
-						qWarning("ASIOInput: Channel %ld %s (Unusable format %ld)", cnum, aci.name, aci.type);
-				}
-			}
-
-			bOk = true;
-		} else {
-			SleepEx(10, false);
-			char err[255];
-			iasio->getErrorMessage(err);
-			SleepEx(10, false);
-			QMessageBox::critical(this, QLatin1String("Mumble"),
-								  tr("ASIO Initialization failed: %1").arg(QString::fromLatin1(err).toHtmlEscaped()),
-								  QMessageBox::Ok, QMessageBox::NoButton);
-		}
-		iasio->Release();
-	} else {
-		QMessageBox::critical(this, QLatin1String("Mumble"), tr("Failed to instantiate ASIO driver"), QMessageBox::Ok,
-							  QMessageBox::NoButton);
-	}
+ALSAAudioInput::ALSAAudioInput() {
+	bRunning = true;
 }
 
-void ASIOConfig::on_qpbConfig_clicked() {
-	QString qsCls = qcbDevice->itemData(qcbDevice->currentIndex()).toString();
-	CLSID clsid;
-	IASIO *iasio;
-
-	CLSIDFromString(const_cast< wchar_t * >(reinterpret_cast< const wchar_t * >(qsCls.utf16())), &clsid);
-	if (CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, clsid, reinterpret_cast< void ** >(&iasio)) == S_OK) {
-		SleepEx(10, false);
-		if (iasio->init(mumble_mw_hwnd)) {
-			SleepEx(10, false);
-			iasio->controlPanel();
-			SleepEx(10, false);
-		} else {
-			SleepEx(10, false);
-			char err[255];
-			iasio->getErrorMessage(err);
-			SleepEx(10, false);
-			QMessageBox::critical(this, QLatin1String("Mumble"),
-								  tr("ASIO Initialization failed: %1").arg(QString::fromLatin1(err).toHtmlEscaped()),
-								  QMessageBox::Ok, QMessageBox::NoButton);
-		}
-		iasio->Release();
-	} else {
-		QMessageBox::critical(this, QLatin1String("Mumble"), tr("Failed to instantiate ASIO driver"), QMessageBox::Ok,
-							  QMessageBox::NoButton);
-	}
-}
-
-void ASIOConfig::on_qcbDevice_activated(int) {
-	clearQuery();
-}
-
-void ASIOConfig::on_qpbAddMic_clicked() {
-	int row = qlwUnused->currentRow();
-	if (row < 0)
-		return;
-	qlwMic->addItem(qlwUnused->takeItem(row));
-}
-
-void ASIOConfig::on_qpbRemMic_clicked() {
-	int row = qlwMic->currentRow();
-	if (row < 0)
-		return;
-	qlwUnused->addItem(qlwMic->takeItem(row));
-}
-
-void ASIOConfig::on_qpbAddSpeaker_clicked() {
-	int row = qlwUnused->currentRow();
-	if (row < 0)
-		return;
-	qlwSpeaker->addItem(qlwUnused->takeItem(row));
-}
-
-void ASIOConfig::on_qpbRemSpeaker_clicked() {
-	int row = qlwSpeaker->currentRow();
-	if (row < 0)
-		return;
-	qlwUnused->addItem(qlwSpeaker->takeItem(row));
-}
-
-QString ASIOConfig::title() const {
-	return tr("ASIO");
-}
-
-const QString &ASIOConfig::getName() const {
-	return ASIOConfig::name;
-}
-
-QIcon ASIOConfig::icon() const {
-	return QIcon(QLatin1String("skin:config_asio.png"));
-}
-
-void ASIOConfig::save() const {
-	if (!bOk)
-		return;
-
-	s.qsASIOclass = qcbDevice->itemData(qcbDevice->currentIndex()).toString();
-
-	QList< QVariant > list;
-
-	for (int i = 0; i < qlwMic->count(); i++) {
-		QListWidgetItem *item = qlwMic->item(i);
-		list << item->data(Qt::UserRole);
-	}
-
-	s.qlASIOmic = list;
-
-	list.clear();
-
-	for (int i = 0; i < qlwSpeaker->count(); i++) {
-		QListWidgetItem *item = qlwSpeaker->item(i);
-		list << item->data(Qt::UserRole);
-	}
-
-	s.qlASIOspeaker = list;
-}
-
-void ASIOConfig::load(const Settings &r) {
-	int i = 0;
-	ASIODev ad;
-	foreach (ad, qlDevs) {
-		if (ad.second == r.qsASIOclass) {
-			loadComboBox(qcbDevice, i);
-		}
-		i++;
-	}
-	s.qlASIOmic     = r.qlASIOmic;
-	s.qlASIOspeaker = r.qlASIOspeaker;
-
-	qlName->setText(QString());
-	qlBuffers->setText(QString());
-	qlwMic->clear();
-	qlwUnused->clear();
-	qlwSpeaker->clear();
-}
-
-void ASIOConfig::clearQuery() {
-	bOk = false;
-	qlName->setText(QString());
-	qlBuffers->setText(QString());
-	qlwMic->clear();
-	qlwUnused->clear();
-	qlwSpeaker->clear();
-}
-
-ASIOInput::ASIOInput() {
-	QString qsCls = g.s.qsASIOclass;
-	CLSID clsid;
-
-	iasio   = nullptr;
-	abiInfo = nullptr;
-	aciInfo = nullptr;
-
-	// Sanity check things first.
-
-	iNumMic     = g.s.qlASIOmic.count();
-	iNumSpeaker = g.s.qlASIOspeaker.count();
-
-	if ((iNumMic == 0) || (iNumSpeaker == 0)) {
-		QMessageBox::warning(nullptr, QLatin1String("Mumble"),
-							 tr("You need to select at least one microphone and one speaker source to use ASIO."),
-							 QMessageBox::Ok, QMessageBox::NoButton);
-		return;
-	}
-
-	CLSIDFromString(const_cast< wchar_t * >(reinterpret_cast< const wchar_t * >(qsCls.utf16())), &clsid);
-	if (CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, clsid, reinterpret_cast< void ** >(&iasio)) == S_OK) {
-		if (iasio->init(nullptr)) {
-			iasio->setSampleRate(48000.0);
-			ASIOSampleRate srate = 0.0;
-			iasio->getSampleRate(&srate);
-
-			if (srate <= 0.0)
-				return;
-
-			long minSize, maxSize, prefSize, granSize;
-			iasio->getBufferSize(&minSize, &maxSize, &prefSize, &granSize);
-
-			bool halfit = true;
-
-			double wbuf  = (srate / 100.0);
-			long wantBuf = lround(wbuf);
-			lBufSize     = wantBuf;
-
-			if (static_cast< double >(wantBuf) == wbuf) {
-				qWarning("ASIOInput: Exact buffer match possible.");
-				if ((wantBuf >= minSize) && (wantBuf <= maxSize)) {
-					if (wantBuf == minSize)
-						halfit = false;
-					else if ((granSize >= 1) && (((wantBuf - minSize) % granSize) == 0))
-						halfit = false;
-				}
-			}
-
-			if (halfit) {
-				if (granSize == 0) {
-					qWarning("ASIOInput: Single buffer size");
-					lBufSize = minSize;
-				} else {
-					long target = wantBuf / 2;
-					lBufSize    = target;
-					while (lBufSize < target) {
-						if (granSize < 0)
-							lBufSize *= 2;
-						else
-							lBufSize += granSize;
-					}
-				}
-				qWarning("ASIOInput: Buffer mismatch mode. Wanted %li, got %li", wantBuf, lBufSize);
-			}
-
-
-			abiInfo = new ASIOBufferInfo[iNumMic + iNumSpeaker];
-			aciInfo = new ASIOChannelInfo[iNumMic + iNumSpeaker];
-
-			int i, idx = 0;
-			for (i = 0; i < iNumMic; i++) {
-				abiInfo[idx].isInput    = true;
-				abiInfo[idx].channelNum = g.s.qlASIOmic[i].toInt();
-
-				aciInfo[idx].channel = abiInfo[idx].channelNum;
-				aciInfo[idx].isInput = true;
-				iasio->getChannelInfo(&aciInfo[idx]);
-				SleepEx(10, false);
-
-				idx++;
-			}
-			for (i = 0; i < iNumSpeaker; i++) {
-				abiInfo[idx].isInput    = true;
-				abiInfo[idx].channelNum = g.s.qlASIOspeaker[i].toInt();
-
-				aciInfo[idx].channel = abiInfo[idx].channelNum;
-				aciInfo[idx].isInput = true;
-				iasio->getChannelInfo(&aciInfo[idx]);
-				SleepEx(10, false);
-
-				idx++;
-			}
-
-			iEchoChannels = iNumSpeaker;
-			iMicChannels  = iNumMic;
-			iEchoFreq = iMicFreq = iroundf(srate);
-
-			initializeMixer();
-
-			ASIOCallbacks asioCallbacks;
-			ZeroMemory(&asioCallbacks, sizeof(asioCallbacks));
-			asioCallbacks.bufferSwitch         = &bufferSwitch;
-			asioCallbacks.sampleRateDidChange  = &sampleRateChanged;
-			asioCallbacks.asioMessage          = &asioMessages;
-			asioCallbacks.bufferSwitchTimeInfo = &bufferSwitchTimeInfo;
-
-			if (iasio->createBuffers(abiInfo, idx, lBufSize, &asioCallbacks) == ASE_OK) {
-				bRunning = true;
-				return;
-			}
-		}
-	}
-
-	if (iasio) {
-		iasio->Release();
-		iasio = nullptr;
-	}
-
-	QMessageBox::critical(nullptr, QLatin1String("Mumble"),
-						  tr("Opening selected ASIO device failed. No input will be done."), QMessageBox::Ok,
-						  QMessageBox::NoButton);
-}
-
-ASIOInput::~ASIOInput() {
-	qwDone.wakeAll();
+ALSAAudioInput::~ALSAAudioInput() {
+	// Signal input thread to end
+	bRunning = false;
 	wait();
-	if (iasio) {
-		iasio->stop();
-		iasio->disposeBuffers();
-		iasio->Release();
-		iasio = nullptr;
+}
+
+#define ALSA_ERRBAIL(x)                                       \
+	if (!bOk) {                                               \
+	} else if ((err = static_cast< int >(x)) < 0) {           \
+		bOk = false;                                          \
+		qWarning("ALSAAudio: %s: %s", #x, snd_strerror(err)); \
+	}
+#define ALSA_ERRCHECK(x)                                                    \
+	if (!bOk) {                                                             \
+	} else if ((err = static_cast< int >(x)) < 0) {                         \
+		qWarning("ALSAAudio: Non-critical: %s: %s", #x, snd_strerror(err)); \
 	}
 
-	delete[] abiInfo;
-	abiInfo = nullptr;
+void ALSAAudioInput::run() {
+	QMutexLocker qml(&qmALSA);
+	snd_pcm_sframes_t readblapp;
 
-	delete[] aciInfo;
-	aciInfo = nullptr;
-}
+	QByteArray device_name         = g.s.qsALSAInput.toLatin1();
+	snd_pcm_hw_params_t *hw_params = nullptr;
+	snd_pcm_t *capture_handle      = nullptr;
 
-void ASIOInput::run() {
-	QMutex m;
-	m.lock();
-	if (iasio) {
-		aiSelf = this;
-		iasio->start();
-		qwDone.wait(&m);
+	unsigned int rrate = SAMPLE_RATE;
+	bool bOk           = true;
+
+	int err = 0;
+
+	unsigned int iChannels = 1;
+
+	qWarning("ALSAAudioInput: Initing audiocapture %s.", device_name.data());
+
+	snd_pcm_hw_params_alloca(&hw_params);
+
+	ALSA_ERRBAIL(snd_pcm_open(&capture_handle, device_name.data(), SND_PCM_STREAM_CAPTURE, 0));
+	ALSA_ERRCHECK(snd_pcm_hw_params_any(capture_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(capture_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(capture_handle, hw_params, SND_PCM_FORMAT_S16));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(capture_handle, hw_params, &rrate, nullptr));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(capture_handle, hw_params, &iChannels));
+
+	snd_pcm_uframes_t wantPeriod = (rrate * iFrameSize) / SAMPLE_RATE;
+	snd_pcm_uframes_t wantBuff   = wantPeriod * 8;
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(capture_handle, hw_params, &wantPeriod, nullptr));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(capture_handle, hw_params, &wantBuff));
+	ALSA_ERRBAIL(snd_pcm_hw_params(capture_handle, hw_params));
+
+	qWarning("ALSAAudioInput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels, wantBuff,
+			 wantPeriod);
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(capture_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iMicChannels));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &iMicFreq, nullptr));
+
+#ifdef ALSA_VERBOSE
+	snd_output_t *log;
+	snd_output_stdio_attach(&log, stderr, 0);
+	if (capture_handle)
+		snd_pcm_dump(capture_handle, log);
+#endif
+
+	ALSA_ERRBAIL(snd_pcm_prepare(capture_handle));
+	ALSA_ERRBAIL(snd_pcm_start(capture_handle));
+
+	if (!bOk) {
+		if (capture_handle) {
+			snd_pcm_drain(capture_handle);
+			snd_pcm_close(capture_handle);
+			capture_handle = nullptr;
+		}
+		g.mw->msgBox(
+			tr("Opening chosen ALSA Input failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
+		return;
 	}
-}
 
-ASIOTime *ASIOInput::bufferSwitchTimeInfo(ASIOTime *, long index, ASIOBool) {
-	aiSelf->bufferReady(index);
-	return 0L;
-}
+	eMicFormat = SampleShort;
+	initializeMixer();
 
-void ASIOInput::addBuffer(ASIOSampleType sampType, int interleave, void *src, float *RESTRICT dst) {
-	switch (sampType) {
-		case ASIOSTInt16LSB: {
-			const float m             = 1.0f / 32768.f;
-			const short *RESTRICT buf = static_cast< short * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = buf[i] * m;
-		} break;
-		case ASIOSTInt32LSB: {
-			const float m           = 1.0f / 2147483648.f;
-			const int *RESTRICT buf = static_cast< int * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = buf[i] * m;
-		} break;
-		case ASIOSTInt24LSB: {
-			const float m                     = 1.0f / static_cast< float >(0x7FFFFFFF - 0xFF);
-			const unsigned char *RESTRICT buf = static_cast< unsigned char * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = (buf[i * 3] << 24 | buf[i * 3 + 1] << 16 | buf[i * 3 + 2] << 8) * m;
-		} break;
-		case ASIOSTFloat32LSB: {
-			const float *RESTRICT buf = static_cast< float * >(src);
-			for (int i = 0; i < lBufSize; i++)
-				dst[i * interleave] = buf[i];
-		} break;
+	char inbuff[wantPeriod * iChannels * sizeof(short)];
+
+	qml.unlock();
+
+	while (bRunning) {
+#ifdef ALSA_VERBOSE
+		snd_pcm_status_malloc(&status);
+		snd_pcm_status(capture_handle, status);
+		snd_pcm_status_dump(status, log);
+		snd_pcm_status_free(status);
+#endif
+		readblapp = snd_pcm_readi(capture_handle, inbuff, static_cast< int >(wantPeriod));
+		if (readblapp == -ESTRPIPE) {
+			qWarning("ALSAAudioInput: PCM suspended, trying to resume");
+			while (bRunning && snd_pcm_resume(capture_handle) == -EAGAIN)
+				msleep(1000);
+			if ((err = snd_pcm_prepare(capture_handle)) < 0)
+				qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (readblapp == -EPIPE) {
+			err = snd_pcm_prepare(capture_handle);
+			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (readblapp < 0) {
+			err = snd_pcm_prepare(capture_handle);
+			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (wantPeriod == static_cast< unsigned int >(readblapp)) {
+			addMic(inbuff, static_cast< int >(readblapp));
+		}
 	}
+
+	snd_pcm_drop(capture_handle);
+	snd_pcm_close(capture_handle);
+
+	qWarning("ALSAAudioInput: Releasing ALSA Mic.");
 }
 
-void ASIOInput::bufferReady(long buffindex) {
-	STACKVAR(float, buffer, lBufSize *qMax(iNumMic, iNumSpeaker));
-
-	for (int c = 0; c < iNumSpeaker; ++c)
-		addBuffer(aciInfo[iNumMic + c].type, iNumSpeaker, abiInfo[iNumMic + c].buffers[buffindex], buffer + c);
-	addEcho(buffer, lBufSize);
-
-	for (int c = 0; c < iNumMic; ++c)
-		addBuffer(aciInfo[c].type, iNumMic, abiInfo[c].buffers[buffindex], buffer + c);
-	addMic(buffer, lBufSize);
+ALSAAudioOutput::ALSAAudioOutput() {
+	qWarning("ALSAAudioOutput: Initialized");
+	bRunning = true;
 }
 
-void ASIOInput::bufferSwitch(long index, ASIOBool processNow) {
-	ASIOTime timeInfo;
-	memset(&timeInfo, 0, sizeof(timeInfo));
-
-	if (aiSelf->iasio->getSamplePosition(&timeInfo.timeInfo.samplePosition, &timeInfo.timeInfo.systemTime) == ASE_OK)
-		timeInfo.timeInfo.flags = kSystemTimeValid | kSamplePositionValid;
-
-	bufferSwitchTimeInfo(&timeInfo, index, processNow);
+ALSAAudioOutput::~ALSAAudioOutput() {
+	bRunning = false;
+	// Call destructor of all children
+	wipe();
+	// Wait for terminate
+	wait();
+	qWarning("ALSAAudioOutput: Destroyed");
 }
 
-void ASIOInput::sampleRateChanged(ASIOSampleRate) {
-	qFatal("ASIOInput: sampleRateChanged");
-}
+void ALSAAudioOutput::run() {
+	QMutexLocker qml(&qmALSA);
+	snd_pcm_t *pcm_handle = nullptr;
+	struct pollfd fds[16];
+	int count;
+	bool stillRun = true;
+	int err       = 0;
+	bool bOk      = true;
 
-long ASIOInput::asioMessages(long selector, long value, void *, double *) {
-	long ret = 0;
-	switch (selector) {
-		case kAsioSelectorSupported:
-			if (value == kAsioResetRequest || value == kAsioEngineVersion || value == kAsioResyncRequest
-				|| value == kAsioLatenciesChanged || value == kAsioSupportsTimeInfo || value == kAsioSupportsTimeCode
-				|| value == kAsioSupportsInputMonitor)
-				ret = 1L;
-			break;
-		case kAsioResetRequest:
-			qFatal("ASIOInput: kAsioResetRequest");
-			ret = 1L;
-			break;
-		case kAsioResyncRequest:
-			ret = 1L;
-			break;
-		case kAsioLatenciesChanged:
-			ret = 1L;
-			break;
-		case kAsioEngineVersion:
-			ret = 2L;
-			break;
-		case kAsioSupportsTimeInfo:
-			ret = 1;
-			break;
-		case kAsioSupportsTimeCode:
-			ret = 0;
-			break;
+
+	snd_pcm_hw_params_t *hw_params = nullptr;
+	snd_pcm_sw_params_t *sw_params = nullptr;
+	QByteArray device_name         = g.s.qsALSAOutput.toLatin1();
+
+	snd_pcm_hw_params_alloca(&hw_params);
+	snd_pcm_sw_params_alloca(&sw_params);
+
+	ALSA_ERRBAIL(snd_pcm_open(&pcm_handle, device_name.data(), SND_PCM_STREAM_PLAYBACK, 0));
+	ALSA_ERRCHECK(snd_pcm_hw_params_any(pcm_handle, hw_params));
+
+	iChannels = 1;
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels_max(hw_params, &iChannels));
+	if (iChannels > 9) {
+		qWarning("ALSAAudioOutput: ALSA reports %d output channels. Clamping to 2.", iChannels);
+		iChannels = 2;
 	}
-	return ret;
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S16));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(pcm_handle, hw_params, &iChannels));
+	unsigned int rrate = SAMPLE_RATE;
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &rrate, nullptr));
+
+	unsigned int iOutputSize = (iFrameSize * rrate) / SAMPLE_RATE;
+
+	snd_pcm_uframes_t period_size = iOutputSize;
+	snd_pcm_uframes_t buffer_size = iOutputSize * (g.s.iOutputDelay + 1);
+
+	int dir = 1;
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(pcm_handle, hw_params, &period_size, &dir));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(pcm_handle, hw_params, &buffer_size));
+
+	ALSA_ERRBAIL(snd_pcm_hw_params(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_period_size(hw_params, &period_size, &dir));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size));
+
+	qWarning("ALSAAudioOutput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels,
+			 buffer_size, period_size);
+
+	ALSA_ERRBAIL(snd_pcm_sw_params_current(pcm_handle, sw_params));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, period_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_start_threshold(pcm_handle, sw_params, buffer_size - period_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_stop_threshold(pcm_handle, sw_params, buffer_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params(pcm_handle, sw_params));
+
+#ifdef ALSA_VERBOSE
+	snd_output_t *log;
+	snd_output_stdio_attach(&log, stderr, 0);
+	if (pcm_handle)
+		snd_pcm_dump(pcm_handle, log);
+#endif
+
+	ALSA_ERRBAIL(snd_pcm_prepare(pcm_handle));
+
+	const unsigned int buffsize = static_cast< unsigned int >(period_size * iChannels);
+
+	float zerobuff[buffsize];
+	float outbuff[buffsize];
+
+	for (unsigned int i = 0; i < buffsize; i++)
+		zerobuff[i] = 0;
+
+	// Fill buffer
+	if (bOk && pcm_handle)
+		for (unsigned int i = 0; i < buffer_size / period_size; i++)
+			snd_pcm_writei(pcm_handle, zerobuff, period_size);
+
+	if (!bOk) {
+		g.mw->msgBox(
+			tr("Opening chosen ALSA Output failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
+		if (pcm_handle) {
+			snd_pcm_close(pcm_handle);
+			pcm_handle = nullptr;
+		}
+		return;
+	}
+
+	const unsigned int chanmasks[32] = { SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT,  SPEAKER_BACK_LEFT,
+										 SPEAKER_BACK_RIGHT, SPEAKER_FRONT_CENTER, SPEAKER_LOW_FREQUENCY,
+										 SPEAKER_SIDE_LEFT,  SPEAKER_SIDE_RIGHT,   SPEAKER_BACK_CENTER };
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iChannels));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &rrate, nullptr));
+	iMixerFreq    = rrate;
+	eSampleFormat = SampleShort;
+
+	qWarning("ALSAAudioOutput: Initializing %d channel, %d hz mixer", iChannels, iMixerFreq);
+	initializeMixer(chanmasks);
+
+	count = snd_pcm_poll_descriptors_count(pcm_handle);
+	snd_pcm_poll_descriptors(pcm_handle, fds, count);
+
+	qml.unlock();
+
+	while (bRunning && bOk) {
+		poll(fds, count, 20);
+		unsigned short revents;
+
+		snd_pcm_poll_descriptors_revents(pcm_handle, fds, count, &revents);
+		if (revents & POLLERR) {
+			snd_pcm_prepare(pcm_handle);
+		} else if (revents & POLLOUT) {
+			snd_pcm_sframes_t avail{};
+			ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
+			while (avail >= static_cast< int >(period_size)) {
+				stillRun = mix(outbuff, static_cast< int >(period_size));
+				if (stillRun) {
+					snd_pcm_sframes_t w = 0;
+					ALSA_ERRCHECK(w = snd_pcm_writei(pcm_handle, outbuff, period_size));
+					if (w < 0) {
+						avail = w;
+						break;
+					}
+				} else
+					break;
+				ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
+			}
+
+			if (avail == -EPIPE) {
+				snd_pcm_drain(pcm_handle);
+				ALSA_ERRCHECK(snd_pcm_prepare(pcm_handle));
+				for (unsigned int i = 0; i < buffer_size / period_size; ++i)
+					ALSA_ERRCHECK(snd_pcm_writei(pcm_handle, zerobuff, period_size));
+			}
+
+			if (!stillRun) {
+				snd_pcm_drain(pcm_handle);
+
+				while (bRunning && !mix(outbuff, static_cast< unsigned int >(period_size))) {
+					this->msleep(10);
+				}
+
+				if (!bRunning)
+					break;
+
+				snd_pcm_prepare(pcm_handle);
+
+				// Fill one frame
+				for (unsigned int i = 0; i < (buffer_size / period_size) - 1; i++)
+					snd_pcm_writei(pcm_handle, zerobuff, period_size);
+
+				snd_pcm_writei(pcm_handle, outbuff, period_size);
+			}
+		}
+	}
+	snd_pcm_close(pcm_handle);
 }
