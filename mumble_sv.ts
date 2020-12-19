@@ -3,252 +3,272 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "BanEditor.h"
+#include "ConfigDialog.h"
 
-#include "Ban.h"
-#include "Channel.h"
-#include "ServerHandler.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "AudioInput.h"
+#include "AudioOutput.h"
 #include "Global.h"
 
-BanEditor::BanEditor(const MumbleProto::BanList &msg, QWidget *p) : QDialog(p), maskDefaultValue(32) {
+#include <QScrollArea>
+#include <QtCore/QMutexLocker>
+#include <QtGui/QScreen>
+#include <QtWidgets/QDesktopWidget>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+
+
+// init static member fields
+QMutex ConfigDialog::s_existingWidgetsMutex;
+QHash< QString, ConfigWidget * > ConfigDialog::s_existingWidgets;
+
+ConfigDialog::ConfigDialog(QWidget *p) : QDialog(p) {
 	setupUi(this);
 
-	qleSearch->setAccessibleName(tr("Search"));
-	qleUser->setAccessibleName(tr("User"));
-	qleIP->setAccessibleName(tr("IP Address"));
-	qsbMask->setAccessibleName(tr("Mask"));
-	qleReason->setAccessibleName(tr("Reason"));
-	qdteStart->setAccessibleName(tr("Start date/time"));
-	qdteEnd->setAccessibleName(tr("End date/time"));
-	qleHash->setAccessibleName(tr("Certificate hash"));
-	qlwBans->setAccessibleName(tr("Banned users"));
+	qlwIcons->setAccessibleName(tr("Configuration categories"));
 
-	qlwBans->setFocus();
-
-	qlBans.clear();
-	for (int i = 0; i < msg.bans_size(); ++i) {
-		const MumbleProto::BanList_BanEntry &be = msg.bans(i);
-		Ban b;
-		b.haAddress  = be.address();
-		b.iMask      = be.mask();
-		b.qsUsername = u8(be.name());
-		b.qsHash     = u8(be.hash());
-		b.qsReason   = u8(be.reason());
-		b.qdtStart   = QDateTime::fromString(u8(be.start()), Qt::ISODate);
-		b.qdtStart.setTimeSpec(Qt::UTC);
-		if (!b.qdtStart.isValid())
-			b.qdtStart = QDateTime::currentDateTime();
-		b.iDuration = be.duration();
-		if (b.isValid())
-			qlBans << b;
+	{
+		QMutexLocker lock(&s_existingWidgetsMutex);
+		s_existingWidgets.clear();
 	}
 
-	refreshBanList();
-}
 
-void BanEditor::accept() {
-	MumbleProto::BanList msg;
+	s = g.s;
 
-	foreach (const Ban &b, qlBans) {
-		MumbleProto::BanList_BanEntry *be = msg.add_bans();
-		be->set_address(b.haAddress.toStdString());
-		be->set_mask(b.iMask);
-		be->set_name(u8(b.qsUsername));
-		be->set_hash(u8(b.qsHash));
-		be->set_reason(u8(b.qsReason));
-		be->set_start(u8(b.qdtStart.toString(Qt::ISODate)));
-		be->set_duration(b.iDuration);
+	unsigned int idx = 0;
+	ConfigWidgetNew cwn;
+	foreach (cwn, *ConfigRegistrar::c_qmNew) {
+		ConfigWidget *cw = cwn(s);
+		{
+			QMutexLocker lock(&s_existingWidgetsMutex);
+			s_existingWidgets.insert(cw->getName(), cw);
+		}
+
+		addPage(cw, ++idx);
 	}
 
-	g.sh->sendMessage(msg);
-	QDialog::accept();
-}
+	updateListView();
 
-void BanEditor::on_qlwBans_currentRowChanged() {
-	int idx = qlwBans->currentRow();
-	if (idx < 0)
-		return;
+	QPushButton *okButton = dialogButtonBox->button(QDialogButtonBox::Ok);
+	okButton->setToolTip(tr("Accept changes"));
+	okButton->setWhatsThis(tr("This button will accept current settings and return to the application.<br />"
+							  "The settings will be stored to disk when you leave the application."));
 
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setEnabled(false);
-	qpbRemove->setEnabled(true);
+	QPushButton *cancelButton = dialogButtonBox->button(QDialogButtonBox::Cancel);
+	cancelButton->setToolTip(tr("Reject changes"));
+	cancelButton->setWhatsThis(tr("This button will reject all changes and return to the application.<br />"
+								  "The settings will be reset to the previous positions."));
 
-	const Ban &ban = qlBans.at(idx);
+	QPushButton *applyButton = dialogButtonBox->button(QDialogButtonBox::Apply);
+	applyButton->setToolTip(tr("Apply changes"));
+	applyButton->setWhatsThis(tr("This button will immediately apply all changes."));
 
-	int maskbits = ban.iMask;
+	QPushButton *resetButton = pageButtonBox->addButton(QDialogButtonBox::Reset);
+	resetButton->setToolTip(tr("Undo changes for current page"));
+	resetButton->setWhatsThis(
+		tr("This button will revert any changes done on the current page to the most recent applied settings."));
 
-	const QHostAddress &addr = ban.haAddress.toAddress();
-	qleIP->setText(addr.toString());
-	if (!ban.haAddress.isV6())
-		maskbits -= 96;
-	qsbMask->setValue(maskbits);
-	qleUser->setText(ban.qsUsername);
-	qleHash->setText(ban.qsHash);
-	qleReason->setText(ban.qsReason);
-	qdteStart->setDateTime(ban.qdtStart.toLocalTime());
-	qdteEnd->setDateTime(ban.qdtStart.toLocalTime().addSecs(ban.iDuration));
-}
+	QPushButton *restoreButton = pageButtonBox->addButton(QDialogButtonBox::RestoreDefaults);
+	restoreButton->setToolTip(tr("Restore defaults for current page"));
+	restoreButton->setWhatsThis(
+		tr("This button will restore the defaults for the settings on the current page. Other pages will not be "
+		   "changed.<br />"
+		   "To restore all settings to their defaults, you can press the \"Defaults (All)\" button."));
 
-Ban BanEditor::toBan(bool &ok) {
-	Ban b;
+	QPushButton *restoreAllButton =
+		pageButtonBox->addButton(QString::fromLatin1("Defaults (All)"), QDialogButtonBox::ResetRole);
+	restoreAllButton->setToolTip(tr("Restore all defaults"));
+	restoreAllButton->setWhatsThis(tr("This button will restore the defaults for all settings."));
 
-	QHostAddress addr;
-
-	ok = addr.setAddress(qleIP->text());
-
-	if (ok) {
-		b.haAddress = addr;
-		b.iMask     = qsbMask->value();
-		if (!b.haAddress.isV6())
-			b.iMask += 96;
-		b.qsUsername          = qleUser->text();
-		b.qsHash              = qleHash->text();
-		b.qsReason            = qleReason->text();
-		b.qdtStart            = qdteStart->dateTime().toUTC();
-		const QDateTime &qdte = qdteEnd->dateTime();
-
-		if (qdte <= b.qdtStart)
-			b.iDuration = 0;
-		else
-			b.iDuration = static_cast< unsigned int >(b.qdtStart.secsTo(qdte));
-
-		ok = b.isValid();
+	if (!g.s.qbaConfigGeometry.isEmpty()) {
+#ifdef USE_OVERLAY
+		if (!g.ocIntercept)
+#endif
+			restoreGeometry(g.s.qbaConfigGeometry);
 	}
-	return b;
 }
 
-void BanEditor::on_qpbAdd_clicked() {
-	bool ok;
+void ConfigDialog::addPage(ConfigWidget *cw, unsigned int idx) {
+	int w = INT_MAX, h = INT_MAX;
 
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-
-	Ban b = toBan(ok);
-
-	if (ok) {
-		qlBans << b;
-		refreshBanList();
-		qlwBans->setCurrentRow(qlBans.indexOf(b));
-	}
-
-	qlwBans->setCurrentRow(-1);
-	qleSearch->clear();
-}
-
-void BanEditor::on_qpbUpdate_clicked() {
-	int idx = qlwBans->currentRow();
-	if (idx >= 0) {
-		bool ok;
-		Ban b = toBan(ok);
-		if (ok) {
-			qlBans.replace(idx, b);
-			refreshBanList();
-			qlwBans->setCurrentRow(qlBans.indexOf(b));
+	const QList< QScreen * > screens = qApp->screens();
+	for (int i = 0; i < screens.size(); ++i) {
+		const QRect ds = screens[i]->availableGeometry();
+		if (ds.isValid()) {
+			w = qMin(w, ds.width());
+			h = qMin(h, ds.height());
 		}
 	}
+
+	QSize ms = cw->minimumSizeHint();
+	cw->resize(ms);
+	cw->setMinimumSize(ms);
+
+	ms.rwidth() += 128;
+	ms.rheight() += 192;
+	if ((ms.width() > w) || (ms.height() > h)) {
+		QScrollArea *qsa = new QScrollArea();
+		qsa->setFrameShape(QFrame::NoFrame);
+		qsa->setWidgetResizable(true);
+		qsa->setWidget(cw);
+		qhPages.insert(cw, qsa);
+		qswPages->addWidget(qsa);
+	} else {
+		qhPages.insert(cw, cw);
+		qswPages->addWidget(cw);
+	}
+	qmWidgets.insert(idx, cw);
+	cw->load(g.s);
 }
 
-void BanEditor::on_qpbRemove_clicked() {
-	int idx = qlwBans->currentRow();
-	if (idx >= 0)
-		qlBans.removeAt(idx);
-	refreshBanList();
-
-	qlwBans->setCurrentRow(-1);
-	qleUser->clear();
-	qleIP->clear();
-	qleReason->clear();
-	qsbMask->setValue(maskDefaultValue);
-	qleHash->clear();
-
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-	qdteEnd->setDateTime(QDateTime::currentDateTime());
-
-	qpbRemove->setDisabled(true);
-	qpbAdd->setDisabled(true);
-}
-
-void BanEditor::refreshBanList() {
-	qlwBans->clear();
-
-	std::sort(qlBans.begin(), qlBans.end());
-
-	foreach (const Ban &ban, qlBans) {
-		const QHostAddress &addr = ban.haAddress.toAddress();
-		if (ban.qsUsername.isEmpty())
-			qlwBans->addItem(addr.toString());
-		else
-			qlwBans->addItem(ban.qsUsername);
+ConfigDialog::~ConfigDialog() {
+	{
+		QMutexLocker lock(&s_existingWidgetsMutex);
+		s_existingWidgets.clear();
 	}
 
-	int n = qlBans.count();
-	setWindowTitle(tr("Ban List - %n Ban(s)", "", n));
+	foreach (QWidget *qw, qhPages)
+		delete qw;
 }
 
-void BanEditor::on_qleSearch_textChanged(const QString &match) {
-	qlwBans->clearSelection();
+ConfigWidget *ConfigDialog::getConfigWidget(const QString &name) {
+	QMutexLocker lock(&s_existingWidgetsMutex);
 
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setDisabled(true);
-	qpbRemove->setDisabled(true);
+	return s_existingWidgets.value(name, nullptr);
+}
 
-	qleUser->clear();
-	qleIP->clear();
-	qleReason->clear();
-	qsbMask->setValue(maskDefaultValue);
-	qleHash->clear();
+void ConfigDialog::on_pageButtonBox_clicked(QAbstractButton *b) {
+	ConfigWidget *conf = qobject_cast< ConfigWidget * >(qswPages->currentWidget());
+	if (!conf) {
+		QScrollArea *qsa = qobject_cast< QScrollArea * >(qswPages->currentWidget());
+		if (qsa)
+			conf = qobject_cast< ConfigWidget * >(qsa->widget());
+	}
+	if (!conf)
+		return;
+	switch (pageButtonBox->standardButton(b)) {
+		case QDialogButtonBox::RestoreDefaults: {
+			Settings def;
+			conf->load(def);
+			break;
+		}
+		case QDialogButtonBox::Reset: {
+			conf->load(g.s);
+			break;
+		}
+		// standardButton returns NoButton for any custom buttons. The only custom button
+		// in the pageButtonBox is the one for resetting all settings.
+		case QDialogButtonBox::NoButton: {
+			// Ask for confirmation before resetting **all** settings
+			QMessageBox msgBox;
+			msgBox.setIcon(QMessageBox::Question);
+			msgBox.setText(QObject::tr("Reset all settings?"));
+			msgBox.setInformativeText(QObject::tr("Do you really want to reset all settings (not only the ones currently visible) to their default value?"));
+			msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+			msgBox.setDefaultButton(QMessageBox::No);
 
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-	qdteEnd->setDateTime(QDateTime::currentDateTime());
-
-	foreach (QListWidgetItem *item, qlwBans->findItems(QString(), Qt::MatchContains)) {
-		if (!item->text().contains(match, Qt::CaseInsensitive))
-			item->setHidden(true);
-		else
-			item->setHidden(false);
+			if (msgBox.exec() == QMessageBox::Yes) {
+				Settings defaultSetting;
+				foreach (ConfigWidget *cw, qmWidgets) {
+					cw->load(defaultSetting);
+				}
+			}
+			break;
+		}
+		default:
+			break;
 	}
 }
 
-void BanEditor::on_qleIP_textChanged(QString) {
-	qpbAdd->setEnabled(qleIP->isModified());
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleIP->isModified());
+void ConfigDialog::on_dialogButtonBox_clicked(QAbstractButton *b) {
+	switch (dialogButtonBox->standardButton(b)) {
+		case QDialogButtonBox::Apply: {
+			apply();
+			break;
+		}
+		default:
+			break;
+	}
 }
 
-void BanEditor::on_qleReason_textChanged(QString) {
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleReason->isModified());
+void ConfigDialog::on_qlwIcons_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous) {
+	if (!current)
+		current = previous;
+
+	if (current) {
+		QWidget *w = qhPages.value(qmIconWidgets.value(current));
+		if (w)
+			qswPages->setCurrentWidget(w);
+	}
 }
 
-void BanEditor::on_qdteEnd_editingFinished() {
-	qpbUpdate->setEnabled(!qleIP->text().isEmpty());
-	qpbRemove->setDisabled(true);
+void ConfigDialog::updateListView() {
+	QWidget *ccw         = qmIconWidgets.value(qlwIcons->currentItem());
+	QListWidgetItem *sel = nullptr;
+
+	qmIconWidgets.clear();
+	qlwIcons->clear();
+
+	QFontMetrics qfm(qlwIcons->font());
+	int configNavbarWidth = 0;
+
+	foreach (ConfigWidget *cw, qmWidgets) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+		configNavbarWidth = qMax(configNavbarWidth, qfm.horizontalAdvance(cw->title()));
+#else
+		configNavbarWidth = qMax(configNavbarWidth, qfm.width(cw->title()));
+#endif
+
+		QListWidgetItem *i = new QListWidgetItem(qlwIcons);
+		i->setIcon(cw->icon());
+		i->setText(cw->title());
+		i->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+
+		qmIconWidgets.insert(i, cw);
+		if (cw == ccw)
+			sel = i;
+	}
+
+	// Add space for icon and some padding.
+	configNavbarWidth += qlwIcons->iconSize().width() + 25;
+
+	qlwIcons->setMinimumWidth(configNavbarWidth);
+	qlwIcons->setMaximumWidth(configNavbarWidth);
+
+	if (sel)
+		qlwIcons->setCurrentItem(sel);
+	else
+		qlwIcons->setCurrentRow(0);
 }
 
-void BanEditor::on_qleUser_textChanged(QString) {
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleUser->isModified());
+void ConfigDialog::apply() {
+	Audio::stop();
+
+	foreach (ConfigWidget *cw, qmWidgets)
+		cw->save();
+
+	g.s = s;
+
+	foreach (ConfigWidget *cw, qmWidgets)
+		cw->accept();
+
+	if (!g.s.bAttenuateOthersOnTalk)
+		g.bAttenuateOthers = false;
+
+	// They might have changed their keys.
+	g.iPushToTalk = 0;
+
+	Audio::start();
+
+	emit settingsAccepted();
 }
 
-void BanEditor::on_qleHash_textChanged(QString) {
-	if (qlwBans->currentRow() >= 0)
-		qpbUpdate->setEnabled(qleHash->isModified());
-}
+void ConfigDialog::accept() {
+	apply();
 
-void BanEditor::on_qpbClear_clicked() {
-	qlwBans->setCurrentRow(-1);
-	qleUser->clear();
-	qleIP->clear();
-	qleReason->clear();
-	qsbMask->setValue(maskDefaultValue);
-	qleHash->clear();
+#ifdef USE_OVERLAY
+	if (!g.ocIntercept)
+#endif
+		g.s.qbaConfigGeometry = saveGeometry();
 
-	qdteStart->setDateTime(QDateTime::currentDateTime());
-	qdteEnd->setDateTime(QDateTime::currentDateTime());
-
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setDisabled(true);
-	qpbRemove->setDisabled(true);
+	QDialog::accept();
 }
