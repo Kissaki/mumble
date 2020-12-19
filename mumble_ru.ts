@@ -3,434 +3,320 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "LCD.h"
+#include "SocketRPC.h"
 
 #include "Channel.h"
 #include "ClientUser.h"
-#include "Message.h"
+#include "MainWindow.h"
 #include "ServerHandler.h"
-#include "Utils.h"
 
-#include <QtGui/QPainter>
+#include <QtCore/QProcessEnvironment>
+#include <QtCore/QUrlQuery>
+#include <QtNetwork/QLocalServer>
+#include <QtXml/QDomDocument>
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-const QString LCDConfig::name = QLatin1String("LCDConfig");
+SocketRPCClient::SocketRPCClient(QLocalSocket *s, QObject *p) : QObject(p), qlsSocket(s), qbBuffer(nullptr) {
+	qlsSocket->setParent(this);
 
-QList< LCDEngineNew > *LCDEngineRegistrar::qlInitializers;
+	connect(qlsSocket, SIGNAL(disconnected()), this, SLOT(disconnected()));
+	connect(qlsSocket, SIGNAL(error(QLocalSocket::LocalSocketError)), this,
+			SLOT(error(QLocalSocket::LocalSocketError)));
+	connect(qlsSocket, SIGNAL(readyRead()), this, SLOT(readyRead()));
 
-LCDEngineRegistrar::LCDEngineRegistrar(LCDEngineNew cons) {
-	if (!qlInitializers)
-		qlInitializers = new QList< LCDEngineNew >();
-	n = cons;
-	qlInitializers->append(n);
+	qxsrReader.setDevice(qlsSocket);
+	qxswWriter.setAutoFormatting(true);
+
+	qbBuffer = new QBuffer(&qbaOutput, this);
+	qbBuffer->open(QIODevice::WriteOnly);
+	qxswWriter.setDevice(qbBuffer);
 }
 
-LCDEngineRegistrar::~LCDEngineRegistrar() {
-	qlInitializers->removeAll(n);
-	if (qlInitializers->isEmpty()) {
-		delete qlInitializers;
-		qlInitializers = nullptr;
-	}
+void SocketRPCClient::disconnected() {
+	deleteLater();
 }
 
-static ConfigWidget *LCDConfigDialogNew(Settings &st) {
-	return new LCDConfig(st);
+void SocketRPCClient::error(QLocalSocket::LocalSocketError) {
 }
 
-class LCDDeviceManager : public DeferInit {
-protected:
-	ConfigRegistrar *crLCD;
+void SocketRPCClient::readyRead() {
+	forever {
+		switch (qxsrReader.readNext()) {
+			case QXmlStreamReader::Invalid: {
+				if (qxsrReader.error() != QXmlStreamReader::PrematureEndOfDocumentError) {
+					qWarning() << "Malformed" << qxsrReader.error();
+					qlsSocket->abort();
+				}
+				return;
+			} break;
+			case QXmlStreamReader::EndDocument: {
+				qxswWriter.writeCurrentToken(qxsrReader);
 
-public:
-	QList< LCDEngine * > qlEngines;
-	QList< LCDDevice * > qlDevices;
-	void initialize();
-	void destroy();
-};
+				processXml();
 
-void LCDDeviceManager::initialize() {
-	if (LCDEngineRegistrar::qlInitializers) {
-		foreach (LCDEngineNew engine, *LCDEngineRegistrar::qlInitializers) {
-			LCDEngine *e = engine();
-			qlEngines.append(e);
+				qxsrReader.clear();
+				qxsrReader.setDevice(qlsSocket);
 
-			foreach (LCDDevice *d, e->devices()) { qlDevices << d; }
-		}
-	}
-	if (qlDevices.count() > 0) {
-		crLCD = new ConfigRegistrar(5900, LCDConfigDialogNew);
-	} else {
-		crLCD = nullptr;
-	}
-}
-
-void LCDDeviceManager::destroy() {
-	qlDevices.clear();
-	foreach (LCDEngine *e, qlEngines) { delete e; }
-	delete crLCD;
-}
-
-static LCDDeviceManager devmgr;
-
-/* --- */
-
-
-LCDConfig::LCDConfig(Settings &st) : ConfigWidget(st) {
-	setupUi(this);
-	qtwDevices->setAccessibleName(tr("Devices"));
-	qsMinColWidth->setAccessibleName(tr("Minimum column width"));
-	qsSplitterWidth->setAccessibleName(tr("Splitter width"));
-
-	QTreeWidgetItem *qtwi;
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		qtwi = new QTreeWidgetItem(qtwDevices);
-
-		qtwi->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
-
-		qtwi->setText(0, d->name());
-		qtwi->setToolTip(0, d->name().toHtmlEscaped());
-
-		QSize lcdsize  = d->size();
-		QString qsSize = QString::fromLatin1("%1x%2").arg(lcdsize.width()).arg(lcdsize.height());
-		qtwi->setText(1, qsSize);
-		qtwi->setToolTip(1, qsSize);
-
-		qtwi->setCheckState(2, Qt::Unchecked);
-		qtwi->setToolTip(2, tr("Enable this device"));
-	}
-}
-
-QString LCDConfig::title() const {
-	return tr("LCD");
-}
-
-const QString &LCDConfig::getName() const {
-	return LCDConfig::name;
-}
-
-QIcon LCDConfig::icon() const {
-	return QIcon(QLatin1String("skin:config_lcd.png"));
-}
-
-void LCDConfig::load(const Settings &r) {
-	QList< QTreeWidgetItem * > qlItems = qtwDevices->findItems(QString(), Qt::MatchContains);
-	foreach (QTreeWidgetItem *qtwi, qlItems) {
-		QString qsName = qtwi->text(0);
-		bool enabled   = r.qmLCDDevices.contains(qsName) ? r.qmLCDDevices.value(qsName) : true;
-		qtwi->setCheckState(2, enabled ? Qt::Checked : Qt::Unchecked);
-	}
-
-	loadSlider(qsMinColWidth, r.iLCDUserViewMinColWidth);
-	loadSlider(qsSplitterWidth, r.iLCDUserViewSplitterWidth);
-}
-
-void LCDConfig::save() const {
-	QList< QTreeWidgetItem * > qlItems = qtwDevices->findItems(QString(), Qt::MatchContains);
-
-	foreach (QTreeWidgetItem *qtwi, qlItems) {
-		QString qsName = qtwi->text(0);
-		s.qmLCDDevices.insert(qsName, qtwi->checkState(2) == Qt::Checked);
-	}
-
-	s.iLCDUserViewMinColWidth   = qsMinColWidth->value();
-	s.iLCDUserViewSplitterWidth = qsSplitterWidth->value();
-}
-
-void LCDConfig::accept() const {
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		bool enabled = s.qmLCDDevices.value(d->name());
-		d->setEnabled(enabled);
-	}
-	g.lcd->updateUserView();
-}
-
-void LCDConfig::on_qsMinColWidth_valueChanged(int v) {
-	qlMinColWidth->setText(QString::number(v));
-}
-
-void LCDConfig::on_qsSplitterWidth_valueChanged(int v) {
-	qlSplitterWidth->setText(QString::number(v));
-}
-
-/* --- */
-
-LCD::LCD() : QObject() {
-#ifdef Q_OS_MAC
-	qfNormal.setStyleStrategy(QFont::NoAntialias);
-	qfNormal.setKerning(false);
-	qfNormal.setPointSize(10);
-	qfNormal.setFixedPitch(true);
-	qfNormal.setFamily(QString::fromLatin1("Andale Mono"));
-#else
-	qfNormal = QFont(QString::fromLatin1("Arial"), 7);
-#endif
-
-	qfItalic = qfNormal;
-	qfItalic.setItalic(true);
-
-	qfBold = qfNormal;
-	qfBold.setWeight(QFont::Black);
-
-	qfItalicBold = qfBold;
-	qfItalic.setItalic(true);
-
-	QFontMetrics qfm(qfNormal);
-
-	iFontHeight = 10;
-
-	initBuffers();
-
-	iFrameIndex = 0;
-
-	qtTimer = new QTimer(this);
-	connect(qtTimer, SIGNAL(timeout()), this, SLOT(tick()));
-
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		bool enabled = g.s.qmLCDDevices.contains(d->name()) ? g.s.qmLCDDevices.value(d->name()) : true;
-		d->setEnabled(enabled);
-	}
-	qiLogo = QIcon(QLatin1String("skin:mumble.svg")).pixmap(48, 48).toImage().convertToFormat(QImage::Format_MonoLSB);
-
-#if QT_VERSION >= 0x050600 && QT_VERSION <= 0x050601
-	// Don't invert the logo image when using Qt 5.6.
-	// See mumble-voip/mumble#2429
-#else
-	qiLogo.invertPixels();
-#endif
-
-	updateUserView();
-}
-
-void LCD::tick() {
-	iFrameIndex++;
-	updateUserView();
-}
-
-void LCD::initBuffers() {
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		QSize size = d->size();
-		if (!qhImageBuffers.contains(size)) {
-			size_t buflen        = (size.width() * size.height()) / 8;
-			qhImageBuffers[size] = new unsigned char[buflen];
-			qhImages[size] = new QImage(qhImageBuffers[size], size.width(), size.height(), QImage::Format_MonoLSB);
+				qxswWriter.setDevice(nullptr);
+				delete qbBuffer;
+				qbaOutput = QByteArray();
+				qbBuffer  = new QBuffer(&qbaOutput, this);
+				qbBuffer->open(QIODevice::WriteOnly);
+				qxswWriter.setDevice(qbBuffer);
+			} break;
+			default:
+				qxswWriter.writeCurrentToken(qxsrReader);
+				break;
 		}
 	}
 }
 
-void LCD::destroyBuffers() {
-	foreach (QImage *img, qhImages)
-		delete img;
-	qhImages.clear();
+void SocketRPCClient::processXml() {
+	QDomDocument qdd;
+	qdd.setContent(qbaOutput, false);
 
-	foreach (unsigned char *buf, qhImageBuffers)
-		delete[] buf;
-	qhImageBuffers.clear();
-}
+	QDomElement request = qdd.firstChildElement();
 
-struct ListEntry {
-	QString qsString;
-	bool bBold;
-	bool bItalic;
-	ListEntry(const QString &qs, bool bB, bool bI) : qsString(qs), bBold(bB), bItalic(bI){};
-};
+	if (!request.isNull()) {
+		bool ack = false;
+		QMap< QString, QVariant > qmRequest;
+		QMap< QString, QVariant > qmReply;
+		QMap< QString, QVariant >::const_iterator iter;
 
-static bool entriesSort(const ListEntry &a, const ListEntry &b) {
-	return a.qsString < b.qsString;
-}
-
-void LCD::updateUserView() {
-	if (qhImages.count() == 0)
-		return;
-
-	QStringList qslTalking;
-	User *me      = g.uiSession ? ClientUser::get(g.uiSession) : nullptr;
-	Channel *home = me ? me->cChannel : nullptr;
-	bool alert    = false;
-
-	foreach (const QSize &size, qhImages.keys()) {
-		QImage *img = qhImages.value(size);
-		QPainter painter(img);
-		painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing, false);
-
-#if QT_VERSION >= 0x050600 && QT_VERSION <= 0x050601
-		// Use Qt::white instead of Qt::color1 on Qt 5.6.
-		// See mumble-voip/mumble#2429
-		painter.setPen(Qt::white);
-#else
-		painter.setPen(Qt::color1);
-#endif
-
-		painter.setFont(qfNormal);
-
-		img->fill(Qt::color0);
-
-		if (!me) {
-			qmNew.clear();
-			qmOld.clear();
-			qmSpeaking.clear();
-			qmNameCache.clear();
-			painter.drawImage(0, 0, qiLogo);
-			painter.drawText(60, 20, tr("Not connected"));
-			continue;
+		QDomNamedNodeMap attributes = request.attributes();
+		for (int i = 0; i < attributes.count(); ++i) {
+			QDomAttr attr = attributes.item(i).toAttr();
+			qmRequest.insert(attr.name(), attr.value());
+		}
+		QDomNodeList childNodes = request.childNodes();
+		for (int i = 0; i < childNodes.count(); ++i) {
+			QDomElement child = childNodes.item(i).toElement();
+			if (!child.isNull())
+				qmRequest.insert(child.nodeName(), child.text());
 		}
 
-		foreach (User *p, me->cChannel->qlUsers) {
-			if (!qmNew.contains(p->uiSession)) {
-				qmNew.insert(p->uiSession, Timer());
-				qmNameCache.insert(p->uiSession, p->qsName);
-				qmOld.remove(p->uiSession);
+		iter = qmRequest.find(QLatin1String("reqid"));
+		if (iter != qmRequest.constEnd())
+			qmReply.insert(iter.key(), iter.value());
+
+		if (request.nodeName() == QLatin1String("focus")) {
+			g.mw->show();
+			g.mw->raise();
+			g.mw->activateWindow();
+
+			ack = true;
+		} else if (request.nodeName() == QLatin1String("self")) {
+			iter = qmRequest.find(QLatin1String("mute"));
+			if (iter != qmRequest.constEnd()) {
+				bool set = iter.value().toBool();
+				if (set != g.s.bMute) {
+					g.mw->qaAudioMute->setChecked(!set);
+					g.mw->qaAudioMute->trigger();
+				}
 			}
-		}
-
-		foreach (unsigned int session, qmNew.keys()) {
-			User *p = ClientUser::get(session);
-			if (!p || (p->cChannel != me->cChannel)) {
-				qmNew.remove(session);
-				qmOld.insert(session, Timer());
+			iter = qmRequest.find(QLatin1String("unmute"));
+			if (iter != qmRequest.constEnd()) {
+				bool set = iter.value().toBool();
+				if (set == g.s.bMute) {
+					g.mw->qaAudioMute->setChecked(set);
+					g.mw->qaAudioMute->trigger();
+				}
 			}
-		}
+			iter = qmRequest.find(QLatin1String("togglemute"));
+			if (iter != qmRequest.constEnd()) {
+				bool set = iter.value().toBool();
+				if (set == g.s.bMute) {
+					g.mw->qaAudioMute->setChecked(set);
+					g.mw->qaAudioMute->trigger();
+				} else {
+					g.mw->qaAudioMute->setChecked(!set);
+					g.mw->qaAudioMute->trigger();
+				}
+			}
+			iter = qmRequest.find(QLatin1String("deaf"));
+			if (iter != qmRequest.constEnd()) {
+				bool set = iter.value().toBool();
+				if (set != g.s.bDeaf) {
+					g.mw->qaAudioDeaf->setChecked(!set);
+					g.mw->qaAudioDeaf->trigger();
+				}
+			}
+			iter = qmRequest.find(QLatin1String("undeaf"));
+			if (iter != qmRequest.constEnd()) {
+				bool set = iter.value().toBool();
+				if (set == g.s.bDeaf) {
+					g.mw->qaAudioDeaf->setChecked(set);
+					g.mw->qaAudioDeaf->trigger();
+				}
+			}
+			iter = qmRequest.find(QLatin1String("toggledeaf"));
+			if (iter != qmRequest.constEnd()) {
+				bool set = iter.value().toBool();
+				if (set == g.s.bDeaf) {
+					g.mw->qaAudioDeaf->setChecked(set);
+					g.mw->qaAudioDeaf->trigger();
+				} else {
+					g.mw->qaAudioDeaf->setChecked(!set);
+					g.mw->qaAudioDeaf->trigger();
+				}
+			}
+			ack = true;
+		} else if (request.nodeName() == QLatin1String("url")) {
+			if (g.sh && g.sh->isRunning() && g.uiSession) {
+				QString host, user, pw;
+				unsigned short port;
+				QUrl u;
 
-		QMap< unsigned int, Timer > old;
+				g.sh->getConnectionInfo(host, port, user, pw);
+				u.setScheme(QLatin1String("mumble"));
+				u.setHost(host);
+				u.setPort(port);
+				u.setUserName(user);
 
-		foreach (unsigned int session, qmOld.keys()) {
-			Timer t = qmOld.value(session);
-			if (t.elapsed() > 3000000) {
-				qmNameCache.remove(session);
+				QUrlQuery query;
+				query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
+				u.setQuery(query);
+
+				QStringList path;
+				Channel *c = ClientUser::get(g.uiSession)->cChannel;
+				while (c->cParent) {
+					path.prepend(c->qsName);
+					c = c->cParent;
+				}
+				u.setPath(path.join(QLatin1String("/")));
+				qmReply.insert(QLatin1String("href"), u);
+			}
+
+			iter = qmRequest.find(QLatin1String("href"));
+			if (iter != qmRequest.constEnd()) {
+				QUrl u = iter.value().toUrl();
+				if (u.isValid() && u.scheme() == QLatin1String("mumble")) {
+					OpenURLEvent *oue = new OpenURLEvent(u);
+					qApp->postEvent(g.mw, oue);
+					ack = true;
+				}
 			} else {
-				old.insert(session, qmOld.value(session));
+				ack = true;
 			}
 		}
-		qmOld = old;
 
-		QList< struct ListEntry > entries;
-		entries << ListEntry(
-			QString::fromLatin1("[%1:%2]").arg(me->cChannel->qsName).arg(me->cChannel->qlUsers.count()), false, false);
+		QDomDocument replydoc;
+		QDomElement reply = replydoc.createElement(QLatin1String("reply"));
 
-		bool hasnew = false;
+		qmReply.insert(QLatin1String("succeeded"), ack);
 
-		QMap< unsigned int, Timer > speaking;
-
-		foreach (Channel *c, home->allLinks()) {
-			foreach (User *p, c->qlUsers) {
-				ClientUser *u = static_cast< ClientUser * >(p);
-				bool bTalk    = (u->tsState != Settings::Passive);
-				if (bTalk) {
-					speaking.insert(p->uiSession, Timer());
-				} else if (qmSpeaking.contains(p->uiSession)) {
-					Timer t = qmSpeaking.value(p->uiSession);
-					if (t.elapsed() > 1000000)
-						qmSpeaking.remove(p->uiSession);
-					else {
-						speaking.insert(p->uiSession, t);
-						bTalk = true;
-					}
-				}
-				if (bTalk) {
-					alert = true;
-					entries << ListEntry(p->qsName, true, (p->cChannel != me->cChannel));
-				} else if (c == me->cChannel) {
-					if (qmNew.value(p->uiSession).elapsed() < 3000000) {
-						entries << ListEntry(QLatin1String("+") + p->qsName, false, false);
-						hasnew = true;
-					}
-				}
-			}
-		}
-		qmSpeaking = speaking;
-
-		foreach (unsigned int session, qmOld.keys()) {
-			entries << ListEntry(QLatin1String("-") + qmNameCache.value(session), false, false);
+		for (iter = qmReply.constBegin(); iter != qmReply.constEnd(); ++iter) {
+			QDomElement elem = replydoc.createElement(iter.key());
+			QDomText text    = replydoc.createTextNode(iter.value().toString());
+			elem.appendChild(text);
+			reply.appendChild(elem);
 		}
 
-		if (!qmOld.isEmpty() || hasnew || !qmSpeaking.isEmpty()) {
-			qtTimer->start(500);
+		replydoc.appendChild(reply);
+
+		qlsSocket->write(replydoc.toByteArray());
+	}
+}
+
+SocketRPC::SocketRPC(const QString &basename, QObject *p) : QObject(p) {
+	qlsServer = new QLocalServer(this);
+
+	QString pipepath;
+
+#ifdef Q_OS_WIN
+	pipepath = basename;
+#else
+	{
+		QString xdgRuntimePath = QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_RUNTIME_DIR"));
+		QDir xdgRuntimeDir     = QDir(xdgRuntimePath);
+
+		if (!xdgRuntimePath.isNull() && xdgRuntimeDir.exists()) {
+			pipepath = xdgRuntimeDir.absoluteFilePath(basename + QLatin1String("Socket"));
 		} else {
-			qtTimer->stop();
-		}
-
-		std::sort(++entries.begin(), entries.end(), entriesSort);
-
-		const int iWidth          = size.width();
-		const int iHeight         = size.height();
-		const int iUsersPerColumn = iHeight / iFontHeight;
-		const int iSplitterWidth  = g.s.iLCDUserViewSplitterWidth;
-		const int iUserColumns    = (entries.count() + iUsersPerColumn - 1) / iUsersPerColumn;
-
-		int iColumns     = iUserColumns;
-		int iColumnWidth = 1;
-
-		while (iColumns >= 1) {
-			iColumnWidth = (iWidth - (iColumns - 1) * iSplitterWidth) / iColumns;
-			if (iColumnWidth >= g.s.iLCDUserViewMinColWidth)
-				break;
-			--iColumns;
-		}
-
-		int row = 0, col = 0;
-
-
-		foreach (const ListEntry &le, entries) {
-			if (row >= iUsersPerColumn) {
-				row = 0;
-				++col;
-			}
-			if (col > iColumns)
-				break;
-
-			if (!le.qsString.isEmpty()) {
-				if (le.bBold && le.bItalic)
-					painter.setFont(qfItalicBold);
-				else if (le.bBold)
-					painter.setFont(qfBold);
-				else if (le.bItalic)
-					painter.setFont(qfItalic);
-				else
-					painter.setFont(qfNormal);
-				painter.drawText(
-					QRect(col * (iColumnWidth + iSplitterWidth), row * iFontHeight, iColumnWidth, iFontHeight + 2),
-					Qt::AlignLeft, le.qsString);
-			}
-			++row;
+			pipepath = QDir::home().absoluteFilePath(QLatin1String(".") + basename + QLatin1String("Socket"));
 		}
 	}
 
-	foreach (LCDDevice *d, devmgr.qlDevices) {
-		QImage *img = qhImages[d->size()];
-		if (!img)
-			continue;
-		d->blitImage(img, alert);
+	{
+		QFile f(pipepath);
+		if (f.exists()) {
+			qWarning() << "SocketRPC: Removing old socket on" << pipepath;
+			f.remove();
+		}
+	}
+#endif
+
+	if (!qlsServer->listen(pipepath)) {
+		qWarning() << "SocketRPC: Listen failed";
+		delete qlsServer;
+		qlsServer = nullptr;
+	} else {
+		connect(qlsServer, SIGNAL(newConnection()), this, SLOT(newConnection()));
 	}
 }
 
-LCD::~LCD() {
-	destroyBuffers();
+void SocketRPC::newConnection() {
+	while (true) {
+		QLocalSocket *qls = qlsServer->nextPendingConnection();
+		if (!qls)
+			break;
+		new SocketRPCClient(qls, this);
+	}
 }
 
-bool LCD::hasDevices() {
-	return (!devmgr.qlDevices.isEmpty());
-}
+bool SocketRPC::send(const QString &basename, const QString &request, const QMap< QString, QVariant > &param) {
+	QString pipepath;
 
-/* --- */
+#ifdef Q_OS_WIN
+	pipepath = basename;
+#else
+	{
+		QString xdgRuntimePath = QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_RUNTIME_DIR"));
+		QDir xdgRuntimeDir     = QDir(xdgRuntimePath);
 
-LCDEngine::LCDEngine() : QObject() {
-}
+		if (!xdgRuntimePath.isNull() && xdgRuntimeDir.exists()) {
+			pipepath = xdgRuntimeDir.absoluteFilePath(basename + QLatin1String("Socket"));
+		} else {
+			pipepath = QDir::home().absoluteFilePath(QLatin1String(".") + basename + QLatin1String("Socket"));
+		}
+	}
+#endif
 
-LCDEngine::~LCDEngine() {
-	foreach (LCDDevice *lcd, qlDevices)
-		delete lcd;
-}
+	QLocalSocket qls;
+	qls.connectToServer(pipepath);
+	if (!qls.waitForConnected(1000)) {
+		return false;
+	}
 
-LCDDevice::LCDDevice() {
-}
+	QDomDocument requestdoc;
+	QDomElement req = requestdoc.createElement(request);
+	for (QMap< QString, QVariant >::const_iterator iter = param.constBegin(); iter != param.constEnd(); ++iter) {
+		QDomElement elem = requestdoc.createElement(iter.key());
+		QDomText text    = requestdoc.createTextNode(iter.value().toString());
+		elem.appendChild(text);
+		req.appendChild(elem);
+	}
+	requestdoc.appendChild(req);
 
-LCDDevice::~LCDDevice() {
-}
+	qls.write(requestdoc.toByteArray());
+	qls.flush();
 
-/* --- */
+	if (!qls.waitForReadyRead(2000)) {
+		return false;
+	}
 
-uint qHash(const QSize &size) {
-	return ((size.width() & 0xffff) << 16) | (size.height() & 0xffff);
+	QByteArray qba = qls.readAll();
+
+	QDomDocument replydoc;
+	replydoc.setContent(qba);
+
+	QDomElement succ = replydoc.firstChildElement(QLatin1String("reply"));
+	succ             = succ.firstChildElement(QLatin1String("succeeded"));
+	if (succ.isNull())
+		return false;
+
+	return QVariant(succ.text()).toBool();
 }
