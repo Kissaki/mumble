@@ -3,334 +3,201 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_MAINWINDOW_H_
-#define MUMBLE_MUMBLE_MAINWINDOW_H_
+#include "NetworkConfig.h"
 
-#include <QtCore/QPointer>
-#include <QtCore/QtGlobal>
-#include <QtNetwork/QAbstractSocket>
-#include <QtWidgets/QMainWindow>
-#include <QtWidgets/QSystemTrayIcon>
+#include "MainWindow.h"
+#include "OSInfo.h"
 
-#include "CustomElements.h"
-#include "MUComboBox.h"
-#include "Message.h"
-#include "Mumble.pb.h"
-#include "Usage.h"
-#include "UserLocalVolumeDialog.h"
+#include <QSignalBlocker>
+#include <QtNetwork/QHostAddress>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkProxy>
 
-#include "ui_MainWindow.h"
-
-#define MB_QEVENT (QEvent::User + 939)
-#define OU_QEVENT (QEvent::User + 940)
-
-class ACLEditor;
-class BanEditor;
-class UserEdit;
-class ServerHandler;
-class GlobalShortcut;
-class TextToSpeech;
-class UserModel;
-class Tokens;
-class Channel;
-class UserInformation;
-class VoiceRecorderDialog;
-class PTTButtonWidget;
-
-struct ShortcutTarget;
-
-class MessageBoxEvent : public QEvent {
-public:
-	QString msg;
-	MessageBoxEvent(QString msg);
-};
-
-class OpenURLEvent : public QEvent {
-public:
-	QUrl url;
-	OpenURLEvent(QUrl url);
-};
-
-class MainWindow : public QMainWindow, public MessageHandler, public Ui::MainWindow {
-	friend class UserModel;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(MainWindow)
-public:
-	UserModel *pmModel;
-	QSystemTrayIcon *qstiIcon;
-	QMenu *qmUser;
-	QMenu *qmChannel;
-	QMenu *qmListener;
-	QMenu *qmDeveloper;
-	QMenu *qmTray;
-	QIcon qiIcon, qiIconMutePushToMute, qiIconMuteSelf, qiIconMuteServer, qiIconDeafSelf, qiIconDeafServer,
-		qiIconMuteSuppressed;
-	QIcon qiTalkingOn, qiTalkingWhisper, qiTalkingShout, qiTalkingOff;
-	QMap< unsigned int, UserLocalVolumeDialog * > qmUserVolTracker;
-
-	/// "Action" for when there are no actions available
-	QAction *qaEmpty;
-
-	GlobalShortcut *gsPushTalk, *gsResetAudio, *gsMuteSelf, *gsDeafSelf;
-	GlobalShortcut *gsUnlink, *gsPushMute, *gsJoinChannel;
-#ifdef USE_OVERLAY
-	GlobalShortcut *gsToggleOverlay;
+#ifdef NO_UPDATE_CHECK
+#	include <QMessageBox>
 #endif
-	GlobalShortcut *gsMinimal, *gsVolumeUp, *gsVolumeDown, *gsWhisper, *gsLinkChannel;
-	GlobalShortcut *gsCycleTransmitMode, *gsToggleMainWindowVisibility, *gsTransmitModePushToTalk, *gsTransmitModeContinuous, *gsTransmitModeVAD;
-	GlobalShortcut *gsSendTextMessage, *gsSendClipboardTextMessage;
-	DockTitleBar *dtbLogDockTitle, *dtbChatDockTitle;
 
-	ACLEditor *aclEdit;
-	BanEditor *banEdit;
-	UserEdit *userEdit;
-	Tokens *tokenEdit;
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
 
-	VoiceRecorderDialog *voiceRecorderDialog;
+const QString NetworkConfig::name = QLatin1String("NetworkConfig");
 
-	MumbleProto::Reject_RejectType rtLast;
-	bool bRetryServer;
-	QString qsDesiredChannel;
+static ConfigWidget *NetworkConfigNew(Settings &st) {
+	return new NetworkConfig(st);
+}
 
-	bool bSuppressAskOnQuit;
-	/// Restart the client after shutdown
-	bool restartOnQuit;
-	bool bAutoUnmute;
+static ConfigRegistrar registrar(1300, NetworkConfigNew);
 
-	/// Contains the cursor whose position is immediately before the image to
-	/// save when activating the "Save Image As..." context menu item.
-	QTextCursor qtcSaveImageCursor;
+NetworkConfig::NetworkConfig(Settings &st) : ConfigWidget(st) {
+	setupUi(this);
+	qcbType->setAccessibleName(tr("Type"));
+	qleHostname->setAccessibleName(tr("Hostname"));
+	qlePort->setAccessibleName(tr("Port"));
+	qleUsername->setAccessibleName(tr("Username"));
+	qlePassword->setAccessibleName(tr("Password"));
+}
 
-	QPointer< Channel > cContextChannel;
-	QPointer< ClientUser > cuContextUser;
+QString NetworkConfig::title() const {
+	return tr("Network");
+}
 
-	QPoint qpContextPosition;
+const QString &NetworkConfig::getName() const {
+	return NetworkConfig::name;
+}
 
-	void recheckTTS();
-	void msgBox(QString msg);
-	void setOnTop(bool top);
-	void setShowDockTitleBars(bool doShow);
-	void updateTrayIcon();
-	void updateUserModel();
-	void focusNextMainWidget();
-	QPair< QByteArray, QImage > openImageFile();
+QIcon NetworkConfig::icon() const {
+	return QIcon(QLatin1String("skin:config_network.png"));
+}
 
-	void updateChatBar();
-	void openTextMessageDialog(ClientUser *p);
-	void openUserLocalVolumeDialog(ClientUser *p);
+void NetworkConfig::load(const Settings &r) {
+	loadCheckBox(qcbTcpMode, s.bTCPCompat);
+	loadCheckBox(qcbQoS, s.bQoS);
+	loadCheckBox(qcbAutoReconnect, s.bReconnect);
+	loadCheckBox(qcbAutoConnect, s.bAutoConnect);
+	loadCheckBox(qcbDisablePublicList, s.bDisablePublicList);
+	loadCheckBox(qcbSuppressIdentity, s.bSuppressIdentity);
+	loadComboBox(qcbType, s.ptProxyType);
 
-#ifdef Q_OS_WIN
-	bool nativeEvent(const QByteArray &eventType, void *message, long *result) Q_DECL_OVERRIDE;
-	unsigned int uiNewHardware;
+	qleHostname->setText(r.qsProxyHost);
+
+	if (r.usProxyPort > 0) {
+		QString port;
+		port.setNum(r.usProxyPort);
+		qlePort->setText(port);
+	} else
+		qlePort->setText(QString());
+
+	qleUsername->setText(r.qsProxyUsername);
+	qlePassword->setText(r.qsProxyPassword);
+
+	loadCheckBox(qcbHideOS, s.bHideOS);
+
+	const QSignalBlocker blocker(qcbAutoUpdate);
+	loadCheckBox(qcbAutoUpdate, r.bUpdateCheck);
+	loadCheckBox(qcbPluginUpdate, r.bPluginCheck);
+	loadCheckBox(qcbUsage, r.bUsage);
+}
+
+void NetworkConfig::save() const {
+	s.bTCPCompat         = qcbTcpMode->isChecked();
+	s.bQoS               = qcbQoS->isChecked();
+	s.bReconnect         = qcbAutoReconnect->isChecked();
+	s.bAutoConnect       = qcbAutoConnect->isChecked();
+	s.bDisablePublicList = qcbDisablePublicList->isChecked();
+	s.bSuppressIdentity  = qcbSuppressIdentity->isChecked();
+	s.bHideOS            = qcbHideOS->isChecked();
+
+	s.ptProxyType     = static_cast< Settings::ProxyType >(qcbType->currentIndex());
+	s.qsProxyHost     = qleHostname->text();
+	s.usProxyPort     = qlePort->text().toUShort();
+	s.qsProxyUsername = qleUsername->text();
+	s.qsProxyPassword = qlePassword->text();
+
+	s.bUpdateCheck = qcbAutoUpdate->isChecked();
+	s.bPluginCheck = qcbPluginUpdate->isChecked();
+	s.bUsage       = qcbUsage->isChecked();
+}
+
+static QNetworkProxy::ProxyType local_to_qt_proxy(Settings::ProxyType pt) {
+	switch (pt) {
+		case Settings::NoProxy:
+			return QNetworkProxy::NoProxy;
+		case Settings::HttpProxy:
+			return QNetworkProxy::HttpProxy;
+		case Settings::Socks5Proxy:
+			return QNetworkProxy::Socks5Proxy;
+	}
+
+	return QNetworkProxy::NoProxy;
+}
+
+void NetworkConfig::SetupProxy() {
+	QNetworkProxy proxy;
+	proxy.setType(local_to_qt_proxy(g.s.ptProxyType));
+	proxy.setHostName(g.s.qsProxyHost);
+	proxy.setPort(g.s.usProxyPort);
+	proxy.setUser(g.s.qsProxyUsername);
+	proxy.setPassword(g.s.qsProxyPassword);
+	QNetworkProxy::setApplicationProxy(proxy);
+}
+
+bool NetworkConfig::TcpModeEnabled() {
+	/*
+	 * We force TCP mode for both HTTP and SOCKS5 proxies, even though SOCKS5 supports UDP.
+	 *
+	 * This is because Qt's automatic application-wide proxying fails when we're in UDP
+	 * mode since the datagram transmission code assumes that its socket is created in its
+	 * own thread. Due to the automatic proxying, this assumption is incorrect, because of
+	 * Qt's behind-the-scenes magic.
+	 *
+	 * However, TCP mode uses Qt events to make sure packets are sent off from the right
+	 * thread, and this is what we utilize here.
+	 *
+	 * This is probably not even something that should even be taken care of, as proxying
+	 * itself already is a potential latency killer.
+	 */
+
+	return g.s.ptProxyType != Settings::NoProxy || g.s.bTCPCompat;
+}
+
+void NetworkConfig::accept() const {
+	NetworkConfig::SetupProxy();
+}
+
+void NetworkConfig::on_qcbType_currentIndexChanged(int v) {
+	Settings::ProxyType pt = static_cast< Settings::ProxyType >(v);
+
+	qleHostname->setEnabled(pt != Settings::NoProxy);
+	qlePort->setEnabled(pt != Settings::NoProxy);
+	qleUsername->setEnabled(pt != Settings::NoProxy);
+	qlePassword->setEnabled(pt != Settings::NoProxy);
+	qcbTcpMode->setEnabled(pt == Settings::NoProxy);
+
+	s.ptProxyType = pt;
+}
+
+#ifdef NO_UPDATE_CHECK
+void NetworkConfig::on_qcbAutoUpdate_stateChanged(int state) {
+	if (state == Qt::Checked) {
+		QMessageBox msgBox;
+		msgBox.setText(
+			QObject::tr("<p>You're using a Mumble version that <b>explicitly disabled</b> update-checks.</p>"
+						"<p>This means that the update notification you might receive by using this option will "
+						"<b>most likely be meaningless</b> for you.</p>"));
+		msgBox.setInformativeText(
+			QObject::tr("<p>If you're using Linux this is most likely because you are using a "
+						"version from your distribution's package repository that have their own update cycles.</p>"
+						"<p>If you want to always have the most recent Mumble version, you should consider using a "
+						"different method of installation.\n"
+						"See <a href=\"https://wiki.mumble.info/wiki/Installing_Mumble\">the Mumble wiki</a> for what "
+						"alternatives there are.</p>"));
+		msgBox.setIcon(QMessageBox::Warning);
+		msgBox.exec();
+	}
+}
 #endif
-protected:
-	Usage uUsage;
-	QTimer *qtReconnect;
 
-	QList< QAction * > qlServerActions;
-	QList< QAction * > qlChannelActions;
-	QList< QAction * > qlUserActions;
+QNetworkReply *Network::get(const QUrl &url) {
+	QNetworkRequest req(url);
+	prepareRequest(req);
+	return g.nam->get(req);
+}
 
-	QHash< ShortcutTarget, int > qmCurrentTargets;
-	/// A map that contains information about the currently active
-	/// shout/whisper targets. The mapping is between a List of
-	/// ShortcutTargets that are all triggered together and the
-	/// target ID for this specific combination of ShortcutTargets.
-	/// The target ID is what the server uses to identify this specific
-	/// set of ShortcutTargets.
-	QHash< QList< ShortcutTarget >, int > qmTargets;
-	/// This is a map between all target IDs the client will ever use
-	/// and a helper-number (see iTargetCounter).
-	QMap< int, int > qmTargetUse;
-	Channel *mapChannel(int idx) const;
-	/// This is a pure helper number whose job is to always be increased
-	/// if a new VoiceTarget is needed. It will be used as the helper
-	/// number in qmTargetUse.
-	int iTargetCounter;
-	QMap< unsigned int, UserInformation * > qmUserInformations;
+void Network::prepareRequest(QNetworkRequest &req) {
+	req.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, true);
 
-	PTTButtonWidget *qwPTTButtonWidget;
-
-	MUComboBox *qcbTransmitMode;
-	QAction *qaTransmitMode;
-	QAction *qaTransmitModeSeparator;
-
-	void createActions();
-	void setupGui();
-	void updateWindowTitle();
-	/// updateToolbar updates the state of the toolbar depending on the current
-	/// window layout setting.
-	/// If the window layout setting is 'custom', the toolbar is made movable. If the
-	/// window layout is not 'custom', the toolbar is locked in place at the top of
-	/// the MainWindow.
-	void updateToolbar();
-	void customEvent(QEvent *evt) Q_DECL_OVERRIDE;
-	void findDesiredChannel();
-	void setupView(bool toggle_minimize = true);
-	void closeEvent(QCloseEvent *e) Q_DECL_OVERRIDE;
-	void hideEvent(QHideEvent *e) Q_DECL_OVERRIDE;
-	void showEvent(QShowEvent *e) Q_DECL_OVERRIDE;
-	void changeEvent(QEvent *e) Q_DECL_OVERRIDE;
-	void keyPressEvent(QKeyEvent *e) Q_DECL_OVERRIDE;
-
-	QMenu *createPopupMenu() Q_DECL_OVERRIDE;
-
-	bool handleSpecialContextMenu(const QUrl &url, const QPoint &pos_, bool focus = false);
-	Channel *getContextMenuChannel();
-	ClientUser *getContextMenuUser();
-
-public slots:
-	void on_qmServer_aboutToShow();
-	void on_qaServerConnect_triggered(bool autoconnect = false);
-	void on_qaServerDisconnect_triggered();
-	void on_qaServerBanList_triggered();
-	void on_qaServerUserList_triggered();
-	void on_qaServerInformation_triggered();
-	void on_qaServerTexture_triggered();
-	void on_qaServerTextureRemove_triggered();
-	void on_qaServerTokens_triggered();
-	void on_qmSelf_aboutToShow();
-	void on_qaSelfComment_triggered();
-	void on_qaSelfRegister_triggered();
-	void qcbTransmitMode_activated(int index);
-	void updateTransmitModeComboBox();
-	void qmUser_aboutToShow();
-	void qmListener_aboutToShow();
-	void on_qaUserCommentReset_triggered();
-	void on_qaUserTextureReset_triggered();
-	void on_qaUserCommentView_triggered();
-	void on_qaUserKick_triggered();
-	void on_qaUserBan_triggered();
-	void on_qaUserMute_triggered();
-	void on_qaUserDeaf_triggered();
-	void on_qaSelfPrioritySpeaker_triggered();
-	void on_qaUserPrioritySpeaker_triggered();
-	void on_qaUserLocalIgnore_triggered();
-	void on_qaUserLocalIgnoreTTS_triggered();
-	void on_qaUserLocalMute_triggered();
-	void on_qaUserLocalVolume_triggered();
-	void on_qaUserTextMessage_triggered();
-	void on_qaUserRegister_triggered();
-	void on_qaUserInformation_triggered();
-	void on_qaUserFriendAdd_triggered();
-	void on_qaUserFriendRemove_triggered();
-	void on_qaUserFriendUpdate_triggered();
-	void qmChannel_aboutToShow();
-	void on_qaChannelJoin_triggered();
-	void on_qaUserJoin_triggered();
-	void on_qaChannelListen_triggered();
-	void on_qaChannelAdd_triggered();
-	void on_qaChannelRemove_triggered();
-	void on_qaChannelACL_triggered();
-	void on_qaChannelLink_triggered();
-	void on_qaChannelUnlink_triggered();
-	void on_qaChannelUnlinkAll_triggered();
-	void on_qaChannelSendMessage_triggered();
-	void on_qaChannelFilter_triggered();
-	void on_qaChannelCopyURL_triggered();
-	void on_qaListenerLocalVolume_triggered();
-	void on_qaAudioReset_triggered();
-	void on_qaAudioMute_triggered();
-	void on_qaAudioDeaf_triggered();
-	void on_qaRecording_triggered();
-	void on_qaAudioTTS_triggered();
-	void on_qaAudioUnlink_triggered();
-	void on_qaAudioStats_triggered();
-	void on_qaConfigDialog_triggered();
-	void on_qaConfigHideFrame_triggered();
-	void on_qmConfig_aboutToShow();
-	void on_qaConfigMinimal_triggered();
-	void on_qaConfigCert_triggered();
-	void on_qaAudioWizard_triggered();
-	void on_qaDeveloperConsole_triggered();
-	void on_qaHelpWhatsThis_triggered();
-	void on_qaHelpAbout_triggered();
-	void on_qaHelpAboutQt_triggered();
-	void on_qaHelpVersionCheck_triggered();
-	void on_qaQuit_triggered();
-	void on_qaHide_triggered();
-	void on_qteChat_tabPressed();
-	void on_qteChat_backtabPressed();
-	void on_qteChat_ctrlSpacePressed();
-	void on_qtvUsers_customContextMenuRequested(const QPoint &mpos, bool usePositionForGettingContext = true);
-	void on_qteLog_customContextMenuRequested(const QPoint &pos);
-	void on_qteLog_anchorClicked(const QUrl &);
-	void on_qteLog_highlighted(const QUrl &link);
-	void on_PushToTalk_triggered(bool, QVariant);
-	void on_PushToMute_triggered(bool, QVariant);
-	void on_VolumeUp_triggered(bool, QVariant);
-	void on_VolumeDown_triggered(bool, QVariant);
-	void on_gsMuteSelf_down(QVariant);
-	void on_gsDeafSelf_down(QVariant);
-	void on_gsWhisper_triggered(bool, QVariant);
-	void addTarget(ShortcutTarget *);
-	void removeTarget(ShortcutTarget *);
-	void on_gsCycleTransmitMode_triggered(bool, QVariant);
-	void on_gsToggleMainWindowVisibility_triggered(bool, QVariant);
-	void on_gsTransmitModePushToTalk_triggered(bool, QVariant);
-	void on_gsTransmitModeContinuous_triggered(bool, QVariant);
-	void on_gsTransmitModeVAD_triggered(bool, QVariant);
-	void on_gsSendTextMessage_triggered(bool, QVariant);
-	void on_gsSendClipboardTextMessage_triggered(bool, QVariant);
-	void on_Reconnect_timeout();
-	void on_Icon_activated(QSystemTrayIcon::ActivationReason);
-	void on_qaTalkingUIToggle_triggered();
-	void voiceRecorderDialog_finished(int);
-	void qtvUserCurrentChanged(const QModelIndex &, const QModelIndex &);
-	void serverConnected();
-	void serverDisconnected(QAbstractSocket::SocketError, QString reason);
-	void resolverError(QAbstractSocket::SocketError, QString reason);
-	void viewCertificate(bool);
-	void openUrl(const QUrl &url);
-	void context_triggered();
-	void updateTarget();
-	void updateMenuPermissions();
-	/// Handles state changes like talking mode changes and mute/unmute
-	/// or priority speaker flag changes for the gui user
-	void userStateChanged();
-	void destroyUserInformation();
-	void trayAboutToShow();
-	void sendChatbarMessage(QString msg);
-	void sendChatbarText(QString msg);
-	void pttReleased();
-	void whisperReleased(QVariant scdata);
-	void onResetAudio();
-	void showRaiseWindow();
-	void on_qaFilterToggle_triggered();
-	/// Opens a save dialog for the image referenced by qtcSaveImageCursor.
-	void saveImageAs();
-	/// Returns the path to the user's image directory, optionally with a
-	/// filename included.
-	QString getImagePath(QString filename = QString()) const;
-	/// Updates the user's image directory to the given path (any included
-	/// filename is discarded).
-	void updateImagePath(QString filepath) const;
-signals:
-	/// Signal emitted when the server and the client have finished
-	/// synchronizing (after a new connection).
-	void serverSynchronized();
-	/// Signal emitted whenever a user adds a new ChannelListener
-	void userAddedChannelListener(ClientUser *user, Channel *channel);
-	/// Signal emitted whenever a user removes a ChannelListener
-	void userRemovedChannelListener(ClientUser *user, Channel *channel);
-
-public:
-	MainWindow(QWidget *parent);
-	~MainWindow() Q_DECL_OVERRIDE;
-
-	// From msgHandler. Implementation in Messages.cpp
-#define MUMBLE_MH_MSG(x) void msg##x(const MumbleProto::x &);
-	MUMBLE_MH_ALL
-#undef MUMBLE_MH_MSG
-	void removeContextAction(const MumbleProto::ContextActionModify &msg);
-	/// Logs a message that an action could not be saved permanently because
-	/// the user has no certificate and can't be reliably identified.
-	///
-	/// @param actionName  The name of the action that has been executed.
-	/// @param p  The user on which the action was performed.
-	void logChangeNotPermanent(const QString &actionName, ClientUser *const p) const;
-};
-
-#endif
+	// Do not send OS information if the corresponding privacy setting is enabled
+	if (g.s.bHideOS) {
+		req.setRawHeader(QString::fromLatin1("User-Agent").toUtf8(),
+						 QString::fromLatin1("Mozilla/5.0 Mumble/%1 %2")
+							 .arg(QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE))
+							 .toUtf8());
+	} else {
+		req.setRawHeader(QString::fromLatin1("User-Agent").toUtf8(),
+						 QString::fromLatin1("Mozilla/5.0 (%1; %2) Mumble/%3 %4")
+							 .arg(OSInfo::getOS(), OSInfo::getOSVersion(),
+								  QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE))
+							 .toUtf8());
+	}
+}
