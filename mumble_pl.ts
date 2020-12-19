@@ -3,41 +3,90 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "MumbleApplication.h"
+#ifndef MUMBLE_MUMBLE_CLIENTUSER_H_
+#define MUMBLE_MUMBLE_CLIENTUSER_H_
 
-#include <Foundation/Foundation.h>
+#include <QtCore/QHash>
+#include <QtCore/QReadWriteLock>
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-static bool appNapSuppressed = false;
+#include "Settings.h"
+#include "Timer.h"
+#include "User.h"
+
+class ClientUser : public QObject, public User {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ClientUser)
+
+protected:
+	float m_localVolume = 1.0f;
+
+public:
+	Settings::TalkState tsState;
+	Timer tLastTalkStateChange;
+	bool bLocalIgnore;
+	bool bLocalIgnoreTTS;
+	bool bLocalMute;
+
+	float fPowerMin, fPowerMax;
+	float fAverageAvailable;
+
+	int iFrames;
+	int iSequence;
+
+	QByteArray qbaTextureFormat;
+	QString qsFriendName;
+
+	QString getFlagsString() const;
+	ClientUser(QObject *p = nullptr);
+
+	float getLocalVolumeAdjustments() const;
+
+	/**
+	 * Determines whether a user is active or not
+	 * A user is active when it is currently speaking or when the user has
+	 * spoken within Settings::uiActiveTime amount of seconds.
+	 */
+	bool isActive();
+
+	static QHash< unsigned int, ClientUser * > c_qmUsers;
+	static QReadWriteLock c_qrwlUsers;
+
+	static QList< ClientUser * > c_qlTalking;
+	static QReadWriteLock c_qrwlTalking;
+	static QList< ClientUser * > getTalking();
+	static QList< ClientUser * > getActive();
+
+	static void sortUsersOverlay(QList< ClientUser * > &list);
+
+	static ClientUser *get(unsigned int);
+	static bool isValid(unsigned int);
+	static ClientUser *add(unsigned int, QObject *p = nullptr);
+	static ClientUser *match(const ClientUser *p, bool matchname = false);
+	static void remove(unsigned int);
+	static void remove(ClientUser *);
+
+protected:
+	static bool lessThanOverlay(const ClientUser *, const ClientUser *);
+public slots:
+	void setTalking(Settings::TalkState ts);
+	void setMute(bool mute);
+	void setDeaf(bool deaf);
+	void setSuppress(bool suppress);
+	void setLocalIgnore(bool ignore);
+	void setLocalIgnoreTTS(bool ignoreTTS);
+	void setLocalMute(bool mute);
+	void setSelfMute(bool mute);
+	void setSelfDeaf(bool deaf);
+	void setPrioritySpeaker(bool priority);
+	void setRecording(bool recording);
+	void setLocalVolumeAdjustment(float adjustment);
+signals:
+	void talkingStateChanged();
+	void muteDeafStateChanged();
+	void prioritySpeakerStateChanged();
+	void recordingStateChanged();
+	void localVolumeAdjustmentsChanged(float newAdjustment, float oldAdjustment);
+};
+
 #endif
-
-void MUSuppressAppNap(bool suppress) {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-	NSProcessInfo *processInfo = [NSProcessInfo processInfo];
-	if (![processInfo respondsToSelector:@selector(disableAutomaticTermination:)]) {
-		return;
-	}
-
-	if (suppress == appNapSuppressed) {
-		qWarning("AppNap: attempt to set AppNap suppression state to %s while already in that state.", suppress ? "true" : "false");
-		return;
-	}
-
-	QString translatedReason = QApplication::tr("Mumble is currently connected to a server");
-	NSString *reason = const_cast<NSString *>(reinterpret_cast<const NSString *>(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar *>(translatedReason.unicode()), translatedReason.length())));
-
-	if (suppress) {
-		[[NSProcessInfo processInfo] disableAutomaticTermination:reason];
-		qWarning("AppNap: suppressed with reason: '%s'", qPrintable(translatedReason));
-	} else {
-		[[NSProcessInfo processInfo] enableAutomaticTermination:reason];
-		qWarning("AppNap: re-enabled, was suppressed with reason: '%s'", qPrintable(translatedReason));
-	}
-
-	appNapSuppressed = suppress;
-
-	[reason release];
-#else
-	Q_UNUSED(suppress);
-#endif
-}
