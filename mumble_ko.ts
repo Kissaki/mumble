@@ -3,166 +3,100 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayEditor.h"
+#include "OpusCodec.h"
 
-#include "Channel.h"
-#include "Database.h"
-#include "MainWindow.h"
-#include "Message.h"
-#include "NetworkConfig.h"
-#include "OverlayClient.h"
-#include "OverlayText.h"
-#include "ServerHandler.h"
-#include "User.h"
-#include "Utils.h"
-#include "GlobalShortcut.h"
+#include "Audio.h"
+#include "MumbleApplication.h"
+#include "Version.h"
 
-#include <QtWidgets/QGraphicsProxyWidget>
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                        \
+		{                                                                       \
+			var    = reinterpret_cast< __typeof__(var) >(qlOpus.resolve(#var)); \
+			bValid = bValid && var;                                             \
+		}
+#else
+#	define RESOLVE(var)                                                                      \
+		{                                                                                     \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlOpus.resolve(#var)); \
+			bValid                             = bValid && var;                               \
+		}
+#endif
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+OpusCodec::OpusCodec() {
+	bValid = false;
+	qlOpus.setLoadHints(QLibrary::ResolveAllSymbolsHint);
 
-OverlayEditor::OverlayEditor(QWidget *p, QGraphicsItem *qgi, OverlaySettings *osptr)
-	: QDialog(p), qgiPromote(qgi), oes(g.s.os) {
-	setupUi(this);
-	qsZoom->setAccessibleName(tr("Zoom level"));
-	os = osptr ? osptr : &g.s.os;
+	QStringList alternatives;
+#if defined(Q_OS_MAC)
+	alternatives << QString::fromLatin1("libopus0.dylib");
+	alternatives << QString::fromLatin1("opus0.dylib");
+	alternatives << QString::fromLatin1("libopus.dylib");
+	alternatives << QString::fromLatin1("opus.dylib");
+#elif defined(Q_OS_UNIX)
+	alternatives << QString::fromLatin1("libopus.so.0");
+	alternatives << QString::fromLatin1("libopus0.so");
+	alternatives << QString::fromLatin1("libopus.so");
+	alternatives << QString::fromLatin1("opus.so");
+#else
+	alternatives << QString::fromLatin1("opus0.dll");
+	alternatives << QString::fromLatin1("opus.dll");
+#endif
+	foreach (const QString &lib, alternatives) {
+		qlOpus.setFileName(MumbleApplication::instance()->applicationVersionRootPath() + QLatin1String("/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
 
-	connect(qdbbBox->button(QDialogButtonBox::Apply), SIGNAL(clicked()), this, SLOT(apply()));
-	connect(qdbbBox->button(QDialogButtonBox::Reset), SIGNAL(clicked()), this, SLOT(reset()));
+#ifdef Q_OS_MAC
+		qlOpus.setFileName(QApplication::instance()->applicationDirPath() + QLatin1String("/../Codecs/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
 
-	QGraphicsProxyWidget *qgpw = graphicsProxyWidget();
-	if (qgpw) {
-		qgpw->setFlag(QGraphicsItem::ItemIgnoresParentOpacity);
-		if (g.ocIntercept) {
-			qgpw->setPos(iroundf(static_cast< float >(g.ocIntercept->uiWidth) / 16.0f + 0.5f),
-						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) / 16.0f + 0.5f));
-			qgpw->resize(iroundf(static_cast< float >(g.ocIntercept->uiWidth) * 14.0f / 16.0f + 0.5f),
-						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) * 14.0f / 16.0f + 0.5f));
+#ifdef MUMBLE_LIBRARY_PATH
+		qlOpus.setFileName(QLatin1String(MUMTEXT(MUMBLE_LIBRARY_PATH) "/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
+
+		qlOpus.setFileName(lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
 		}
 	}
 
-	qgvView->setScene(&oes);
+	RESOLVE(opus_get_version_string);
 
-	reset();
+	RESOLVE(opus_encode);
+	RESOLVE(opus_decode_float);
+
+	RESOLVE(opus_encoder_create);
+	RESOLVE(opus_encoder_ctl);
+	RESOLVE(opus_encoder_destroy);
+	RESOLVE(opus_decoder_create);
+	RESOLVE(opus_decoder_ctl);
+	RESOLVE(opus_decoder_destroy);
+
+	RESOLVE(opus_decoder_get_nb_samples);
+
+	RESOLVE(opus_packet_get_samples_per_frame);
 }
 
-OverlayEditor::~OverlayEditor() {
-	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.9f);
-	if (qgiPromote)
-		qgiPromote->setZValue(-1.0f);
+OpusCodec::~OpusCodec() {
+	qlOpus.unload();
 }
 
-void OverlayEditor::enterEvent(QEvent *e) {
-	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.9f);
-
-	qgpw = graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(1.0f);
-
-	if (qgiPromote)
-		qgiPromote->setZValue(-1.0f);
-
-	QDialog::enterEvent(e);
+bool OpusCodec::isValid() const {
+	return bValid;
 }
 
-void OverlayEditor::leaveEvent(QEvent *e) {
-	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.3f);
-
-	qgpw = graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.3f);
-
-	if (qgiPromote)
-		qgiPromote->setZValue(1.0f);
-
-	QDialog::leaveEvent(e);
-}
-
-void OverlayEditor::reset() {
-	oes.os = *os;
-	oes.resync();
-
-	qcbAvatar->setChecked(oes.os.bAvatar);
-	qcbUser->setChecked(oes.os.bUserName);
-	qcbChannel->setChecked(oes.os.bChannel);
-	qcbMutedDeafened->setChecked(oes.os.bMutedDeafened);
-	qcbBox->setChecked(oes.os.bBox);
-}
-
-void OverlayEditor::apply() {
-	*os = oes.os;
-	emit applySettings();
-}
-
-void OverlayEditor::accept() {
-	apply();
-	QDialog::accept();
-}
-
-void OverlayEditor::on_qrbPassive_clicked() {
-	oes.tsColor = Settings::Passive;
-	oes.resync();
-}
-
-void OverlayEditor::on_qrbTalking_clicked() {
-	oes.tsColor = Settings::Talking;
-	oes.resync();
-}
-
-void OverlayEditor::on_qrbWhisper_clicked() {
-	oes.tsColor = Settings::Whispering;
-	oes.resync();
-}
-
-void OverlayEditor::on_qrbShout_clicked() {
-	oes.tsColor = Settings::Shouting;
-	oes.resync();
-}
-
-void OverlayEditor::on_qcbAvatar_clicked() {
-	oes.os.bAvatar = qcbAvatar->isChecked();
-	if (!oes.os.bAvatar && !oes.os.bUserName) {
-		qcbUser->setChecked(true);
-		oes.os.bUserName = true;
-		oes.updateUserName();
-	}
-	oes.updateAvatar();
-}
-
-void OverlayEditor::on_qcbUser_clicked() {
-	oes.os.bUserName = qcbUser->isChecked();
-	if (!oes.os.bAvatar && !oes.os.bUserName) {
-		qcbAvatar->setChecked(true);
-		oes.os.bAvatar = true;
-		oes.updateAvatar();
-	}
-	oes.updateUserName();
-}
-
-void OverlayEditor::on_qcbChannel_clicked() {
-	oes.os.bChannel = qcbChannel->isChecked();
-	oes.updateChannel();
-}
-
-void OverlayEditor::on_qcbMutedDeafened_clicked() {
-	oes.os.bMutedDeafened = qcbMutedDeafened->isChecked();
-	oes.updateMuted();
-}
-
-void OverlayEditor::on_qcbBox_clicked() {
-	oes.os.bBox = qcbBox->isChecked();
-	oes.moveBox();
-}
-
-void OverlayEditor::on_qsZoom_valueChanged(int zoom) {
-	oes.uiZoom = zoom;
-	oes.resync();
+void OpusCodec::report() const {
+	qDebug("%s from %s", opus_get_version_string(), qPrintable(qlOpus.fileName()));
 }
