@@ -3,377 +3,216 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "UserView.h"
+#ifndef MUMBLE_MUMBLE_USERMODEL_H_
+#define MUMBLE_MUMBLE_USERMODEL_H_
 
-#include "Channel.h"
-#include "ClientUser.h"
-#include "Log.h"
-#include "MainWindow.h"
-#include "ServerHandler.h"
-#include "UserModel.h"
+#include <QtCore/QAbstractItemModel>
+#include <QtCore/QHash>
+#include <QtCore/QObject>
+#include <QtCore/QSet>
+#include <QtGui/QIcon>
 
-#include <QtGui/QDesktopServices>
-#include <QtGui/QHelpEvent>
-#include <QtGui/QPainter>
-#include <QtWidgets/QWhatsThis>
+class User;
+class ClientUser;
+class Channel;
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+struct ModelItem Q_DECL_FINAL {
+	friend class UserModel;
 
-const int UserDelegate::FLAG_ICON_DIMENSION = 16;
-const int UserDelegate::FLAG_ICON_PADDING   = 1;
-const int UserDelegate::FLAG_DIMENSION      = 18;
+private:
+	Q_DISABLE_COPY(ModelItem)
+public:
+	Channel *cChan;
+	ClientUser *pUser;
 
-UserDelegate::UserDelegate(QObject *p) : QStyledItemDelegate(p) {
-}
+	bool isListener;
 
-void UserDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const {
-	const QAbstractItemModel *m = index.model();
-	const QModelIndex idxc1     = index.sibling(index.row(), 1);
-	QVariant data               = m->data(idxc1);
-	QList< QVariant > ql        = data.toList();
+	bool bCommentSeen;
 
-	// Allow a UserView's BackgroundRole to override the current theme's default color.
-	QVariant bg = index.data(Qt::BackgroundRole);
-	if (bg.isValid()) {
-		painter->fillRect(option.rect, bg.value< QBrush >());
-	}
+	ModelItem *parent;
+	QList< ModelItem * > qlChildren;
+	QList< ModelItem * > qlHiddenChildren;
+	/// Number of users in this channel (recursive)
+	int iUsers;
 
-	painter->save();
+	static QHash< const Channel *, ModelItem * > c_qhChannels;
+	static QHash< const ClientUser *, ModelItem * > c_qhUsers;
+	static QHash< const ClientUser *, QList< ModelItem * > > s_userProxies;
+	static bool bUsersTop;
 
-	QStyleOptionViewItem o = option;
-	initStyleOption(&o, index);
+	ModelItem(Channel *c);
+	ModelItem(ClientUser *p, bool isListener = false);
+	ModelItem(ModelItem *);
+	~ModelItem();
 
-	QStyle *style        = o.widget->style();
-	QIcon::Mode iconMode = QIcon::Normal;
+	ModelItem *child(int idx) const;
 
-	QPalette::ColorRole colorRole = ((o.state & QStyle::State_Selected) ? QPalette::HighlightedText : QPalette::Text);
-#if defined(Q_OS_WIN)
-	// Qt's Vista Style has the wrong highlight color for treeview items
-	// We can't check for QStyleSheetStyle so we have to search the children list search for a QWindowsVistaStyle
-	QList< QObject * > hierarchy = style->findChildren< QObject * >();
-	hierarchy.insert(0, style);
-	foreach (QObject *obj, hierarchy) {
-		if (QString::fromUtf8(obj->metaObject()->className()) == QString::fromUtf8("QWindowsVistaStyle")) {
-			colorRole = QPalette::Text;
-			break;
-		}
-	}
+	bool validRow(int idx) const;
+	ClientUser *userAt(int idx) const;
+	Channel *channelAt(int idx) const;
+	int rowOf(Channel *c) const;
+	int rowOf(ClientUser *p, const bool isListener) const;
+	int rowOfSelf() const;
+	int rows() const;
+	int insertIndex(Channel *c) const;
+	int insertIndex(ClientUser *p, bool isListener = false) const;
+	QString hash() const;
+	void wipe();
+};
+
+class UserModel : public QAbstractItemModel {
+	friend struct ModelItem;
+	friend class UserView;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(UserModel)
+protected:
+	QIcon qiTalkingOn, qiTalkingMuted, qiTalkingWhisper, qiTalkingShout, qiTalkingOff;
+	QIcon qiMutedPushToMute, qiMutedSelf, qiMutedServer, qiMutedLocal, qiIgnoredLocal, qiMutedSuppressed;
+	QIcon qiPrioritySpeaker;
+	QIcon qiRecording;
+	QIcon qiDeafenedSelf, qiDeafenedServer;
+	QIcon qiAuthenticated, qiChannel, qiLinkedChannel, qiActiveChannel;
+	QIcon qiFriend;
+	QIcon qiComment, qiCommentSeen, qiFilter;
+	QIcon qiLock_locked, qiLock_unlocked;
+	QIcon qiEar;
+	ModelItem *miRoot;
+	QSet< Channel * > qsLinked;
+	QMap< QString, ClientUser * > qmHashes;
+
+	bool bClicked;
+
+	void recursiveClone(const ModelItem *old, ModelItem *item, QModelIndexList &from, QModelIndexList &to);
+	ModelItem *moveItem(ModelItem *oldparent, ModelItem *newparent, ModelItem *item);
+
+	QString stringIndex(const QModelIndex &index) const;
+
+	/// @returns The QModelIndex that is currently selected. If there is no selection, the returned index
+	/// 	is invalid.
+	QModelIndex getSelectedIndex() const;
+
+	/// Removes the given user as a listener to the given channel
+	///
+	/// @param item A pointer to the listener's ModelItem that shall be removed
+	/// @param citem A pointer to the ModelItem that represents the channel the listener
+	/// 	is in. The listener has to be a direct child of this item. If this is nullptr,
+	/// 	the parent of the provided item is used directly.
+	void removeChannelListener(ModelItem *item, ModelItem *citem = nullptr);
+
+public:
+	UserModel(QObject *parent = 0);
+	~UserModel() Q_DECL_OVERRIDE;
+
+	QModelIndex index(ClientUser *, int column = 0) const;
+	QModelIndex index(Channel *, int column = 0) const;
+	QModelIndex index(ModelItem *) const;
+	QModelIndex channelListenerIndex(const ClientUser *, const Channel *, int column = 0) const;
+
+	QVariant data(const QModelIndex &index, int role) const Q_DECL_OVERRIDE;
+	Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
+	QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const Q_DECL_OVERRIDE;
+	QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
+	QModelIndex parent(const QModelIndex &index) const Q_DECL_OVERRIDE;
+	int rowCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
+	int columnCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
+	Qt::DropActions supportedDropActions() const Q_DECL_OVERRIDE;
+	QStringList mimeTypes() const Q_DECL_OVERRIDE;
+	QMimeData *mimeData(const QModelIndexList &idx) const Q_DECL_OVERRIDE;
+	bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+					  const QModelIndex &parent) Q_DECL_OVERRIDE;
+
+	ClientUser *addUser(unsigned int id, const QString &name);
+	ClientUser *getUser(const QModelIndex &idx) const;
+	ClientUser *getUser(const QString &hash) const;
+	/// @returns A pointer to the currently selected User or nullptr if there is none
+	ClientUser *getSelectedUser() const;
+	/// Sets the selection to the User with the given session
+	///
+	/// @param session The session ID of the respective User
+	void setSelectedUser(unsigned int session);
+
+	Channel *addChannel(int id, Channel *p, const QString &name);
+	Channel *getChannel(const QModelIndex &idx) const;
+	/// @returns A pointer to the currently selected Channel or nullptr if there is none
+	Channel *getSelectedChannel() const;
+	/// Sets the selection to the Channel with the given ID
+	///
+	/// @param session The ID of the respective Channel
+	void setSelectedChannel(int id);
+
+	/// Adds the guven user as a listener to the given channel
+	///
+	/// @param p A pointer to the user
+	/// @param c A pointer to the channel
+	void addChannelListener(ClientUser *p, Channel *c);
+	/// Removes the guven user as a listener to the given channel
+	///
+	/// @param p A pointer to the user
+	/// @param c A pointer to the channel. If this is nullptr, then all listeners
+	/// 	for the given user are removed (from all channels).
+	void removeChannelListener(const ClientUser *p, const Channel *c = nullptr);
+	/// @param idx The QModelIndex to check
+	/// @returns Whether the ModelItem associated with the given index is a listener-proxy
+	bool isChannelListener(const QModelIndex &idx) const;
+
+	/// Sets the selection to the ChannelListener of the given user in the given channel
+	///
+	/// @param userSession The session ID of the respective User
+	/// @param channelID The ID of the respective Channel
+	void setSelectedChannelListener(unsigned int userSession, int channelID);
+
+	Channel *getSubChannel(Channel *p, int idx) const;
+
+	void renameUser(ClientUser *p, const QString &name);
+	void renameChannel(Channel *c, const QString &name);
+	void repositionChannel(Channel *c, const int position);
+	void setUserId(ClientUser *p, int id);
+	void setHash(ClientUser *p, const QString &hash);
+	void setFriendName(ClientUser *p, const QString &name);
+	void setComment(ClientUser *p, const QString &comment);
+	void setCommentHash(ClientUser *p, const QByteArray &hash);
+	void seenComment(const QModelIndex &idx);
+
+	void moveUser(ClientUser *p, Channel *c);
+	void moveChannel(Channel *c, Channel *p);
+	void setComment(Channel *c, const QString &comment);
+	void setCommentHash(Channel *c, const QByteArray &hash);
+
+	void removeUser(ClientUser *p);
+	bool removeChannel(Channel *c, const bool onlyIfUnoccupied = false);
+
+	void linkChannels(Channel *c, QList< Channel * > links);
+	void unlinkChannels(Channel *c, QList< Channel * > links);
+	void unlinkAll(Channel *c);
+
+	void removeAll();
+
+	void expandAll(Channel *c);
+	void collapseEmpty(Channel *c);
+
+	QVariant otherRoles(const QModelIndex &idx, int role) const;
+
+	unsigned int uiSessionComment;
+	int iChannelDescription;
+
+
+	/// Creates the display string for the given user/listener
+	///
+	/// @param user The user to create the string for
+	/// @param isChannelListener Whether the display String is in fact for a listener of the given user
+	/// @param parentChannel The channel in which the listener resides. May be nullptr, if isChannelListener is false
+	/// @return The created display string
+	static QString createDisplayString(const ClientUser &user, bool isChannelListener, const Channel *parentChannel);
+public slots:
+	/// Invalidates the model data of the ClientUser triggering this slot.
+	void userStateChanged();
+	void on_channelListenerLocalVolumeAdjustmentChanged(int channelID, float oldValue, float newValue);
+	void ensureSelfVisible();
+	void recheckLinks();
+	void updateOverlay() const;
+	void toggleChannelFiltered(Channel *c);
+};
+
 #endif
-
-	// draw background
-	style->drawPrimitive(QStyle::PE_PanelItemViewItem, &o, painter, o.widget);
-
-	// resize rect to exclude the flag icons
-	o.rect = option.rect.adjusted(0, 0, -FLAG_DIMENSION * ql.count(), 0);
-
-	// draw icon
-	QRect decorationRect = style->subElementRect(QStyle::SE_ItemViewItemDecoration, &o, o.widget);
-	o.icon.paint(painter, decorationRect, o.decorationAlignment, iconMode, QIcon::On);
-
-	// draw text
-	QRect textRect   = style->subElementRect(QStyle::SE_ItemViewItemText, &o, o.widget);
-	QString itemText = o.fontMetrics.elidedText(o.text, o.textElideMode, textRect.width());
-	painter->setFont(o.font);
-	style->drawItemText(painter, textRect, o.displayAlignment, o.palette, true, itemText, colorRole);
-
-	// draw flag icons to original rect
-	QRect ps = QRect(option.rect.right() - (ql.size() * FLAG_DIMENSION), option.rect.y(), ql.size() * FLAG_DIMENSION,
-					 option.rect.height());
-
-	for (int i = 0; i < ql.size(); ++i) {
-		QRect r = ps;
-		r.setSize(QSize(FLAG_ICON_DIMENSION, FLAG_ICON_DIMENSION));
-		r.translate(i * FLAG_DIMENSION + FLAG_ICON_PADDING, FLAG_ICON_PADDING);
-		QRect p = QStyle::alignedRect(option.direction, option.decorationAlignment, r.size(), r);
-		qvariant_cast< QIcon >(ql[i]).paint(painter, p, option.decorationAlignment, iconMode, QIcon::On);
-	}
-
-	painter->restore();
-}
-
-bool UserDelegate::helpEvent(QHelpEvent *evt, QAbstractItemView *view, const QStyleOptionViewItem &option,
-							 const QModelIndex &index) {
-	if (index.isValid()) {
-		const QAbstractItemModel *m      = index.model();
-		const QModelIndex firstColumnIdx = index.sibling(index.row(), 1);
-		QVariant data                    = m->data(firstColumnIdx);
-		QList< QVariant > flagList       = data.toList();
-		const int offset                 = flagList.size() * -FLAG_DIMENSION;
-		const int firstFlagPos           = option.rect.topRight().x() + offset;
-
-		if (evt->pos().x() >= firstFlagPos) {
-			return QStyledItemDelegate::helpEvent(evt, view, option, firstColumnIdx);
-		}
-	}
-	return QStyledItemDelegate::helpEvent(evt, view, option, index);
-}
-
-UserView::UserView(QWidget *p) : QTreeView(p) {
-	setItemDelegate(new UserDelegate(this));
-
-	qtSearch = new QTimer(this);
-	qtSearch->setInterval(QApplication::keyboardInputInterval());
-	qtSearch->setSingleShot(true);
-
-	connect(this, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(nodeActivated(const QModelIndex &)));
-
-	connect(qtSearch, SIGNAL(timeout()), this, SLOT(selectSearchResult()));
-}
-
-/**
- * This implementation contains a special handler to display
- * custom what's this entries for items. All other events are
- * passed on.
- */
-bool UserView::event(QEvent *evt) {
-	if (evt->type() == QEvent::WhatsThisClicked) {
-		QWhatsThisClickedEvent *qwtce = static_cast< QWhatsThisClickedEvent * >(evt);
-		QDesktopServices::openUrl(qwtce->href());
-		evt->accept();
-		return true;
-	}
-	return QTreeView::event(evt);
-}
-
-/**
- * This function is used to create custom behaviour when clicking
- * on user/channel flags (e.g. showing the comment)
- */
-void UserView::mouseReleaseEvent(QMouseEvent *evt) {
-	QPoint clickPosition = evt->pos();
-
-	QModelIndex idx = indexAt(clickPosition);
-	if ((evt->button() == Qt::LeftButton) && idx.isValid()) {
-		UserModel *userModel   = qobject_cast< UserModel * >(model());
-		ClientUser *clientUser = userModel->getUser(idx);
-		Channel *channel       = userModel->getChannel(idx);
-
-		int commentFlagPxOffset = -UserDelegate::FLAG_DIMENSION;
-		bool hasComment         = false;
-
-		if (clientUser && !clientUser->qbaCommentHash.isEmpty()) {
-			hasComment = true;
-
-			if (clientUser->bLocalIgnore)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bRecording)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bPrioritySpeaker)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bMute)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bSuppress)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bSelfMute)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bLocalMute)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bSelfDeaf)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->bDeaf)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (!clientUser->qsFriendName.isEmpty())
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-			if (clientUser->iId >= 0)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-
-		} else if (channel && !channel->qbaDescHash.isEmpty()) {
-			hasComment = true;
-
-			if (channel->bFiltered)
-				commentFlagPxOffset -= UserDelegate::FLAG_DIMENSION;
-		}
-
-		if (hasComment) {
-			QRect r                    = visualRect(idx);
-			const int commentFlagPxPos = r.topRight().x() + commentFlagPxOffset;
-
-			if ((clickPosition.x() >= commentFlagPxPos)
-				&& (clickPosition.x() <= (commentFlagPxPos + UserDelegate::FLAG_DIMENSION))) {
-				// Clicked comment icon
-				QString str = userModel->data(idx, Qt::ToolTipRole).toString();
-				if (str.isEmpty()) {
-					userModel->bClicked = true;
-				} else {
-					QWhatsThis::showText(viewport()->mapToGlobal(r.bottomRight()), str, this);
-					userModel->seenComment(idx);
-				}
-				return;
-			}
-		}
-	}
-	QTreeView::mouseReleaseEvent(evt);
-}
-
-void UserView::keyPressEvent(QKeyEvent *ev) {
-	if (ev->key() == Qt::Key_Return || ev->key() == Qt::Key_Enter)
-		UserView::nodeActivated(currentIndex());
-	QTreeView::keyPressEvent(ev);
-}
-
-void UserView::nodeActivated(const QModelIndex &idx) {
-	UserModel *um = static_cast< UserModel * >(model());
-	ClientUser *p = um->getUser(idx);
-	if (p) {
-		g.mw->openTextMessageDialog(p);
-		return;
-	}
-
-	Channel *c = um->getChannel(idx);
-	if (c) {
-		// if a channel is activated join it
-		g.sh->joinChannel(g.uiSession, c->iId);
-	}
-}
-
-/**
- * This implementation provides a recursive realtime search over
- * the whole channel tree. It also features delayed selection
- * with with automatic expanding of folded channels.
- */
-void UserView::keyboardSearch(const QString &search) {
-	if (qtSearch->isActive()) {
-		qpmiSearch = QPersistentModelIndex();
-		qtSearch->stop();
-	}
-
-	bool forceSkip = false;
-
-	if (tSearch.restart() > (QApplication::keyboardInputInterval() * 1000ULL)) {
-		qsSearch  = QString();
-		forceSkip = true;
-	}
-
-	bool isBackspace = (search.length() == 1) && (search.at(0).row() == 0) && (search.at(0).cell() == 8);
-	if (isBackspace) {
-		if (!qsSearch.isEmpty())
-			qsSearch = qsSearch.left(qsSearch.length() - 1);
-	} else {
-		qsSearch += search;
-	}
-
-	// Try default search (which doesn't recurse non-expanded items) and see if it returns something "valid"
-	QTreeView::keyboardSearch(search);
-	QModelIndex start = currentIndex();
-	if (start.isValid() && model()->data(start, Qt::DisplayRole).toString().startsWith(qsSearch, Qt::CaseInsensitive))
-		return;
-
-	if (forceSkip && start.isValid())
-		start = indexBelow(start);
-
-	if (!start.isValid())
-		start = model()->index(0, 0, QModelIndex());
-
-	QModelIndexList qmil = model()->match(start, Qt::DisplayRole, qsSearch, 1,
-										  Qt::MatchFlags(Qt::MatchStartsWith | Qt::MatchWrap | Qt::MatchRecursive));
-	if (qmil.count() == 0)
-		qmil = model()->match(start, Qt::DisplayRole, qsSearch, 1,
-							  Qt::MatchFlags(Qt::MatchContains | Qt::MatchWrap | Qt::MatchRecursive));
-
-	if (qmil.isEmpty())
-		return;
-
-	QModelIndex qmi = qmil.at(0);
-
-	QModelIndex p = qmi.parent();
-	bool visible  = true;
-	while (visible && p.isValid()) {
-		visible = visible && isExpanded(p);
-		p       = p.parent();
-	}
-
-	if (visible)
-		selectionModel()->setCurrentIndex(qmi, QItemSelectionModel::ClearAndSelect);
-	else {
-		qpmiSearch = qmi;
-		qtSearch->start();
-	}
-}
-
-void UserView::selectSearchResult() {
-	if (qpmiSearch.isValid()) {
-		selectionModel()->setCurrentIndex(qpmiSearch, QItemSelectionModel::ClearAndSelect);
-	}
-	qpmiSearch = QPersistentModelIndex();
-}
-
-bool channelHasUsers(const Channel *c) {
-	if (c->qlUsers.isEmpty() == false)
-		return true;
-
-	int i;
-
-	for (i = 0; i < c->qlChannels.count(); i++) {
-		if (channelHasUsers(c->qlChannels[i]))
-			return true;
-	}
-	return false;
-}
-
-static bool channelFiltered(const Channel *c) {
-	while (c) {
-		if (c->bFiltered)
-			return true;
-		c = c->cParent;
-	}
-	return false;
-}
-
-void UserView::updateChannel(const QModelIndex &idx) {
-	UserModel *um = static_cast< UserModel * >(model());
-
-	if (!idx.isValid()) {
-		return;
-	}
-
-	Channel *c = um->getChannel(idx);
-
-	for (int i = 0; idx.model()->index(i, 0, idx).isValid(); ++i) {
-		updateChannel(idx.model()->index(i, 0, idx));
-	}
-
-	if (c && idx.parent().isValid()) {
-		if (g.s.bFilterActive == false) {
-			setRowHidden(idx.row(), idx.parent(), false);
-		} else {
-			bool isChannelUserIsIn = false;
-
-			// Check whether user resides in this channel or a subchannel
-			if (g.uiSession != 0) {
-				const ClientUser *user = ClientUser::get(g.uiSession);
-				if (user) {
-					Channel *chan = user->cChannel;
-					while (chan) {
-						if (chan == c) {
-							isChannelUserIsIn = true;
-							break;
-						}
-						chan = chan->cParent;
-					}
-				}
-			}
-
-			if (channelFiltered(c) && !isChannelUserIsIn) {
-				setRowHidden(idx.row(), idx.parent(), true);
-			} else {
-				if (g.s.bFilterHidesEmptyChannels && !channelHasUsers(c)) {
-					setRowHidden(idx.row(), idx.parent(), true);
-				} else {
-					setRowHidden(idx.row(), idx.parent(), false);
-				}
-			}
-		}
-	}
-}
-
-void UserView::dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector< int > &) {
-	UserModel *um = static_cast< UserModel * >(model());
-	int nRowCount = um->rowCount();
-	int i;
-	for (i = 0; i < nRowCount; i++)
-		updateChannel(um->index(i, 0));
-
-	QTreeView::dataChanged(topLeft, bottomRight);
-}
