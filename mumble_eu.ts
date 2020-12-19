@@ -1,880 +1,568 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>ACLEditor</class>
- <widget class="QDialog" name="ACLEditor">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>881</width>
-    <height>503</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Dialog</string>
-  </property>
-  <layout class="QVBoxLayout">
-   <item>
-    <widget class="QTabWidget" name="qtwTab">
-     <property name="currentIndex">
-      <number>1</number>
-     </property>
-     <widget class="QWidget" name="qwChannel">
-      <attribute name="title">
-       <string>&amp;Properties</string>
-      </attribute>
-      <layout class="QFormLayout" name="formLayout">
-       <property name="fieldGrowthPolicy">
-        <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
-       </property>
-       <item row="6" column="0">
-        <widget class="QLabel" name="qlChannelPassword">
-         <property name="text">
-          <string>Password</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="1">
-        <widget class="QLineEdit" name="qleChannelPassword">
-         <property name="toolTip">
-          <string>Enter the channel password here.</string>
-         </property>
-         <property name="whatsThis">
-          <string>&lt;b&gt;Password&lt;/b&gt;&lt;br /&gt;This field allows you to easily set and change the password of a channel. It uses Mumble's access tokens feature in the background. Use ACLs and groups if you need more fine grained and powerful access control.</string>
-         </property>
-        </widget>
-       </item>
-       <item row="7" column="0">
-        <widget class="QLabel" name="qlChannelPosition">
-         <property name="text">
-          <string>Position</string>
-         </property>
-        </widget>
-       </item>
-       <item row="7" column="1">
-        <widget class="QSpinBox" name="qsbChannelPosition">
-         <property name="maximumSize">
-          <size>
-           <width>16777215</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="toolTip">
-          <string>This is the sort order for the channel.</string>
-         </property>
-         <property name="whatsThis">
-          <string>&lt;b&gt;Position&lt;/b&gt;&lt;br/&gt;
-This value enables you to change the way Mumble arranges the channels in the tree. A channel with a higher &lt;i&gt;Position&lt;/i&gt; value will always be placed below one with a lower value and the other way around. If the &lt;i&gt;Position&lt;/i&gt; value of two channels is equal they will get sorted alphabetically by their name.</string>
-         </property>
-         <property name="maximum">
-          <number>99</number>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="0">
-        <widget class="QLabel" name="qlChannelMaxUsers">
-         <property name="text">
-          <string>Maximum Users</string>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="1">
-        <widget class="QSpinBox" name="qsbChannelMaxUsers">
-         <property name="maximumSize">
-          <size>
-           <width>16777215</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="toolTip">
-          <string>Maximum number of users allowed in the channel</string>
-         </property>
-         <property name="whatsThis">
-          <string>&lt;b&gt;Maximum Users&lt;/b&gt;&lt;br /&gt;
-This value allows you to set the maximum number of users allowed in the channel. If the value is above zero, only that number of users will be allowed to enter the channel. If the value is zero, the maximum number of users in the channel is given by the server's default limit.</string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="1">
-        <widget class="QCheckBox" name="qcbChannelTemporary">
-         <property name="toolTip">
-          <string>Check to create a temporary channel.</string>
-         </property>
-         <property name="whatsThis">
-          <string>&lt;b&gt;Temporary&lt;/b&gt;&lt;br /&gt;
-When checked the channel created will be marked as temporary. This means when the last player leaves it the channel will be automatically deleted by the server.</string>
-         </property>
-         <property name="text">
-          <string>Temporary</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <layout class="QHBoxLayout" name="qwChannelProperties">
-         <item>
-          <widget class="QLineEdit" name="qleChannelName">
-           <property name="toolTip">
-            <string>Enter the channel name here.</string>
-           </property>
-           <property name="whatsThis">
-            <string>&lt;b&gt;Name&lt;/b&gt;&lt;br /&gt;Enter the channel name in this field. The name has to comply with the restriction imposed by the server you are connected to.</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="qlChannelID">
-           <property name="toolTip">
-            <string>ID of the channel.</string>
-           </property>
-           <property name="text">
-            <string notr="true">ChannelID</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="qlChannelName">
-         <property name="text">
-          <string>Name</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="1">
-        <widget class="RichTextEditor" name="rteChannelDescription" native="true">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>1</verstretch>
-          </sizepolicy>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="qlChannelDescription">
-         <property name="text">
-          <string>Description</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwGroups">
-      <attribute name="title">
-       <string>&amp;Groups</string>
-      </attribute>
-      <layout class="QVBoxLayout">
-       <item>
-        <widget class="QGroupBox" name="qgbGroups">
-         <property name="title">
-          <string>Group</string>
-         </property>
-         <layout class="QHBoxLayout">
-          <item>
-           <widget class="MUComboBox" name="qcbGroupList">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>300</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="sizeIncrement">
-             <size>
-              <width>0</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="toolTip">
-             <string>List of groups</string>
-            </property>
-            <property name="whatsThis">
-             <string>&lt;b&gt;Group&lt;/b&gt;&lt;br /&gt;
-These are all the groups currently defined for the channel. To create a new group, just type in the name and press enter.</string>
-            </property>
-            <property name="editable">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="qpbGroupAdd">
-            <property name="toolTip">
-             <string>Add new group</string>
-            </property>
-            <property name="whatsThis">
-             <string>&lt;b&gt;Add&lt;/b&gt;&lt;br/&gt;
-Add a new group.</string>
-            </property>
-            <property name="text">
-             <string>Add</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="qpbGroupRemove">
-            <property name="toolTip">
-             <string>Remove selected group</string>
-            </property>
-            <property name="whatsThis">
-             <string>&lt;b&gt;Remove&lt;/b&gt;&lt;br /&gt;This removes the currently selected group. If the group was inherited, it will not be removed from the list, but all local information about the group will be cleared.</string>
-            </property>
-            <property name="text">
-             <string>Remove</string>
-            </property>
-            <property name="autoDefault">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="qcbGroupInherit">
-            <property name="toolTip">
-             <string>Inherit group members from parent</string>
-            </property>
-            <property name="whatsThis">
-             <string>&lt;b&gt;Inherit&lt;/b&gt;&lt;br /&gt;This inherits all the members in the group from the parent, if the group is marked as &lt;i&gt;Inheritable&lt;/i&gt; in the parent channel.</string>
-            </property>
-            <property name="text">
-             <string>Inherit</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="qcbGroupInheritable">
-            <property name="toolTip">
-             <string>Make group inheritable to sub-channels</string>
-            </property>
-            <property name="whatsThis">
-             <string>&lt;b&gt;Inheritable&lt;/b&gt;&lt;br /&gt;This makes this group inheritable to sub-channels. If the group is non-inheritable, sub-channels are still free to create a new group with the same name.</string>
-            </property>
-            <property name="text">
-             <string>Inheritable</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="qcbGroupInherited">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-            <property name="toolTip">
-             <string>Group was inherited from parent channel</string>
-            </property>
-            <property name="whatsThis">
-             <string>&lt;b&gt;Inherited&lt;/b&gt;&lt;br /&gt;This indicates that the group was inherited from the parent channel. You cannot edit this flag, it's just for information.</string>
-            </property>
-            <property name="text">
-             <string>Inherited</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>0</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <widget class="QGroupBox" name="qgbGroupMembers">
-         <property name="title">
-          <string>Members</string>
-         </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
-          <item>
-           <widget class="QWidget" name="qwMembersContainer" native="true">
-            <layout class="QGridLayout" name="gridLayout">
-             <property name="leftMargin">
-              <number>0</number>
-             </property>
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <property name="rightMargin">
-              <number>0</number>
-             </property>
-             <property name="bottomMargin">
-              <number>0</number>
-             </property>
-             <item row="1" column="0" colspan="2">
-              <widget class="QListWidget" name="qlwGroupAdd">
-               <property name="toolTip">
-                <string>Contains the list of members added to the group by this channel.</string>
-               </property>
-               <property name="whatsThis">
-                <string>&lt;b&gt;Members&lt;/b&gt;&lt;br /&gt;
-This list contains all members that were added to the group by the current channel. Be aware that this does not include members inherited by higher levels of the channel tree. These can be found in the &lt;i&gt;Inherited members&lt;/i&gt; list. To prevent this list to be inherited by lower level channels uncheck &lt;i&gt;Inheritable&lt;/i&gt; or manually add the members to the &lt;i&gt;Excluded members&lt;/i&gt; list.</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0">
-              <widget class="MUComboBox" name="qcbGroupAdd">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="toolTip">
-                <string>Add member to group</string>
-               </property>
-               <property name="whatsThis">
-                <string>Type in the name of a user you wish to add to the group and click Add.</string>
-               </property>
-               <property name="editable">
-                <bool>true</bool>
-               </property>
-               <property name="insertPolicy">
-                <enum>QComboBox::NoInsert</enum>
-               </property>
-               <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToContents</enum>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QPushButton" name="qpbGroupAddAdd">
-               <property name="text">
-                <string>Add</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="0" colspan="2">
-              <widget class="QLabel" name="qliGroupAdd">
-               <property name="text">
-                <string>Members</string>
-               </property>
-               <property name="buddy">
-                <cstring>qlwGroupAdd</cstring>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0" colspan="2">
-              <widget class="QPushButton" name="qpbGroupAddRemove">
-               <property name="text">
-                <string>Remove</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QWidget" name="qwExcludedMembersContainer" native="true">
-            <layout class="QGridLayout" name="gridLayout_2">
-             <property name="leftMargin">
-              <number>0</number>
-             </property>
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <property name="rightMargin">
-              <number>0</number>
-             </property>
-             <property name="bottomMargin">
-              <number>0</number>
-             </property>
-             <item row="1" column="0" colspan="2">
-              <widget class="QListWidget" name="qlwGroupRemove">
-               <property name="toolTip">
-                <string>Contains a list of members whose group membership will not be inherited from the parent channel.</string>
-               </property>
-               <property name="whatsThis">
-                <string>&lt;b&gt;Excluded members&lt;/b&gt;&lt;br /&gt;
-Contains a list of members whose group membership will not be inherited from the parent channel.</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0">
-              <widget class="MUComboBox" name="qcbGroupRemove">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="toolTip">
-                <string>Remove member from group</string>
-               </property>
-               <property name="whatsThis">
-                <string>Type in the name of a user you wish to remove from the group and click Add.</string>
-               </property>
-               <property name="editable">
-                <bool>true</bool>
-               </property>
-               <property name="insertPolicy">
-                <enum>QComboBox::NoInsert</enum>
-               </property>
-               <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToContents</enum>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QPushButton" name="qpbGroupRemoveAdd">
-               <property name="text">
-                <string>Add</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0" colspan="2">
-              <widget class="QPushButton" name="qpbGroupRemoveRemove">
-               <property name="text">
-                <string>Remove</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="0" colspan="2">
-              <widget class="QLabel" name="qliGroupRemove">
-               <property name="text">
-                <string>Excluded members</string>
-               </property>
-               <property name="buddy">
-                <cstring>qlwGroupRemove</cstring>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QWidget" name="qwInheritedMembersContainer" native="true">
-            <layout class="QGridLayout" name="gridLayout_3">
-             <property name="leftMargin">
-              <number>0</number>
-             </property>
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <property name="rightMargin">
-              <number>0</number>
-             </property>
-             <property name="bottomMargin">
-              <number>0</number>
-             </property>
-             <item row="0" column="0">
-              <widget class="QLabel" name="qliGroupInherit">
-               <property name="text">
-                <string>Inherited members</string>
-               </property>
-               <property name="buddy">
-                <cstring>qlwGroupInherit</cstring>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QListWidget" name="qlwGroupInherit">
-               <property name="toolTip">
-                <string>Contains the list of members inherited by other channels.</string>
-               </property>
-               <property name="whatsThis">
-                <string>&lt;b&gt;Inherited members&lt;/b&gt;&lt;br /&gt;
-Contains the list of members inherited by the current channel. Uncheck &lt;i&gt;Inherit&lt;/i&gt; to prevent inheritance from higher level channels.</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0">
-              <widget class="QPushButton" name="qpbGroupInheritRemove">
-               <property name="text">
-                <string>Exclude</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwACL">
-      <attribute name="title">
-       <string>&amp;ACL</string>
-      </attribute>
-      <layout class="QHBoxLayout" name="horizontalLayout">
-       <item>
-        <layout class="QVBoxLayout" name="qlVerticalACL">
-         <item>
-          <widget class="QGroupBox" name="qgbACLs">
-           <property name="title">
-            <string>Active ACLs</string>
-           </property>
-           <layout class="QGridLayout">
-            <item row="0" column="0" rowspan="2" colspan="5">
-             <widget class="QListWidget" name="qlwACLs">
-              <property name="toolTip">
-               <string>List of entries</string>
-              </property>
-              <property name="whatsThis">
-               <string>This shows all the entries active on this channel. Entries inherited from parent channels will be shown in italics.&lt;br /&gt;ACLs are evaluated top to bottom, meaning priority increases as you move down the list.</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="0">
-             <widget class="QCheckBox" name="qcbACLInherit">
-              <property name="toolTip">
-               <string>Inherit ACL of parent?</string>
-              </property>
-              <property name="whatsThis">
-               <string>This sets whether or not the ACL up the chain of parent channels are applied to this object. Only those entries that are marked in the parent as &quot;Apply to sub-channels&quot; will be inherited.</string>
-              </property>
-              <property name="text">
-               <string>Inherit ACLs</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="1">
-             <widget class="QPushButton" name="qpbACLUp">
-              <property name="toolTip">
-               <string>Move entry up</string>
-              </property>
-              <property name="whatsThis">
-               <string>This moves the entry up in the list. As entries are evaluated in order, this may change the effective permissions of users. You cannot move an entry above an inherited entry, if you really need that you'll have to duplicate the inherited entry.</string>
-              </property>
-              <property name="text">
-               <string>&amp;Up</string>
-              </property>
-              <property name="autoDefault">
-               <bool>false</bool>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="2">
-             <widget class="QPushButton" name="qpbACLDown">
-              <property name="toolTip">
-               <string>Move entry down</string>
-              </property>
-              <property name="whatsThis">
-               <string>This moves the entry down in the list. As entries are evaluated in order, this may change the effective permissions of users.</string>
-              </property>
-              <property name="text">
-               <string>&amp;Down</string>
-              </property>
-              <property name="autoDefault">
-               <bool>false</bool>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="3">
-             <widget class="QPushButton" name="qpbACLAdd">
-              <property name="toolTip">
-               <string>Add new entry</string>
-              </property>
-              <property name="whatsThis">
-               <string>This adds a new entry, initially set with no permissions and applying to all.</string>
-              </property>
-              <property name="text">
-               <string>&amp;Add</string>
-              </property>
-              <property name="autoDefault">
-               <bool>false</bool>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="4">
-             <widget class="QPushButton" name="qpbACLRemove">
-              <property name="toolTip">
-               <string>Remove entry</string>
-              </property>
-              <property name="whatsThis">
-               <string>This removes the currently selected entry.</string>
-              </property>
-              <property name="text">
-               <string>&amp;Remove</string>
-              </property>
-              <property name="autoDefault">
-               <bool>false</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item>
-          <widget class="QGroupBox" name="qgbACLapply">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="title">
-            <string>Context</string>
-           </property>
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <item>
-             <widget class="QCheckBox" name="qcbACLApplySubs">
-              <property name="toolTip">
-               <string>Entry should apply to sub-channels.</string>
-              </property>
-              <property name="whatsThis">
-               <string>This makes the entry apply to sub-channels of this channel.</string>
-              </property>
-              <property name="text">
-               <string>Applies to sub-channels</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="qcbACLApplyHere">
-              <property name="toolTip">
-               <string>Entry should apply to this channel.</string>
-              </property>
-              <property name="whatsThis">
-               <string>This makes the entry apply to this channel.</string>
-              </property>
-              <property name="text">
-               <string>Applies to this channel</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item>
-          <widget class="QGroupBox" name="qgbACLugroup">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="title">
-            <string>User/Group</string>
-           </property>
-           <layout class="QGridLayout">
-            <item row="0" column="0">
-             <widget class="QLabel" name="qliACLGroup">
-              <property name="text">
-               <string>Group</string>
-              </property>
-              <property name="buddy">
-               <cstring>qcbACLGroup</cstring>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="1">
-             <widget class="MUComboBox" name="qcbACLGroup">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Group this entry applies to</string>
-              </property>
-              <property name="whatsThis">
-               <string>This controls which group of users this entry applies to.&lt;br /&gt;Note that the group is evaluated in the context of the channel the entry is used in. For example, the default ACL on the Root channel gives &lt;i&gt;Write&lt;/i&gt; permission to the &lt;i&gt;admin&lt;/i&gt; group. This entry, if inherited by a channel, will give a user write privileges if he belongs to the &lt;i&gt;admin&lt;/i&gt; group in that channel, even if he doesn't belong to the &lt;i&gt;admin&lt;/i&gt; group in the channel where the ACL originated.&lt;br /&gt;If a group name starts with '!', its membership is negated, and if it starts with '~', it is evaluated in the channel the ACL was defined in, rather than the channel the ACL is active in.&lt;br /&gt;If a group name starts with '#', it is interpreted as an access token. Users must have entered whatever follows the '#' in their list of access tokens to match. This can be used for very simple password access to channels for non-authenticated users.&lt;br /&gt;If a group name starts with '$', it will only match users whose certificate hash matches what follows the '$'.&lt;br /&gt;A few special predefined groups are:&lt;br /&gt;&lt;b&gt;all&lt;/b&gt; - Everyone will match.&lt;br /&gt;&lt;b&gt;auth&lt;/b&gt; - All authenticated users will match.&lt;br /&gt;&lt;b&gt;sub,a,b,c&lt;/b&gt; - User currently in a sub-channel minimum &lt;i&gt;a&lt;/i&gt; common parents, and between &lt;i&gt;b&lt;/i&gt; and &lt;i&gt;c&lt;/i&gt; channels down the chain. See the website for more extensive documentation on this one.&lt;br /&gt;&lt;b&gt;in&lt;/b&gt; - Users currently in the channel will match (convenience for '&lt;i&gt;sub,0,0,0&lt;/i&gt;').&lt;br /&gt;&lt;b&gt;out&lt;/b&gt; - Users outside the channel will match (convenience for '&lt;i&gt;!sub,0,0,0&lt;/i&gt;').&lt;br /&gt;Note that an entry applies to either a user or a group, not both.</string>
-              </property>
-              <property name="editable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <widget class="QLabel" name="qliACLUser">
-              <property name="text">
-               <string>User ID</string>
-              </property>
-              <property name="buddy">
-               <cstring>qcbACLUser</cstring>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="1">
-             <widget class="MUComboBox" name="qcbACLUser">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>User this entry applies to</string>
-              </property>
-              <property name="whatsThis">
-               <string>This controls which user this entry applies to. Just type in the user name and hit enter to query the server for a match.</string>
-              </property>
-              <property name="editable">
-               <bool>true</bool>
-              </property>
-              <property name="sizeAdjustPolicy">
-               <enum>QComboBox::AdjustToContents</enum>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QGroupBox" name="qgbACLpermissions">
-         <property name="title">
-          <string>Permissions</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </widget>
-   </item>
-   <item>
-    <widget class="QDialogButtonBox" name="qdbbButtons">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>RichTextEditor</class>
-   <extends>QWidget</extends>
-   <header>RichTextEditor.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <tabstops>
-  <tabstop>qleChannelPassword</tabstop>
-  <tabstop>qsbChannelPosition</tabstop>
-  <tabstop>qsbChannelMaxUsers</tabstop>
-  <tabstop>qcbChannelTemporary</tabstop>
-  <tabstop>qcbGroupList</tabstop>
-  <tabstop>qpbGroupAdd</tabstop>
-  <tabstop>qpbGroupRemove</tabstop>
-  <tabstop>qcbGroupInherit</tabstop>
-  <tabstop>qcbGroupInheritable</tabstop>
-  <tabstop>qcbGroupInherited</tabstop>
-  <tabstop>qlwGroupAdd</tabstop>
-  <tabstop>qcbGroupAdd</tabstop>
-  <tabstop>qpbGroupAddAdd</tabstop>
-  <tabstop>qpbGroupAddRemove</tabstop>
-  <tabstop>qlwGroupRemove</tabstop>
-  <tabstop>qcbGroupRemove</tabstop>
-  <tabstop>qpbGroupRemoveAdd</tabstop>
-  <tabstop>qpbGroupRemoveRemove</tabstop>
-  <tabstop>qlwGroupInherit</tabstop>
-  <tabstop>qpbGroupInheritRemove</tabstop>
-  <tabstop>qlwACLs</tabstop>
-  <tabstop>qcbACLInherit</tabstop>
-  <tabstop>qpbACLUp</tabstop>
-  <tabstop>qpbACLDown</tabstop>
-  <tabstop>qpbACLAdd</tabstop>
-  <tabstop>qpbACLRemove</tabstop>
-  <tabstop>qcbACLApplySubs</tabstop>
-  <tabstop>qcbACLApplyHere</tabstop>
-  <tabstop>qcbACLGroup</tabstop>
-  <tabstop>qcbACLUser</tabstop>
-  <tabstop>qdbbButtons</tabstop>
- </tabstops>
- <resources/>
- <connections>
-  <connection>
-   <sender>qdbbButtons</sender>
-   <signal>accepted()</signal>
-   <receiver>ACLEditor</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>236</x>
-     <y>499</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>157</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qdbbButtons</sender>
-   <signal>rejected()</signal>
-   <receiver>ACLEditor</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>304</x>
-     <y>499</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qlwGroupInherit</sender>
-   <signal>doubleClicked(QModelIndex)</signal>
-   <receiver>qpbGroupInheritRemove</receiver>
-   <slot>animateClick()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>476</x>
-     <y>316</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>574</x>
-     <y>445</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qleChannelName</sender>
-   <signal>returnPressed()</signal>
-   <receiver>ACLEditor</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>331</x>
-     <y>50</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>303</x>
-     <y>254</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qleChannelPassword</sender>
-   <signal>returnPressed()</signal>
-   <receiver>ACLEditor</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>331</x>
-     <y>274</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>303</x>
-     <y>254</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "ALSAAudio.h"
+
+#include "MainWindow.h"
+#include "User.h"
+#include "Utils.h"
+
+#include <alsa/asoundlib.h>
+#include <sys/poll.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+#define NBLOCKS 8
+
+class ALSAEnumerator {
+public:
+	QHash< QString, QString > qhInput;
+	QHash< QString, QString > qhOutput;
+	static QString getHint(void *hint, const char *id);
+	ALSAEnumerator();
+};
+
+static ALSAEnumerator *cards = nullptr;
+
+class ALSAAudioInputRegistrar : public AudioInputRegistrar {
+public:
+	ALSAAudioInputRegistrar();
+	virtual AudioInput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	virtual bool canEcho(const QString &) const;
+};
+
+
+class ALSAAudioOutputRegistrar : public AudioOutputRegistrar {
+public:
+	ALSAAudioOutputRegistrar();
+	virtual AudioOutput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+};
+
+class ALSAInit : public DeferInit {
+protected:
+	ALSAAudioInputRegistrar *pairALSA;
+	ALSAAudioOutputRegistrar *paorALSA;
+
+public:
+	void initialize();
+	void destroy();
+};
+
+static ALSAInit aiInit;
+QMutex qmALSA;
+
+void ALSAInit::initialize() {
+	pairALSA = nullptr;
+	paorALSA = nullptr;
+	cards    = nullptr;
+
+	int card = -1;
+	snd_card_next(&card);
+	if (card != -1) {
+		pairALSA = new ALSAAudioInputRegistrar();
+		paorALSA = new ALSAAudioOutputRegistrar();
+		cards    = new ALSAEnumerator();
+	} else {
+		qWarning("ALSAInit: No cards found, not initializing");
+	}
+}
+
+void ALSAInit::destroy() {
+	QMutexLocker qml(&qmALSA);
+	delete pairALSA;
+	delete paorALSA;
+	delete cards;
+}
+
+ALSAAudioInputRegistrar::ALSAAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("ALSA"), 5) {
+}
+
+AudioInput *ALSAAudioInputRegistrar::create() {
+	return new ALSAAudioInput();
+}
+
+const QList< audioDevice > ALSAAudioInputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
+
+	QStringList qlInputDevs = cards->qhInput.keys();
+	std::sort(qlInputDevs.begin(), qlInputDevs.end());
+
+	if (qlInputDevs.contains(g.s.qsALSAInput)) {
+		qlInputDevs.removeAll(g.s.qsALSAInput);
+		qlInputDevs.prepend(g.s.qsALSAInput);
+	}
+
+	foreach (const QString &dev, qlInputDevs) {
+		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhInput.value(dev));
+		qlReturn << audioDevice(t, dev);
+	}
+
+	return qlReturn;
+}
+
+void ALSAAudioInputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsALSAInput = choice.toString();
+}
+
+bool ALSAAudioInputRegistrar::canEcho(const QString &) const {
+	return false;
+}
+
+ALSAAudioOutputRegistrar::ALSAAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("ALSA"), 5) {
+}
+
+AudioOutput *ALSAAudioOutputRegistrar::create() {
+	return new ALSAAudioOutput();
+}
+
+const QList< audioDevice > ALSAAudioOutputRegistrar::getDeviceChoices() {
+	QList< audioDevice > qlReturn;
+
+	QStringList qlOutputDevs = cards->qhOutput.keys();
+	std::sort(qlOutputDevs.begin(), qlOutputDevs.end());
+
+	if (qlOutputDevs.contains(g.s.qsALSAOutput)) {
+		qlOutputDevs.removeAll(g.s.qsALSAOutput);
+		qlOutputDevs.prepend(g.s.qsALSAOutput);
+	}
+
+	foreach (const QString &dev, qlOutputDevs) {
+		QString t = QString::fromLatin1("[%1] %2").arg(dev, cards->qhOutput.value(dev));
+		qlReturn << audioDevice(t, dev);
+	}
+
+	return qlReturn;
+}
+
+void ALSAAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
+	s.qsALSAOutput = choice.toString();
+}
+
+ALSAEnumerator::ALSAEnumerator() {
+	QMutexLocker qml(&qmALSA);
+
+	qhInput.insert(QLatin1String("default"), ALSAAudioInput::tr("Default ALSA Card"));
+	qhOutput.insert(QLatin1String("default"), ALSAAudioOutput::tr("Default ALSA Card"));
+
+#if SND_LIB_VERSION >= 0x01000e
+	void **hints = nullptr;
+	void **hint;
+	snd_config_t *basic = nullptr;
+	int r;
+
+	snd_config_update();
+	r = snd_config_search(snd_config, "defaults.namehint.extended", &basic);
+	if ((r == 0) && basic) {
+		if (snd_config_set_ascii(basic, "on"))
+			qWarning("ALSAEnumerator: Failed to set namehint");
+	} else {
+		qWarning("ALSAEnumerator: Namehint not found");
+	}
+
+	r = snd_device_name_hint(-1, "pcm", &hints);
+
+	if (r || !hints) {
+		qWarning("ALSAEnumerator: snd_device_name_hint: %d", r);
+	} else {
+		hint = hints;
+		while (*hint) {
+			const QString name = getHint(*hint, "NAME");
+			const QString ioid = getHint(*hint, "IOID");
+			QString desc       = getHint(*hint, "DESC");
+
+			desc.replace(QLatin1Char('\n'), QLatin1Char(' '));
+
+
+			// ALSA, in it's infinite wisdom, claims "dmix" is an input/output device.
+			// Since there seems to be no way to fetch the ctl interface for a matching device string
+			// without actually opening it, we'll simply have to start guessing.
+
+			bool caninput  = (ioid.isNull() || (ioid.compare(QLatin1String("Input"), Qt::CaseInsensitive) == 0));
+			bool canoutput = (ioid.isNull() || (ioid.compare(QLatin1String("Output"), Qt::CaseInsensitive) == 0));
+
+			if (name.startsWith(QLatin1String("dmix:")))
+				caninput = false;
+			else if (name.startsWith(QLatin1String("dsnoop:")))
+				canoutput = false;
+
+			if (caninput)
+				qhInput.insert(name, desc);
+			if (canoutput)
+				qhOutput.insert(name, desc);
+
+			++hint;
+		}
+		snd_device_name_free_hint(hints);
+	}
+
+	snd_config_update_free_global();
+	snd_config_update();
+#else
+	int card = -1;
+	snd_card_next(&card);
+	while (card != -1) {
+		char *name;
+		snd_ctl_t *ctl = nullptr;
+		snd_card_get_longname(card, &name);
+		QByteArray dev = QString::fromLatin1("hw:%1").arg(card).toUtf8();
+		if (snd_ctl_open(&ctl, dev.data(), SND_CTL_READONLY) >= 0) {
+			snd_pcm_info_t *info = nullptr;
+			snd_pcm_info_malloc(&info);
+
+			char *cname = nullptr;
+			snd_card_get_name(card, &cname);
+
+			int device = -1;
+			snd_ctl_pcm_next_device(ctl, &device);
+
+			bool play = false;
+			bool cap  = false;
+
+			while (device != -1) {
+				QString devname = QString::fromLatin1("hw:%1,%2").arg(card).arg(device);
+				snd_pcm_info_set_device(info, device);
+				snd_pcm_info_set_stream(info, SND_PCM_STREAM_CAPTURE);
+				if (snd_ctl_pcm_info(ctl, info) == 0) {
+					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
+					qhInput.insert(devname, fname);
+					cap = true;
+				}
+
+				snd_pcm_info_set_stream(info, SND_PCM_STREAM_PLAYBACK);
+				if (snd_ctl_pcm_info(ctl, info) == 0) {
+					QString fname = QString::fromLatin1(snd_pcm_info_get_name(info));
+					qhOutput.insert(devname, fname);
+					play = true;
+				}
+
+				snd_ctl_pcm_next_device(ctl, &device);
+			}
+			if (play) {
+				qhOutput.insert(QString::fromLatin1("dmix:CARD=%1").arg(card), QLatin1String(cname));
+			}
+			if (cap) {
+				qhInput.insert(QString::fromLatin1("dsnoop:CARD=%1").arg(card), QLatin1String(cname));
+			}
+			snd_pcm_info_free(info);
+			snd_ctl_close(ctl);
+		}
+		snd_card_next(&card);
+	}
+#endif
+}
+
+QString ALSAEnumerator::getHint(void *hint, const char *id) {
+	QString s;
+#if SND_LIB_VERSION >= 0x01000e
+	char *value = snd_device_name_get_hint(hint, id);
+	if (value) {
+		s = QLatin1String(value);
+		free(value);
+	}
+#endif
+	return s;
+}
+
+
+ALSAAudioInput::ALSAAudioInput() {
+	bRunning = true;
+}
+
+ALSAAudioInput::~ALSAAudioInput() {
+	// Signal input thread to end
+	bRunning = false;
+	wait();
+}
+
+#define ALSA_ERRBAIL(x)                                       \
+	if (!bOk) {                                               \
+	} else if ((err = static_cast< int >(x)) < 0) {           \
+		bOk = false;                                          \
+		qWarning("ALSAAudio: %s: %s", #x, snd_strerror(err)); \
+	}
+#define ALSA_ERRCHECK(x)                                                    \
+	if (!bOk) {                                                             \
+	} else if ((err = static_cast< int >(x)) < 0) {                         \
+		qWarning("ALSAAudio: Non-critical: %s: %s", #x, snd_strerror(err)); \
+	}
+
+void ALSAAudioInput::run() {
+	QMutexLocker qml(&qmALSA);
+	snd_pcm_sframes_t readblapp;
+
+	QByteArray device_name         = g.s.qsALSAInput.toLatin1();
+	snd_pcm_hw_params_t *hw_params = nullptr;
+	snd_pcm_t *capture_handle      = nullptr;
+
+	unsigned int rrate = SAMPLE_RATE;
+	bool bOk           = true;
+
+	int err = 0;
+
+	unsigned int iChannels = 1;
+
+	qWarning("ALSAAudioInput: Initing audiocapture %s.", device_name.data());
+
+	snd_pcm_hw_params_alloca(&hw_params);
+
+	ALSA_ERRBAIL(snd_pcm_open(&capture_handle, device_name.data(), SND_PCM_STREAM_CAPTURE, 0));
+	ALSA_ERRCHECK(snd_pcm_hw_params_any(capture_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(capture_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(capture_handle, hw_params, SND_PCM_FORMAT_S16));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(capture_handle, hw_params, &rrate, nullptr));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(capture_handle, hw_params, &iChannels));
+
+	snd_pcm_uframes_t wantPeriod = (rrate * iFrameSize) / SAMPLE_RATE;
+	snd_pcm_uframes_t wantBuff   = wantPeriod * 8;
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(capture_handle, hw_params, &wantPeriod, nullptr));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(capture_handle, hw_params, &wantBuff));
+	ALSA_ERRBAIL(snd_pcm_hw_params(capture_handle, hw_params));
+
+	qWarning("ALSAAudioInput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels, wantBuff,
+			 wantPeriod);
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(capture_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iMicChannels));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &iMicFreq, nullptr));
+
+#ifdef ALSA_VERBOSE
+	snd_output_t *log;
+	snd_output_stdio_attach(&log, stderr, 0);
+	if (capture_handle)
+		snd_pcm_dump(capture_handle, log);
+#endif
+
+	ALSA_ERRBAIL(snd_pcm_prepare(capture_handle));
+	ALSA_ERRBAIL(snd_pcm_start(capture_handle));
+
+	if (!bOk) {
+		if (capture_handle) {
+			snd_pcm_drain(capture_handle);
+			snd_pcm_close(capture_handle);
+			capture_handle = nullptr;
+		}
+		g.mw->msgBox(
+			tr("Opening chosen ALSA Input failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
+		return;
+	}
+
+	eMicFormat = SampleShort;
+	initializeMixer();
+
+	char inbuff[wantPeriod * iChannels * sizeof(short)];
+
+	qml.unlock();
+
+	while (bRunning) {
+#ifdef ALSA_VERBOSE
+		snd_pcm_status_malloc(&status);
+		snd_pcm_status(capture_handle, status);
+		snd_pcm_status_dump(status, log);
+		snd_pcm_status_free(status);
+#endif
+		readblapp = snd_pcm_readi(capture_handle, inbuff, static_cast< int >(wantPeriod));
+		if (readblapp == -ESTRPIPE) {
+			qWarning("ALSAAudioInput: PCM suspended, trying to resume");
+			while (bRunning && snd_pcm_resume(capture_handle) == -EAGAIN)
+				msleep(1000);
+			if ((err = snd_pcm_prepare(capture_handle)) < 0)
+				qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (readblapp == -EPIPE) {
+			err = snd_pcm_prepare(capture_handle);
+			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (readblapp < 0) {
+			err = snd_pcm_prepare(capture_handle);
+			qWarning("ALSAAudioInput: %s: %s", snd_strerror(static_cast< int >(readblapp)), snd_strerror(err));
+		} else if (wantPeriod == static_cast< unsigned int >(readblapp)) {
+			addMic(inbuff, static_cast< int >(readblapp));
+		}
+	}
+
+	snd_pcm_drop(capture_handle);
+	snd_pcm_close(capture_handle);
+
+	qWarning("ALSAAudioInput: Releasing ALSA Mic.");
+}
+
+ALSAAudioOutput::ALSAAudioOutput() {
+	qWarning("ALSAAudioOutput: Initialized");
+	bRunning = true;
+}
+
+ALSAAudioOutput::~ALSAAudioOutput() {
+	bRunning = false;
+	// Call destructor of all children
+	wipe();
+	// Wait for terminate
+	wait();
+	qWarning("ALSAAudioOutput: Destroyed");
+}
+
+void ALSAAudioOutput::run() {
+	QMutexLocker qml(&qmALSA);
+	snd_pcm_t *pcm_handle = nullptr;
+	struct pollfd fds[16];
+	int count;
+	bool stillRun = true;
+	int err       = 0;
+	bool bOk      = true;
+
+
+	snd_pcm_hw_params_t *hw_params = nullptr;
+	snd_pcm_sw_params_t *sw_params = nullptr;
+	QByteArray device_name         = g.s.qsALSAOutput.toLatin1();
+
+	snd_pcm_hw_params_alloca(&hw_params);
+	snd_pcm_sw_params_alloca(&sw_params);
+
+	ALSA_ERRBAIL(snd_pcm_open(&pcm_handle, device_name.data(), SND_PCM_STREAM_PLAYBACK, 0));
+	ALSA_ERRCHECK(snd_pcm_hw_params_any(pcm_handle, hw_params));
+
+	iChannels = 1;
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels_max(hw_params, &iChannels));
+	if (iChannels > 9) {
+		qWarning("ALSAAudioOutput: ALSA reports %d output channels. Clamping to 2.", iChannels);
+		iChannels = 2;
+	}
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S16));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_channels_near(pcm_handle, hw_params, &iChannels));
+	unsigned int rrate = SAMPLE_RATE;
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &rrate, nullptr));
+
+	unsigned int iOutputSize = (iFrameSize * rrate) / SAMPLE_RATE;
+
+	snd_pcm_uframes_t period_size = iOutputSize;
+	snd_pcm_uframes_t buffer_size = iOutputSize * (g.s.iOutputDelay + 1);
+
+	int dir = 1;
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_period_size_near(pcm_handle, hw_params, &period_size, &dir));
+	ALSA_ERRBAIL(snd_pcm_hw_params_set_buffer_size_near(pcm_handle, hw_params, &buffer_size));
+
+	ALSA_ERRBAIL(snd_pcm_hw_params(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_period_size(hw_params, &period_size, &dir));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size));
+
+	qWarning("ALSAAudioOutput: Actual buffer %d hz, %d channel %ld samples [%ld per period]", rrate, iChannels,
+			 buffer_size, period_size);
+
+	ALSA_ERRBAIL(snd_pcm_sw_params_current(pcm_handle, sw_params));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, period_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_start_threshold(pcm_handle, sw_params, buffer_size - period_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params_set_stop_threshold(pcm_handle, sw_params, buffer_size));
+	ALSA_ERRBAIL(snd_pcm_sw_params(pcm_handle, sw_params));
+
+#ifdef ALSA_VERBOSE
+	snd_output_t *log;
+	snd_output_stdio_attach(&log, stderr, 0);
+	if (pcm_handle)
+		snd_pcm_dump(pcm_handle, log);
+#endif
+
+	ALSA_ERRBAIL(snd_pcm_prepare(pcm_handle));
+
+	const unsigned int buffsize = static_cast< unsigned int >(period_size * iChannels);
+
+	float zerobuff[buffsize];
+	float outbuff[buffsize];
+
+	for (unsigned int i = 0; i < buffsize; i++)
+		zerobuff[i] = 0;
+
+	// Fill buffer
+	if (bOk && pcm_handle)
+		for (unsigned int i = 0; i < buffer_size / period_size; i++)
+			snd_pcm_writei(pcm_handle, zerobuff, period_size);
+
+	if (!bOk) {
+		g.mw->msgBox(
+			tr("Opening chosen ALSA Output failed: %1").arg(QString::fromLatin1(snd_strerror(err)).toHtmlEscaped()));
+		if (pcm_handle) {
+			snd_pcm_close(pcm_handle);
+			pcm_handle = nullptr;
+		}
+		return;
+	}
+
+	const unsigned int chanmasks[32] = { SPEAKER_FRONT_LEFT, SPEAKER_FRONT_RIGHT,  SPEAKER_BACK_LEFT,
+										 SPEAKER_BACK_RIGHT, SPEAKER_FRONT_CENTER, SPEAKER_LOW_FREQUENCY,
+										 SPEAKER_SIDE_LEFT,  SPEAKER_SIDE_RIGHT,   SPEAKER_BACK_CENTER };
+
+	ALSA_ERRBAIL(snd_pcm_hw_params_current(pcm_handle, hw_params));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_channels(hw_params, &iChannels));
+	ALSA_ERRBAIL(snd_pcm_hw_params_get_rate(hw_params, &rrate, nullptr));
+	iMixerFreq    = rrate;
+	eSampleFormat = SampleShort;
+
+	qWarning("ALSAAudioOutput: Initializing %d channel, %d hz mixer", iChannels, iMixerFreq);
+	initializeMixer(chanmasks);
+
+	count = snd_pcm_poll_descriptors_count(pcm_handle);
+	snd_pcm_poll_descriptors(pcm_handle, fds, count);
+
+	qml.unlock();
+
+	while (bRunning && bOk) {
+		poll(fds, count, 20);
+		unsigned short revents;
+
+		snd_pcm_poll_descriptors_revents(pcm_handle, fds, count, &revents);
+		if (revents & POLLERR) {
+			snd_pcm_prepare(pcm_handle);
+		} else if (revents & POLLOUT) {
+			snd_pcm_sframes_t avail{};
+			ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
+			while (avail >= static_cast< int >(period_size)) {
+				stillRun = mix(outbuff, static_cast< int >(period_size));
+				if (stillRun) {
+					snd_pcm_sframes_t w = 0;
+					ALSA_ERRCHECK(w = snd_pcm_writei(pcm_handle, outbuff, period_size));
+					if (w < 0) {
+						avail = w;
+						break;
+					}
+				} else
+					break;
+				ALSA_ERRCHECK(avail = snd_pcm_avail_update(pcm_handle));
+			}
+
+			if (avail == -EPIPE) {
+				snd_pcm_drain(pcm_handle);
+				ALSA_ERRCHECK(snd_pcm_prepare(pcm_handle));
+				for (unsigned int i = 0; i < buffer_size / period_size; ++i)
+					ALSA_ERRCHECK(snd_pcm_writei(pcm_handle, zerobuff, period_size));
+			}
+
+			if (!stillRun) {
+				snd_pcm_drain(pcm_handle);
+
+				while (bRunning && !mix(outbuff, static_cast< unsigned int >(period_size))) {
+					this->msleep(10);
+				}
+
+				if (!bRunning)
+					break;
+
+				snd_pcm_prepare(pcm_handle);
+
+				// Fill one frame
+				for (unsigned int i = 0; i < (buffer_size / period_size) - 1; i++)
+					snd_pcm_writei(pcm_handle, zerobuff, period_size);
+
+				snd_pcm_writei(pcm_handle, outbuff, period_size);
+			}
+		}
+	}
+	snd_pcm_close(pcm_handle);
+}
