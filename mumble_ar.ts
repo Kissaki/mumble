@@ -1,30 +1,21 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#ifndef MUMBLE_MUMBLE_VERSIONCHECK_H_
-#define MUMBLE_MUMBLE_VERSIONCHECK_H_
-
-#include <QFutureWatcher>
-#include <QtCore/QByteArray>
-#include <QtCore/QObject>
-#include <QtCore/QUrl>
-
-class VersionCheck : public QObject {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(VersionCheck)
-
-	QFutureWatcher< void > m_preparationWatcher;
-	QUrl m_requestURL;
-protected slots:
-	void performRequest();
-public slots:
-	void fetched(QByteArray data, QUrl url);
-
-public:
-	VersionCheck(bool autocheck, QObject *parent = nullptr, bool focus = false);
-};
-
-#endif
+<RCC>
+    <qresource prefix="/">
+        <file alias="rec.svg">../../icons/rec.svg</file>
+        <file alias="mumble.svg">../../icons/mumble.svg</file>
+        <file alias="mumble.icns">../../icons/mumble.icns</file>
+        <file alias="wb_male.oga">../../samples/wb_male.oga</file>
+        <file alias="on.ogg">../../samples/on.ogg</file>
+        <file alias="off.ogg">../../samples/off.ogg</file>
+        <file alias="Critical.ogg">../../samples/Critical.ogg</file>
+        <file alias="PermissionDenied.ogg">../../samples/PermissionDenied.ogg</file>
+        <file alias="SelfMutedDeafened.ogg">../../samples/SelfMutedDeafened.ogg</file>
+        <file alias="ServerConnected.ogg">../../samples/ServerConnected.ogg</file>
+        <file alias="ServerDisconnected.ogg">../../samples/ServerDisconnected.ogg</file>
+        <file alias="TextMessage.ogg">../../samples/TextMessage.ogg</file>
+        <file alias="UserJoinedChannel.ogg">../../samples/UserJoinedChannel.ogg</file>
+        <file alias="UserKickedYouOrByYou.ogg">../../samples/UserKickedYouOrByYou.ogg</file>
+        <file alias="UserLeftChannel.ogg">../../samples/UserLeftChannel.ogg</file>
+        <file alias="UserMutedYouOrByYou.ogg">../../samples/UserMutedYouOrByYou.ogg</file>
+        <file alias="RecordingStateChanged.ogg">../../samples/RecordingStateChanged.ogg</file>
+    </qresource>
+</RCC>
