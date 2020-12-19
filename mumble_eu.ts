@@ -3,40 +3,72 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_USERINFORMATION_H_
-#define MUMBLE_MUMBLE_USERINFORMATION_H_
+#include "TextToSpeech.h"
 
-#include <QtNetwork/QSslCertificate>
+// As the include order seems to make a difference, disable clang-format for them
+// clang-format off
+#include <servprov.h>
+#include <sapi.h>
+// clang-format on
 
-#include "Message.h"
+#undef FAILED
+#define FAILED(Status) (static_cast< HRESULT >(Status) < 0)
 
-#include "ui_UserInformation.h"
-
-namespace MumbleProto {
-class UserStats;
-}
-
-class QTimer;
-
-class UserInformation : public QDialog, Ui::UserInformation {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(UserInformation)
-protected:
-	bool bRequested;
-	unsigned int uiSession;
-	QTimer *qtTimer;
-	QList< QSslCertificate > qlCerts;
-	static QString secsToString(unsigned int secs);
-	QFont qfCertificateFont;
-protected slots:
-	void tick();
-	void on_qpbCertificate_clicked();
-
+class TextToSpeechPrivate {
 public:
-	UserInformation(const MumbleProto::UserStats &msg, QWidget *p = nullptr);
-	void update(const MumbleProto::UserStats &msg);
-	unsigned int session() const;
+	ISpVoice *pVoice;
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
+	void say(const QString &text);
+	void setVolume(int v);
 };
 
-#endif
+TextToSpeechPrivate::TextToSpeechPrivate() {
+	pVoice = nullptr;
+
+	HRESULT hr = CoCreateInstance(CLSID_SpVoice, nullptr, CLSCTX_ALL, IID_ISpVoice, (void **) &pVoice);
+	if (FAILED(hr))
+		qWarning("TextToSpeechPrivate: Failed to allocate TTS Voice");
+}
+
+TextToSpeechPrivate::~TextToSpeechPrivate() {
+	if (pVoice)
+		pVoice->Release();
+}
+
+void TextToSpeechPrivate::say(const QString &text) {
+	if (pVoice) {
+		pVoice->Speak((const wchar_t *) text.utf16(), SPF_ASYNC, nullptr);
+	}
+}
+
+void TextToSpeechPrivate::setVolume(int volume) {
+	if (pVoice)
+		pVoice->SetVolume(volume);
+}
+
+TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
+	enabled = true;
+	d       = new TextToSpeechPrivate();
+}
+
+TextToSpeech::~TextToSpeech() {
+	delete d;
+}
+
+void TextToSpeech::say(const QString &text) {
+	if (enabled)
+		d->say(text);
+}
+
+void TextToSpeech::setEnabled(bool e) {
+	enabled = e;
+}
+
+void TextToSpeech::setVolume(int volume) {
+	d->setVolume(volume);
+}
+
+bool TextToSpeech::isEnabled() const {
+	return enabled;
+}
