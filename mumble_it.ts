@@ -3,88 +3,79 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_ASIOINPUT_H_
-#define MUMBLE_MUMBLE_ASIOINPUT_H_
+#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
+#define MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
 
-#include "ui_ASIOInput.h"
+#include <celt.h>
+#include <speex/speex.h>
+#include <speex/speex_jitter.h>
+#include <speex/speex_resampler.h>
 
-#include "AudioInput.h"
-#include "ConfigDialog.h"
+#include <QtCore/QMutex>
 
-#include "win.h"
+#include "AudioOutputUser.h"
+#include "Message.h"
 
-#include <QtCore/QList>
-#include <QtCore/QObject>
-#include <QtCore/QString>
-#include <QtCore/QWaitCondition>
+class CELTCodec;
+class OpusCodec;
+class ClientUser;
+struct OpusDecoder;
 
-#include <combaseapi.h>
-
-#include <asiodrvr.h>
-
-typedef QPair< QString, QString > ASIODev;
-
-class ASIOConfig : public ConfigWidget, public Ui::ASIOConfig {
+class AudioOutputSpeech : public AudioOutputUser {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(ASIOConfig)
+	Q_DISABLE_COPY(AudioOutputSpeech)
 protected:
-	QList< ASIODev > qlDevs;
-	bool bOk;
+	unsigned int iAudioBufferSize;
+	unsigned int iBufferOffset;
+	unsigned int iBufferFilled;
+	unsigned int iOutputSize;
+	unsigned int iLastConsume;
+	unsigned int iFrameSize;
+	unsigned int iFrameSizePerChannel;
+	unsigned int iSampleRate;
+	unsigned int iMixerFreq;
+	bool bLastAlive;
+	bool bHasTerminator;
+
+	float *fFadeIn;
+	float *fFadeOut;
+	float *fResamplerBuffer;
+
+	SpeexResamplerState *srs;
+
+	QMutex qmJitter;
+	JitterBuffer *jbJitter;
+	int iMissCount;
+
+	CELTCodec *cCodec;
+	CELTDecoder *cdDecoder;
+
+	OpusCodec *oCodec;
+	OpusDecoder *opusState;
+
+	SpeexBits sbBits;
+	void *dsSpeex;
+
+	QList< QByteArray > qlFrames;
 
 public:
-	/// The unique name of this ConfigWidget
-	static const QString name;
-	ASIOConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	virtual const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
-public slots:
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
-	void clearQuery();
-	void on_qcbDevice_activated(int index);
-	void on_qpbQuery_clicked();
-	void on_qpbConfig_clicked();
-	void on_qpbAddMic_clicked();
-	void on_qpbRemMic_clicked();
-	void on_qpbAddSpeaker_clicked();
-	void on_qpbRemSpeaker_clicked();
+	unsigned char ucFlags;
+	MessageHandler::UDPMessageType umtType;
+	int iMissedFrames;
+	ClientUser *p;
+
+	/// Fetch and decode frames from the jitter buffer. Called in mix().
+	///
+	/// @param frameCount Number of frames to decode. frame means a bundle of one sample from each channel.
+	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
+
+	void addFrameToBuffer(const QByteArray &, unsigned int iBaseSeq);
+
+	/// @param systemMaxBufferSize maximum number of samples the system audio play back may request each time
+	AudioOutputSpeech(ClientUser *, unsigned int freq, MessageHandler::UDPMessageType type,
+					  unsigned int systemMaxBufferSize);
+	~AudioOutputSpeech() Q_DECL_OVERRIDE;
 };
 
-#define IEEE754_64FLOAT 1
-#include "asio.h"
-
-class ASIOInput : public AudioInput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ASIOInput)
-protected:
-	IASIO *iasio;
-
-	int iNumMic, iNumSpeaker;
-	long lBufSize;
-	ASIOBufferInfo *abiInfo;
-	ASIOChannelInfo *aciInfo;
-
-	// ASIO Callbacks
-	static ASIOInput *aiSelf;
-
-	static void sampleRateChanged(ASIOSampleRate sRate);
-	static long asioMessages(long selector, long value, void *message, double *opt);
-	static void bufferSwitch(long index, ASIOBool processNow);
-	static ASIOTime *bufferSwitchTimeInfo(ASIOTime *timeInfo, long index, ASIOBool processNow);
-
-	void addBuffer(long sampType, int interleave, void *src, float *RESTRICT dst);
-	void bufferReady(long index);
-	bool initializeDriver();
-
-	QWaitCondition qwDone;
-
-public:
-	ASIOInput();
-	~ASIOInput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
-};
-
-#endif
+#endif // AUDIOOUTPUTSPEECH_H_
