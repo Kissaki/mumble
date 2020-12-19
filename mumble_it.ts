@@ -3,54 +3,32 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OVERLAY_WIN_H_
-#define MUMBLE_MUMBLE_OVERLAY_WIN_H_
-
 #include "Overlay.h"
+#include "OverlayConfig.h"
 
-#include "win.h"
+void Overlay::platformInit() {
+	d = nullptr;
+}
 
-#include <QElapsedTimer>
-#include <QProcess>
-#include <QString>
-#include <QStringList>
-#include <QTimer>
+void Overlay::setActiveInternal(bool) {
+}
 
-class OverlayPrivateWin : public OverlayPrivate {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(OverlayPrivateWin)
+bool OverlayConfig::supportsInstallableOverlay() {
+	return false;
+}
 
-public:
-	void setActive(bool);
-	OverlayPrivateWin(QObject *);
-	~OverlayPrivateWin();
+bool OverlayConfig::isInstalled() {
+	return true;
+}
 
-public slots:
-	void onHelperProcessStarted();
-	void onHelperProcessError(QProcess::ProcessError);
-	void onHelperProcessExited(int exitCode, QProcess::ExitStatus exitStatus);
-	void onDelayedRestartTimerTriggered();
+bool OverlayConfig::needsUpgrade() {
+	return false;
+}
 
-protected:
-	QProcess *m_helper_process;
-	QString m_helper_exe_path;
-	QStringList m_helper_exe_args;
-	QElapsedTimer m_helper_start_time;
-	QTimer *m_helper_restart_timer;
-	bool m_helper_enabled;
+bool OverlayConfig::installFiles() {
+	return false;
+}
 
-	QProcess *m_helper64_process;
-	QString m_helper64_exe_path;
-	QStringList m_helper64_exe_args;
-	QElapsedTimer m_helper64_start_time;
-	QTimer *m_helper64_restart_timer;
-	bool m_helper64_enabled;
-
-	HANDLE m_mumble_handle;
-	bool m_active;
-
-	void startHelper(QProcess *helper);
-};
-
-#endif
+bool OverlayConfig::uninstallFiles() {
+	return false;
+}
