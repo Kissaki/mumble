@@ -3,787 +3,378 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "Database.h"
+#include "GlobalShortcut_unix.h"
 
-#include "Message.h"
-#include "MumbleApplication.h"
-#include "Net.h"
-#include "Utils.h"
-#include "Version.h"
+#include "Settings.h"
+
+#include <QtCore/QFileSystemWatcher>
+#include <QtCore/QSocketNotifier>
+
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+
+#ifndef NO_XINPUT2
+#	include <X11/extensions/XI2.h>
+#	include <X11/extensions/XInput2.h>
+#endif
+
+#ifdef Q_OS_LINUX
+#	include <fcntl.h>
+#	include <linux/input.h>
+#endif
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last incl
 #include "Global.h"
 
-#include <QtCore/QStandardPaths>
-#include <QtSql/QSqlError>
-#include <QtSql/QSqlQuery>
-#include <QtWidgets/QMessageBox>
-
-static void logSQLError(const QSqlQuery &query) {
-	const QSqlError error(query.lastQuery());
-	qWarning() << "SQL Query failed" << query.lastQuery();
-	qWarning() << error.nativeErrorCode() << query.lastError().text();
-}
-
-static bool execQueryAndLogFailure(QSqlQuery &query) {
-	if (!query.exec()) {
-		logSQLError(query);
-		return false;
-	}
-	return true;
-}
-
-static bool execQueryAndLogFailure(QSqlQuery &query, const QString &queryString) {
-	if (!query.exec(queryString)) {
-		logSQLError(query);
-		return false;
-	}
-	return true;
-}
-
-
-bool Database::findOrCreateDatabase() {
-	QSettings qs;
-	QStringList datapaths;
-
-	datapaths << g.qdBasePath.absolutePath();
-	datapaths << QStandardPaths::writableLocation(QStandardPaths::DataLocation);
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
-	datapaths << QDir::homePath() + QLatin1String("/.config/Mumble");
-#endif
-	datapaths << QDir::homePath();
-	datapaths << QDir::currentPath();
-	datapaths << qApp->applicationDirPath();
-	datapaths << qs.value(QLatin1String("InstPath")).toString();
-	datapaths.removeAll(QLatin1String(""));
-	datapaths.removeDuplicates();
-
-	// Try to find an existing database
-	foreach (const QString &datapath, datapaths) {
-		// Try the legacy path first, and use it if it exists.
-		// If it doesn't, use the new, non-hidden version.
-		QFile legacyDatabaseFile(datapath + QLatin1String("/.mumble.sqlite"));
-		if (legacyDatabaseFile.exists()) {
-			db.setDatabaseName(legacyDatabaseFile.fileName());
-			if (db.open()) {
-				return true;
-			}
-		}
-		QFile databaseFile(datapath + QLatin1String("/mumble.sqlite"));
-		if (databaseFile.exists()) {
-			db.setDatabaseName(databaseFile.fileName());
-			if (db.open()) {
-				return true;
-			}
-		}
-	}
-
-	// There is no existing database, so we create one
-	foreach (const QString &datapath, datapaths) {
-		QDir::root().mkpath(datapath);
-		QFile f(datapath + QLatin1String("/mumble.sqlite"));
-		db.setDatabaseName(f.fileName());
-		if (db.open()) {
-			return true;
-		}
-	}
-	return false;
-}
-
-Database::Database(const QString &dbname) {
-	db = QSqlDatabase::addDatabase(QLatin1String("QSQLITE"), dbname);
-	if (!g.s.qsDatabaseLocation.isEmpty()) {
-		QFile configuredLocation(g.s.qsDatabaseLocation);
-		if (configuredLocation.exists()) {
-			db.setDatabaseName(g.s.qsDatabaseLocation);
-			db.open();
-		} else {
-			int result = QMessageBox::critical(nullptr, QLatin1String("Mumble"),
-											   tr("The database file '%1' set in the configuration file does not "
-												  "exist. Do you want to create a new database file at this location?")
-												   .arg(g.s.qsDatabaseLocation),
-											   QMessageBox::Yes | QMessageBox::No);
-			if (result == QMessageBox::Yes) {
-				db.setDatabaseName(g.s.qsDatabaseLocation);
-				db.open();
-			} else {
-				qFatal("Database: File not found");
-			}
-		}
-	}
-	if (!db.isOpen()) {
-		if (findOrCreateDatabase()) {
-			g.s.qsDatabaseLocation = db.databaseName();
-		} else {
-			QMessageBox::critical(nullptr, QLatin1String("Mumble"),
-								  tr("Mumble failed to initialize a database in any of the possible locations."),
-								  QMessageBox::Ok | QMessageBox::Default, QMessageBox::NoButton);
-			qFatal("Database: Failed initialization");
-		}
-	}
-
-	QFileInfo fi(db.databaseName());
-
-	if (!fi.isWritable()) {
-		QMessageBox::critical(nullptr, QLatin1String("Mumble"),
-							  tr("The database '%1' is read-only. Mumble cannot store server settings (i.e. SSL "
-								 "certificates) until you fix this problem.")
-								  .arg(fi.filePath().toHtmlEscaped()),
-							  QMessageBox::Ok | QMessageBox::Default, QMessageBox::NoButton);
-		qWarning("Database: Database is read-only");
-	}
-
-	{
-		QFile f(db.databaseName());
-		f.setPermissions(f.permissions()
-						 & ~(QFile::ReadGroup | QFile::WriteGroup | QFile::ExeGroup | QFile::ReadOther
-							 | QFile::WriteOther | QFile::ExeOther));
-	}
-
-	QSqlQuery query(db);
-
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE TABLE IF NOT EXISTS `servers` (`id` INTEGER PRIMARY KEY "
-										 "AUTOINCREMENT, `name` TEXT, `hostname` TEXT, `port` INTEGER DEFAULT " MUMTEXT(
-											 DEFAULT_MUMBLE_PORT) ", `username` TEXT, `password` TEXT)"));
-	query.exec(QLatin1String(
-		"ALTER TABLE `servers` ADD COLUMN `url` TEXT")); // Upgrade path, failing this query is not noteworthy
-
-	execQueryAndLogFailure(
-		query, QLatin1String("CREATE TABLE IF NOT EXISTS `comments` (`who` TEXT, `comment` BLOB, `seen` DATE)"));
-	execQueryAndLogFailure(
-		query, QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `comments_comment` ON `comments`(`who`, `comment`)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE INDEX IF NOT EXISTS `comments_seen` ON `comments`(`seen`)"));
-
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE TABLE IF NOT EXISTS `blobs` (`hash` TEXT, `data` BLOB, `seen` DATE)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `blobs_hash` ON `blobs`(`hash`)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE INDEX IF NOT EXISTS `blobs_seen` ON `blobs`(`seen`)"));
-
-	execQueryAndLogFailure(query, QLatin1String("CREATE TABLE IF NOT EXISTS `tokens` (`id` INTEGER PRIMARY KEY "
-												"AUTOINCREMENT, `digest` BLOB, `token` TEXT)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE INDEX IF NOT EXISTS `tokens_host_port` ON `tokens`(`digest`)"));
-
-	execQueryAndLogFailure(
-		query, QLatin1String("CREATE TABLE IF NOT EXISTS `shortcut` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `digest` "
-							 "BLOB, `shortcut` BLOB, `target` BLOB, `suppress` INTEGER)"));
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE INDEX IF NOT EXISTS `shortcut_host_port` ON `shortcut`(`digest`)"));
-
-	execQueryAndLogFailure(
-		query,
-		QLatin1String("CREATE TABLE IF NOT EXISTS `udp` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `digest` BLOB)"));
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `udp_host_port` ON `udp`(`digest`)"));
-
-	execQueryAndLogFailure(query, QLatin1String("CREATE TABLE IF NOT EXISTS `cert` (`id` INTEGER PRIMARY KEY "
-												"AUTOINCREMENT, `hostname` TEXT, `port` INTEGER, `digest` TEXT)"));
-	execQueryAndLogFailure(
-		query, QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `cert_host_port` ON `cert`(`hostname`,`port`)"));
-
-	execQueryAndLogFailure(
-		query,
-		QLatin1String(
-			"CREATE TABLE IF NOT EXISTS `friends` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `name` TEXT, `hash` TEXT)"));
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `friends_name` ON `friends`(`name`)"));
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `friends_hash` ON `friends`(`hash`)"));
-
-	execQueryAndLogFailure(
-		query,
-		QLatin1String("CREATE TABLE IF NOT EXISTS `ignored` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `hash` TEXT)"));
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `ignored_hash` ON `ignored`(`hash`)"));
-
-	execQueryAndLogFailure(
-		query, QLatin1String(
-				   "CREATE TABLE IF NOT EXISTS `ignored_tts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `hash` TEXT)"));
-	execQueryAndLogFailure(
-		query, QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `ignored_tts_hash` ON `ignored_tts`(`hash`)"));
-
-	execQueryAndLogFailure(
-		query,
-		QLatin1String("CREATE TABLE IF NOT EXISTS `muted` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `hash` TEXT)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `muted_hash` ON `muted`(`hash`)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE TABLE IF NOT EXISTS `volume` (`id` INTEGER PRIMARY KEY "
-												"AUTOINCREMENT, `hash` TEXT, `volume` FLOAT)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `volume_hash` ON `volume`(`hash`)"));
-
-	// Note: A previous snapshot version created a table called 'hidden'
-	execQueryAndLogFailure(
-		query, QLatin1String("CREATE TABLE IF NOT EXISTS `filtered_channels` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, "
-							 "`server_cert_digest` TEXT NOT NULL, `channel_id` INTEGER NOT NULL)"));
-	execQueryAndLogFailure(query, QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `filtered_channels_entry` ON "
-												"`filtered_channels`(`server_cert_digest`, `channel_id`)"));
-
-	execQueryAndLogFailure(query, QLatin1String("CREATE TABLE IF NOT EXISTS `pingcache` (`id` INTEGER PRIMARY KEY "
-												"AUTOINCREMENT, `hostname` TEXT, `port` INTEGER, `ping` INTEGER)"));
-	execQueryAndLogFailure(
-		query,
-		QLatin1String("CREATE UNIQUE INDEX IF NOT EXISTS `pingcache_host_port` ON `pingcache`(`hostname`,`port`)"));
-
-	execQueryAndLogFailure(query,
-						   QLatin1String("CREATE TABLE IF NOT EXISTS `listener_volume` (`id` INTEGER PRIMARY KEY "
-										 "AUTOINCREMENT, `digest` BLOB, `channel_id` INTEGER, `volume` FLOAT)"));
-
-	execQueryAndLogFailure(query, QLatin1String("CREATE TABLE IF NOT EXISTS `channel_listeners` (`id` INTEGER PRIMARY "
-												"KEY AUTOINCREMENT, `digest` BLOB, `channel_id` INTEGER)"));
-
-	execQueryAndLogFailure(query, QLatin1String("DELETE FROM `comments` WHERE `seen` < datetime('now', '-1 years')"));
-	execQueryAndLogFailure(query, QLatin1String("DELETE FROM `blobs` WHERE `seen` < datetime('now', '-1 months')"));
-
-	execQueryAndLogFailure(query, QLatin1String("VACUUM"));
-
-	execQueryAndLogFailure(query, QLatin1String("PRAGMA synchronous = NORMAL"));
-#ifdef Q_OS_WIN
-	// Windows can not handle TRUNCATE with multiple connections to the DB. Thus less performant DELETE.
-	execQueryAndLogFailure(query, QLatin1String("PRAGMA journal_mode = DELETE"));
-#else
-	execQueryAndLogFailure(query, QLatin1String("PRAGMA journal_mode = TRUNCATE"));
+// We have to use a global 'diagnostic ignored' pragmas because
+// we still support old versions of GCC. (FreeBSD 9.3 ships with GCC 4.2)
+#if defined(__GNUC__)
+// ScreenCount(...) and so on are macros that access the private structure and
+// cast their return value using old-style-casts. Hence we suppress these warnings
+// for this section of code.
+#	pragma GCC diagnostic ignored "-Wold-style-cast"
+// XKeycodeToKeysym is deprecated.
+// For backwards compatibility reasons we want to keep using the
+// old function as long as possible. The replacement function
+// XkbKeycodeToKeysym requires the XKB extension which isn't
+// guaranteed to be present.
+#	pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
-	execQueryAndLogFailure(query, QLatin1String("SELECT sqlite_version()"));
-	while (query.next())
-		qWarning() << "Database SQLite:" << query.value(0).toString();
+/**
+ * Returns a platform specific GlobalShortcutEngine object.
+ *
+ * @see GlobalShortcutX
+ * @see GlobalShortcutMac
+ * @see GlobalShortcutWin
+ */
+GlobalShortcutEngine *GlobalShortcutEngine::platformInit() {
+	return new GlobalShortcutX();
 }
 
-Database::~Database() {
-	QSqlQuery query(db);
-	execQueryAndLogFailure(query, QLatin1String("PRAGMA journal_mode = DELETE"));
-	execQueryAndLogFailure(query, QLatin1String("VACUUM"));
-}
+GlobalShortcutX::GlobalShortcutX() {
+	iXIopcode = -1;
+	bRunning  = false;
 
-QList< FavoriteServer > Database::getFavorites() {
-	QSqlQuery query(db);
-	QList< FavoriteServer > ql;
+	display = XOpenDisplay(nullptr);
 
-	query.prepare(QLatin1String(
-		"SELECT `name`, `hostname`, `port`, `username`, `password`, `url` FROM `servers` ORDER BY `name`"));
-	execQueryAndLogFailure(query);
-
-	while (query.next()) {
-		FavoriteServer fs;
-		fs.qsName     = query.value(0).toString();
-		fs.qsHostname = query.value(1).toString();
-		fs.usPort     = static_cast< unsigned short >(query.value(2).toUInt());
-		fs.qsUsername = query.value(3).toString();
-		fs.qsPassword = query.value(4).toString();
-		fs.qsUrl      = query.value(5).toString();
-		ql << fs;
-	}
-	return ql;
-}
-
-void Database::setFavorites(const QList< FavoriteServer > &servers) {
-	QSqlQuery query(db);
-	QSqlDatabase::database().transaction();
-
-	query.prepare(QLatin1String("DELETE FROM `servers`"));
-	execQueryAndLogFailure(query);
-
-	query.prepare(QLatin1String(
-		"REPLACE INTO `servers` (`name`, `hostname`, `port`, `username`, `password`, `url`) VALUES (?,?,?,?,?,?)"));
-	foreach (const FavoriteServer &s, servers) {
-		query.addBindValue(s.qsName);
-		query.addBindValue(s.qsHostname);
-		query.addBindValue(s.usPort);
-		query.addBindValue(s.qsUsername);
-		query.addBindValue(s.qsPassword);
-		query.addBindValue(s.qsUrl);
-		execQueryAndLogFailure(query);
+	if (!display) {
+		qWarning("GlobalShortcutX: Unable to open dedicated display connection.");
+		return;
 	}
 
-	QSqlDatabase::database().commit();
-}
+#ifdef Q_OS_LINUX
+	if (g.s.bEnableEvdev) {
+		QString dir             = QLatin1String("/dev/input");
+		QFileSystemWatcher *fsw = new QFileSystemWatcher(QStringList(dir), this);
+		connect(fsw, SIGNAL(directoryChanged(const QString &)), this, SLOT(directoryChanged(const QString &)));
+		directoryChanged(dir);
 
-bool Database::isLocalIgnored(const QString &hash) {
-	QSqlQuery query(db);
+		if (qsKeyboards.isEmpty()) {
+			foreach (QFile *f, qmInputDevices)
+				delete f;
+			qmInputDevices.clear();
 
-	query.prepare(QLatin1String("SELECT `hash` FROM `ignored` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-	return query.next();
-}
-
-void Database::setLocalIgnored(const QString &hash, bool ignored) {
-	QSqlQuery query(db);
-
-	if (ignored)
-		query.prepare(QLatin1String("INSERT INTO `ignored` (`hash`) VALUES (?)"));
-	else
-		query.prepare(QLatin1String("DELETE FROM `ignored` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-}
-
-bool Database::isLocalIgnoredTTS(const QString &hash) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `hash` FROM `ignored_tts` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-	return query.next();
-}
-
-void Database::setLocalIgnoredTTS(const QString &hash, bool ignoredTTS) {
-	QSqlQuery query(db);
-
-	if (ignoredTTS)
-		query.prepare(QLatin1String("INSERT INTO `ignored_tts` (`hash`) VALUES (?)"));
-	else
-		query.prepare(QLatin1String("DELETE FROM `ignored_tts` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-}
-
-bool Database::isLocalMuted(const QString &hash) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `hash` FROM `muted` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-	return query.next();
-}
-
-void Database::setUserLocalVolume(const QString &hash, float volume) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("INSERT OR REPLACE INTO `volume` (`hash`, `volume`) VALUES (?,?)"));
-	query.addBindValue(hash);
-	query.addBindValue(QString::number(volume));
-	execQueryAndLogFailure(query);
-}
-
-float Database::getUserLocalVolume(const QString &hash) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `volume` FROM `volume` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-	if (query.first()) {
-		return query.value(0).toString().toFloat();
-	}
-	return 1.0f;
-}
-
-void Database::setLocalMuted(const QString &hash, bool muted) {
-	QSqlQuery query(db);
-
-	if (muted)
-		query.prepare(QLatin1String("INSERT INTO `muted` (`hash`) VALUES (?)"));
-	else
-		query.prepare(QLatin1String("DELETE FROM `muted` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-}
-
-bool Database::isChannelFiltered(const QByteArray &server_cert_digest, const int channel_id) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String(
-		"SELECT `channel_id` FROM `filtered_channels` WHERE `server_cert_digest` = ? AND `channel_id` = ?"));
-	query.addBindValue(server_cert_digest);
-	query.addBindValue(channel_id);
-	execQueryAndLogFailure(query);
-
-	return query.next();
-}
-
-void Database::setChannelFiltered(const QByteArray &server_cert_digest, const int channel_id, const bool hidden) {
-	QSqlQuery query(db);
-
-	if (hidden)
-		query.prepare(
-			QLatin1String("INSERT INTO `filtered_channels` (`server_cert_digest`, `channel_id`) VALUES (?, ?)"));
-	else
-		query.prepare(
-			QLatin1String("DELETE FROM `filtered_channels` WHERE `server_cert_digest` = ? AND `channel_id` = ?"));
-
-	query.addBindValue(server_cert_digest);
-	query.addBindValue(channel_id);
-
-	execQueryAndLogFailure(query);
-}
-
-QMap< UnresolvedServerAddress, unsigned int > Database::getPingCache() {
-	QSqlQuery query(db);
-	QMap< UnresolvedServerAddress, unsigned int > map;
-
-	query.prepare(QLatin1String("SELECT `hostname`, `port`, `ping` FROM `pingcache`"));
-	execQueryAndLogFailure(query);
-	while (query.next()) {
-		map.insert(
-			UnresolvedServerAddress(query.value(0).toString(), static_cast< unsigned short >(query.value(1).toUInt())),
-			query.value(2).toUInt());
-	}
-	return map;
-}
-
-void Database::setPingCache(const QMap< UnresolvedServerAddress, unsigned int > &map) {
-	QSqlQuery query(db);
-	QMap< UnresolvedServerAddress, unsigned int >::const_iterator i;
-
-	QSqlDatabase::database().transaction();
-
-	query.prepare(QLatin1String("DELETE FROM `pingcache`"));
-	execQueryAndLogFailure(query);
-
-	query.prepare(QLatin1String("REPLACE INTO `pingcache` (`hostname`, `port`, `ping`) VALUES (?,?,?)"));
-	for (i = map.constBegin(); i != map.constEnd(); ++i) {
-		query.addBindValue(i.key().hostname);
-		query.addBindValue(i.key().port);
-		query.addBindValue(i.value());
-		execQueryAndLogFailure(query);
-	}
-
-	QSqlDatabase::database().commit();
-}
-
-bool Database::seenComment(const QString &hash, const QByteArray &commenthash) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT COUNT(*) FROM `comments` WHERE `who` = ? AND `comment` = ?"));
-	query.addBindValue(hash);
-	query.addBindValue(commenthash);
-	execQueryAndLogFailure(query);
-	if (query.next()) {
-		if (query.value(0).toInt() > 0) {
-			query.prepare(
-				QLatin1String("UPDATE `comments` SET `seen` = datetime('now') WHERE `who` = ? AND `comment` = ?"));
-			query.addBindValue(hash);
-			query.addBindValue(commenthash);
-			execQueryAndLogFailure(query);
-			return true;
+			delete fsw;
+			qWarning(
+				"GlobalShortcutX: Unable to open any keyboard input devices under /dev/input, falling back to XInput");
+		} else {
+			return;
 		}
 	}
-	return false;
-}
+#endif
 
-void Database::setSeenComment(const QString &hash, const QByteArray &commenthash) {
-	QSqlQuery query(db);
+	for (int i = 0; i < ScreenCount(display); ++i)
+		qsRootWindows.insert(RootWindow(display, i));
 
-	query.prepare(QLatin1String("REPLACE INTO `comments` (`who`, `comment`, `seen`) VALUES (?, ?, datetime('now'))"));
-	query.addBindValue(hash);
-	query.addBindValue(commenthash);
-	execQueryAndLogFailure(query);
-}
+#ifndef NO_XINPUT2
+	int evt, error;
 
-QByteArray Database::blob(const QByteArray &hash) {
-	QSqlQuery query(db);
+	if (g.s.bEnableXInput2 && XQueryExtension(display, "XInputExtension", &iXIopcode, &evt, &error)) {
+		int major = XI_2_Major;
+		int minor = XI_2_Minor;
+		int rc    = XIQueryVersion(display, &major, &minor);
+		if (rc != BadRequest) {
+			qWarning("GlobalShortcutX: Using XI2 %d.%d", major, minor);
 
-	query.prepare(QLatin1String("SELECT `data` FROM `blobs` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-	if (query.next()) {
-		QByteArray qba = query.value(0).toByteArray();
+			queryXIMasterList();
 
-		query.prepare(QLatin1String("UPDATE `blobs` SET `seen` = datetime('now') WHERE `hash` = ?"));
-		query.addBindValue(hash);
-		execQueryAndLogFailure(query);
+			XIEventMask evmask;
+			unsigned char mask[(XI_LASTEVENT + 7) / 8];
 
-		return qba;
+			memset(&evmask, 0, sizeof(evmask));
+			memset(mask, 0, sizeof(mask));
+
+			XISetMask(mask, XI_RawButtonPress);
+			XISetMask(mask, XI_RawButtonRelease);
+			XISetMask(mask, XI_RawKeyPress);
+			XISetMask(mask, XI_RawKeyRelease);
+			XISetMask(mask, XI_HierarchyChanged);
+
+			evmask.deviceid = XIAllDevices;
+			evmask.mask_len = sizeof(mask);
+			evmask.mask     = mask;
+
+			foreach (Window w, qsRootWindows)
+				XISelectEvents(display, w, &evmask, 1);
+			XFlush(display);
+
+			connect(new QSocketNotifier(ConnectionNumber(display), QSocketNotifier::Read, this), SIGNAL(activated(int)),
+					this, SLOT(displayReadyRead(int)));
+
+			return;
+		}
 	}
-	return QByteArray();
+#endif
+	qWarning("GlobalShortcutX: No XInput support, falling back to polled input. This wastes a lot of CPU resources, so "
+			 "please enable one of the other methods.");
+	bRunning = true;
+	start(QThread::TimeCriticalPriority);
 }
 
-void Database::setBlob(const QByteArray &hash, const QByteArray &data) {
-	if (hash.isEmpty() || data.isEmpty())
+GlobalShortcutX::~GlobalShortcutX() {
+	bRunning = false;
+	wait();
+
+	if (display)
+		XCloseDisplay(display);
+}
+
+// Tight loop polling
+void GlobalShortcutX::run() {
+	Window root = XDefaultRootWindow(display);
+	Window root_ret, child_ret;
+	int root_x, root_y;
+	int win_x, win_y;
+	unsigned int mask[2];
+	int idx  = 0;
+	int next = 0;
+	char keys[2][32];
+
+	memset(keys[0], 0, 32);
+	memset(keys[1], 0, 32);
+	mask[0] = mask[1] = 0;
+
+	while (bRunning) {
+		if (bNeedRemap)
+			remap();
+
+		msleep(10);
+
+		idx  = next;
+		next = idx ^ 1;
+		if (XQueryPointer(display, root, &root_ret, &child_ret, &root_x, &root_y, &win_x, &win_y, &mask[next])
+			&& XQueryKeymap(display, keys[next])) {
+			for (int i = 0; i < 256; ++i) {
+				int index     = i / 8;
+				int keymask   = 1 << (i % 8);
+				bool oldstate = (keys[idx][index] & keymask) != 0;
+				bool newstate = (keys[next][index] & keymask) != 0;
+				if (oldstate != newstate) {
+					handleButton(i, newstate);
+				}
+			}
+			for (int i = 8; i <= 12; ++i) {
+				bool oldstate = (mask[idx] & (1 << i)) != 0;
+				bool newstate = (mask[next] & (1 << i)) != 0;
+				if (oldstate != newstate) {
+					handleButton(0x110 + i, newstate);
+				}
+			}
+		}
+	}
+}
+
+// Find XI2 master devices so they can be ignored.
+void GlobalShortcutX::queryXIMasterList() {
+#ifndef NO_XINPUT2
+	XIDeviceInfo *info, *dev;
+	int ndevices;
+
+	qsMasterDevices.clear();
+
+	dev = info = XIQueryDevice(display, XIAllDevices, &ndevices);
+	for (int i = 0; i < ndevices; ++i) {
+		switch (dev->use) {
+			case XIMasterPointer:
+			case XIMasterKeyboard:
+				qsMasterDevices.insert(dev->deviceid);
+				break;
+			default:
+				break;
+		}
+
+		++dev;
+	}
+	XIFreeDeviceInfo(info);
+#endif
+}
+
+// XInput2 event is ready on socketnotifier.
+void GlobalShortcutX::displayReadyRead(int) {
+#ifndef NO_XINPUT2
+	XEvent evt;
+
+	if (bNeedRemap)
+		remap();
+
+	while (XPending(display)) {
+		XNextEvent(display, &evt);
+		XGenericEventCookie *cookie = &evt.xcookie;
+
+		if ((cookie->type != GenericEvent) || (cookie->extension != iXIopcode) || !XGetEventData(display, cookie))
+			continue;
+
+		XIDeviceEvent *xide = reinterpret_cast< XIDeviceEvent * >(cookie->data);
+
+		switch (cookie->evtype) {
+			case XI_RawKeyPress:
+			case XI_RawKeyRelease:
+				if (!qsMasterDevices.contains(xide->deviceid))
+					handleButton(xide->detail, cookie->evtype == XI_RawKeyPress);
+				break;
+			case XI_RawButtonPress:
+			case XI_RawButtonRelease:
+				if (!qsMasterDevices.contains(xide->deviceid))
+					handleButton(xide->detail + 0x117, cookie->evtype == XI_RawButtonPress);
+				break;
+			case XI_HierarchyChanged:
+				queryXIMasterList();
+		}
+
+		XFreeEventData(display, cookie);
+	}
+#endif
+}
+
+// One of the raw /dev/input devices has ready input
+void GlobalShortcutX::inputReadyRead(int) {
+#ifdef Q_OS_LINUX
+	if (!g.s.bEnableEvdev) {
+		return;
+	}
+
+	struct input_event ev;
+
+	if (bNeedRemap)
+		remap();
+
+	QFile *f = qobject_cast< QFile * >(sender()->parent());
+	if (!f)
 		return;
 
-	QSqlQuery query(db);
+	bool found = false;
 
-	query.prepare(QLatin1String("REPLACE INTO `blobs` (`hash`, `data`, `seen`) VALUES (?, ?, datetime('now'))"));
-	query.addBindValue(hash);
-	query.addBindValue(data);
-	execQueryAndLogFailure(query);
-}
-
-QStringList Database::getTokens(const QByteArray &digest) {
-	QList< QString > qsl;
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `token` FROM `tokens` WHERE `digest` = ?"));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-	while (query.next()) {
-		qsl << query.value(0).toString();
-	}
-	return qsl;
-}
-
-void Database::setTokens(const QByteArray &digest, QStringList &tokens) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("DELETE FROM `tokens` WHERE `digest` = ?"));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-
-	query.prepare(QLatin1String("INSERT INTO `tokens` (`digest`, `token`) VALUES (?,?)"));
-	foreach (const QString &qs, tokens) {
-		query.addBindValue(digest);
-		query.addBindValue(qs);
-		execQueryAndLogFailure(query);
-	}
-}
-
-QList< Shortcut > Database::getShortcuts(const QByteArray &digest) {
-	QList< Shortcut > ql;
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `shortcut`,`target`,`suppress` FROM `shortcut` WHERE `digest` = ?"));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-	while (query.next()) {
-		Shortcut sc;
-
-		QByteArray a = query.value(0).toByteArray();
-
-		{
-			QDataStream s(&a, QIODevice::ReadOnly);
-			s.setVersion(QDataStream::Qt_4_0);
-			s >> sc.qlButtons;
+	while (f->read(reinterpret_cast< char * >(&ev), sizeof(ev)) == sizeof(ev)) {
+		found = true;
+		if (ev.type != EV_KEY)
+			continue;
+		bool down;
+		switch (ev.value) {
+			case 0:
+				down = false;
+				break;
+			case 1:
+				down = true;
+				break;
+			default:
+				continue;
 		}
-
-		a = query.value(1).toByteArray();
-
-		{
-			QDataStream s(&a, QIODevice::ReadOnly);
-			s.setVersion(QDataStream::Qt_4_0);
-			s >> sc.qvData;
-		}
-
-		sc.bSuppress = query.value(2).toBool();
-		ql << sc;
+		int evtcode = ev.code + 8;
+		handleButton(evtcode, down);
 	}
-	return ql;
+
+	if (!found) {
+		int fd      = f->handle();
+		int version = 0;
+		if ((ioctl(fd, EVIOCGVERSION, &version) < 0) || (((version >> 16) & 0xFF) < 1)) {
+			qWarning("GlobalShortcutX: Removing dead input device %s", qPrintable(f->fileName()));
+			qmInputDevices.remove(f->fileName());
+			qsKeyboards.remove(f->fileName());
+			delete f;
+		}
+	}
+#endif
 }
 
-bool Database::setShortcuts(const QByteArray &digest, QList< Shortcut > &shortcuts) {
-	QSqlQuery query(db);
-	bool updated = false;
+#define test_bit(bit, array) (array[bit / 8] & (1 << (bit % 8)))
 
-	query.prepare(QLatin1String("DELETE FROM `shortcut` WHERE `digest` = ?"));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
+// The /dev/input directory changed
+void GlobalShortcutX::directoryChanged(const QString &dir) {
+#ifdef Q_OS_LINUX
+	if (!g.s.bEnableEvdev) {
+		return;
+	}
 
-	const QList< Shortcut > scs = shortcuts;
+	QDir d(dir, QLatin1String("event*"), 0, QDir::System);
+	foreach (QFileInfo fi, d.entryInfoList()) {
+		QString path = fi.absoluteFilePath();
+		if (!qmInputDevices.contains(path)) {
+			QFile *f = new QFile(path, this);
+			if (f->open(QIODevice::ReadOnly)) {
+				int fd = f->handle();
+				int version;
+				char name[256];
+				uint8_t events[EV_MAX / 8 + 1];
+				memset(events, 0, sizeof(events));
+				if ((ioctl(fd, EVIOCGVERSION, &version) >= 0) && (ioctl(fd, EVIOCGNAME(sizeof(name)), name) >= 0)
+					&& (ioctl(fd, EVIOCGBIT(0, sizeof(events)), &events) >= 0) && test_bit(EV_KEY, events)
+					&& (((version >> 16) & 0xFF) > 0)) {
+					name[255] = 0;
+					qWarning("GlobalShortcutX: %s: %s", qPrintable(f->fileName()), name);
+					// Is it grabbed by someone else?
+					if ((ioctl(fd, EVIOCGRAB, 1) < 0)) {
+						qWarning("GlobalShortcutX: Device exclusively grabbed by someone else (X11 using "
+								 "exclusive-mode evdev?)");
+						delete f;
+					} else {
+						ioctl(fd, EVIOCGRAB, 0);
+						uint8_t keys[KEY_MAX / 8 + 1];
+						if ((ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), &keys) >= 0) && test_bit(KEY_SPACE, keys))
+							qsKeyboards.insert(f->fileName());
 
-	query.prepare(
-		QLatin1String("INSERT INTO `shortcut` (`digest`, `shortcut`, `target`, `suppress`) VALUES (?,?,?,?)"));
-	foreach (const Shortcut &sc, scs) {
-		if (sc.isServerSpecific()) {
-			shortcuts.removeAll(sc);
-			updated = true;
+						fcntl(f->handle(), F_SETFL, O_NONBLOCK);
+						connect(new QSocketNotifier(f->handle(), QSocketNotifier::Read, f), SIGNAL(activated(int)),
+								this, SLOT(inputReadyRead(int)));
 
-			query.addBindValue(digest);
-
-			QByteArray a;
-			{
-				QDataStream s(&a, QIODevice::WriteOnly);
-				s.setVersion(QDataStream::Qt_4_0);
-				s << sc.qlButtons;
+						qmInputDevices.insert(f->fileName(), f);
+					}
+				} else {
+					delete f;
+				}
+			} else {
+				delete f;
 			}
-			query.addBindValue(a);
-
-			a.clear();
-			{
-				QDataStream s(&a, QIODevice::WriteOnly);
-				s.setVersion(QDataStream::Qt_4_0);
-				s << sc.qvData;
-			}
-			query.addBindValue(a);
-
-			query.addBindValue(sc.bSuppress);
-			execQueryAndLogFailure(query);
 		}
 	}
-	return updated;
+#else
+	Q_UNUSED(dir);
+#endif
 }
 
-const QMap< QString, QString > Database::getFriends() {
-	QMap< QString, QString > qm;
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `name`, `hash` FROM `friends`"));
-	execQueryAndLogFailure(query);
-	while (query.next())
-		qm.insert(query.value(0).toString(), query.value(1).toString());
-	return qm;
-}
-
-const QString Database::getFriend(const QString &hash) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `name` FROM `friends` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-	if (query.next())
-		return query.value(0).toString();
-	return QString();
-}
-
-void Database::addFriend(const QString &name, const QString &hash) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("REPLACE INTO `friends` (`name`, `hash`) VALUES (?,?)"));
-	query.addBindValue(name);
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-}
-
-void Database::removeFriend(const QString &hash) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("DELETE FROM `friends` WHERE `hash` = ?"));
-	query.addBindValue(hash);
-	execQueryAndLogFailure(query);
-}
-
-const QString Database::getDigest(const QString &hostname, unsigned short port) {
-	QSqlQuery query(db);
-
-	query.prepare(QLatin1String("SELECT `digest` FROM `cert` WHERE `hostname` = ? AND `port` = ?"));
-	query.addBindValue(hostname);
-	query.addBindValue(port);
-	execQueryAndLogFailure(query);
-	if (query.next()) {
-		return query.value(0).toString();
-	}
-	return QString();
-}
-
-void Database::setDigest(const QString &hostname, unsigned short port, const QString &digest) {
-	QSqlQuery query(db);
-	query.prepare(QLatin1String("REPLACE INTO `cert` (`hostname`,`port`,`digest`) VALUES (?,?,?)"));
-	query.addBindValue(hostname);
-	query.addBindValue(port);
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-}
-
-void Database::setPassword(const QString &hostname, unsigned short port, const QString &uname, const QString &pw) {
-	QSqlQuery query(db);
-	query.prepare(
-		QLatin1String("UPDATE `servers` SET `password` = ? WHERE `hostname` = ? AND `port` = ? AND `username` = ?"));
-	query.addBindValue(pw);
-	query.addBindValue(hostname);
-	query.addBindValue(port);
-	query.addBindValue(uname);
-	execQueryAndLogFailure(query);
-}
-
-bool Database::getUdp(const QByteArray &digest) {
-	QSqlQuery query(db);
-	query.prepare(QLatin1String("SELECT COUNT(*) FROM `udp` WHERE `digest` = ? "));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-	if (query.next()) {
-		return (query.value(0).toInt() == 0);
-	}
-	return true;
-}
-
-void Database::setUdp(const QByteArray &digest, bool udp) {
-	QSqlQuery query(db);
-	if (!udp)
-		query.prepare(QLatin1String("REPLACE INTO `udp` (`digest`) VALUES (?)"));
-	else
-		query.prepare(QLatin1String("DELETE FROM `udp` WHERE `digest` = ?"));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-}
-
-
-QList< int > Database::getChannelListeners(const QByteArray &digest) {
-	QList< int > channelIDs;
-
-	QSqlQuery query(db);
-	query.prepare(QLatin1String("SELECT `channel_id` FROM `channel_listeners` where `digest` = ?"));
-	query.addBindValue(digest);
-
-	execQueryAndLogFailure(query);
-
-	while (query.next()) {
-		channelIDs << query.value(0).toInt();
-	}
-
-	return channelIDs;
-}
-
-void Database::setChannelListeners(const QByteArray &digest, const QSet< int > &channelIDs) {
-	QSqlQuery query(db);
-
-	// Delete old set of ChannelListeners for this server
-	query.prepare(QLatin1String("DELETE FROM `channel_listeners` WHERE `digest` = ?"));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-
-	query.prepare(QLatin1String("INSERT INTO `channel_listeners` (`digest`, `channel_id`) VALUES (?,?)"));
-	QSetIterator< int > it(channelIDs);
-	while (it.hasNext()) {
-		query.addBindValue(digest);
-		query.addBindValue(it.next());
-		execQueryAndLogFailure(query);
-	}
-}
-
-QHash< int, float > Database::getChannelListenerLocalVolumeAdjustments(const QByteArray &digest) {
-	QHash< int, float > volumeMap;
-
-	QSqlQuery query(db);
-	query.prepare(QLatin1String("SELECT `channel_id`, `volume`  FROM `listener_volume` where `digest` = ?"));
-	query.addBindValue(digest);
-
-	execQueryAndLogFailure(query);
-
-	while (query.next()) {
-		volumeMap.insert(query.value(0).toInt(), query.value(1).toFloat());
-	}
-
-	return volumeMap;
-}
-
-void Database::setChannelListenerLocalVolumeAdjustments(const QByteArray &digest,
-														const QHash< int, float > &volumeMap) {
-	QSqlQuery query(db);
-
-	// Delete old set of volume adjustments for this server
-	query.prepare(QLatin1String("DELETE FROM `listener_volume` WHERE `digest` = ?"));
-	query.addBindValue(digest);
-	execQueryAndLogFailure(query);
-
-	query.prepare(QLatin1String("INSERT INTO `listener_volume` (`digest`, `channel_id`, `volume`) VALUES (?,?,?)"));
-	QHashIterator< int, float > it(volumeMap);
-	while (it.hasNext()) {
-		it.next();
-		query.addBindValue(digest);
-		query.addBindValue(it.key());
-		query.addBindValue(it.value());
-		execQueryAndLogFailure(query);
-	}
-}
-
-bool Database::fuzzyMatch(QString &name, QString &user, QString &pw, QString &hostname, unsigned short port) {
-	QSqlQuery query(db);
-	if (!user.isEmpty()) {
-		query.prepare(QLatin1String("SELECT `username`, `password`, `hostname`, `name` FROM `servers` WHERE `username` "
-									"LIKE ? AND `hostname` LIKE ? AND `port`=?"));
-		query.addBindValue(user);
+QString GlobalShortcutX::buttonName(const QVariant &v) {
+	bool ok;
+	unsigned int key = v.toUInt(&ok);
+	if (!ok)
+		return QString();
+	if ((key < 0x118) || (key >= 0x128)) {
+		// For backwards compatibility reasons we want to keep using the
+		// old function as long as possible. The replacement function
+		// XkbKeycodeToKeysym requires the XKB extension which isn't
+		// guaranteed to be present.
+		KeySym ks = XKeycodeToKeysym(display, static_cast< KeyCode >(key), 0);
+		if (ks == NoSymbol) {
+			return QLatin1String("0x") + QString::number(key, 16);
+		} else {
+			const char *str = XKeysymToString(ks);
+			if (*str == '\0') {
+				return QLatin1String("KS0x") + QString::number(ks, 16);
+			} else {
+				return QLatin1String(str);
+			}
+		}
 	} else {
-		query.prepare(QLatin1String(
-			"SELECT `username`, `password`, `hostname`, `name` FROM `servers` WHERE `hostname` LIKE ? AND `port`=?"));
-	}
-	query.addBindValue(hostname);
-	query.addBindValue(port);
-	execQueryAndLogFailure(query);
-	if (query.next()) {
-		user = query.value(0).toString();
-		if (pw.isEmpty())
-			pw = query.value(1).toString();
-		hostname = query.value(2).toString();
-		if (name.isEmpty())
-			name = query.value(3).toString();
-		return true;
-	} else {
-		return false;
+		return tr("Mouse %1").arg(key - 0x118);
 	}
 }
