@@ -3,157 +3,153 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "LogEmitter.h"
-#include "MainWindow.h"
-#include "Overlay.h"
-#include "Utils.h"
+#include "win.h"
 
-#include <CoreFoundation/CoreFoundation.h>
+#include <string>
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include <sddl.h>
+#include <shlwapi.h>
+#include <stdio.h>
 
-char *os_lang = nullptr;
-static FILE *fConsole = nullptr;
+// Alert shows a fatal error dialog and waits for the user to click OK.
+static void Alert(LPCWSTR title, LPCWSTR msg) {
+	MessageBox(nullptr, msg, title, MB_OK | MB_ICONERROR);
+}
 
-static QSharedPointer<LogEmitter> le;
+// GetExecutablePath returns the path to mumble.exe.
+static const std::wstring GetExecutablePath() {
+	wchar_t path[MAX_PATH];
 
-#define PATH_MAX 1024
-static char crashhandler_fn[PATH_MAX];
+	if (GetModuleFileNameW(nullptr, path, MAX_PATH) == 0)
+		return std::wstring();
 
-static void crashhandler_signals_restore();
-static void crashhandler_handle_crash();
+	std::wstring exe_path(path);
+	return exe_path;
+}
 
-static void mumbleMessageOutputQString(QtMsgType type, const QString &msg) {
-	char c;
+// UIAccessDisabledViaConfig queries the configuration store, and returns
+// whether UIAccess has been disabled by the user via the
+// "shortcut/windows/uiaccess/enable" config option.
+static bool UIAccessDisabledViaConfig() {
+	// RegQueryValueEx only zero-terminates if the registry value's type is
+	// one of the Windows registry's string types. Because of this, we have
+	// to use a buffer of 7 elements in order to query for the string "false".
+	//
+	// If the value's type is string, we'll end up with "false\0\0", because we
+	// always zero-pad.
+	//
+	// But that's better than ending up in an infinite loop because we failed
+	// to zero-terminate.
+	wchar_t buf[7];
+	memset(&buf, 0, sizeof(buf));
+	DWORD sz = sizeof(buf) - 1 * sizeof(wchar_t);
 
-	switch (type) {
-		case QtDebugMsg:
-			c='D';
-			break;
-		case QtWarningMsg:
-			c='W';
-			break;
-		case QtFatalMsg:
-			c='F';
-			break;
-		default:
-			c='X';
+	HKEY key = nullptr;
+	bool success =
+		(RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Mumble\\Mumble\\shortcut\\windows\\uiaccess", 0, KEY_READ, &key)
+		 == ERROR_SUCCESS)
+		&& (RegQueryValueExW(key, L"enable", nullptr, nullptr, (LPBYTE) &buf, &sz) == ERROR_SUCCESS);
+	if (success && _wcsicmp(buf, L"false") == 0) {
+		return true;
 	}
 
-#define LOG(f, msg) fprintf(f, "<%c>%s %s\n", c, \
-		qPrintable(QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"))), qPrintable(msg))
+	return false;
+}
 
-	QString date = QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-dd hh:mm:ss.zzz"));
-	QString fmsg = QString::fromLatin1("<%1>%2 %3").arg(c).arg(date).arg(msg);
-	fprintf(stderr, "%s\n", qPrintable(fmsg));
-	fprintf(fConsole, "%s\n", qPrintable(fmsg));
-	fflush(fConsole);
-
-	le->addLogEntry(fmsg);
-
-	if (type == QtFatalMsg) {
-		CFStringRef csMsg = CFStringCreateWithFormat(kCFAllocatorDefault, nullptr, CFSTR("%s\n\nThe error has been logged. Please submit your log file to the Mumble project if the problem persists."), qPrintable(msg));
-		CFUserNotificationDisplayAlert(0, 0, nullptr,  nullptr, nullptr, CFSTR("Mumble has encountered a fatal error"), csMsg, CFSTR("OK"), nullptr, nullptr, nullptr);
-		CFRelease(csMsg);
-		exit(0);
+// ProcessHasUIAccess returns true if the current process has UIAccess enabled.
+static bool ProcessHasUIAccess() {
+	HANDLE token = nullptr;
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+		return false;
 	}
-}
 
-static void mumbleMessageOutputWithContext(QtMsgType type, const QMessageLogContext &ctx, const QString &msg) {
-	Q_UNUSED(ctx);
-	mumbleMessageOutputQString(type, msg);
-}
-
-void query_language() {
-	CFPropertyListRef cfaLangs;
-	CFStringRef cfsLang;
-	static char lang[16];
-
-	cfaLangs = CFPreferencesCopyAppValue(CFSTR("AppleLanguages"), kCFPreferencesCurrentApplication);
-	cfsLang = (CFStringRef) CFArrayGetValueAtIndex((CFArrayRef)cfaLangs, 0);
-
-	if (! CFStringGetCString(cfsLang, lang, 16, kCFStringEncodingUTF8))
-		return;
-
-	os_lang = lang;
-}
-
-static void crashhandler_signal_handler(int signal) {
-	switch (signal) {
-		case SIGQUIT:
-		case SIGILL:
-		case SIGTRAP:
-		case SIGABRT:
-		case SIGEMT:
-		case SIGFPE:
-		case SIGBUS:
-		case SIGSEGV:
-		case SIGSYS:
-			crashhandler_signals_restore();
-			crashhandler_handle_crash();
-			break;
-		default:
-			break;
+	DWORD ui_access      = 0;
+	DWORD ui_access_size = sizeof(ui_access);
+	if (!GetTokenInformation(token, TokenUIAccess, &ui_access, sizeof(ui_access), &ui_access_size)) {
+		CloseHandle(token);
+		return false;
 	}
+
+	CloseHandle(token);
+	return ui_access != 0;
 }
 
-/* These are the signals that according to signal(3) produce a coredump by default. */
-int sigs[] = { SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGEMT, SIGFPE, SIGBUS, SIGSEGV, SIGSYS };
-#define NSIGS sizeof(sigs)/sizeof(sigs[0])
-
-static void crashhandler_signals_setup() {
-	for (size_t i = 0; i < NSIGS; i++) {
-		signal(sigs[i], crashhandler_signal_handler);
+// RelaunchWithoutUIAccessIfNecessary relaunches the process
+// without UIAccess, if necessary.
+//
+// If a relaunch of Mumble is necessary, the new process is
+// spawned and the existing process is terminated. In that
+// situation, this function will not return to the caller.
+static bool RelaunchWithoutUIAccessIfNecessary() {
+	if (!ProcessHasUIAccess()) {
+		return true;
 	}
-}
-
-static void crashhandler_signals_restore() {
-	for (size_t i = 0; i < NSIGS; i++) {
-		signal(sigs[i], nullptr);
+	if (!UIAccessDisabledViaConfig()) {
+		return true;
 	}
-}
 
-static void crashhandler_init() {
-	QString dump = g.qdBasePath.filePath(QLatin1String("mumble.dmp"));
-	if (strncpy(crashhandler_fn, dump.toUtf8().data(), PATH_MAX)) {
-		crashhandler_signals_setup();
-		/* todo: Change the behavior of the Apple crash dialog? Maybe? */
+	STARTUPINFO startup_info;
+	memset(&startup_info, 0, sizeof(startup_info));
+
+	GetStartupInfo(&startup_info);
+
+	PROCESS_INFORMATION process_info;
+	memset(&process_info, 0, sizeof(process_info));
+
+	// Store the original value of __COMPAT_LAYER so we can
+	// restore it (which may be equivalent to not setting it all)
+	// once we've been relaunched.
+	const wchar_t *compat_layer_env = _wgetenv(L"__COMPAT_LAYER");
+	if (!compat_layer_env) {
+		compat_layer_env = L"mumble_exe_none";
 	}
+	_wputenv_s(L"mumble_exe_prev_compat_layer", compat_layer_env);
+
+	// The only way we have found thus far to ignore the executable's
+	// manifest when calling CreateProcess, is to use the __COMPAT_LAYER
+	// environment variable.
+	//
+	// Setting this to RunAsInvoker seemingly ignores the application's
+	// manifest. RunAsInvoker is the default execution level for Windows
+	// programs.
+	_wputenv_s(L"__COMPAT_LAYER", L"RunAsInvoker");
+
+	std::wstring exe_path = GetExecutablePath();
+	if (exe_path.empty()) {
+		return false;
+	}
+
+	if (!CreateProcessW(exe_path.c_str(), GetCommandLineW(), nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+						&startup_info, &process_info)) {
+		return false;
+	}
+
+	exit(0);
 }
 
-static void crashhandler_handle_crash() {
-	/* Abuse mtime for figuring out which crashdump we should send. */
-	FILE *f = fopen(crashhandler_fn, "w");
-	fflush(f);
-	fclose(f);
-}
-
-void os_init() {
-	crashhandler_init();
-
-	const char *home = getenv("HOME");
-	const char *logpath = "/Library/Logs/Mumble.log";
-
-	// Make a copy of the global LogEmitter, such that
-	// os_macx.mm doesn't have to consider the deletion
-	// of the Global object and its LogEmitter object.
-	le = g.le;
-
-	if (home) {
-		size_t len = strlen(home) + strlen(logpath) + 1;
-		STACKVAR(char, buff, len);
-		memset(buff, 0, len);
-		strcat(buff, home);
-		strcat(buff, logpath);
-		fConsole = fopen(buff, "a+");
-		if (fConsole) {
-			qInstallMessageHandler(mumbleMessageOutputWithContext);
+// CleanupEnvironmentVariables cleans up any
+// unnecessary environment variables.
+//
+// For now, this function cleans up any environment
+// variables set by RelaunchWithoutUIAccessIfNecessary.
+static void CleanupEnvironmentVariables() {
+	wchar_t *prev_compat_layer_env = _wgetenv(L"mumble_exe_prev_compat_layer");
+	if (prev_compat_layer_env) {
+		if (wcscmp(prev_compat_layer_env, L"mumble_exe_none") == 0) {
+			_wputenv_s(L"__COMPAT_LAYER", L"");
+		} else {
+			_wputenv_s(L"__COMPAT_LAYER", prev_compat_layer_env);
 		}
 	}
+}
 
-	/* Query for language setting. OS X's LANG environment variable is determined from the region selected
-	 * in SystemPrefs -> International -> Formats -> Region instead of the system language. We override this
-	 * by always using the system langauge, to get rid of all sorts of nasty langauge inconsistencies. */
-	query_language();
+int os_early_init() {
+	CleanupEnvironmentVariables();
+
+	if (!RelaunchWithoutUIAccessIfNecessary()) {
+		Alert(L"Mumble Early Init Error 50", L"Unable to complete RelaunchWithoutUIAccessIfNecessary");
+		return 50;
+	}
+
+	return 0;
 }
