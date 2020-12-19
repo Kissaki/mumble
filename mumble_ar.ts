@@ -3,398 +3,548 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "AudioStats.h"
+// Ignore old-style casts for the whole file.
+// We can't use push/pop. They were implemented in GCC 4.6,
+// but we still build with GCC 4.2 for the legacy OS X Universal
+// build.
+#if defined(__GNUC__)
+#	pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
 
-#include "AudioInput.h"
+#include "Cert.h"
+
+#include "SelfSignedCertificate.h"
 #include "Utils.h"
-#include "smallft.h"
+
+#include <QtCore/QUrl>
+#include <QtGui/QDesktopServices>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QToolTip>
+
+#include <openssl/evp.h>
+#include <openssl/pkcs12.h>
+#include <openssl/x509.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-#include <QtGui/QPainter>
+#define SSL_STRING(x) QString::fromLatin1(x).toUtf8().data()
 
-#include <cmath>
+CertView::CertView(QWidget *p) : QGroupBox(p) {
+	QGridLayout *grid = new QGridLayout(this);
+	QLabel *l;
 
-AudioBar::AudioBar(QWidget *p) : QWidget(p) {
-	qcBelow  = Qt::yellow;
-	qcAbove  = Qt::red;
-	qcInside = Qt::green;
+	l = new QLabel(tr("Name"));
+	grid->addWidget(l, 0, 0, 1, 1, Qt::AlignLeft);
 
-	iMin   = 0;
-	iMax   = 32768;
-	iBelow = 2000;
-	iAbove = 22000;
-	iValue = 1000;
-	iPeak  = -1;
-	setMinimumSize(100, 20);
+	qlSubjectName = new QLabel();
+	qlSubjectName->setTextFormat(Qt::PlainText);
+	qlSubjectName->setWordWrap(true);
+	grid->addWidget(qlSubjectName, 0, 1, 1, 1);
 
-	qlReplacableColors << Qt::yellow << Qt::red << Qt::green << Qt::blue;
-	qlReplacementBrushes << Qt::BDiagPattern << Qt::DiagCrossPattern << Qt::NoBrush << Qt::FDiagPattern;
+	l = new QLabel(tr("Email"));
+	grid->addWidget(l, 1, 0, 1, 1, Qt::AlignLeft);
+
+	qlSubjectEmail = new QLabel();
+	qlSubjectEmail->setTextFormat(Qt::PlainText);
+	qlSubjectEmail->setWordWrap(true);
+	grid->addWidget(qlSubjectEmail, 1, 1, 1, 1);
+
+	l = new QLabel(tr("Issuer"));
+	grid->addWidget(l, 2, 0, 1, 1, Qt::AlignLeft);
+
+	qlIssuerName = new QLabel();
+	qlIssuerName->setTextFormat(Qt::PlainText);
+	qlIssuerName->setWordWrap(true);
+	grid->addWidget(qlIssuerName, 2, 1, 1, 1);
+
+	l = new QLabel(tr("Expiry Date"));
+	grid->addWidget(l, 3, 0, 1, 1, Qt::AlignLeft);
+
+	qlExpiry = new QLabel();
+	qlExpiry->setWordWrap(true);
+	grid->addWidget(qlExpiry, 3, 1, 1, 1);
+
+	grid->setColumnStretch(1, 1);
 }
 
-void AudioBar::paintEvent(QPaintEvent *) {
-	QPainter p(this);
+void CertView::setCert(const QList< QSslCertificate > &cert) {
+	qlCert = cert;
 
-	if (isEnabled()) {
-		qcBelow.setAlphaF(1.0f);
-		qcAbove.setAlphaF(1.0f);
-		qcInside.setAlphaF(1.0f);
+	if (qlCert.isEmpty()) {
+		qlSubjectName->setText(QString());
+		qlSubjectEmail->setText(QString());
+		qlIssuerName->setText(QString());
+		qlExpiry->setText(QString());
 	} else {
-		qcBelow.setAlphaF(0.5f);
-		qcAbove.setAlphaF(0.5f);
-		qcInside.setAlphaF(0.5f);
-	}
+		QSslCertificate qscCert = qlCert.at(0);
 
-	if (iBelow > iAbove)
-		iBelow = iAbove;
-
-	if (iValue < iMin)
-		iValue = iMin;
-	else if (iValue > iMax)
-		iValue = iMax;
-
-	float scale = static_cast< float >(width()) / static_cast< float >(iMax - iMin);
-	int h       = height();
-
-	int val   = iroundf(static_cast< float >(iValue) * scale + 0.5f);
-	int below = iroundf(static_cast< float >(iBelow) * scale + 0.5f);
-	int above = iroundf(static_cast< float >(iAbove) * scale + 0.5f);
-	int max   = iroundf(static_cast< float >(iMax) * scale + 0.5f);
-	int min   = iroundf(static_cast< float >(iMin) * scale + 0.5f);
-	int peak  = iroundf(static_cast< float >(iPeak) * scale + 0.5f);
-
-	if (g.s.bHighContrast) {
-		// Draw monochrome representation
-		QColor fg = QPalette().windowText().color();
-
-		p.fillRect(0, 0, below, h,
-				   QBrush(fg, qlReplacementBrushes.value(qlReplacableColors.indexOf(qcBelow), Qt::CrossPattern)));
-		p.fillRect(below, 0, above - below, h,
-				   QBrush(fg, qlReplacementBrushes.value(qlReplacableColors.indexOf(qcInside), Qt::NoBrush)));
-		p.fillRect(above, 0, max - above, h,
-				   QBrush(fg, qlReplacementBrushes.value(qlReplacableColors.indexOf(qcAbove), Qt::CrossPattern)));
-		p.fillRect(0, 0, val, h, QBrush(fg, Qt::SolidPattern));
-
-		p.drawRect(0, 0, max - 1, h - 1);
-		p.drawLine(below, 0, below, h);
-		p.drawLine(above, 0, above, h);
-	} else {
-		if (val <= below) {
-			p.fillRect(0, 0, val, h, qcBelow);
-			p.fillRect(val, 0, below - val, h, qcBelow.darker(300));
-			p.fillRect(below, 0, above - below, h, qcInside.darker(300));
-			p.fillRect(above, 0, max - above, h, qcAbove.darker(300));
-		} else if (val <= above) {
-			p.fillRect(0, 0, below, h, qcBelow);
-			p.fillRect(below, 0, val - below, h, qcInside);
-			p.fillRect(val, 0, above - val, h, qcInside.darker(300));
-			p.fillRect(above, 0, max - above, h, qcAbove.darker(300));
-		} else {
-			p.fillRect(0, 0, below, h, qcBelow);
-			p.fillRect(below, 0, above - below, h, qcInside);
-			p.fillRect(above, 0, val - above, h, qcAbove);
-			p.fillRect(val, 0, max - val, h, qcAbove.darker(300));
+		const QStringList &names = qscCert.subjectInfo(QSslCertificate::CommonName);
+		QString name;
+		if (names.count() > 0) {
+			name = names.at(0);
 		}
 
-		if ((peak >= min) && (peak <= max)) {
-			if (peak <= below)
-				p.setPen(qcBelow.lighter(150));
-			else if (peak <= above)
-				p.setPen(qcInside.lighter(150));
-			else
-				p.setPen(qcAbove.lighter(150));
-			p.drawLine(peak, 0, peak, h);
+		QStringList emails = qscCert.subjectAlternativeNames().values(QSsl::EmailEntry);
+
+		QString tmpName = name;
+		tmpName         = tmpName.replace(QLatin1String("\\x"), QLatin1String("%"));
+		tmpName         = QUrl::fromPercentEncoding(tmpName.toLatin1());
+
+		qlSubjectName->setText(tmpName);
+
+		if (emails.count() > 0)
+			qlSubjectEmail->setText(emails.join(QLatin1String("\n")));
+		else
+			qlSubjectEmail->setText(tr("(none)"));
+
+		if (qscCert.expiryDate() <= QDateTime::currentDateTime())
+			qlExpiry->setText(QString::fromLatin1("<font color=\"red\"><b>%1</b></font>")
+								  .arg(qscCert.expiryDate().toString(Qt::SystemLocaleDate).toHtmlEscaped()));
+		else
+			qlExpiry->setText(qscCert.expiryDate().toString(Qt::SystemLocaleDate));
+
+		if (qlCert.count() > 1)
+			qscCert = qlCert.last();
+
+		const QStringList &issuerNames = qscCert.issuerInfo(QSslCertificate::CommonName);
+		QString issuerName;
+		if (issuerNames.count() > 0) {
+			issuerName = issuerNames.at(0);
 		}
+
+		qlIssuerName->setText((issuerName == name) ? tr("Self-signed") : issuerName);
 	}
 }
 
-AudioEchoWidget::AudioEchoWidget(QWidget *p) : QWidget(p) {
-	setMinimumSize(100, 60);
-}
-
-static inline const QColor mapEchoToColor(float echo) {
-	bool neg = (echo < 0.0f);
-	echo     = fabsf(echo);
-
-	float a, b, c;
-
-	if (echo > 1.0f) {
-		echo = 1.0f;
-		c    = 0.5f;
-	} else {
-		c = 0.0f;
-	}
-
-	if (echo < 0.5f) {
-		a = echo * 2.0f;
-		b = 0.0f;
-	} else {
-		a = 1.0f;
-		b = (echo - 0.5f) * 2.0f;
-	}
-
-	if (neg)
-		return QColor::fromRgbF(a, b, c);
-	else
-		return QColor::fromRgbF(c, b, a);
-}
-
-#define WGT(x, y) st->W[(y) *N + 2 * (x) + 1]
-
-void AudioEchoWidget::paintEvent(QPaintEvent *) {
-	QPainter paint(this);
-
-	paint.scale(width(), height());
-	paint.fillRect(rect(), Qt::black);
-
-	AudioInputPtr ai = g.ai;
-	if (!ai || !ai->sesEcho)
-		return;
-
-	ai->qmSpeex.lock();
-
-	spx_int32_t sz;
-	speex_echo_ctl(ai->sesEcho, SPEEX_ECHO_GET_IMPULSE_RESPONSE_SIZE, &sz);
-
-	STACKVAR(spx_int32_t, w, sz);
-	STACKVAR(float, W, sz);
-
-	speex_echo_ctl(ai->sesEcho, SPEEX_ECHO_GET_IMPULSE_RESPONSE, w);
-
-	ai->qmSpeex.unlock();
-
-	int N = 160;
-	int n = 2 * N;
-	int M = sz / n;
-
-	drft_lookup d;
-	mumble_drft_init(&d, n);
-
-	for (int j = 0; j < M; j++) {
-		for (int i = 0; i < n; i++)
-			W[j * n + i] = static_cast< float >(w[j * n + i]) / static_cast< float >(n);
-		mumble_drft_forward(&d, &W[j * n]);
-	}
-
-	mumble_drft_clear(&d);
-
-	float xscale = 1.0f / static_cast< float >(N);
-	float yscale = 1.0f / static_cast< float >(M);
-
-	for (int j = 0; j < M; j++) {
-		for (int i = 1; i < N; i++) {
-			float xa = static_cast< float >(i) * xscale;
-			float ya = static_cast< float >(j) * yscale;
-
-			float xb = xa + xscale;
-			float yb = ya + yscale;
-
-			const QColor &c = mapEchoToColor(
-				sqrtf(W[j * n + 2 * i] * W[j * n + 2 * i] + W[j * n + 2 * i - 1] * W[j * n + 2 * i - 1]) / 65536.f);
-			paint.fillRect(QRectF(QPointF(xa, ya), QPointF(xb, yb)), c);
-		}
-	}
-
-	QPolygonF poly;
-	xscale = 1.0f / (2.0f * static_cast< float >(n));
-	yscale = 1.0f / (200.0f * 32767.0f);
-	for (int i = 0; i < 2 * n; i++) {
-		poly << QPointF(static_cast< float >(i) * xscale, 0.5f + static_cast< float >(w[i]) * yscale);
-	}
-
-	paint.setPen(QPen(QBrush(QColor::fromRgbF(1.0f, 0.0f, 1.0f)), 0));
-	paint.drawPolyline(poly);
-}
-
-AudioNoiseWidget::AudioNoiseWidget(QWidget *p) : QWidget(p) {
-	setMinimumSize(100, 60);
-}
-
-void AudioNoiseWidget::paintEvent(QPaintEvent *) {
-	QPainter paint(this);
-	QPalette pal;
-
-	paint.fillRect(rect(), pal.color(QPalette::Window));
-
-	AudioInputPtr ai = g.ai;
-	if (!ai.get() || !ai->sppPreprocess)
-		return;
-
-	QPolygonF poly;
-
-	ai->qmSpeex.lock();
-
-	spx_int32_t ps_size = 0;
-	speex_preprocess_ctl(ai->sppPreprocess, SPEEX_PREPROCESS_GET_PSD_SIZE, &ps_size);
-
-	STACKVAR(spx_int32_t, noise, ps_size);
-	STACKVAR(spx_int32_t, ps, ps_size);
-
-	speex_preprocess_ctl(ai->sppPreprocess, SPEEX_PREPROCESS_GET_PSD, ps);
-	speex_preprocess_ctl(ai->sppPreprocess, SPEEX_PREPROCESS_GET_NOISE_PSD, noise);
-
-	ai->qmSpeex.unlock();
-
-	qreal sx, sy;
-
-	sx = (static_cast< float >(width()) - 1.0f) / static_cast< float >(ps_size);
-	sy = static_cast< float >(height()) - 1.0f;
-
-	poly << QPointF(0.0f, height() - 1);
-	float fftmul = 1.0 / (32768.0);
-	for (int i = 0; i < ps_size; i++) {
-		qreal xp, yp;
-		xp = i * sx;
-		yp = sqrtf(sqrtf(static_cast< float >(noise[i]))) - 1.0f;
-		yp = yp * fftmul;
-		yp = qMin< qreal >(yp * 3000.0f, 1.0f);
-		yp = (1 - yp) * sy;
-		poly << QPointF(xp, yp);
-	}
-
-	poly << QPointF(width() - 1, height() - 1);
-	poly << QPointF(0.0f, height() - 1);
-
-	paint.setPen(Qt::blue);
-	paint.setBrush(Qt::blue);
-	paint.drawPolygon(poly);
-
-	poly.clear();
-
-	for (int i = 0; i < ps_size; i++) {
-		qreal xp, yp;
-		xp = i * sx;
-		yp = sqrtf(sqrtf(static_cast< float >(ps[i]))) - 1.0f;
-		yp = yp * fftmul;
-		yp = qMin(yp * 3000.0, 1.0);
-		yp = (1 - yp) * sy;
-		poly << QPointF(xp, yp);
-	}
-
-	paint.setPen(Qt::red);
-	paint.drawPolyline(poly);
-}
-
-AudioStats::AudioStats(QWidget *p) : QDialog(p) {
-	setAttribute(Qt::WA_DeleteOnClose, true);
-
-	qtTick = new QTimer(this);
-	qtTick->setObjectName(QLatin1String("Tick"));
-	qtTick->start(50);
-
+CertWizard::CertWizard(QWidget *p) : QWizard(p) {
 	setupUi(this);
 
-	abSpeech->setAccessibleName(tr("Current speech detection chance"));
-	anwNoise->setAccessibleName(tr("Power spectrum of input signal and noise estimate"));
-	aewEcho->setAccessibleName(tr("Weights of the echo canceller"));
+	cvWelcome->setAccessibleName(tr("Current certificate"));
+	qleImportFile->setAccessibleName(tr("Certificate file to import"));
+	qlePassword->setAccessibleName(tr("Certificate password"));
+	cvImport->setAccessibleName(tr("Certificate to import"));
+	cvCurrent->setAccessibleName(tr("Current certificate"));
+	cvNew->setAccessibleName(tr("New certificate"));
+	qleExportFile->setAccessibleName(tr("File to export certificate to"));
+	cvExport->setAccessibleName(tr("Current certificate"));
+	qleEmail->setAccessibleName(tr("Email address"));
+	qleName->setAccessibleName(tr("Your name"));
 
-	AudioInputPtr ai = g.ai;
+	setOption(QWizard::NoCancelButton, false);
 
-	if (ai && ai->sesEcho) {
-		qgbEcho->setVisible(true);
-	} else {
-		qgbEcho->setVisible(false);
+	qwpExport->setCommitPage(true);
+	qwpExport->setComplete(false);
+	qlPasswordNotice->setVisible(false);
+}
+
+int CertWizard::nextId() const {
+	switch (currentId()) {
+		case 0: { // Welcome
+			if (qrbQuick->isChecked())
+				return 5;
+			else if (qrbCreate->isChecked())
+				return 1;
+			else if (qrbImport->isChecked())
+				return 2;
+			else if (qrbExport->isChecked())
+				return 3;
+			return -1;
+		}
+		case 2: // Import
+			if (validateCert(kpCurrent))
+				return 4;
+			else
+				return 5;
+		case 4: // Replace
+			if (qrbCreate->isChecked())
+				return 3;
+			if (qrbImport->isChecked())
+				return 5;
+			return -1;
+		case 3: // Export
+			if (qrbCreate->isChecked())
+				return 5;
+			else
+				return -1;
+		case 1: // New
+			if (validateCert(kpCurrent))
+				return 4;
+			else
+				return 3;
+	}
+	return -1;
+}
+
+void CertWizard::initializePage(int id) {
+	if (id == 0) {
+		kpCurrent = kpNew = g.s.kpCertificate;
+
+		if (validateCert(kpCurrent)) {
+			qrbQuick->setEnabled(false);
+			qrbExport->setEnabled(true);
+			cvWelcome->setCert(kpCurrent.first);
+			cvWelcome->setVisible(true);
+		} else {
+			qrbQuick->setEnabled(true);
+			qrbExport->setEnabled(false);
+			cvWelcome->setVisible(false);
+			qrbQuick->setChecked(true);
+		}
+	}
+	if (id == 3) {
+		cvExport->setCert(kpNew.first);
+	}
+	if (id == 4) {
+		cvNew->setCert(kpNew.first);
+		cvCurrent->setCert(kpCurrent.first);
+	}
+	if (id == 2) {
+		on_qleImportFile_textChanged(qleImportFile->text());
 	}
 
-
-	bTalking = false;
-
-	abSpeech->iPeak    = -1;
-	abSpeech->qcBelow  = Qt::red;
-	abSpeech->qcInside = Qt::yellow;
-	abSpeech->qcAbove  = Qt::green;
-
-	on_Tick_timeout();
+	QWizard::initializePage(id);
 }
 
-AudioStats::~AudioStats() {
+bool CertWizard::validateCurrentPage() {
+	if (currentPage() == qwpNew) {
+		QRegExp ereg(QLatin1String("(^$)|((.+)@(.+))"), Qt::CaseInsensitive, QRegExp::RegExp2);
+		if (!ereg.exactMatch(qleEmail->text())) {
+			qlError->setText(tr("Unable to validate email.<br />Enter a valid (or blank) email to continue."));
+			qwpNew->setComplete(false);
+			return false;
+		} else {
+			kpNew = generateNewCert(qleName->text(), qleEmail->text());
+
+			if (!validateCert(kpNew)) {
+				qlError->setText(tr("There was an error generating your certificate.<br />Please try again."));
+				return false;
+			}
+		}
+	}
+	if (currentPage() == qwpExport) {
+		QByteArray qba = exportCert(kpNew);
+		if (qba.isEmpty()) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("Your certificate and key could not be exported to PKCS#12 format. There might be an "
+								  "error in your certificate."),
+							   qleExportFile);
+			return false;
+		}
+		QFile f(qleExportFile->text());
+		if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Unbuffered)) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file could not be opened for writing. Please use another file."), qleExportFile);
+			return false;
+		}
+		if (!f.setPermissions(QFile::ReadOwner | QFile::WriteOwner)) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file's permissions could not be set. No certificate and key has been written. "
+								  "Please use another file."),
+							   qleExportFile);
+			return false;
+		}
+		qint64 written = f.write(qba);
+		f.close();
+		if (written != qba.length()) {
+			QToolTip::showText(qleExportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file could not be written successfully. Please use another file."),
+							   qleExportFile);
+			return false;
+		}
+	}
+	if (currentPage() == qwpImport) {
+		QFile f(qleImportFile->text());
+		if (!f.open(QIODevice::ReadOnly | QIODevice::Unbuffered)) {
+			QToolTip::showText(qleImportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file could not be opened for reading. Please use another file."), qleImportFile);
+			return false;
+		}
+		QByteArray qba = f.readAll();
+		f.close();
+		if (qba.isEmpty()) {
+			QToolTip::showText(qleImportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file is empty or could not be read. Please use another file."), qleImportFile);
+			return false;
+		}
+		QPair< QList< QSslCertificate >, QSslKey > imp = importCert(qba, qlePassword->text());
+		if (!validateCert(imp)) {
+			QToolTip::showText(qleImportFile->mapToGlobal(QPoint(0, 0)),
+							   tr("The file did not contain a valid certificate and key. Please use another file."),
+							   qleImportFile);
+			return false;
+		}
+		kpNew = imp;
+	}
+	if (currentPage() == qwpFinish) {
+		g.s.kpCertificate = kpNew;
+	}
+	return QWizard::validateCurrentPage();
 }
 
-#if QT_VERSION >= 0x050500
-#	define FORMAT_TO_TXT(format, arg) txt = QString::asprintf(format, arg)
-#else
-// sprintf() has been deprecated in Qt 5.5 in favor for the static QString::asprintf()
-#	define FORMAT_TO_TXT(format, arg) txt.sprintf(format, arg)
-#endif
-void AudioStats::on_Tick_timeout() {
-	AudioInputPtr ai = g.ai;
+void CertWizard::on_qleEmail_textChanged(const QString &) {
+	qwpNew->setComplete(true);
+}
 
-	if (!ai.get() || !ai->sppPreprocess)
+void CertWizard::on_qpbExportFile_clicked() {
+	QString fname =
+		QFileDialog::getSaveFileName(this, tr("Select file to export certificate to"), qleExportFile->text(),
+									 QLatin1String("PKCS12 (*.p12 *.pfx *.pkcs12);;All (*)"));
+	if (!fname.isNull()) {
+		QFileInfo fi(fname);
+		if (fi.suffix().isEmpty())
+			fname += QLatin1String(".p12");
+		qleExportFile->setText(QDir::toNativeSeparators(fname));
+	}
+}
+
+void CertWizard::on_qleExportFile_textChanged(const QString &text) {
+	if (text.isEmpty()) {
+		qwpExport->setComplete(false);
 		return;
-
-	bool nTalking = ai->isTransmitting();
-
-	QString txt;
-
-	FORMAT_TO_TXT("%06.2f dB", ai->dPeakMic);
-	qlMicLevel->setText(txt);
-
-	FORMAT_TO_TXT("%06.2f dB", ai->dPeakSpeaker);
-	qlSpeakerLevel->setText(txt);
-
-	FORMAT_TO_TXT("%06.2f dB", ai->dPeakSignal);
-	qlSignalLevel->setText(txt);
-
-	spx_int32_t ps_size = 0;
-	speex_preprocess_ctl(ai->sppPreprocess, SPEEX_PREPROCESS_GET_PSD_SIZE, &ps_size);
-
-	STACKVAR(spx_int32_t, noise, ps_size);
-	STACKVAR(spx_int32_t, ps, ps_size);
-
-	speex_preprocess_ctl(ai->sppPreprocess, SPEEX_PREPROCESS_GET_PSD, ps);
-	speex_preprocess_ctl(ai->sppPreprocess, SPEEX_PREPROCESS_GET_NOISE_PSD, noise);
-
-	float s = 0.0f;
-	float n = 0.0001f;
-
-	int start = (ps_size * 300) / SAMPLE_RATE;
-	int stop  = (ps_size * 2000) / SAMPLE_RATE;
-
-	for (int i = start; i < stop; i++) {
-		s += sqrtf(static_cast< float >(ps[i]));
-		n += sqrtf(static_cast< float >(noise[i]));
 	}
 
-	FORMAT_TO_TXT("%06.3f", s / n);
-	qlMicSNR->setText(txt);
+	QString fname = QDir::fromNativeSeparators(text);
 
-	spx_int32_t v;
-	speex_preprocess_ctl(ai->sppPreprocess, SPEEX_PREPROCESS_GET_AGC_GAIN, &v);
-	float fv = powf(10.0f, (static_cast< float >(v) / 20.0f));
-	FORMAT_TO_TXT("%03.0f%%", 100.0f / fv);
-	qlMicVolume->setText(txt);
+	QFile f(fname);
 
-	FORMAT_TO_TXT("%03.0f%%", ai->fSpeechProb * 100.0f);
-	qlSpeechProb->setText(txt);
-
-	FORMAT_TO_TXT("%04.1f kbit/s", static_cast< float >(ai->iBitrate) / 1000.0f);
-	qlBitrate->setText(txt);
-
-	if (nTalking != bTalking) {
-		bTalking = nTalking;
-		QFont f  = qlSpeechProb->font();
-		f.setBold(bTalking);
-		qlSpeechProb->setFont(f);
-	}
-
-	if (g.uiDoublePush > 1000000)
-		txt = tr(">1000 ms");
-	else
-		FORMAT_TO_TXT("%04llu ms", g.uiDoublePush / 1000);
-	qlDoublePush->setText(txt);
-
-	abSpeech->iBelow = iroundf(g.s.fVADmin * 32767.0f + 0.5f);
-	abSpeech->iAbove = iroundf(g.s.fVADmax * 32767.0f + 0.5f);
-
-	if (g.s.vsVAD == Settings::Amplitude) {
-		abSpeech->iValue = iroundf((32767.f / 96.0f) * (96.0f + ai->dPeakCleanMic) + 0.5f);
+	QFileInfo fi(f);
+	if (fi.exists()) {
+		if (fi.isWritable()) {
+			qwpExport->setComplete(f.open(QIODevice::WriteOnly | QIODevice::Append));
+			return;
+		}
 	} else {
-		abSpeech->iValue = iroundf(ai->fSpeechProb * 32767.0f + 0.5f);
+		if (f.open(QIODevice::WriteOnly)) {
+			if (f.remove()) {
+				qwpExport->setComplete(true);
+				return;
+			}
+		}
+	}
+	qwpExport->setComplete(false);
+}
+
+void CertWizard::on_qpbImportFile_clicked() {
+	QString fname =
+		QFileDialog::getOpenFileName(this, tr("Select file to import certificate from"), qleImportFile->text(),
+									 QLatin1String("PKCS12 (*.p12 *.pfx *.pkcs12);;All (*)"));
+	if (!fname.isNull()) {
+		qleImportFile->setText(QDir::toNativeSeparators(fname));
+	}
+}
+
+void CertWizard::on_qleImportFile_textChanged(const QString &text) {
+	if (text.isEmpty()) {
+		qlePassword->clear();
+		qlePassword->setEnabled(false);
+		qlPassword->setEnabled(false);
+		qlPasswordNotice->clear();
+		qlPasswordNotice->setVisible(false);
+		qwpImport->setComplete(false);
+		return;
 	}
 
-	abSpeech->update();
+	QString fname = QDir::fromNativeSeparators(text);
 
-	anwNoise->update();
-	if (aewEcho)
-		aewEcho->update();
+	QFile f(fname);
+	if (f.open(QIODevice::ReadOnly)) {
+		QByteArray qba                                 = f.readAll();
+		QPair< QList< QSslCertificate >, QSslKey > imp = importCert(qba, qlePassword->text());
+		if (validateCert(imp)) {
+			qlePassword->setEnabled(false);
+			qlPassword->setEnabled(false);
+			qlPasswordNotice->clear();
+			qlPasswordNotice->setVisible(false);
+			cvImport->setCert(imp.first);
+			qwpImport->setComplete(true);
+			return;
+		} else {
+			qlePassword->setEnabled(true);
+			qlPassword->setEnabled(true);
+			qlPasswordNotice->setText(tr("Unable to import. Missing password or incompatible file type."));
+			qlPasswordNotice->setVisible(true);
+		}
+	} else {
+		qlePassword->clear();
+		qlePassword->setEnabled(false);
+		qlPassword->setEnabled(false);
+		qlPasswordNotice->clear();
+		qlPasswordNotice->setVisible(false);
+	}
+	cvImport->setCert(QList< QSslCertificate >());
+	qwpImport->setComplete(false);
 }
-#undef FORMAT_TO_TXT
+
+void CertWizard::on_qlePassword_textChanged(const QString &) {
+	on_qleImportFile_textChanged(qleImportFile->text());
+}
+
+void CertWizard::on_qlIntroText_linkActivated(const QString &url) {
+	QDesktopServices::openUrl(QUrl(url));
+}
+
+bool CertWizard::validateCert(const Settings::KeyPair &kp) {
+	bool valid = !kp.second.isNull() && !kp.first.isEmpty();
+	foreach (const QSslCertificate &cert, kp.first)
+		valid = valid && !cert.isNull();
+	return valid;
+}
+
+Settings::KeyPair CertWizard::generateNewCert(QString qsname, const QString &qsemail) {
+	QSslCertificate qscCert;
+	QSslKey qskKey;
+
+	// Ignore return value.
+	// The method sets qscCert and qskKey to null values if it fails.
+	SelfSignedCertificate::generateMumbleCertificate(qsname, qsemail, qscCert, qskKey);
+
+	QList< QSslCertificate > qlCert;
+	qlCert << qscCert;
+
+	return Settings::KeyPair(qlCert, qskKey);
+}
+
+Settings::KeyPair CertWizard::importCert(QByteArray data, const QString &pw) {
+	X509 *x509            = nullptr;
+	EVP_PKEY *pkey        = nullptr;
+	PKCS12 *pkcs          = nullptr;
+	BIO *mem              = nullptr;
+	STACK_OF(X509) *certs = nullptr;
+	Settings::KeyPair kp;
+	int ret = 0;
+
+	mem = BIO_new_mem_buf(data.data(), data.size());
+	Q_UNUSED(BIO_set_close(mem, BIO_NOCLOSE));
+	pkcs = d2i_PKCS12_bio(mem, nullptr);
+	if (pkcs) {
+		ret = PKCS12_parse(pkcs, nullptr, &pkey, &x509, &certs);
+		if (pkcs && !pkey && !x509 && !pw.isEmpty()) {
+			if (certs) {
+				if (ret)
+					sk_X509_free(certs);
+				certs = nullptr;
+			}
+			ret = PKCS12_parse(pkcs, pw.toUtf8().constData(), &pkey, &x509, &certs);
+		}
+		if (pkey && x509 && X509_check_private_key(x509, pkey)) {
+			unsigned char *dptr;
+			QByteArray key, crt;
+
+			key.resize(i2d_PrivateKey(pkey, nullptr));
+			dptr = reinterpret_cast< unsigned char * >(key.data());
+			i2d_PrivateKey(pkey, &dptr);
+
+			crt.resize(i2d_X509(x509, nullptr));
+			dptr = reinterpret_cast< unsigned char * >(crt.data());
+			i2d_X509(x509, &dptr);
+
+			QSslCertificate qscCert = QSslCertificate(crt, QSsl::Der);
+			QSslKey qskKey          = QSslKey(key, QSsl::Rsa, QSsl::Der);
+
+			QList< QSslCertificate > qlCerts;
+			qlCerts << qscCert;
+
+			if (certs) {
+				for (int i = 0; i < sk_X509_num(certs); ++i) {
+					X509 *c = sk_X509_value(certs, i);
+
+					crt.resize(i2d_X509(c, nullptr));
+					dptr = reinterpret_cast< unsigned char * >(crt.data());
+					i2d_X509(c, &dptr);
+
+					QSslCertificate cert = QSslCertificate(crt, QSsl::Der);
+					qlCerts << cert;
+				}
+			}
+			bool valid = !qskKey.isNull();
+			foreach (const QSslCertificate &cert, qlCerts)
+				valid = valid && !cert.isNull();
+			if (valid)
+				kp = Settings::KeyPair(qlCerts, qskKey);
+		}
+	}
+
+	if (ret) {
+		if (pkey)
+			EVP_PKEY_free(pkey);
+		if (x509)
+			X509_free(x509);
+		if (certs)
+			sk_X509_free(certs);
+	}
+	if (pkcs)
+		PKCS12_free(pkcs);
+	if (mem)
+		BIO_free(mem);
+
+	return kp;
+}
+
+QByteArray CertWizard::exportCert(const Settings::KeyPair &kp) {
+	X509 *x509            = nullptr;
+	EVP_PKEY *pkey        = nullptr;
+	PKCS12 *pkcs          = nullptr;
+	BIO *mem              = nullptr;
+	STACK_OF(X509) *certs = sk_X509_new_null();
+	const unsigned char *p;
+	char *data = nullptr;
+
+	if (kp.first.isEmpty())
+		return QByteArray();
+
+	QByteArray crt = kp.first.at(0).toDer();
+	QByteArray key = kp.second.toDer();
+	QByteArray qba;
+
+	p    = reinterpret_cast< const unsigned char * >(key.constData());
+	pkey = d2i_AutoPrivateKey(nullptr, &p, key.length());
+
+	if (pkey) {
+		p    = reinterpret_cast< const unsigned char * >(crt.constData());
+		x509 = d2i_X509(nullptr, &p, crt.length());
+
+		if (x509 && X509_check_private_key(x509, pkey)) {
+			X509_keyid_set1(x509, nullptr, 0);
+			X509_alias_set1(x509, nullptr, 0);
+
+
+			QList< QSslCertificate > qlCerts = kp.first;
+			qlCerts.removeFirst();
+
+			foreach (const QSslCertificate &cert, qlCerts) {
+				X509 *c = nullptr;
+				crt     = cert.toDer();
+				p       = reinterpret_cast< const unsigned char * >(crt.constData());
+
+				c = d2i_X509(nullptr, &p, crt.length());
+				if (c)
+					sk_X509_push(certs, c);
+			}
+
+			pkcs = PKCS12_create(SSL_STRING(""), SSL_STRING("Mumble Identity"), pkey, x509, certs, -1, -1, 0, 0, 0);
+			if (pkcs) {
+				long size;
+				mem = BIO_new(BIO_s_mem());
+				i2d_PKCS12_bio(mem, pkcs);
+				Q_UNUSED(BIO_flush(mem));
+				size = BIO_get_mem_data(mem, &data);
+				qba  = QByteArray(data, static_cast< int >(size));
+			}
+		}
+	}
+
+	if (pkey)
+		EVP_PKEY_free(pkey);
+	if (x509)
+		X509_free(x509);
+	if (pkcs)
+		PKCS12_free(pkcs);
+	if (mem)
+		BIO_free(mem);
+	if (certs)
+		sk_X509_free(certs);
+
+	return qba;
+}
