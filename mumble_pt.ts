@@ -3,38 +3,35 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_PATHLISTWIDGET_H_
-#define MUMBLE_MUMBLE_PATHLISTWIDGET_H_
+#ifndef MUMBLE_MUMBLE_SHAREDMEMORY_H_
+#define MUMBLE_MUMBLE_SHAREDMEMORY_H_
 
-#include <QListWidget>
+#include <QtCore/QObject>
+#include <QtCore/QString>
 
-class QGraphicsSceneDragDropEvent;
-class QDropEvent;
-
-/**
- * ListWidget that adds functionality for being able to drop files or folders to add them to the list.
- *
- * It makes use of OverlayAppInfo to display file/app information (e.g. the appropriate icon).
- */
-class PathListWidget : public QListWidget {
-public:
-	enum PathType { FILE_EXE, FOLDER };
-
-	PathListWidget(QWidget *parent = 0);
-	void setPathType(PathType type);
-	virtual void dragEnterEvent(QDragEnterEvent *event) Q_DECL_OVERRIDE;
-	virtual void dragMoveEvent(QDragMoveEvent *event) Q_DECL_OVERRIDE;
-	virtual void dropEvent(QDropEvent *event) Q_DECL_OVERRIDE;
-
+struct SharedMemory2Private;
+class SharedMemory2 : QObject {
 private:
+	Q_DISABLE_COPY(SharedMemory2)
 	Q_OBJECT
-	Q_DISABLE_COPY(PathListWidget)
+protected:
+	QString qsName;
+	SharedMemory2Private *d;
+	unsigned char *a_ucData;
+	unsigned int uiSize;
+	static unsigned int uiIndex;
 
-	PathType pathType;
+public:
+	SharedMemory2(QObject *p, unsigned int minsize, const QString &name = QString());
+	~SharedMemory2() Q_DECL_OVERRIDE;
 
-	void addFilePath(const QString &path);
-	void addFolderPath(const QString &path);
-	void checkAcceptDragEvent(QDropEvent *event, bool store);
+	void erase();
+	void systemRelease();
+
+	QString name() const;
+	unsigned int size() const;
+	unsigned char *data();
+	const unsigned char *data() const;
 };
 
 #endif
