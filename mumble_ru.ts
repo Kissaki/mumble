@@ -3,28 +3,35 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "SharedMemory.h"
+#ifndef MUMBLE_MUMBLE_SHAREDMEMORY_H_
+#define MUMBLE_MUMBLE_SHAREDMEMORY_H_
 
-unsigned int SharedMemory2::uiIndex = 0;
+#include <QtCore/QObject>
+#include <QtCore/QString>
 
-QString SharedMemory2::name() const {
-	return a_ucData ? qsName : QString();
-}
+struct SharedMemory2Private;
+class SharedMemory2 : QObject {
+private:
+	Q_DISABLE_COPY(SharedMemory2)
+	Q_OBJECT
+protected:
+	QString qsName;
+	SharedMemory2Private *d;
+	unsigned char *a_ucData;
+	unsigned int uiSize;
+	static unsigned int uiIndex;
 
-unsigned int SharedMemory2::size() const {
-	return a_ucData ? uiSize : 0;
-}
+public:
+	SharedMemory2(QObject *p, unsigned int minsize, const QString &name = QString());
+	~SharedMemory2() Q_DECL_OVERRIDE;
 
-unsigned char *SharedMemory2::data() {
-	return a_ucData;
-}
+	void erase();
+	void systemRelease();
 
-const unsigned char *SharedMemory2::data() const {
-	return a_ucData;
-}
+	QString name() const;
+	unsigned int size() const;
+	unsigned char *data();
+	const unsigned char *data() const;
+};
 
-void SharedMemory2::erase() {
-	if (a_ucData) {
-		memset(a_ucData, 0, uiSize);
-	}
-}
+#endif
