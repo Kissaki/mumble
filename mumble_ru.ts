@@ -1,308 +1,262 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
-// Use of this source code is governed by a BSD-style license
-// that can be found in the LICENSE file at the root of the
-// Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "Zeroconf.h"
-
-#define SYMBOL_EXISTS(symbol) (GetProcAddress(handle, symbol))
-
-Zeroconf::Zeroconf() : m_ok(false) {
-	qRegisterMetaType< uint16_t >("uint16_t");
-	qRegisterMetaType< BonjourRecord >("BonjourRecord");
-	qRegisterMetaType< QList< BonjourRecord > >("QList<BonjourRecord>");
-#ifdef Q_OS_WIN64
-	static bool winDnsUnavailable = false;
-	if (!winDnsUnavailable) {
-		auto handle = GetModuleHandle(L"dnsapi.dll");
-		if (handle) {
-			if (SYMBOL_EXISTS("DnsServiceBrowse") && SYMBOL_EXISTS("DnsServiceBrowseCancel")
-				&& SYMBOL_EXISTS("DnsServiceResolve") && SYMBOL_EXISTS("DnsServiceResolveCancel")
-				&& SYMBOL_EXISTS("DnsServiceFreeInstance")) {
-				m_ok = true;
-				return;
-			}
-		}
-
-		winDnsUnavailable = true;
-		qWarning("Zeroconf: Native mDNS/DNS-SD API not available, falling back to third-party API");
-	}
-
-	static bool dnssdLoadFailed = false;
-	if (!dnssdLoadFailed) {
-		auto handle = LoadLibrary(L"dnssd.DLL");
-		if (!handle) {
-			dnssdLoadFailed = true;
-			qWarning("Zeroconf: Failed to load dnssd.dll, assuming third-party API is not available");
-			return;
-		}
-		FreeLibrary(handle);
-	}
-#endif
-	resetHelperBrowser();
-	resetHelperResolver();
-
-	m_ok = true;
-}
-
-Zeroconf::~Zeroconf() {
-	if (!m_helperBrowser) {
-		stopBrowser();
-	}
-
-	if (!m_helperResolver) {
-		cleanupResolvers();
-	}
-}
-
-void Zeroconf::resetHelperBrowser() {
-	m_helperBrowser.reset(new BonjourServiceBrowser(this));
-	connect(m_helperBrowser.get(), &BonjourServiceBrowser::currentBonjourRecordsChanged, this,
-			&Zeroconf::helperBrowserRecordsChanged);
-	connect(m_helperBrowser.get(), &BonjourServiceBrowser::error, this, &Zeroconf::helperBrowserError);
-}
-
-void Zeroconf::resetHelperResolver() {
-	m_helperResolver.reset(new BonjourServiceResolver(this));
-	connect(m_helperResolver.get(), &BonjourServiceResolver::bonjourRecordResolved, this,
-			&Zeroconf::helperResolverRecordResolved);
-	connect(m_helperResolver.get(), &BonjourServiceResolver::error, this, &Zeroconf::helperResolverError);
-}
-
-bool Zeroconf::startBrowser(const QString &serviceType) {
-	if (!m_ok) {
-		return false;
-	}
-
-	stopBrowser();
-
-	if (m_helperBrowser) {
-		m_helperBrowser->browseForServiceType(serviceType);
-		return true;
-	}
-#ifdef Q_OS_WIN64
-	const QString queryName = serviceType + QLatin1String(".local");
-
-	DNS_SERVICE_BROWSE_REQUEST request{};
-	request.Version         = DNS_QUERY_REQUEST_VERSION1;
-	request.QueryName       = reinterpret_cast< LPCWSTR >(queryName.utf16());
-	request.pBrowseCallback = callbackBrowseComplete;
-	request.pQueryContext   = this;
-
-	m_cancelBrowser.reset(new DNS_SERVICE_CANCEL{});
-	const auto ret = DnsServiceBrowse(&request, m_cancelBrowser.get());
-	if (ret == DNS_REQUEST_PENDING) {
-		return true;
-	}
-
-	m_cancelBrowser.reset();
-	qWarning("Zeroconf: DnsServiceBrowse() failed with error %u!", ret);
-#endif
-	return false;
-}
-
-bool Zeroconf::stopBrowser() {
-	if (!m_ok) {
-		return false;
-	}
-
-	if (m_helperBrowser) {
-		resetHelperBrowser();
-		return true;
-	}
-#ifdef Q_OS_WIN64
-	if (m_cancelBrowser) {
-		const auto ret = DnsServiceBrowseCancel(m_cancelBrowser.get());
-		if (ret == ERROR_SUCCESS || ret == ERROR_CANCELLED) {
-			m_cancelBrowser.reset();
-			return true;
-		}
-
-		qWarning("Zeroconf: DnsServiceBrowseCancel() failed with error %u!", ret);
-		return false;
-	}
-#endif
-	return true;
-}
-
-bool Zeroconf::startResolver(const BonjourRecord &record) {
-	if (!m_ok) {
-		return false;
-	}
-
-	if (m_helperResolver) {
-		m_helperResolver->resolveBonjourRecord(record);
-		return true;
-	}
-#ifdef Q_OS_WIN64
-	stopResolver(record);
-
-	auto qualifiedHostname = record.serviceName.toStdWString() + L"." + record.registeredType.toStdWString()
-							 + record.replyDomain.toStdWString();
-
-	m_resolvers.append(Resolver(this, record));
-	auto context = &m_resolvers.last();
-
-	DNS_SERVICE_RESOLVE_REQUEST request{};
-	request.Version                    = DNS_QUERY_REQUEST_VERSION1;
-	request.QueryName                  = &qualifiedHostname[0];
-	request.pResolveCompletionCallback = &Zeroconf::callbackResolveComplete;
-	request.pQueryContext              = context;
-
-	const auto ret = DnsServiceResolve(&request, &context->m_cancel);
-	if (ret == DNS_REQUEST_PENDING) {
-		return true;
-	}
-
-	m_resolvers.removeLast();
-
-	qWarning("Zeroconf: DnsServiceResolve() failed with error %u!", ret);
-#endif
-	return false;
-}
-#ifdef Q_OS_WIN64
-bool Zeroconf::stopResolver(const BonjourRecord &record) {
-	if (!m_ok) {
-		return false;
-	}
-
-	Resolver tmp(this, record);
-	if (!m_resolvers.contains(tmp)) {
-		return true;
-	}
-
-	auto resolver = m_resolvers[m_resolvers.indexOf(tmp)];
-	return stopResolver(resolver);
-}
-
-bool Zeroconf::stopResolver(Resolver &resolver) {
-	if (!m_ok) {
-		return false;
-	}
-
-	const auto ret = DnsServiceResolveCancel(&resolver.m_cancel);
-	if (ret == ERROR_SUCCESS || ret == ERROR_CANCELLED) {
-		return true;
-	}
-
-	qWarning("Zeroconf: DnsServiceResolveCancel() failed with error %u!", ret);
-	return false;
-}
-#endif
-bool Zeroconf::cleanupResolvers() {
-	if (!m_ok) {
-		return false;
-	}
-
-	if (m_helperResolver) {
-		resetHelperResolver();
-		return true;
-	}
-
-	auto result = true;
-#ifdef Q_OS_WIN64
-	for (auto i = 0; i < m_resolvers.size(); ++i) {
-		if (!stopResolver(m_resolvers[i])) {
-			result = false;
-		}
-	}
-
-	m_resolvers.clear();
-#endif
-	return result;
-}
-
-void Zeroconf::helperBrowserRecordsChanged(const QList< BonjourRecord > &records) {
-	emit recordsChanged(records);
-}
-
-void Zeroconf::helperResolverRecordResolved(const BonjourRecord record, const QString hostname, const int port) {
-	emit recordResolved(record, hostname, port);
-}
-
-void Zeroconf::helperBrowserError(const DNSServiceErrorType error) const {
-	qWarning("Zeroconf: Third-party browser API reports error %d", error);
-}
-
-void Zeroconf::helperResolverError(const BonjourRecord record, const DNSServiceErrorType error) {
-	qWarning("Zeroconf: Third-party resolver API reports error %d", error);
-	emit resolveError(record);
-}
-#ifdef Q_OS_WIN64
-void WINAPI Zeroconf::callbackBrowseComplete(const DWORD status, void *context, DNS_RECORD *records) {
-	auto zeroconf = static_cast< Zeroconf * >(context);
-	zeroconf->m_cancelBrowser.reset();
-
-	if (status != ERROR_SUCCESS) {
-		if (records) {
-			DnsRecordListFree(records, DnsFreeRecordList);
-		}
-
-		if (status != ERROR_CANCELLED) {
-			qWarning("Zeroconf: DnsServiceBrowse() reports status code %u, ignoring results", status);
-		}
-
-		return;
-	}
-
-	if (!records) {
-		return;
-	}
-
-	bool changed = false;
-
-	for (auto cur = records; cur; cur = cur->pNext) {
-		if (cur->wType != DNS_TYPE_PTR) {
-			continue;
-		}
-
-		// Example: "_mumble._tcp.local".
-		const auto domain = QString::fromWCharArray(cur->pName);
-		// Example: "Test._mumble._tcp.local".
-		const auto hostname = QString::fromWCharArray(cur->Data.PTR.pNameHost);
-
-		BonjourRecord record;
-		record.serviceName = hostname.left(hostname.lastIndexOf(domain));
-		// Trim trailing ".".
-		record.serviceName.resize(record.serviceName.size() - 1);
-
-		record.replyDomain    = domain.mid(domain.lastIndexOf('.'));
-		record.registeredType = domain.left(domain.lastIndexOf(record.replyDomain));
-
-		if (!zeroconf->m_records.contains(record)) {
-			zeroconf->m_records.append(record);
-			changed = true;
-		}
-	}
-
-	DnsRecordListFree(records, DnsFreeRecordList);
-
-	if (changed) {
-		emit zeroconf->recordsChanged(zeroconf->m_records);
-	}
-}
-
-void WINAPI Zeroconf::callbackResolveComplete(const DWORD status, void *context, DNS_SERVICE_INSTANCE *instance) {
-	if (status != ERROR_SUCCESS) {
-		if (instance) {
-			DnsServiceFreeInstance(instance);
-		}
-
-		if (status != ERROR_CANCELLED) {
-			qWarning("Zeroconf: DnsServiceResolve() reports status code %u, ignoring result", status);
-		}
-
-		return;
-	}
-
-	if (!instance) {
-		return;
-	}
-
-	auto resolverContext = static_cast< Resolver * >(context);
-	emit resolverContext->m_zeroconf->recordResolved(resolverContext->m_record,
-													 QString::fromWCharArray(instance->pszHostName), instance->wPort);
-
-	DnsServiceFreeInstance(instance);
-}
-#endif
+<!DOCTYPE RCC>
+<RCC version="1.0">
+<qresource>
+<file alias="flags/jp.svg">../../../icons/flags/jp.svg</file>
+<file alias="flags/pw.svg">../../../icons/flags/pw.svg</file>
+<file alias="flags/ch.svg">../../../icons/flags/ch.svg</file>
+<file alias="flags/bd.svg">../../../icons/flags/bd.svg</file>
+<file alias="flags/vn.svg">../../../icons/flags/vn.svg</file>
+<file alias="flags/mc.svg">../../../icons/flags/mc.svg</file>
+<file alias="flags/so.svg">../../../icons/flags/so.svg</file>
+<file alias="flags/ua.svg">../../../icons/flags/ua.svg</file>
+<file alias="flags/pl.svg">../../../icons/flags/pl.svg</file>
+<file alias="flags/id.svg">../../../icons/flags/id.svg</file>
+<file alias="flags/lc.svg">../../../icons/flags/lc.svg</file>
+<file alias="flags/to.svg">../../../icons/flags/to.svg</file>
+<file alias="flags/co.svg">../../../icons/flags/co.svg</file>
+<file alias="flags/mg.svg">../../../icons/flags/mg.svg</file>
+<file alias="flags/bj.svg">../../../icons/flags/bj.svg</file>
+<file alias="flags/bf.svg">../../../icons/flags/bf.svg</file>
+<file alias="flags/at.svg">../../../icons/flags/at.svg</file>
+<file alias="flags/cz.svg">../../../icons/flags/cz.svg</file>
+<file alias="flags/pe.svg">../../../icons/flags/pe.svg</file>
+<file alias="flags/ng.svg">../../../icons/flags/ng.svg</file>
+<file alias="flags/nl.svg">../../../icons/flags/nl.svg</file>
+<file alias="flags/am.svg">../../../icons/flags/am.svg</file>
+<file alias="flags/bg.svg">../../../icons/flags/bg.svg</file>
+<file alias="flags/hu.svg">../../../icons/flags/hu.svg</file>
+<file alias="flags/lt.svg">../../../icons/flags/lt.svg</file>
+<file alias="flags/sl.svg">../../../icons/flags/sl.svg</file>
+<file alias="flags/ye.svg">../../../icons/flags/ye.svg</file>
+<file alias="flags/be.svg">../../../icons/flags/be.svg</file>
+<file alias="flags/ee.svg">../../../icons/flags/ee.svg</file>
+<file alias="flags/lu.svg">../../../icons/flags/lu.svg</file>
+<file alias="flags/ci.svg">../../../icons/flags/ci.svg</file>
+<file alias="flags/cl.svg">../../../icons/flags/cl.svg</file>
+<file alias="flags/cp.svg">../../../icons/flags/cp.svg</file>
+<file alias="flags/gn.svg">../../../icons/flags/gn.svg</file>
+<file alias="flags/mf.svg">../../../icons/flags/mf.svg</file>
+<file alias="flags/ml.svg">../../../icons/flags/ml.svg</file>
+<file alias="flags/ro.svg">../../../icons/flags/ro.svg</file>
+<file alias="flags/td.svg">../../../icons/flags/td.svg</file>
+<file alias="flags/tn.svg">../../../icons/flags/tn.svg</file>
+<file alias="flags/wf.svg">../../../icons/flags/wf.svg</file>
+<file alias="flags/mr.svg">../../../icons/flags/mr.svg</file>
+<file alias="flags/de.svg">../../../icons/flags/de.svg</file>
+<file alias="flags/fr.svg">../../../icons/flags/fr.svg</file>
+<file alias="flags/ie.svg">../../../icons/flags/ie.svg</file>
+<file alias="flags/it.svg">../../../icons/flags/it.svg</file>
+<file alias="flags/ga.svg">../../../icons/flags/ga.svg</file>
+<file alias="flags/bh.svg">../../../icons/flags/bh.svg</file>
+<file alias="flags/gl.svg">../../../icons/flags/gl.svg</file>
+<file alias="flags/ru.svg">../../../icons/flags/ru.svg</file>
+<file alias="flags/gf.svg">../../../icons/flags/gf.svg</file>
+<file alias="flags/ne.svg">../../../icons/flags/ne.svg</file>
+<file alias="flags/la.svg">../../../icons/flags/la.svg</file>
+<file alias="flags/ma.svg">../../../icons/flags/ma.svg</file>
+<file alias="flags/ae.svg">../../../icons/flags/ae.svg</file>
+<file alias="flags/mu.svg">../../../icons/flags/mu.svg</file>
+<file alias="flags/gw.svg">../../../icons/flags/gw.svg</file>
+<file alias="flags/tr.svg">../../../icons/flags/tr.svg</file>
+<file alias="flags/cg.svg">../../../icons/flags/cg.svg</file>
+<file alias="flags/lv.svg">../../../icons/flags/lv.svg</file>
+<file alias="flags/dj.svg">../../../icons/flags/dj.svg</file>
+<file alias="flags/fm.svg">../../../icons/flags/fm.svg</file>
+<file alias="flags/cm.svg">../../../icons/flags/cm.svg</file>
+<file alias="flags/gh.svg">../../../icons/flags/gh.svg</file>
+<file alias="flags/mm.svg">../../../icons/flags/mm.svg</file>
+<file alias="flags/sn.svg">../../../icons/flags/sn.svg</file>
+<file alias="flags/bw.svg">../../../icons/flags/bw.svg</file>
+<file alias="flags/mv.svg">../../../icons/flags/mv.svg</file>
+<file alias="flags/tl.svg">../../../icons/flags/tl.svg</file>
+<file alias="flags/dk.svg">../../../icons/flags/dk.svg</file>
+<file alias="flags/fi.svg">../../../icons/flags/fi.svg</file>
+<file alias="flags/tw.svg">../../../icons/flags/tw.svg</file>
+<file alias="flags/th.svg">../../../icons/flags/th.svg</file>
+<file alias="flags/bs.svg">../../../icons/flags/bs.svg</file>
+<file alias="flags/pk.svg">../../../icons/flags/pk.svg</file>
+<file alias="flags/se.svg">../../../icons/flags/se.svg</file>
+<file alias="flags/vc.svg">../../../icons/flags/vc.svg</file>
+<file alias="flags/pa.svg">../../../icons/flags/pa.svg</file>
+<file alias="flags/ps.svg">../../../icons/flags/ps.svg</file>
+<file alias="flags/sd.svg">../../../icons/flags/sd.svg</file>
+<file alias="flags/cr.svg">../../../icons/flags/cr.svg</file>
+<file alias="flags/qa.svg">../../../icons/flags/qa.svg</file>
+<file alias="flags/kw.svg">../../../icons/flags/kw.svg</file>
+<file alias="flags/dz.svg">../../../icons/flags/dz.svg</file>
+<file alias="flags/cw.svg">../../../icons/flags/cw.svg</file>
+<file alias="flags/jo.svg">../../../icons/flags/jo.svg</file>
+<file alias="flags/cn.svg">../../../icons/flags/cn.svg</file>
+<file alias="flags/jm.svg">../../../icons/flags/jm.svg</file>
+<file alias="flags/sy.svg">../../../icons/flags/sy.svg</file>
+<file alias="flags/gm.svg">../../../icons/flags/gm.svg</file>
+<file alias="flags/gg.svg">../../../icons/flags/gg.svg</file>
+<file alias="flags/ag.svg">../../../icons/flags/ag.svg</file>
+<file alias="flags/nr.svg">../../../icons/flags/nr.svg</file>
+<file alias="flags/sc.svg">../../../icons/flags/sc.svg</file>
+<file alias="flags/ws.svg">../../../icons/flags/ws.svg</file>
+<file alias="flags/sr.svg">../../../icons/flags/sr.svg</file>
+<file alias="flags/tg.svg">../../../icons/flags/tg.svg</file>
+<file alias="flags/aw.svg">../../../icons/flags/aw.svg</file>
+<file alias="flags/kp.svg">../../../icons/flags/kp.svg</file>
+<file alias="flags/pr.svg">../../../icons/flags/pr.svg</file>
+<file alias="flags/cu.svg">../../../icons/flags/cu.svg</file>
+<file alias="flags/ly.svg">../../../icons/flags/ly.svg</file>
+<file alias="flags/cf.svg">../../../icons/flags/cf.svg</file>
+<file alias="flags/tt.svg">../../../icons/flags/tt.svg</file>
+<file alias="flags/re.svg">../../../icons/flags/re.svg</file>
+<file alias="flags/tz.svg">../../../icons/flags/tz.svg</file>
+<file alias="flags/bb.svg">../../../icons/flags/bb.svg</file>
+<file alias="flags/st.svg">../../../icons/flags/st.svg</file>
+<file alias="flags/ls.svg">../../../icons/flags/ls.svg</file>
+<file alias="flags/aq.svg">../../../icons/flags/aq.svg</file>
+<file alias="flags/az.svg">../../../icons/flags/az.svg</file>
+<file alias="flags/eh.svg">../../../icons/flags/eh.svg</file>
+<file alias="flags/cd.svg">../../../icons/flags/cd.svg</file>
+<file alias="flags/ge.svg">../../../icons/flags/ge.svg</file>
+<file alias="flags/gy.svg">../../../icons/flags/gy.svg</file>
+<file alias="flags/ca.svg">../../../icons/flags/ca.svg</file>
+<file alias="flags/ss.svg">../../../icons/flags/ss.svg</file>
+<file alias="flags/bv.svg">../../../icons/flags/bv.svg</file>
+<file alias="flags/sj.svg">../../../icons/flags/sj.svg</file>
+<file alias="flags/fo.svg">../../../icons/flags/fo.svg</file>
+<file alias="flags/il.svg">../../../icons/flags/il.svg</file>
+<file alias="flags/is.svg">../../../icons/flags/is.svg</file>
+<file alias="flags/no.svg">../../../icons/flags/no.svg</file>
+<file alias="flags/ax.svg">../../../icons/flags/ax.svg</file>
+<file alias="flags/ba.svg">../../../icons/flags/ba.svg</file>
+<file alias="flags/bq.svg">../../../icons/flags/bq.svg</file>
+<file alias="flags/hn.svg">../../../icons/flags/hn.svg</file>
+<file alias="flags/np.svg">../../../icons/flags/np.svg</file>
+<file alias="flags/sg.svg">../../../icons/flags/sg.svg</file>
+<file alias="flags/kn.svg">../../../icons/flags/kn.svg</file>
+<file alias="flags/tk.svg">../../../icons/flags/tk.svg</file>
+<file alias="flags/mh.svg">../../../icons/flags/mh.svg</file>
+<file alias="flags/sk.svg">../../../icons/flags/sk.svg</file>
+<file alias="flags/sb.svg">../../../icons/flags/sb.svg</file>
+<file alias="flags/au.svg">../../../icons/flags/au.svg</file>
+<file alias="flags/lr.svg">../../../icons/flags/lr.svg</file>
+<file alias="flags/rw.svg">../../../icons/flags/rw.svg</file>
+<file alias="flags/km.svg">../../../icons/flags/km.svg</file>
+<file alias="flags/et.svg">../../../icons/flags/et.svg</file>
+<file alias="flags/za.svg">../../../icons/flags/za.svg</file>
+<file alias="flags/gr.svg">../../../icons/flags/gr.svg</file>
+<file alias="flags/om.svg">../../../icons/flags/om.svg</file>
+<file alias="flags/gu.svg">../../../icons/flags/gu.svg</file>
+<file alias="flags/ve.svg">../../../icons/flags/ve.svg</file>
+<file alias="flags/na.svg">../../../icons/flags/na.svg</file>
+<file alias="flags/mk.svg">../../../icons/flags/mk.svg</file>
+<file alias="flags/xk.svg">../../../icons/flags/xk.svg</file>
+<file alias="flags/br.svg">../../../icons/flags/br.svg</file>
+<file alias="flags/ai.svg">../../../icons/flags/ai.svg</file>
+<file alias="flags/mo.svg">../../../icons/flags/mo.svg</file>
+<file alias="flags/eu.svg">../../../icons/flags/eu.svg</file>
+<file alias="flags/hm.svg">../../../icons/flags/hm.svg</file>
+<file alias="flags/lb.svg">../../../icons/flags/lb.svg</file>
+<file alias="flags/tf.svg">../../../icons/flags/tf.svg</file>
+<file alias="flags/bi.svg">../../../icons/flags/bi.svg</file>
+<file alias="flags/bn.svg">../../../icons/flags/bn.svg</file>
+<file alias="flags/tv.svg">../../../icons/flags/tv.svg</file>
+<file alias="flags/my.svg">../../../icons/flags/my.svg</file>
+<file alias="flags/vu.svg">../../../icons/flags/vu.svg</file>
+<file alias="flags/cv.svg">../../../icons/flags/cv.svg</file>
+<file alias="flags/ug.svg">../../../icons/flags/ug.svg</file>
+<file alias="flags/nz.svg">../../../icons/flags/nz.svg</file>
+<file alias="flags/ao.svg">../../../icons/flags/ao.svg</file>
+<file alias="flags/ph.svg">../../../icons/flags/ph.svg</file>
+<file alias="flags/hk.svg">../../../icons/flags/hk.svg</file>
+<file alias="flags/gi.svg">../../../icons/flags/gi.svg</file>
+<file alias="flags/im.svg">../../../icons/flags/im.svg</file>
+<file alias="flags/mn.svg">../../../icons/flags/mn.svg</file>
+<file alias="flags/nc.svg">../../../icons/flags/nc.svg</file>
+<file alias="flags/gd.svg">../../../icons/flags/gd.svg</file>
+<file alias="flags/si.svg">../../../icons/flags/si.svg</file>
+<file alias="flags/ni.svg">../../../icons/flags/ni.svg</file>
+<file alias="flags/kr.svg">../../../icons/flags/kr.svg</file>
+<file alias="flags/ke.svg">../../../icons/flags/ke.svg</file>
+<file alias="flags/uz.svg">../../../icons/flags/uz.svg</file>
+<file alias="flags/iq.svg">../../../icons/flags/iq.svg</file>
+<file alias="flags/ck.svg">../../../icons/flags/ck.svg</file>
+<file alias="flags/tj.svg">../../../icons/flags/tj.svg</file>
+<file alias="flags/tm.svg">../../../icons/flags/tm.svg</file>
+<file alias="flags/ms.svg">../../../icons/flags/ms.svg</file>
+<file alias="flags/gb.svg">../../../icons/flags/gb.svg</file>
+<file alias="flags/mz.svg">../../../icons/flags/mz.svg</file>
+<file alias="flags/cx.svg">../../../icons/flags/cx.svg</file>
+<file alias="flags/pg.svg">../../../icons/flags/pg.svg</file>
+<file alias="flags/gq.svg">../../../icons/flags/gq.svg</file>
+<file alias="flags/dm.svg">../../../icons/flags/dm.svg</file>
+<file alias="flags/al.svg">../../../icons/flags/al.svg</file>
+<file alias="flags/nu.svg">../../../icons/flags/nu.svg</file>
+<file alias="flags/sh.svg">../../../icons/flags/sh.svg</file>
+<file alias="flags/zw.svg">../../../icons/flags/zw.svg</file>
+<file alias="flags/lk.svg">../../../icons/flags/lk.svg</file>
+<file alias="flags/sz.svg">../../../icons/flags/sz.svg</file>
+<file alias="flags/um.svg">../../../icons/flags/um.svg</file>
+<file alias="flags/us.svg">../../../icons/flags/us.svg</file>
+<file alias="flags/cc.svg">../../../icons/flags/cc.svg</file>
+<file alias="flags/er.svg">../../../icons/flags/er.svg</file>
+<file alias="flags/ki.svg">../../../icons/flags/ki.svg</file>
+<file alias="flags/eg.svg">../../../icons/flags/eg.svg</file>
+<file alias="flags/sx.svg">../../../icons/flags/sx.svg</file>
+<file alias="flags/in.svg">../../../icons/flags/in.svg</file>
+<file alias="flags/uy.svg">../../../icons/flags/uy.svg</file>
+<file alias="flags/zm.svg">../../../icons/flags/zm.svg</file>
+<file alias="flags/li.svg">../../../icons/flags/li.svg</file>
+<file alias="flags/bm.svg">../../../icons/flags/bm.svg</file>
+<file alias="flags/fk.svg">../../../icons/flags/fk.svg</file>
+<file alias="flags/mt.svg">../../../icons/flags/mt.svg</file>
+<file alias="flags/py.svg">../../../icons/flags/py.svg</file>
+<file alias="flags/tc.svg">../../../icons/flags/tc.svg</file>
+<file alias="flags/pf.svg">../../../icons/flags/pf.svg</file>
+<file alias="flags/hr.svg">../../../icons/flags/hr.svg</file>
+<file alias="flags/ht.svg">../../../icons/flags/ht.svg</file>
+<file alias="flags/rs.svg">../../../icons/flags/rs.svg</file>
+<file alias="flags/mw.svg">../../../icons/flags/mw.svg</file>
+<file alias="flags/cy.svg">../../../icons/flags/cy.svg</file>
+<file alias="flags/mq.svg">../../../icons/flags/mq.svg</file>
+<file alias="flags/ec.svg">../../../icons/flags/ec.svg</file>
+<file alias="flags/va.svg">../../../icons/flags/va.svg</file>
+<file alias="flags/ky.svg">../../../icons/flags/ky.svg</file>
+<file alias="flags/kg.svg">../../../icons/flags/kg.svg</file>
+<file alias="flags/sv.svg">../../../icons/flags/sv.svg</file>
+<file alias="flags/me.svg">../../../icons/flags/me.svg</file>
+<file alias="flags/fj.svg">../../../icons/flags/fj.svg</file>
+<file alias="flags/mx.svg">../../../icons/flags/mx.svg</file>
+<file alias="flags/sm.svg">../../../icons/flags/sm.svg</file>
+<file alias="flags/md.svg">../../../icons/flags/md.svg</file>
+<file alias="flags/gt.svg">../../../icons/flags/gt.svg</file>
+<file alias="flags/kz.svg">../../../icons/flags/kz.svg</file>
+<file alias="flags/bt.svg">../../../icons/flags/bt.svg</file>
+<file alias="flags/ad.svg">../../../icons/flags/ad.svg</file>
+<file alias="flags/ir.svg">../../../icons/flags/ir.svg</file>
+<file alias="flags/kh.svg">../../../icons/flags/kh.svg</file>
+<file alias="flags/af.svg">../../../icons/flags/af.svg</file>
+<file alias="flags/je.svg">../../../icons/flags/je.svg</file>
+<file alias="flags/as.svg">../../../icons/flags/as.svg</file>
+<file alias="flags/sa.svg">../../../icons/flags/sa.svg</file>
+<file alias="flags/do.svg">../../../icons/flags/do.svg</file>
+<file alias="flags/ea.svg">../../../icons/flags/ea.svg</file>
+<file alias="flags/es.svg">../../../icons/flags/es.svg</file>
+<file alias="flags/pn.svg">../../../icons/flags/pn.svg</file>
+<file alias="flags/dg.svg">../../../icons/flags/dg.svg</file>
+<file alias="flags/io.svg">../../../icons/flags/io.svg</file>
+<file alias="flags/nf.svg">../../../icons/flags/nf.svg</file>
+<file alias="flags/bo.svg">../../../icons/flags/bo.svg</file>
+<file alias="flags/ar.svg">../../../icons/flags/ar.svg</file>
+<file alias="flags/ic.svg">../../../icons/flags/ic.svg</file>
+<file alias="flags/vi.svg">../../../icons/flags/vi.svg</file>
+<file alias="flags/by.svg">../../../icons/flags/by.svg</file>
+<file alias="flags/bz.svg">../../../icons/flags/bz.svg</file>
+<file alias="flags/gp.svg">../../../icons/flags/gp.svg</file>
+<file alias="flags/ac.svg">../../../icons/flags/ac.svg</file>
+<file alias="flags/mp.svg">../../../icons/flags/mp.svg</file>
+<file alias="flags/pt.svg">../../../icons/flags/pt.svg</file>
+<file alias="flags/ta.svg">../../../icons/flags/ta.svg</file>
+<file alias="flags/gs.svg">../../../icons/flags/gs.svg</file>
+<file alias="flags/yt.svg">../../../icons/flags/yt.svg</file>
+<file alias="flags/bl.svg">../../../icons/flags/bl.svg</file>
+<file alias="flags/vg.svg">../../../icons/flags/vg.svg</file>
+<file alias="flags/pm.svg">../../../icons/flags/pm.svg</file>
+</qresource>
+</RCC>
