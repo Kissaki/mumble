@@ -1,716 +1,658 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>OverlayConfig</class>
- <widget class="QWidget" name="OverlayConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>649</width>
-    <height>526</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string notr="true">Form</string>
-  </property>
-  <layout class="QVBoxLayout">
-   <property name="margin">
-    <number>0</number>
-   </property>
-   <item>
-    <widget class="QStackedWidget" name="qswOverlayPage">
-     <property name="currentIndex">
-      <number>1</number>
-     </property>
-     <widget class="QWidget" name="qwOverlayConfig">
-      <layout class="QVBoxLayout" name="verticalLayout_4" stretch="0,0">
-       <item>
-        <widget class="QWidget" name="widget" native="true">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_9" stretch="0,0">
-          <property name="spacing">
-           <number>6</number>
-          </property>
-          <property name="sizeConstraint">
-           <enum>QLayout::SetDefaultConstraint</enum>
-          </property>
-          <property name="margin">
-           <number>0</number>
-          </property>
-          <item>
-           <widget class="QGroupBox" name="qgbOptions">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="title">
-             <string>Options</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-            </property>
-            <layout class="QVBoxLayout" name="verticalLayout_15">
-             <item>
-              <widget class="QCheckBox" name="qcbEnable">
-               <property name="toolTip">
-                <string>Enable overlay.</string>
-               </property>
-               <property name="whatsThis">
-                <string>This sets whether the overlay is enabled or not. This setting is only checked when applications are started, so make sure Mumble is running and this option is on before you start the application.&lt;br /&gt;Please note that if you start Mumble after starting the application, or if you disable the overlay while the application is running, there is no safe way to restart the overlay without also restarting the application.</string>
-               </property>
-               <property name="text">
-                <string>Enable Overlay</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <spacer name="horizontalSpacer_6">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>40</width>
-                 <height>0</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-             <item>
-              <layout class="QVBoxLayout" name="verticalLayout_14">
-               <property name="sizeConstraint">
-                <enum>QLayout::SetDefaultConstraint</enum>
-               </property>
-               <item>
-                <widget class="QPushButton" name="qpbLoadPreset">
-                 <property name="toolTip">
-                  <string>Load an overlay preset from file</string>
-                 </property>
-                 <property name="text">
-                  <string>Load…</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="qpbSavePreset">
-                 <property name="toolTip">
-                  <string>Save your overlay settings to file</string>
-                 </property>
-                 <property name="text">
-                  <string>Save…</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="qpbUninstall">
-                 <property name="text">
-                  <string>Uninstall Overlay</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QGroupBox" name="qgpFps">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="title">
-             <string>FPS and Clock Display</string>
-            </property>
-            <layout class="QHBoxLayout" name="horizontalLayout_8">
-             <item>
-              <layout class="QVBoxLayout" name="verticalLayout_9">
-               <property name="sizeConstraint">
-                <enum>QLayout::SetDefaultConstraint</enum>
-               </property>
-               <item>
-                <widget class="QCheckBox" name="qcbShowFps">
-                 <property name="toolTip">
-                  <string>Display a frame counter in the overlay</string>
-                 </property>
-                 <property name="text">
-                  <string>Show FPS counter</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="qcbShowTime">
-                 <property name="toolTip">
-                  <string>Display a clock in the overlay showing the current local time (system time).</string>
-                 </property>
-                 <property name="text">
-                  <string>Show Clock</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="qpbFpsFont">
-                 <property name="toolTip">
-                  <string>Set the overlay font.</string>
-                 </property>
-                 <property name="whatsThis">
-                  <string/>
-                 </property>
-                 <property name="text">
-                  <string>Font</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="qpbFpsColor">
-                 <property name="toolTip">
-                  <string>Set the overlay text color.</string>
-                 </property>
-                 <property name="whatsThis">
-                  <string/>
-                 </property>
-                 <property name="text">
-                  <string>Color</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="verticalSpacer_3">
-                 <property name="orientation">
-                  <enum>Qt::Vertical</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>20</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <widget class="QGraphicsView" name="qgvFpsPreview">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="minimumSize">
-                <size>
-                 <width>256</width>
-                 <height>100</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>16777215</width>
-                 <height>100</height>
-                </size>
-               </property>
-               <property name="baseSize">
-                <size>
-                 <width>0</width>
-                 <height>40</height>
-                </size>
-               </property>
-               <property name="verticalScrollBarPolicy">
-                <enum>Qt::ScrollBarAlwaysOff</enum>
-               </property>
-               <property name="horizontalScrollBarPolicy">
-                <enum>Qt::ScrollBarAlwaysOff</enum>
-               </property>
-               <property name="backgroundBrush">
-                <brush brushstyle="SolidPattern">
-                 <color alpha="255">
-                  <red>128</red>
-                  <green>128</green>
-                  <blue>128</blue>
-                 </color>
-                </brush>
-               </property>
-               <property name="foregroundBrush">
-                <brush brushstyle="NoBrush">
-                 <color alpha="255">
-                  <red>0</red>
-                  <green>0</green>
-                  <blue>0</blue>
-                 </color>
-                </brush>
-               </property>
-               <property name="renderHints">
-                <set>QPainter::Antialiasing|QPainter::TextAntialiasing</set>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <widget class="QTabWidget" name="qtwSetup">
-         <property name="currentIndex">
-          <number>0</number>
-         </property>
-         <widget class="QWidget" name="qwLayoutTab">
-          <attribute name="title">
-           <string>Layout</string>
-          </attribute>
-          <layout class="QVBoxLayout" name="verticalLayout_13">
-           <item>
-            <widget class="QGraphicsView" name="qgvView">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-               <horstretch>1</horstretch>
-               <verstretch>1</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="verticalScrollBarPolicy">
-              <enum>Qt::ScrollBarAlwaysOff</enum>
-             </property>
-             <property name="horizontalScrollBarPolicy">
-              <enum>Qt::ScrollBarAlwaysOff</enum>
-             </property>
-             <property name="backgroundBrush">
-              <brush brushstyle="SolidPattern">
-               <color alpha="255">
-                <red>128</red>
-                <green>128</green>
-                <blue>128</blue>
-               </color>
-              </brush>
-             </property>
-             <property name="renderHints">
-              <set>QPainter::Antialiasing|QPainter::SmoothPixmapTransform|QPainter::TextAntialiasing</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="qwExceptions">
-          <attribute name="title">
-           <string>Overlay Exceptions</string>
-          </attribute>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_3">
-             <item>
-              <widget class="QLabel" name="label">
-               <property name="text">
-                <string>Overlay Exception Mode</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QComboBox" name="qcbOverlayExclusionMode"/>
-             </item>
-             <item>
-              <spacer name="horizontalSpacer">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>40</width>
-                 <height>20</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="Line" name="line">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout">
-             <item>
-              <widget class="QWidget" name="qwLaunchers" native="true">
-               <layout class="QVBoxLayout" name="qvblLaunchers">
-                <item>
-                 <widget class="QLabel" name="qlLaunchersLabel">
-                  <property name="text">
-                   <string>Allowed launchers</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="PathListWidget" name="qlwLaunchers" native="true"/>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_2">
-                  <item>
-                   <widget class="QPushButton" name="qpbLaunchersAdd">
-                    <property name="text">
-                     <string>Add</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="qpbLaunchersRemove">
-                    <property name="enabled">
-                     <bool>false</bool>
-                    </property>
-                    <property name="text">
-                     <string>Remove</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QWidget" name="qwWhitelist" native="true">
-               <layout class="QVBoxLayout" name="qvblWhitelist">
-                <item>
-                 <widget class="QLabel" name="qlWhitelistLabel">
-                  <property name="text">
-                   <string>Allowed programs</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="PathListWidget" name="qlwWhitelist" native="true"/>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_5">
-                  <item>
-                   <widget class="QPushButton" name="qpbWhitelistAdd">
-                    <property name="text">
-                     <string>Add</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="qpbWhitelistRemove">
-                    <property name="enabled">
-                     <bool>false</bool>
-                    </property>
-                    <property name="text">
-                     <string>Remove</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QWidget" name="qwPaths" native="true">
-               <layout class="QVBoxLayout" name="qvblPaths">
-                <item>
-                 <widget class="QLabel" name="qlPathsLabel">
-                  <property name="text">
-                   <string>Allowed paths</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="PathListWidget" name="qlwPaths" native="true"/>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_7">
-                  <item>
-                   <widget class="QPushButton" name="qpbPathsAdd">
-                    <property name="text">
-                     <string>Add</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="qpbPathsRemove">
-                    <property name="enabled">
-                     <bool>false</bool>
-                    </property>
-                    <property name="text">
-                     <string>Remove</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QWidget" name="qwBlacklist" native="true">
-               <layout class="QVBoxLayout" name="qvblBlacklist">
-                <item>
-                 <widget class="QLabel" name="qlvBlacklistLabel">
-                  <property name="text">
-                   <string>Blacklisted programs</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="PathListWidget" name="qlwBlacklist" native="true"/>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_10">
-                  <item>
-                   <widget class="QPushButton" name="qpbBlacklistAdd">
-                    <property name="text">
-                     <string>Add</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="qpbBlacklistRemove">
-                    <property name="enabled">
-                     <bool>false</bool>
-                    </property>
-                    <property name="text">
-                     <string>Remove</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwOverlayInstall">
-      <layout class="QVBoxLayout" name="verticalLayout_5">
-       <item>
-        <widget class="QGroupBox" name="groupBox">
-         <property name="title">
-          <string>Overlay Installation</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_11">
-          <item>
-           <layout class="QFormLayout" name="formLayout">
-            <item row="0" column="0">
-             <widget class="QLabel" name="qlInstallIcon">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="pixmap">
-               <pixmap resource="mumble.qrc">:/config_osd.png</pixmap>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="1">
-             <widget class="QLabel" name="qlInstallText">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>Mumble has detected that you do not have the Mumble Overlay installed.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-Click the button below to install the overlay.</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_4">
-            <item>
-             <spacer name="horizontalSpacer_3">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QPushButton" name="qpbInstall">
-              <property name="text">
-               <string>Install Mumble Overlay</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="horizontalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <spacer name="verticalSpacer_2">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwOverlayUpgrade">
-      <layout class="QVBoxLayout" name="verticalLayout_7">
-       <item>
-        <widget class="QGroupBox" name="groupBox_2">
-         <property name="title">
-          <string>Overlay Upgrade</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_12">
-          <item>
-           <layout class="QFormLayout" name="formLayout_4">
-            <property name="fieldGrowthPolicy">
-             <enum>QFormLayout::ExpandingFieldsGrow</enum>
-            </property>
-            <item row="0" column="0">
-             <widget class="QLabel" name="qlUpgradeIcon">
-              <property name="text">
-               <string/>
-              </property>
-              <property name="pixmap">
-               <pixmap resource="mumble.qrc">:/config_osd.png</pixmap>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="1">
-             <widget class="QLabel" name="qlUpgradeText">
-              <property name="text">
-               <string>Mumble has detected an old version of the overlay support files installed on your computer.
+#include "OverlayClient.h"
+#include "Channel.h"
+#include "Database.h"
+#include "MainWindow.h"
+#include "Message.h"
+#include "NetworkConfig.h"
+#include "OverlayEditor.h"
+#include "OverlayPositionableItem.h"
+#include "OverlayText.h"
+#include "ServerHandler.h"
+#include "Themes.h"
+#include "User.h"
+#include "Utils.h"
+#include "GlobalShortcut.h"
 
-To upgrade these files to their latest versions, click the button below.</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_6">
-            <item>
-             <spacer name="horizontalSpacer_4">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QPushButton" name="qpbUpgrade">
-              <property name="text">
-               <string>Upgrade Mumble Overlay</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="horizontalSpacer_5">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </widget>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>PathListWidget</class>
-   <extends>QListWidget</extends>
-   <header>PathListWidget.h</header>
-  </customwidget>
- </customwidgets>
- <resources>
-  <include location="mumble.qrc"/>
- </resources>
- <connections/>
-</ui>
+#ifdef Q_OS_WIN
+#	include <QtGui/QBitmap>
+#endif
+
+#include <QtGui/QImageReader>
+#include <QtWidgets/QGraphicsProxyWidget>
+
+#ifdef Q_OS_WIN
+#	include <psapi.h>
+#endif
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+OverlayClient::OverlayClient(QLocalSocket *socket, QObject *p)
+	: QObject(p), framesPerSecond(0), ougUsers(&g.s.os), iMouseX(0), iMouseY(0) {
+	qlsSocket = socket;
+	qlsSocket->setParent(nullptr);
+	connect(qlsSocket, SIGNAL(readyRead()), this, SLOT(readyRead()));
+
+	omMsg.omh.iLength = -1;
+	smMem             = nullptr;
+	uiWidth = uiHeight = 0;
+
+	uiPid = ~0ULL;
+
+	bWasVisible = false;
+	bDelete     = false;
+
+	qgv.setScene(&qgs);
+	qgv.installEventFilter(this);
+	qgv.viewport()->installEventFilter(this);
+
+	// Make sure it has a native window id
+	qgv.winId();
+
+	qgpiCursor.reset(new OverlayMouse());
+	qgpiCursor->hide();
+	qgpiCursor->setZValue(10.0f);
+
+	ougUsers.setZValue(-1.0f);
+	qgs.addItem(&ougUsers);
+	ougUsers.show();
+
+	qgpiFPS.reset(new OverlayPositionableItem(&g.s.os.qrfFps));
+	qgs.addItem(qgpiFPS.data());
+	qgpiFPS->setPos(g.s.os.qrfFps.x(), g.s.os.qrfFps.y());
+	qgpiFPS->show();
+
+	// Time
+	qgpiTime.reset(new OverlayPositionableItem(&g.s.os.qrfTime));
+	qgs.addItem(qgpiTime.data());
+	qgpiTime->setPos(g.s.os.qrfTime.x(), g.s.os.qrfTime.y());
+	qgpiTime->show();
+
+	iOffsetX = iOffsetY = 0;
+
+	connect(&qgs, SIGNAL(changed(const QList< QRectF > &)), this, SLOT(changed(const QList< QRectF > &)));
+}
+
+OverlayClient::~OverlayClient() {
+	qlsSocket->disconnectFromServer();
+	if (!qlsSocket->waitForDisconnected(1000)) {
+		qDebug() << "OverlayClient: Failed to cleanly disconnect: " << qlsSocket->errorString();
+		qlsSocket->abort();
+	}
+
+	qlsSocket->deleteLater();
+
+	ougUsers.reset();
+}
+
+bool OverlayClient::eventFilter(QObject *o, QEvent *e) {
+	if (e->type() == QEvent::Paint) {
+		e->accept();
+		return true;
+	}
+	return QObject::eventFilter(o, e);
+}
+
+void OverlayClient::updateFPS() {
+	if (g.s.os.bFps) {
+		const BasepointPixmap &pm =
+			OverlayTextLine(QString(QLatin1String("%1")).arg(iroundf(framesPerSecond + 0.5f)), g.s.os.qfFps)
+				.createPixmap(g.s.os.qcFps);
+		qgpiFPS->setVisible(true);
+		qgpiFPS->setPixmap(pm);
+		// offset to use basepoint
+		// TODO: settings are providing a top left anchor, so shift down by ascent
+		qgpiFPS->setOffset(-pm.qpBasePoint + QPoint(0, pm.iAscent));
+		qgpiFPS->updateRender();
+	} else {
+		qgpiFPS->setVisible(false);
+	}
+}
+
+void OverlayClient::updateTime() {
+	if (g.s.os.bTime) {
+		const BasepointPixmap &pm =
+			OverlayTextLine(QString(QLatin1String("%1")).arg(QTime::currentTime().toString()), g.s.os.qfFps)
+				.createPixmap(g.s.os.qcFps);
+		qgpiTime->setVisible(true);
+		qgpiTime->setPixmap(pm);
+		qgpiTime->setOffset(-pm.qpBasePoint + QPoint(0, pm.iAscent));
+		qgpiTime->updateRender();
+	} else {
+		qgpiTime->setVisible(false);
+	}
+}
+
+#if !defined(Q_OS_MAC) || (defined(Q_OS_MAC) && defined(USE_MAC_UNIVERSAL))
+void OverlayClient::updateMouse() {
+#	if defined(Q_OS_WIN)
+	QPixmap pm;
+
+	HICON c = ::GetCursor();
+	ICONINFO info;
+	ZeroMemory(&info, sizeof(info));
+	if (c && ::GetIconInfo(c, &info)) {
+		extern QPixmap qt_pixmapFromWinHBITMAP(HBITMAP bitmap, int format = 0);
+
+		if (info.hbmColor) {
+			pm = qt_pixmapFromWinHBITMAP(info.hbmColor);
+			pm.setMask(QBitmap(qt_pixmapFromWinHBITMAP(info.hbmMask)));
+		} else {
+			QBitmap orig(qt_pixmapFromWinHBITMAP(info.hbmMask));
+			QImage img = orig.toImage();
+
+			int h = img.height() / 2;
+			int w = img.bytesPerLine() / sizeof(quint32);
+
+			QImage out(img.width(), h, QImage::Format_MonoLSB);
+			QImage outmask(img.width(), h, QImage::Format_MonoLSB);
+
+			for (int i = 0; i < h; ++i) {
+				const quint32 *srcimg  = reinterpret_cast< const quint32 * >(img.scanLine(i + h));
+				const quint32 *srcmask = reinterpret_cast< const quint32 * >(img.scanLine(i));
+
+				quint32 *dstimg  = reinterpret_cast< quint32 * >(out.scanLine(i));
+				quint32 *dstmask = reinterpret_cast< quint32 * >(outmask.scanLine(i));
+
+				for (int j = 0; j < w; ++j) {
+					dstmask[j] = srcmask[j];
+					dstimg[j]  = srcimg[j];
+				}
+			}
+			pm = QBitmap::fromImage(out);
+		}
+
+		if (info.hbmMask)
+			::DeleteObject(info.hbmMask);
+		if (info.hbmColor)
+			::DeleteObject(info.hbmColor);
+
+		iOffsetX = info.xHotspot;
+		iOffsetY = info.yHotspot;
+	}
+
+	qgpiCursor->setPixmap(pm);
+#	else
+#	endif
+
+	qgpiCursor->setPos(iMouseX - iOffsetX, iMouseY - iOffsetY);
+}
+#endif
+
+// Qt gets very very unhappy if we embed or unmbed the widget that an event is called from.
+// This means that if any modal dialog is open, we'll be in a event loop of an object
+// that we're about to reparent.
+
+void OverlayClient::showGui() {
+	int count = 0;
+
+	{
+		QWidgetList widgets = qApp->topLevelWidgets();
+		foreach (QWidget *w, widgets) {
+			if (w->isHidden() && (w != g.mw))
+				continue;
+			count++;
+		}
+	}
+	// If there's more than one window up, we're likely deep in a message loop.
+	if (count > 1)
+		return;
+
+	g.ocIntercept = this;
+
+	bWasVisible = !g.mw->isHidden();
+
+	if (bWasVisible) {
+		if (g.s.bMinimalView) {
+			g.s.qbaMinimalViewGeometry = g.mw->saveGeometry();
+			g.s.qbaMinimalViewState    = g.mw->saveState();
+		} else {
+			g.s.qbaMainWindowGeometry = g.mw->saveGeometry();
+			g.s.qbaMainWindowState    = g.mw->saveState();
+			g.s.qbaHeaderState        = g.mw->qtvUsers->header()->saveState();
+		}
+	}
+
+	{
+	outer:
+		QWidgetList widgets = qApp->topLevelWidgets();
+		widgets.removeAll(g.mw);
+		widgets.prepend(g.mw);
+
+		foreach (QWidget *w, widgets) {
+			if (!w->graphicsProxyWidget()) {
+				if ((w == g.mw) || (!w->isHidden())) {
+					QGraphicsProxyWidget *qgpw = new QGraphicsProxyWidget(nullptr, Qt::Window);
+					qgpw->setOpacity(0.90f);
+					qgpw->setWidget(w);
+					if (w == g.mw) {
+						qgpw->setPos(uiWidth / 10, uiHeight / 10);
+						qgpw->resize((uiWidth * 8) / 10, (uiHeight * 8) / 10);
+					}
+
+					qgs.addItem(qgpw);
+					qgpw->show();
+					qgpw->setActive(true);
+					goto outer;
+				}
+			}
+		}
+	}
+
+	QEvent activateEvent(QEvent::WindowActivate);
+	qApp->sendEvent(&qgs, &activateEvent);
+
+	QPoint p = QCursor::pos();
+	iMouseX  = qBound< int >(0, p.x(), uiWidth - 1);
+	iMouseY  = qBound< int >(0, p.y(), uiHeight - 1);
+
+	qgpiCursor->setPos(iMouseX, iMouseY);
+
+	qgs.setFocus();
+#ifndef Q_OS_MAC
+	g.mw->qteChat->activateWindow();
+#endif
+	g.mw->qteChat->setFocus();
+
+	qgv.setAttribute(Qt::WA_WState_Hidden, false);
+	qApp->setActiveWindow(&qgv);
+	qgv.setFocus();
+
+	ougUsers.bShowExamples = true;
+
+#ifdef Q_OS_MAC
+	qApp->setAttribute(Qt::AA_DontUseNativeMenuBar);
+	g.mw->setUnifiedTitleAndToolBarOnMac(false);
+	if (!g.s.os.qsStyle.isEmpty())
+		qApp->setStyle(g.s.os.qsStyle);
+#endif
+
+	setupScene(true);
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_INTERACTIVE;
+	om.omh.iLength = sizeof(struct OverlayMsgInteractive);
+	om.omin.state  = true;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	g.o->updateOverlay();
+}
+
+void OverlayClient::hideGui() {
+	ougUsers.bShowExamples = false;
+
+	QList< QWidget * > widgetlist;
+
+	foreach (QGraphicsItem *qgi, qgs.items(Qt::DescendingOrder)) {
+		QGraphicsProxyWidget *qgpw = qgraphicsitem_cast< QGraphicsProxyWidget * >(qgi);
+		if (qgpw && qgpw->widget()) {
+			QWidget *w = qgpw->widget();
+
+			qgpw->setVisible(false);
+			widgetlist << w;
+		}
+	}
+
+	foreach (QWidget *w, widgetlist) {
+		QGraphicsProxyWidget *qgpw = w->graphicsProxyWidget();
+		if (qgpw) {
+			qgpw->setVisible(false);
+			qgpw->setWidget(nullptr);
+			delete qgpw;
+		}
+	}
+
+	if (g.ocIntercept == this)
+		g.ocIntercept = nullptr;
+
+	foreach (QWidget *w, widgetlist) {
+		if (bWasVisible)
+			w->show();
+	}
+
+	if (bWasVisible) {
+		if (g.s.bMinimalView && !g.s.qbaMinimalViewGeometry.isNull()) {
+			g.mw->restoreGeometry(g.s.qbaMinimalViewGeometry);
+			g.mw->restoreState(g.s.qbaMinimalViewState);
+		} else if (!g.s.bMinimalView && !g.s.qbaMainWindowGeometry.isNull()) {
+			g.mw->restoreGeometry(g.s.qbaMainWindowGeometry);
+			g.mw->restoreState(g.s.qbaMainWindowState);
+		}
+	}
+
+#ifdef Q_OS_MAC
+	qApp->setAttribute(Qt::AA_DontUseNativeMenuBar, false);
+	g.mw->setUnifiedTitleAndToolBarOnMac(true);
+	Themes::apply();
+#endif
+
+	setupScene(false);
+
+	qgv.setAttribute(Qt::WA_WState_Hidden, true);
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_INTERACTIVE;
+	om.omh.iLength = sizeof(struct OverlayMsgInteractive);
+	om.omin.state  = false;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	g.o->updateOverlay();
+
+	if (bDelete)
+		deleteLater();
+}
+
+void OverlayClient::scheduleDelete() {
+	bDelete = true;
+	hideGui();
+}
+
+void OverlayClient::readyReadMsgInit(unsigned int length) {
+	if (length != sizeof(OverlayMsgInit)) {
+		return;
+	}
+
+	OverlayMsgInit *omi = &omMsg.omi;
+
+	uiWidth  = omi->uiWidth;
+	uiHeight = omi->uiHeight;
+	qrLast   = QRect();
+
+	delete smMem;
+
+	smMem = new SharedMemory2(this, uiWidth * uiHeight * 4);
+	if (!smMem->data()) {
+		qWarning() << "OverlayClient: Failed to create shared memory" << uiWidth << uiHeight;
+		delete smMem;
+		smMem = nullptr;
+		return;
+	}
+	QByteArray key = smMem->name().toUtf8();
+	key.append(static_cast< char >(0));
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_SHMEM;
+	om.omh.iLength = key.length();
+	Q_ASSERT(sizeof(om.oms.a_cName) >= static_cast< size_t >(key.length())); // Name should be auto-generated and short
+	memcpy(om.oms.a_cName, key.constData(), key.length());
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	setupRender();
+
+	Overlay *o = static_cast< Overlay * >(parent());
+	QTimer::singleShot(0, o, SLOT(updateOverlay()));
+}
+
+void OverlayClient::readyRead() {
+	while (true) {
+		quint64 ready = static_cast< quint64 >(qlsSocket->bytesAvailable());
+
+		if (omMsg.omh.iLength == -1) {
+			if (ready < sizeof(OverlayMsgHeader)) {
+				break;
+			} else {
+				qlsSocket->read(omMsg.headerbuffer, sizeof(OverlayMsgHeader));
+				if ((omMsg.omh.uiMagic != OVERLAY_MAGIC_NUMBER) || (omMsg.omh.iLength < 0)
+					|| (omMsg.omh.iLength > static_cast< int >(sizeof(OverlayMsgShmem)))) {
+					disconnect();
+					return;
+				}
+				ready -= sizeof(OverlayMsgHeader);
+			}
+		}
+
+		if (ready >= static_cast< unsigned int >(omMsg.omh.iLength)) {
+			qint64 length = qlsSocket->read(omMsg.msgbuffer, omMsg.omh.iLength);
+
+			if (length != omMsg.omh.iLength) {
+				disconnect();
+				return;
+			}
+
+			switch (omMsg.omh.uiType) {
+				case OVERLAY_MSGTYPE_INIT: {
+					readyReadMsgInit(static_cast< unsigned int >(length));
+				} break;
+				case OVERLAY_MSGTYPE_SHMEM: {
+					if (smMem)
+						smMem->systemRelease();
+				} break;
+				case OVERLAY_MSGTYPE_PID: {
+					if (length != static_cast< qint64 >(sizeof(OverlayMsgPid)))
+						break;
+
+					OverlayMsgPid *omp = &omMsg.omp;
+					uiPid              = omp->pid;
+#ifdef Q_OS_WIN
+					HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, (DWORD) uiPid);
+					if (h) {
+						wchar_t buf[MAX_PATH];
+						if (GetModuleFileNameEx(h, 0, buf, MAX_PATH) != 0) {
+							qsExecutablePath = QString::fromWCharArray(buf);
+						}
+						CloseHandle(h);
+					}
+#else
+					qsExecutablePath = QLatin1String("Unknown");
+#endif
+				} break;
+				case OVERLAY_MSGTYPE_FPS: {
+					if (length != sizeof(OverlayMsgFps))
+						break;
+
+					OverlayMsgFps *omf = &omMsg.omf;
+					framesPerSecond    = omf->fps;
+					// qWarning() << "FPS: " << omf->fps;
+
+					Overlay *o = static_cast< Overlay * >(parent());
+					QTimer::singleShot(0, o, SLOT(updateOverlay()));
+				} break;
+				default:
+					break;
+			}
+			omMsg.omh.iLength = -1;
+		} else {
+			break;
+		}
+	}
+}
+
+void OverlayClient::reset() {
+	if (!uiWidth || !uiHeight || !smMem)
+		return;
+
+	qgpiLogo.reset();
+
+	ougUsers.reset();
+
+	setupScene(g.ocIntercept == this);
+}
+
+void OverlayClient::setupScene(bool show) {
+	if (show) {
+		qgs.setBackgroundBrush(QColor(0, 0, 0, 64));
+
+		if (!qgpiLogo) {
+			qgpiLogo.reset(new OverlayMouse());
+			qgpiLogo->hide();
+			qgpiLogo->setOpacity(0.8f);
+			qgpiLogo->setZValue(-5.0f);
+
+
+			QImageReader qir(QLatin1String("skin:mumble.svg"));
+			QSize sz = qir.size();
+			sz.scale(uiWidth, uiHeight, Qt::KeepAspectRatio);
+			qir.setScaledSize(sz);
+
+			qgpiLogo->setPixmap(QPixmap::fromImage(qir.read()));
+
+			QRectF qrf = qgpiLogo->boundingRect();
+			qgpiLogo->setPos(iroundf((uiWidth - qrf.width()) / 2.0f + 0.5f),
+							 iroundf((uiHeight - qrf.height()) / 2.0f + 0.5f));
+		}
+
+		qgpiCursor->show();
+		qgs.addItem(qgpiCursor.data());
+
+		qgpiLogo->show();
+		qgs.addItem(qgpiLogo.data());
+	} else {
+		qgs.setBackgroundBrush(Qt::NoBrush);
+
+		if (qgpiCursor->scene())
+			qgs.removeItem(qgpiCursor.data());
+		qgpiCursor->hide();
+
+		if (qgpiLogo) {
+			if (qgpiLogo->scene())
+				qgs.removeItem(qgpiLogo.data());
+			qgpiLogo->hide();
+		}
+	}
+	ougUsers.updateUsers();
+	updateFPS();
+	updateTime();
+}
+
+void OverlayClient::setupRender() {
+	qgs.setSceneRect(0, 0, uiWidth, uiHeight);
+	qgv.setScene(nullptr);
+	qgv.setGeometry(-2, -2, uiWidth + 2, uiHeight + 2);
+	qgv.viewport()->setGeometry(0, 0, uiWidth, uiHeight);
+	qgv.setScene(&qgs);
+
+	smMem->erase();
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_BLIT;
+	om.omh.iLength = sizeof(OverlayMsgBlit);
+	om.omb.x       = 0;
+	om.omb.y       = 0;
+	om.omb.w       = uiWidth;
+	om.omb.h       = uiHeight;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgBlit));
+
+	reset();
+}
+
+bool OverlayClient::update() {
+	if (!uiWidth || !uiHeight || !smMem)
+		return true;
+
+	ougUsers.updateUsers();
+	updateFPS();
+	updateTime();
+
+	if (qlsSocket->bytesToWrite() > 1024) {
+		return (t.elapsed() <= 5000000ULL);
+	} else {
+		t.restart();
+		return true;
+	}
+}
+
+void OverlayClient::changed(const QList< QRectF > &region) {
+	if (region.isEmpty())
+		return;
+
+	qlDirty.append(region);
+	QMetaObject::invokeMethod(this, "render", Qt::QueuedConnection);
+}
+
+void OverlayClient::render() {
+	const QList< QRectF > region = qlDirty;
+	qlDirty.clear();
+
+	if (!uiWidth || !uiHeight || !smMem)
+		return;
+
+	QRect active;
+	QRectF dirtyf;
+
+	if (region.isEmpty())
+		return;
+
+	foreach (const QRectF &r, region) { dirtyf |= r; }
+
+
+	QRect dirty = dirtyf.toAlignedRect();
+	dirty       = dirty.intersected(QRect(0, 0, uiWidth, uiHeight));
+
+	if ((dirty.width() <= 0) || (dirty.height() <= 0))
+		return;
+
+	QRect target = dirty;
+	target.moveTo(0, 0);
+
+	QImage img(reinterpret_cast< unsigned char * >(smMem->data()), uiWidth, uiHeight,
+			   QImage::Format_ARGB32_Premultiplied);
+	QImage qi(target.size(), QImage::Format_ARGB32_Premultiplied);
+	qi.fill(0);
+
+	QPainter p;
+	p.begin(&qi);
+	p.setRenderHints(p.renderHints(), false);
+	p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+	qgs.render(&p, target, dirty, Qt::IgnoreAspectRatio);
+	p.end();
+
+	p.begin(&img);
+	p.setRenderHints(p.renderHints(), false);
+	p.setCompositionMode(QPainter::CompositionMode_Source);
+	p.drawImage(dirty.x(), dirty.y(), qi);
+	p.end();
+
+	if (dirty.isValid()) {
+		OverlayMsg om;
+		om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+		om.omh.uiType  = OVERLAY_MSGTYPE_BLIT;
+		om.omh.iLength = sizeof(OverlayMsgBlit);
+		om.omb.x       = dirty.x();
+		om.omb.y       = dirty.y();
+		om.omb.w       = dirty.width();
+		om.omb.h       = dirty.height();
+		qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgBlit));
+	}
+
+	if (qgpiCursor->isVisible()) {
+		active = QRect(0, 0, uiWidth, uiHeight);
+	} else {
+		active = qgs.itemsBoundingRect().toAlignedRect();
+		if (active.isEmpty())
+			active = QRect(0, 0, 0, 0);
+		active = active.intersected(QRect(0, 0, uiWidth, uiHeight));
+	}
+
+	if (active != qrLast) {
+		qrLast = active;
+
+		OverlayMsg om;
+		om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+		om.omh.uiType  = OVERLAY_MSGTYPE_ACTIVE;
+		om.omh.iLength = sizeof(OverlayMsgActive);
+		om.oma.x       = qrLast.x();
+		om.oma.y       = qrLast.y();
+		om.oma.w       = qrLast.width();
+		om.oma.h       = qrLast.height();
+		qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgActive));
+	}
+
+	qlsSocket->flush();
+}
+
+void OverlayClient::openEditor() {
+	OverlayEditor oe(g.mw, &ougUsers);
+	connect(&oe, SIGNAL(applySettings()), this, SLOT(updateLayout()));
+
+	oe.exec();
+}
