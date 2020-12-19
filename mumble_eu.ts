@@ -3,42 +3,45 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_G15LCDENGINE_UNIX_H_
-#	define MUMBLE_MUMBLE_G15LCDENGINE_UNIX_H_
+#ifndef MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
+#	define MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
+#	include "../../g15helper/g15helper.h"
 #	include "LCD.h"
 
-#	include <g15daemon_client.h>
+class G15LCDDeviceLGLCD;
 
-class G15LCDDeviceUnix;
+class G15LCDEngineLGLCD : public LCDEngine {
+	friend class G15LCDDeviceLGLCD;
 
-class G15LCDEngineUnix : public LCDEngine {
-	friend class G15LCDDeviceUnix;
-
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(G15LCDEngineLGLCD)
 protected:
-	int sock;
+	lgLcdConnectContextEx llcceConnect;
+	lgLcdOpenByTypeContext llcContext;
 
 public:
-	G15LCDEngineUnix();
-	~G15LCDEngineUnix() Q_DECL_OVERRIDE;
-	QList< LCDDevice * > devices() const Q_DECL_OVERRIDE;
+	G15LCDEngineLGLCD();
+	~G15LCDEngineLGLCD();
+	QList< LCDDevice * > devices() const;
 };
 
-class G15LCDDeviceUnix : public LCDDevice {
+class G15LCDDeviceLGLCD : public LCDDevice {
 protected:
+	G15LCDEngineLGLCD *engine;
 	bool bEnabled;
-	G15LCDEngineUnix *engine;
 
 public:
-	G15LCDDeviceUnix(G15LCDEngineUnix *e);
-	~G15LCDDeviceUnix() Q_DECL_OVERRIDE;
-	bool enabled() Q_DECL_OVERRIDE;
-	void setEnabled(bool e) Q_DECL_OVERRIDE;
-	void blitImage(QImage *img, bool alert) Q_DECL_OVERRIDE;
-	QString name() const Q_DECL_OVERRIDE;
-	QSize size() const Q_DECL_OVERRIDE;
+	G15LCDDeviceLGLCD(G15LCDEngineLGLCD *e);
+	~G15LCDDeviceLGLCD();
+	bool enabled();
+	void setEnabled(bool e);
+	void blitImage(QImage *img, bool alert);
+	QString name() const;
+	QSize size() const;
 };
 
 #else
-class G15LCDEngineUnix;
-class G15LCDDeviceUnix;
+class G15LCDEngineLGLCD;
+class G15LCDDeviceLGLCD;
 #endif
