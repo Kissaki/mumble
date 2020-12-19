@@ -3,37 +3,35 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CRASHREPORTER_H_
-#	define MUMBLE_MUMBLE_CRASHREPORTER_H_
+#ifndef MUMBLE_MUMBLE_OSS_H_
+#define MUMBLE_MUMBLE_OSS_H_
 
-#	include <QtCore/QEventLoop>
-#	include <QtCore/QObject>
-#	include <QtNetwork/QNetworkReply>
-#	include <QtWidgets/QDialog>
-#	include <QtWidgets/QLineEdit>
-#	include <QtWidgets/QProgressDialog>
-#	include <QtWidgets/QTextEdit>
+#include "AudioInput.h"
+#include "AudioOutput.h"
 
-class CrashReporter : QDialog {
+class OSSInput : public AudioInput {
+private:
 	Q_OBJECT
-	Q_DISABLE_COPY(CrashReporter)
+	Q_DISABLE_COPY(OSSInput)
+protected:
+	void release();
 
 public:
-	CrashReporter(QWidget *p = 0);
-	~CrashReporter() Q_DECL_OVERRIDE;
-	void run();
-
-protected:
-	QEventLoop *qelLoop;
-	QProgressDialog *qpdProgress;
-	QNetworkReply *qnrReply;
-	QLineEdit *qleEmail;
-	QTextEdit *qteDescription;
-public slots:
-	void uploadFinished();
-	void uploadProgress(qint64, qint64);
+	OSSInput();
+	~OSSInput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
 };
 
-#else
-class CrashReporter;
+class OSSOutput : public AudioOutput {
+	friend class OSSUser;
+
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(OSSOutput)
+public:
+	OSSOutput();
+	~OSSOutput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
 #endif
