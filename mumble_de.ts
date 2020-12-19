@@ -3,45 +3,37 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
-#	define MUMBLE_MUMBLE_G15LCDENGINE_LGLCD_H_
-#	include "../../g15helper/g15helper.h"
-#	include "LCD.h"
+#ifndef MUMBLE_MUMBLE_CRASHREPORTER_H_
+#	define MUMBLE_MUMBLE_CRASHREPORTER_H_
 
-class G15LCDDeviceLGLCD;
+#	include <QtCore/QEventLoop>
+#	include <QtCore/QObject>
+#	include <QtNetwork/QNetworkReply>
+#	include <QtWidgets/QDialog>
+#	include <QtWidgets/QLineEdit>
+#	include <QtWidgets/QProgressDialog>
+#	include <QtWidgets/QTextEdit>
 
-class G15LCDEngineLGLCD : public LCDEngine {
-	friend class G15LCDDeviceLGLCD;
-
-private:
+class CrashReporter : QDialog {
 	Q_OBJECT
-	Q_DISABLE_COPY(G15LCDEngineLGLCD)
-protected:
-	lgLcdConnectContextEx llcceConnect;
-	lgLcdOpenByTypeContext llcContext;
+	Q_DISABLE_COPY(CrashReporter)
 
 public:
-	G15LCDEngineLGLCD();
-	~G15LCDEngineLGLCD();
-	QList< LCDDevice * > devices() const;
-};
+	CrashReporter(QWidget *p = 0);
+	~CrashReporter() Q_DECL_OVERRIDE;
+	void run();
 
-class G15LCDDeviceLGLCD : public LCDDevice {
 protected:
-	G15LCDEngineLGLCD *engine;
-	bool bEnabled;
-
-public:
-	G15LCDDeviceLGLCD(G15LCDEngineLGLCD *e);
-	~G15LCDDeviceLGLCD();
-	bool enabled();
-	void setEnabled(bool e);
-	void blitImage(QImage *img, bool alert);
-	QString name() const;
-	QSize size() const;
+	QEventLoop *qelLoop;
+	QProgressDialog *qpdProgress;
+	QNetworkReply *qnrReply;
+	QLineEdit *qleEmail;
+	QTextEdit *qteDescription;
+public slots:
+	void uploadFinished();
+	void uploadProgress(qint64, qint64);
 };
 
 #else
-class G15LCDEngineLGLCD;
-class G15LCDDeviceLGLCD;
+class CrashReporter;
 #endif
