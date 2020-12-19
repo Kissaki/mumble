@@ -3,234 +3,155 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "CrashReporter.h"
+#include "CELTCodec.h"
 
-#include "EnvUtils.h"
-#include "NetworkConfig.h"
-#include "OSInfo.h"
-#include "Global.h"
+#include "Audio.h"
+#include "MumbleApplication.h"
+#include "Version.h"
 
-#include <QtCore/QProcess>
-#include <QtCore/QTemporaryFile>
-#include <QtNetwork/QHostAddress>
-#include <QtWidgets/QMessageBox>
-#include <QtWidgets/QPushButton>
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                        \
+		{                                                                       \
+			var    = reinterpret_cast< __typeof__(var) >(qlCELT.resolve(#var)); \
+			bValid = bValid && var;                                             \
+		}
+#else
+#	define RESOLVE(var)                                                                      \
+		{                                                                                     \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlCELT.resolve(#var)); \
+			bValid                             = bValid && var;                               \
+		}
+#endif
 
-CrashReporter::CrashReporter(QWidget *p) : QDialog(p) {
-	setWindowTitle(tr("Mumble Crash Report"));
+#ifdef Q_OS_WIN
+extern "C" {
+void __cpuid(int a[4], int b);
+};
+#endif
 
-	QVBoxLayout *vbl = new QVBoxLayout(this);
+CELTCodec::CELTCodec(const QString &celt_version) {
+	bValid            = false;
+	cmMode            = nullptr;
+	qsVersion         = celt_version;
+	iBitstreamVersion = INT_MIN;
+	qlCELT.setLoadHints(QLibrary::ResolveAllSymbolsHint);
 
-	QLabel *l;
-
-	l = new QLabel(tr("<p><b>We're terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report "
-					  "to the Mumble developers?</b></p>"
-					  "<p>The crash report contains a partial copy of Mumble's memory at the time it crashed, and will "
-					  "help the developers fix the problem.</p>"));
-
-	vbl->addWidget(l);
-
-	QHBoxLayout *hbl = new QHBoxLayout();
-
-	qleEmail = new QLineEdit(g.qs->value(QLatin1String("crashemail")).toString());
-	l        = new QLabel(tr("Email address (optional)"));
-	l->setBuddy(qleEmail);
-
-	hbl->addWidget(l);
-	hbl->addWidget(qleEmail, 1);
-	vbl->addLayout(hbl);
-
-	qteDescription = new QTextEdit();
-	l->setBuddy(qteDescription);
-	l = new QLabel(tr("Please describe briefly, in English, what you were doing at the time of the crash"));
-
-	vbl->addWidget(l);
-	vbl->addWidget(qteDescription, 1);
-
-	QPushButton *pbOk = new QPushButton(tr("Send Report"));
-	pbOk->setDefault(true);
-
-	QPushButton *pbCancel = new QPushButton(tr("Don't send report"));
-	pbCancel->setAutoDefault(false);
-
-	QDialogButtonBox *dbb = new QDialogButtonBox(Qt::Horizontal);
-	dbb->addButton(pbOk, QDialogButtonBox::AcceptRole);
-	dbb->addButton(pbCancel, QDialogButtonBox::RejectRole);
-	connect(dbb, SIGNAL(accepted()), this, SLOT(accept()));
-	connect(dbb, SIGNAL(rejected()), this, SLOT(reject()));
-	vbl->addWidget(dbb);
-
-	qelLoop     = new QEventLoop(this);
-	qpdProgress = nullptr;
-	qnrReply    = nullptr;
-}
-
-CrashReporter::~CrashReporter() {
-	g.qs->setValue(QLatin1String("crashemail"), qleEmail->text());
-	delete qnrReply;
-}
-
-void CrashReporter::uploadFinished() {
-	qpdProgress->reset();
-	if (qnrReply->error() == QNetworkReply::NoError) {
-		if (qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200)
-			QMessageBox::information(nullptr, tr("Crash upload successful"),
-									 tr("Thank you for helping make Mumble better!"));
-		else
-			QMessageBox::critical(nullptr, tr("Crash upload failed"),
-								  tr("We're really sorry, but it appears the crash upload has failed with error %1 %2. "
-									 "Please inform a developer.")
-									  .arg(qnrReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
-									  .arg(qnrReply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString()));
-	} else {
-		QMessageBox::critical(nullptr, tr("Crash upload failed"),
-							  tr("This really isn't funny, but apparently there's a bug in the crash reporting code, "
-								 "and we've failed to upload the report. You may inform a developer about error %1")
-								  .arg(qnrReply->error()));
-	}
-	qelLoop->exit(0);
-}
-
-void CrashReporter::uploadProgress(qint64 sent, qint64 total) {
-	qpdProgress->setMaximum(static_cast< int >(total));
-	qpdProgress->setValue(static_cast< int >(sent));
-}
-
-void CrashReporter::run() {
-	QByteArray qbaDumpContents;
-	QFile qfCrashDump(g.qdBasePath.filePath(QLatin1String("mumble.dmp")));
-	if (!qfCrashDump.exists())
-		return;
-
-	qfCrashDump.open(QIODevice::ReadOnly);
-
-#if defined(Q_OS_WIN)
-	/* On Windows, the .dmp file is a real minidump. */
-
-	if (qfCrashDump.peek(4) != "MDMP")
-		return;
-	qbaDumpContents = qfCrashDump.readAll();
-
-#elif defined(Q_OS_MAC)
-	/*
-	 * On OSX, the .dmp file is simply a dummy file that we
-	 * use to find the *real* crash dump, made by the OSX
-	 * built in crash reporter.
-	 */
-	QFileInfo qfiDump(qfCrashDump);
-	QDateTime qdtModification = qfiDump.lastModified();
-
-	/* Find the real crash report. */
-	QDir qdCrashReports(QDir::home().absolutePath() + QLatin1String("/Library/Logs/DiagnosticReports/"));
-	if (!qdCrashReports.exists()) {
-		qdCrashReports.setPath(QDir::home().absolutePath() + QLatin1String("/Library/Logs/CrashReporter/"));
+	QStringList alternatives;
+#if defined(Q_OS_MAC)
+	alternatives << QString::fromLatin1("libcelt0.%1.dylib").arg(celt_version);
+	alternatives << QString::fromLatin1("celt0.%1.dylib").arg(celt_version);
+	alternatives << QString::fromLatin1("libcelt.%1.dylib").arg(celt_version);
+	alternatives << QString::fromLatin1("celt.%1.dylib").arg(celt_version);
+#elif defined(Q_OS_UNIX)
+	alternatives << QString::fromLatin1("libcelt0.so.%1").arg(celt_version);
+	alternatives << QString::fromLatin1("libcelt.so.%1").arg(celt_version);
+	alternatives << QString::fromLatin1("celt.so.%1").arg(celt_version);
+#else
+	int cpuinfo[4];
+	__cpuid(cpuinfo, 1);
+	if (cpuinfo[3] & 0x02000000) {
+		if (cpuinfo[3] & 0x04000000) {
+			if (cpuinfo[2] & 0x00000001) {
+				alternatives << QString::fromLatin1("celt0.%1.sse3.dll").arg(celt_version);
+			}
+			alternatives << QString::fromLatin1("celt0.%1.sse2.dll").arg(celt_version);
+		}
+		alternatives << QString::fromLatin1("celt0.%1.sse.dll").arg(celt_version);
 	}
 
-	QStringList qslFilters;
-	qslFilters << QString::fromLatin1("Mumble_*.crash");
-	qdCrashReports.setNameFilters(qslFilters);
-	qdCrashReports.setSorting(QDir::Time);
-	QFileInfoList qfilEntries = qdCrashReports.entryInfoList();
+	alternatives << QString::fromLatin1("celt0.%1.dll").arg(celt_version);
+#endif
+	foreach (const QString &lib, alternatives) {
+		qlCELT.setFileName(MumbleApplication::instance()->applicationVersionRootPath() + QLatin1String("/") + lib);
+		if (qlCELT.load()) {
+			bValid = true;
+			break;
+		}
 
-	/*
-	 * Figure out if our delta is sufficiently close to the Apple crash dump, or
-	 * if something weird happened.
-	 */
-	foreach (QFileInfo fi, qfilEntries) {
-		qint64 delta = qAbs< qint64 >(qdtModification.secsTo(fi.lastModified()));
-		if (delta < 8) {
-			QFile f(fi.absoluteFilePath());
-			f.open(QIODevice::ReadOnly);
-			qbaDumpContents = f.readAll();
+#ifdef Q_OS_MAC
+		qlCELT.setFileName(QApplication::instance()->applicationDirPath() + QLatin1String("/../Codecs/") + lib);
+		if (qlCELT.load()) {
+			bValid = true;
+			break;
+		}
+#endif
+
+#ifdef MUMBLE_LIBRARY_PATH
+		qlCELT.setFileName(QLatin1String(MUMTEXT(MUMBLE_LIBRARY_PATH) "/") + lib);
+		if (qlCELT.load()) {
+			bValid = true;
+			break;
+		}
+#endif
+
+		qlCELT.setFileName(lib);
+		if (qlCELT.load()) {
+			bValid = true;
 			break;
 		}
 	}
-#endif
 
-	QString details;
-#ifdef Q_OS_WIN
-	{
-		QTemporaryFile qtf;
-		if (qtf.open()) {
-			qtf.close();
+	RESOLVE(celt_mode_destroy);
+	RESOLVE(celt_mode_info);
 
-			QProcess qp;
-			QStringList qsl;
+	RESOLVE(celt_encoder_destroy);
+	RESOLVE(celt_encoder_ctl);
 
-			qsl << QLatin1String("/t");
-			qsl << qtf.fileName();
+	RESOLVE(celt_decoder_destroy);
+	RESOLVE(celt_decoder_ctl);
+}
 
-			QString app        = QLatin1String("dxdiag.exe");
-			QString systemRoot = EnvUtils::getenv(QLatin1String("SystemRoot"));
+CELTCodec::~CELTCodec() {
+	if (cmMode)
+		celt_mode_destroy(const_cast< CELTMode * >(cmMode));
+}
 
-			if (systemRoot.count() > 0) {
-				app = QDir::fromNativeSeparators(systemRoot + QLatin1String("/System32/dxdiag.exe"));
-			}
+bool CELTCodec::isValid() const {
+	return bValid;
+}
 
-			qp.start(app, qsl);
-			if (qp.waitForFinished(30000)) {
-				if (qtf.open()) {
-					QByteArray qba = qtf.readAll();
-					details        = QString::fromLocal8Bit(qba);
-				}
-			} else {
-				details = QLatin1String("Failed to run dxdiag");
-			}
-			qp.kill();
-		}
+int CELTCodec::bitstreamVersion() const {
+	if (cmMode && iBitstreamVersion == INT_MIN)
+		celt_mode_info(cmMode, CELT_GET_BITSTREAM_VERSION, reinterpret_cast< celt_int32 * >(&iBitstreamVersion));
+
+	return iBitstreamVersion;
+}
+
+QString CELTCodec::version() const {
+	return qsVersion;
+}
+
+void CELTCodec::report() const {
+	qWarning("CELT bitstream %08x from %s", bitstreamVersion(), qPrintable(qlCELT.fileName()));
+}
+
+CELTCodec070::CELTCodec070(const QString &celt_version) : CELTCodec(celt_version) {
+	RESOLVE(celt_mode_create);
+	RESOLVE(celt_encoder_create);
+	RESOLVE(celt_decoder_create);
+	RESOLVE(celt_encode_float);
+	RESOLVE(celt_encode);
+	RESOLVE(celt_decode_float);
+	RESOLVE(celt_decode);
+	RESOLVE(celt_strerror);
+
+	if (bValid) {
+		cmMode = celt_mode_create(SAMPLE_RATE, SAMPLE_RATE / 100, nullptr);
 	}
-#endif
+}
 
-	if (qbaDumpContents.isEmpty()) {
-		qWarning("CrashReporter: Empty crash dump file, not reporting.");
-		return;
-	}
+CELTEncoder *CELTCodec070::encoderCreate() {
+	return celt_encoder_create(cmMode, 1, nullptr);
+}
 
-	if (exec() == QDialog::Accepted) {
-		qpdProgress = new QProgressDialog(tr("Uploading crash report"), tr("Abort upload"), 0, 100, this);
-		qpdProgress->setMinimumDuration(500);
-		qpdProgress->setValue(0);
-		connect(qpdProgress, SIGNAL(canceled()), qelLoop, SLOT(quit()));
+CELTDecoder *CELTCodec070::decoderCreate() {
+	return celt_decoder_create(cmMode, 1, nullptr);
+}
 
-		QString boundary =
-			QString::fromLatin1("---------------------------%1").arg(QDateTime::currentDateTime().toTime_t());
+int CELTCodec070::encode(CELTEncoder *st, const celt_int16 *pcm, unsigned char *compressed, int nbCompressedBytes) {
+	return celt_encode(st, pcm, nullptr, compressed, nbCompressedBytes);
+}
 
-		QString os = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										 "name=\"os\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
-						 .arg(boundary, OSInfo::getOS(), OSInfo::getOSVersion());
-		QString ver = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										  "name=\"ver\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2 %3\r\n")
-						  .arg(boundary, QLatin1String(MUMTEXT(MUMBLE_VERSION_STRING)), QLatin1String(MUMBLE_RELEASE));
-		QString email = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-											"name=\"email\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-							.arg(boundary, qleEmail->text());
-		QString descr = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-											"name=\"desc\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-							.arg(boundary, qteDescription->toPlainText());
-		QString det = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; "
-										  "name=\"details\"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%2\r\n")
-						  .arg(boundary, details);
-		QString head = QString::fromLatin1("--%1\r\nContent-Disposition: form-data; name=\"dump\"; "
-										   "filename=\"mumble.dmp\"\r\nContent-Type: binary/octet-stream\r\n\r\n")
-						   .arg(boundary);
-		QString end = QString::fromLatin1("\r\n--%1--\r\n").arg(boundary);
-
-		QByteArray post = os.toUtf8() + ver.toUtf8() + email.toUtf8() + descr.toUtf8() + det.toUtf8() + head.toUtf8()
-						  + qbaDumpContents + end.toUtf8();
-
-		QUrl url(QLatin1String("https://crash-report.mumble.info/v1/report"));
-		QNetworkRequest req(url);
-		req.setHeader(QNetworkRequest::ContentTypeHeader,
-					  QString::fromLatin1("multipart/form-data; boundary=%1").arg(boundary));
-		req.setHeader(QNetworkRequest::ContentLengthHeader, QString::number(post.size()));
-		Network::prepareRequest(req);
-		qnrReply = g.nam->post(req, post);
-		connect(qnrReply, SIGNAL(finished()), this, SLOT(uploadFinished()));
-		connect(qnrReply, SIGNAL(uploadProgress(qint64, qint64)), this, SLOT(uploadProgress(qint64, qint64)));
-
-		qelLoop->exec(QEventLoop::DialogExec);
-	}
-
-	if (!qfCrashDump.remove())
-		qWarning("CrashReporeter: Unable to remove crash file.");
+int CELTCodec070::decode_float(CELTDecoder *st, const unsigned char *data, int len, float *pcm) {
+	return celt_decode_float(st, data, len, pcm);
 }
