@@ -3,272 +3,218 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "VoiceRecorderDialog.h"
+#ifndef MUMBLE_MUMBLE_VOICERECORDER_H_
+#define MUMBLE_MUMBLE_VOICERECORDER_H_
 
-#include "AudioOutput.h"
-#include "ServerHandler.h"
-#include "VoiceRecorder.h"
+#include <QtCore/QtGlobal>
 
-#include <QtGui/QCloseEvent>
-#include <QtWidgets/QFileDialog>
-#include <QtWidgets/QMessageBox>
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#ifndef Q_MOC_RUN
+#	include <boost/scoped_ptr.hpp>
+#	include <boost/shared_array.hpp>
+#endif
 
-VoiceRecorderDialog::VoiceRecorderDialog(QWidget *p) : QDialog(p), qtTimer(new QTimer(this)) {
-	qtTimer->setObjectName(QLatin1String("qtTimer"));
-	qtTimer->setInterval(200);
-	setupUi(this);
-	qcbFormat->setAccessibleName(tr("Output format"));
-	qleTargetDirectory->setAccessibleName(tr("Target directory"));
-	qleFilename->setAccessibleName(tr("Filename"));
+#include <QtCore/QDateTime>
+#include <QtCore/QHash>
+#include <QtCore/QMutex>
+#include <QtCore/QObject>
+#include <QtCore/QThread>
+#include <QtCore/QWaitCondition>
 
-	qleTargetDirectory->setText(g.s.qsRecordingPath);
-	qleFilename->setText(g.s.qsRecordingFile);
-	qrbDownmix->setChecked(g.s.rmRecordingMode == Settings::RecordingMixdown);
-	qrbMultichannel->setChecked(g.s.rmRecordingMode == Settings::RecordingMultichannel);
+#ifdef Q_OS_WIN
+#	define ENABLE_SNDFILE_WINDOWS_PROTOTYPES 1
+#endif
 
-	QString qsTooltip = QString::fromLatin1("%1"
-											"<table>"
-											"  <tr>"
-											"    <td width=\"25%\">%user</td>"
-											"    <td>%2</td>"
-											"  </tr>"
-											"  <tr>"
-											"    <td>%date</td>"
-											"    <td>%3</td>"
-											"  </tr>"
-											"  <tr>"
-											"    <td>%time</td>"
-											"    <td>%4</td>"
-											"  </tr>"
-											"  <tr>"
-											"    <td>%host</td>"
-											"    <td>%5</td>"
-											"  </tr>"
-											"</table>")
-							.arg(tr("Valid variables are:"))
-							.arg(tr("Inserts the user's name"))
-							.arg(tr("Inserts the current date"))
-							.arg(tr("Inserts the current time"))
-							.arg(tr("Inserts the hostname"));
+#include <sndfile.h>
 
-	qleTargetDirectory->setToolTip(qsTooltip);
-	qleFilename->setToolTip(qsTooltip);
+class ClientUser;
+class RecordUser;
+class Timer;
 
-	// Populate available codecs
-	Q_ASSERT(VoiceRecorderFormat::kEnd != 0);
-	for (int fm = 0; fm < VoiceRecorderFormat::kEnd; fm++) {
-		qcbFormat->addItem(VoiceRecorderFormat::getFormatDescription(static_cast< VoiceRecorderFormat::Format >(fm)));
-	}
+/// Utilities and enums for voice recorder format handling
+namespace VoiceRecorderFormat {
 
-	if (g.s.iRecordingFormat < 0 || g.s.iRecordingFormat > VoiceRecorderFormat::kEnd)
-		g.s.iRecordingFormat = 0;
+/// List of all formats currently supported by the recorder.
+enum Format {
+	/// WAVE Format
+	WAV = 0,
+// When switching between a non vorbis capable lib and a vorbis capable one
+// this can mess up the selection stored in the config
+#ifndef NO_VORBIS_RECORDING
+	/// Ogg Vorbis Format
+	VORBIS,
+#endif
+	/// AU Format
+	AU,
+	/// FLAC Format
+	FLAC,
+	kEnd
+};
 
-	qcbFormat->setCurrentIndex(g.s.iRecordingFormat);
-}
+/// Returns a human readable description of the format id.
+QString getFormatDescription(VoiceRecorderFormat::Format fm);
 
-VoiceRecorderDialog::~VoiceRecorderDialog() {
-	reset();
-}
+/// Returns the default extension for the given format.
+QString getFormatDefaultExtension(VoiceRecorderFormat::Format fm);
 
-void VoiceRecorderDialog::closeEvent(QCloseEvent *evt) {
-	if (g.sh) {
-		VoiceRecorderPtr recorder(g.sh->recorder);
-		if (recorder && recorder->isRunning()) {
-			int ret = QMessageBox::warning(this, tr("Recorder still running"),
-										   tr("Closing the recorder without stopping it will discard unwritten audio. "
-											  "Do you really want to close the recorder?"),
-										   QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+} // namespace VoiceRecorderFormat
 
-			if (ret == QMessageBox::No) {
-				evt->ignore();
-				return;
-			}
+/// Class for recording audio data.
+///
+/// Runs as a seperate thread accepting audio data through the addBuffer method
+/// which is then encoded using one of the formats of VoiceRecordingFormat::Format
+/// and written to disk.
+///
+class VoiceRecorder : public QThread {
+	Q_OBJECT
+public:
+	/// Possible error conditions inside the recorder
+	enum Error { Unspecified, CreateDirectoryFailed, CreateFileFailed, InvalidSampleRate };
 
-			recorder->stop(true);
-		}
-	}
+	/// Structure for holding configuration of VoiceRecorder object
+	struct Config {
+		/// The current sample rate of the recorder.
+		int sampleRate;
 
-	g.s.qsRecordingPath = qleTargetDirectory->text();
-	g.s.qsRecordingFile = qleFilename->text();
-	if (qrbDownmix->isChecked())
-		g.s.rmRecordingMode = Settings::RecordingMixdown;
-	else
-		g.s.rmRecordingMode = Settings::RecordingMultichannel;
+		/// The path to store recordings.
+		QString fileName;
 
-	int i                = qcbFormat->currentIndex();
-	g.s.iRecordingFormat = (i == -1) ? 0 : i;
+		/// True if multi channel recording is disabled.
+		bool mixDownMode;
 
-	reset();
-	evt->accept();
+		/// The current recording format.
+		VoiceRecorderFormat::Format recordingFormat;
+	};
 
-	QDialog::closeEvent(evt);
-}
+	/// Creates a new VoiceRecorder instance.
+	VoiceRecorder(QObject *p, const Config &config);
+	~VoiceRecorder() Q_DECL_OVERRIDE;
 
-void VoiceRecorderDialog::on_qpbStart_clicked() {
-	if (!g.uiSession || !g.sh) {
-		QMessageBox::critical(this, tr("Recorder"), tr("Unable to start recording. Not connected to a server."));
-		reset();
-		return;
-	}
+	/// The main event loop of the thread, which writes all buffers to files.
+	void run() Q_DECL_OVERRIDE;
 
-	if (g.sh->uiVersion < 0x010203) {
-		QMessageBox::critical(this, tr("Recorder"),
-							  tr("The server you are currently connected to is version 1.2.2 or older. "
-								 "For privacy reasons, recording on servers of versions older than 1.2.3 "
-								 "is not possible.\nPlease contact your server administrator for further "
-								 "information."));
-		return;
-	}
+	/// Stops the main loop.
+	/// @param force If true buffers are discarded. Otherwise the thread will not stop before writing everything.
+	void stop(bool force = false);
 
-	if (g.sh->recorder) {
-		QMessageBox::information(this, tr("Recorder"), tr("There is already a recorder active for this server."));
-		return;
-	}
+	/// Remembers the current time for a set of coming addBuffer calls
+	void prepareBufferAdds();
 
-	// Check validity of input
-	int ifm = qcbFormat->currentIndex();
-	if (ifm == -1) {
-		QMessageBox::critical(this, tr("Recorder"), tr("Please select a recording format."));
-		return;
-	}
+	/// Adds an audio buffer which contains |samples| audio samples to the recorder.
+	/// The audio data will be assumed to be recorded at the time
+	/// prepareBufferAdds was last called.
+	/// @param clientUser User for which to add the audio data. nullptr in mixdown mode.
+	void addBuffer(const ClientUser *clientUser, boost::shared_array< float > buffer, int samples);
 
-	QString dstr = qleTargetDirectory->text();
-	if (dstr.isEmpty()) {
-		on_qpbTargetDirectoryBrowse_clicked();
-		dstr = qleTargetDirectory->text();
-		if (dstr.isEmpty())
-			return;
-	}
-	QDir dir(dstr);
+	/// Returns the elapsed time since the recording started.
+	quint64 getElapsedTime() const;
 
-	QFileInfo fi(qleFilename->text());
-	QString basename(fi.baseName());
-	QString suffix(fi.completeSuffix());
-	if (suffix.isEmpty())
-		suffix = VoiceRecorderFormat::getFormatDefaultExtension(static_cast< VoiceRecorderFormat::Format >(ifm));
+	/// Returns a refence to the record user which is used to record local audio.
+	RecordUser &getRecordUser() const;
 
+	/// Returns true if the recorder is recording mixed down data instead of multichannel
+	bool isInMixDownMode() const;
+signals:
+	/// Emitted if an error is encountered
+	void error(int err, QString strerr);
 
-	if (basename.isEmpty()) {
-		basename = QLatin1String("%user");
-	}
+	/// Emitted when recording is started
+	void recording_started();
+	/// Emitted when recording is stopped
+	void recording_stopped();
 
-	qleFilename->setText(basename);
+private:
+	/// Stores information about a recording buffer.
+	struct RecordBuffer {
+		/// Constructs a new RecordBuffer object.
+		RecordBuffer(int recordInfoIndex_, boost::shared_array< float > buffer_, int samples_,
+					 quint64 absoluteStartSample_);
 
-	AudioOutputPtr ao(g.ao);
-	if (!ao)
-		return;
+		/// Hashmap index for the user
+		const int recordInfoIndex;
 
-	g.sh->announceRecordingState(true);
+		/// The buffer.
+		boost::shared_array< float > buffer;
 
-	// Create the recorder
-	VoiceRecorder::Config config;
-	config.sampleRate      = ao->getMixerFreq();
-	config.fileName        = dir.absoluteFilePath(basename + QLatin1Char('.') + suffix);
-	config.mixDownMode     = qrbDownmix->isChecked();
-	config.recordingFormat = static_cast< VoiceRecorderFormat::Format >(ifm);
+		/// The number of samples in the buffer.
+		int samples;
 
-	g.sh->recorder.reset(new VoiceRecorder(this, config));
-	VoiceRecorderPtr recorder(g.sh->recorder);
+		/// Absolute sample number at the start of this buffer
+		quint64 absoluteStartSample;
+	};
 
-	// Wire it up
-	connect(&*recorder, SIGNAL(recording_started()), this, SLOT(onRecorderStarted()));
-	connect(&*recorder, SIGNAL(recording_stopped()), this, SLOT(onRecorderStopped()));
-	connect(&*recorder, SIGNAL(error(int, QString)), this, SLOT(onRecorderError(int, QString)));
+	/// Stores the recording state for one user.
+	struct RecordInfo {
+		RecordInfo(const QString &userName_);
+		~RecordInfo();
 
-	recorder->start();
+		/// Name of the user being recorded
+		const QString userName;
 
-	qpbStart->setDisabled(true);
-	qpbStop->setEnabled(true);
-	qgbMode->setDisabled(true);
-	qgbOutput->setDisabled(true);
-}
+		/// libsndfile's handle.
+		SNDFILE *soundFile;
 
-void VoiceRecorderDialog::on_qpbStop_clicked() {
-	if (!g.sh) {
-		reset();
-		return;
-	}
+		/// The last absolute sample we wrote for this users
+		quint64 lastWrittenAbsoluteSample;
+	};
 
-	VoiceRecorderPtr recorder(g.sh->recorder);
-	if (!recorder) {
-		reset();
-		return;
-	}
+	typedef QHash< int, boost::shared_ptr< RecordInfo > > RecordInfoMap;
 
-	// Stop clock and recording
-	qtTimer->stop();
-	recorder->stop();
+	/// Removes invalid characters in a path component.
+	QString sanitizeFilenameOrPathComponent(const QString &str) const;
 
-	// Disable stop botton to indicate we reacted
-	qpbStop->setDisabled(true);
-	qpbStop->setText(tr("Stopping"));
-}
+	/// Expands the template variables in |path| for the given |userName|.
+	QString expandTemplateVariables(const QString &path, const QString &userName) const;
 
-void VoiceRecorderDialog::on_qtTimer_timeout() {
-	if (!g.sh) {
-		reset();
-		return;
-	}
+	/// Returns the RecordInfo hashmap index for the given user
+	int indexForUser(const ClientUser *clientUser) const;
 
-	if (!g.uiSession) {
-		reset(false);
-		return;
-	}
+	/// Create a sndfile SF_INFO structure describing the currently configured recording format
+	SF_INFO createSoundFileInfo() const;
 
-	VoiceRecorderPtr recorder(g.sh->recorder);
-	if (!g.sh->recorder) {
-		reset();
-		return;
-	}
+	/// Opens the file for the given recording information
+	/// Helper function for run method. Will abort recording on failure.
+	bool ensureFileIsOpenedFor(SF_INFO &soundFileInfo, boost::shared_ptr< RecordInfo > &ri);
 
-	const QTime elapsedTime = QTime(0, 0).addMSecs(static_cast< int >(recorder->getElapsedTime() / 1000));
-	qlTime->setText(elapsedTime.toString());
-}
+	/// Hash which maps the |uiSession| of all users for which we have to keep a recording state to the corresponding
+	/// RecordInfo object.
+	RecordInfoMap m_recordInfo;
 
-void VoiceRecorderDialog::on_qpbTargetDirectoryBrowse_clicked() {
-	QString dir = QFileDialog::getExistingDirectory(this, tr("Select target directory"), QString(),
-													QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-	if (!dir.isEmpty())
-		qleTargetDirectory->setText(dir);
-}
+	/// List containing all unprocessed RecordBuffer objects.
+	QList< boost::shared_ptr< RecordBuffer > > m_recordBuffer;
 
-void VoiceRecorderDialog::reset(bool resettimer) {
-	qtTimer->stop();
+	/// The user which is used to record local audio.
+	boost::scoped_ptr< RecordUser > m_recordUser;
 
-	if (g.sh) {
-		VoiceRecorderPtr recorder(g.sh->recorder);
-		if (recorder) {
-			g.sh->recorder.reset();
-			g.sh->announceRecordingState(false);
-		}
-	}
+	/// High precision timer for buffer timestamps.
+	boost::scoped_ptr< Timer > m_timestamp;
 
-	qpbStart->setEnabled(true);
-	qpbStop->setDisabled(true);
-	qpbStop->setText(tr("S&top"));
+	/// Protects the buffer list |qlRecordBuffer|.
+	QMutex m_bufferLock;
 
-	qgbMode->setEnabled(true);
-	qgbOutput->setEnabled(true);
+	/// Wait condition and mutex to block until there is new data.
+	QMutex m_sleepLock;
+	QWaitCondition m_sleepCondition;
 
-	if (resettimer)
-		qlTime->setText(QLatin1String("00:00:00"));
-}
+	/// Configuration for this instance
+	const Config m_config;
 
-void VoiceRecorderDialog::onRecorderStopped() {
-	reset(false);
-}
+	/// True if the main loop is active.
+	bool m_recording;
 
-void VoiceRecorderDialog::onRecorderStarted() {
-	qlTime->setText(QLatin1String("00:00:00"));
-	qtTimer->start();
-}
+	/// Tells the recorder to not finish writing its buffers before returning
+	bool m_abort;
 
-void VoiceRecorderDialog::onRecorderError(int err, QString strerr) {
-	Q_UNUSED(err);
-	QMessageBox::critical(this, tr("Recorder"), strerr);
-	reset(false);
-}
+	/// The timestamp where the recording started.
+	const QDateTime m_recordingStartTime;
+
+	/// Absolute sample position to assume for buffer adds
+	quint64 m_absoluteSampleEstimation;
+};
+
+typedef boost::shared_ptr< VoiceRecorder > VoiceRecorderPtr;
+
+#endif
