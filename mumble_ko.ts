@@ -3,369 +3,272 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CONNECTDIALOG_H_
-#define MUMBLE_MUMBLE_CONNECTDIALOG_H_
+#include "ConfigDialog.h"
 
-#ifndef Q_MOC_RUN
-#	include <boost/accumulators/accumulators.hpp>
-#	include <boost/accumulators/statistics/stats.hpp>
+#include "AudioInput.h"
+#include "AudioOutput.h"
+#include "Global.h"
+
+#include <QScrollArea>
+#include <QtCore/QMutexLocker>
+#include <QtGui/QScreen>
+#include <QtWidgets/QDesktopWidget>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QMessageBox>
+
+
+// init static member fields
+QMutex ConfigDialog::s_existingWidgetsMutex;
+QHash< QString, ConfigWidget * > ConfigDialog::s_existingWidgets;
+
+ConfigDialog::ConfigDialog(QWidget *p) : QDialog(p) {
+	setupUi(this);
+
+	qlwIcons->setAccessibleName(tr("Configuration categories"));
+
+	{
+		QMutexLocker lock(&s_existingWidgetsMutex);
+		s_existingWidgets.clear();
+	}
+
+
+	s = g.s;
+
+	unsigned int idx = 0;
+	ConfigWidgetNew cwn;
+	foreach (cwn, *ConfigRegistrar::c_qmNew) {
+		ConfigWidget *cw = cwn(s);
+		{
+			QMutexLocker lock(&s_existingWidgetsMutex);
+			s_existingWidgets.insert(cw->getName(), cw);
+		}
+
+		addPage(cw, ++idx);
+	}
+
+	updateListView();
+
+	QPushButton *okButton = dialogButtonBox->button(QDialogButtonBox::Ok);
+	okButton->setToolTip(tr("Accept changes"));
+	okButton->setWhatsThis(tr("This button will accept current settings and return to the application.<br />"
+							  "The settings will be stored to disk when you leave the application."));
+
+	QPushButton *cancelButton = dialogButtonBox->button(QDialogButtonBox::Cancel);
+	cancelButton->setToolTip(tr("Reject changes"));
+	cancelButton->setWhatsThis(tr("This button will reject all changes and return to the application.<br />"
+								  "The settings will be reset to the previous positions."));
+
+	QPushButton *applyButton = dialogButtonBox->button(QDialogButtonBox::Apply);
+	applyButton->setToolTip(tr("Apply changes"));
+	applyButton->setWhatsThis(tr("This button will immediately apply all changes."));
+
+	QPushButton *resetButton = pageButtonBox->addButton(QDialogButtonBox::Reset);
+	resetButton->setToolTip(tr("Undo changes for current page"));
+	resetButton->setWhatsThis(
+		tr("This button will revert any changes done on the current page to the most recent applied settings."));
+
+	QPushButton *restoreButton = pageButtonBox->addButton(QDialogButtonBox::RestoreDefaults);
+	restoreButton->setToolTip(tr("Restore defaults for current page"));
+	restoreButton->setWhatsThis(
+		tr("This button will restore the defaults for the settings on the current page. Other pages will not be "
+		   "changed.<br />"
+		   "To restore all settings to their defaults, you can press the \"Defaults (All)\" button."));
+
+	QPushButton *restoreAllButton =
+		pageButtonBox->addButton(QString::fromLatin1("Defaults (All)"), QDialogButtonBox::ResetRole);
+	restoreAllButton->setToolTip(tr("Restore all defaults"));
+	restoreAllButton->setWhatsThis(tr("This button will restore the defaults for all settings."));
+
+	if (!g.s.qbaConfigGeometry.isEmpty()) {
+#ifdef USE_OVERLAY
+		if (!g.ocIntercept)
+#endif
+			restoreGeometry(g.s.qbaConfigGeometry);
+	}
+}
+
+void ConfigDialog::addPage(ConfigWidget *cw, unsigned int idx) {
+	int w = INT_MAX, h = INT_MAX;
+
+	const QList< QScreen * > screens = qApp->screens();
+	for (int i = 0; i < screens.size(); ++i) {
+		const QRect ds = screens[i]->availableGeometry();
+		if (ds.isValid()) {
+			w = qMin(w, ds.width());
+			h = qMin(h, ds.height());
+		}
+	}
+
+	QSize ms = cw->minimumSizeHint();
+	cw->resize(ms);
+	cw->setMinimumSize(ms);
+
+	ms.rwidth() += 128;
+	ms.rheight() += 192;
+	if ((ms.width() > w) || (ms.height() > h)) {
+		QScrollArea *qsa = new QScrollArea();
+		qsa->setFrameShape(QFrame::NoFrame);
+		qsa->setWidgetResizable(true);
+		qsa->setWidget(cw);
+		qhPages.insert(cw, qsa);
+		qswPages->addWidget(qsa);
+	} else {
+		qhPages.insert(cw, cw);
+		qswPages->addWidget(cw);
+	}
+	qmWidgets.insert(idx, cw);
+	cw->load(g.s);
+}
+
+ConfigDialog::~ConfigDialog() {
+	{
+		QMutexLocker lock(&s_existingWidgetsMutex);
+		s_existingWidgets.clear();
+	}
+
+	foreach (QWidget *qw, qhPages)
+		delete qw;
+}
+
+ConfigWidget *ConfigDialog::getConfigWidget(const QString &name) {
+	QMutexLocker lock(&s_existingWidgetsMutex);
+
+	return s_existingWidgets.value(name, nullptr);
+}
+
+void ConfigDialog::on_pageButtonBox_clicked(QAbstractButton *b) {
+	ConfigWidget *conf = qobject_cast< ConfigWidget * >(qswPages->currentWidget());
+	if (!conf) {
+		QScrollArea *qsa = qobject_cast< QScrollArea * >(qswPages->currentWidget());
+		if (qsa)
+			conf = qobject_cast< ConfigWidget * >(qsa->widget());
+	}
+	if (!conf)
+		return;
+	switch (pageButtonBox->standardButton(b)) {
+		case QDialogButtonBox::RestoreDefaults: {
+			Settings def;
+			conf->load(def);
+			break;
+		}
+		case QDialogButtonBox::Reset: {
+			conf->load(g.s);
+			break;
+		}
+		// standardButton returns NoButton for any custom buttons. The only custom button
+		// in the pageButtonBox is the one for resetting all settings.
+		case QDialogButtonBox::NoButton: {
+			// Ask for confirmation before resetting **all** settings
+			QMessageBox msgBox;
+			msgBox.setIcon(QMessageBox::Question);
+			msgBox.setText(QObject::tr("Reset all settings?"));
+			msgBox.setInformativeText(QObject::tr("Do you really want to reset all settings (not only the ones currently visible) to their default value?"));
+			msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+			msgBox.setDefaultButton(QMessageBox::No);
+
+			if (msgBox.exec() == QMessageBox::Yes) {
+				Settings defaultSetting;
+				foreach (ConfigWidget *cw, qmWidgets) {
+					cw->load(defaultSetting);
+				}
+			}
+			break;
+		}
+		default:
+			break;
+	}
+}
+
+void ConfigDialog::on_dialogButtonBox_clicked(QAbstractButton *b) {
+	switch (dialogButtonBox->standardButton(b)) {
+		case QDialogButtonBox::Apply: {
+			apply();
+			break;
+		}
+		default:
+			break;
+	}
+}
+
+void ConfigDialog::on_qlwIcons_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous) {
+	if (!current)
+		current = previous;
+
+	if (current) {
+		QWidget *w = qhPages.value(qmIconWidgets.value(current));
+		if (w)
+			qswPages->setCurrentWidget(w);
+	}
+}
+
+void ConfigDialog::updateListView() {
+	QWidget *ccw         = qmIconWidgets.value(qlwIcons->currentItem());
+	QListWidgetItem *sel = nullptr;
+
+	qmIconWidgets.clear();
+	qlwIcons->clear();
+
+	QFontMetrics qfm(qlwIcons->font());
+	int configNavbarWidth = 0;
+
+	foreach (ConfigWidget *cw, qmWidgets) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+		configNavbarWidth = qMax(configNavbarWidth, qfm.horizontalAdvance(cw->title()));
+#else
+		configNavbarWidth = qMax(configNavbarWidth, qfm.width(cw->title()));
 #endif
 
-#include <QtCore/QString>
-#include <QtCore/QUrl>
-#include <QtCore/QtGlobal>
-#include <QtWidgets/QStyledItemDelegate>
-#include <QtWidgets/QTreeView>
-#include <QtWidgets/QTreeWidgetItem>
+		QListWidgetItem *i = new QListWidgetItem(qlwIcons);
+		i->setIcon(cw->icon());
+		i->setText(cw->title());
+		i->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
 
-#include <QtNetwork/QHostInfo>
+		qmIconWidgets.insert(i, cw);
+		if (cw == ccw)
+			sel = i;
+	}
 
-#ifdef USE_ZEROCONF
-#	include "BonjourRecord.h"
-#	include <dns_sd.h>
+	// Add space for icon and some padding.
+	configNavbarWidth += qlwIcons->iconSize().width() + 25;
+
+	qlwIcons->setMinimumWidth(configNavbarWidth);
+	qlwIcons->setMaximumWidth(configNavbarWidth);
+
+	if (sel)
+		qlwIcons->setCurrentItem(sel);
+	else
+		qlwIcons->setCurrentRow(0);
+}
+
+void ConfigDialog::apply() {
+	Audio::stop();
+
+	foreach (ConfigWidget *cw, qmWidgets)
+		cw->save();
+
+	g.s = s;
+
+	foreach (ConfigWidget *cw, qmWidgets)
+		cw->accept();
+
+	if (!g.s.bAttenuateOthersOnTalk)
+		g.bAttenuateOthers = false;
+
+	// They might have changed their keys.
+	g.iPushToTalk = 0;
+
+	Audio::start();
+
+	emit settingsAccepted();
+}
+
+void ConfigDialog::accept() {
+	apply();
+
+#ifdef USE_OVERLAY
+	if (!g.ocIntercept)
 #endif
+		g.s.qbaConfigGeometry = saveGeometry();
 
-#include "HostAddress.h"
-#include "Net.h"
-#include "ServerAddress.h"
-#include "Timer.h"
-#include "UnresolvedServerAddress.h"
-
-struct FavoriteServer;
-class QUdpSocket;
-
-struct PublicInfo {
-	QString qsName;
-	QUrl quUrl;
-	QString qsIp;
-	QString qsCountry;
-	QString qsCountryCode;
-	QString qsContinentCode;
-	unsigned short usPort;
-	bool bCA;
-};
-
-struct PingStats {
-private:
-	Q_DISABLE_COPY(PingStats)
-protected:
-	void init();
-
-public:
-	quint32 uiVersion;
-	quint32 uiPing;
-	quint32 uiPingSort;
-	quint32 uiUsers;
-	quint32 uiMaxUsers;
-	quint32 uiBandwidth;
-	quint32 uiSent;
-	quint32 uiRecv;
-
-	double dPing;
-
-	typedef boost::accumulators::accumulator_set<
-		double,
-		boost::accumulators::stats< boost::accumulators::tag::count, boost::accumulators::tag::extended_p_square > >
-		asQuantileType;
-	asQuantileType *asQuantile;
-
-	void reset();
-
-	PingStats();
-	~PingStats();
-};
-
-class ServerItem;
-
-class ServerViewDelegate : public QStyledItemDelegate {
-	Q_OBJECT
-	Q_DISABLE_COPY(ServerViewDelegate)
-public:
-	ServerViewDelegate(QObject *p = nullptr);
-	~ServerViewDelegate();
-
-	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const Q_DECL_OVERRIDE;
-};
-
-class ServerView : public QTreeWidget {
-	Q_OBJECT
-	Q_DISABLE_COPY(ServerView)
-public:
-	ServerItem *siFavorite, *siLAN, *siPublic;
-
-	ServerView(QWidget *);
-	~ServerView() Q_DECL_OVERRIDE;
-
-	void fixupName(ServerItem *si);
-
-protected:
-	QMimeData *mimeData(const QList< QTreeWidgetItem * >) const Q_DECL_OVERRIDE;
-	QStringList mimeTypes() const Q_DECL_OVERRIDE;
-	Qt::DropActions supportedDropActions() const Q_DECL_OVERRIDE;
-	bool dropMimeData(QTreeWidgetItem *, int, const QMimeData *, Qt::DropAction) Q_DECL_OVERRIDE;
-};
-
-#include "ui_ConnectDialog.h"
-#include "ui_ConnectDialogEdit.h"
-
-class ServerItem : public QTreeWidgetItem, public PingStats {
-	Q_DISABLE_COPY(ServerItem)
-protected:
-	void init();
-
-public:
-	enum ItemType { FavoriteType, LANType, PublicType };
-
-	static QMap< QString, QIcon > qmIcons;
-
-	bool bParent;
-	ServerItem *siParent;
-	QList< ServerItem * > qlChildren;
-
-	QString qsName;
-
-	QString qsHostname;
-	unsigned short usPort;
-	bool bCA;
-
-	QString qsUsername;
-	QString qsPassword;
-
-	QString qsCountry;
-	QString qsCountryCode;
-	QString qsContinentCode;
-
-	QString qsUrl;
-#ifdef USE_ZEROCONF
-	QString zeroconfHost;
-	BonjourRecord zeroconfRecord;
-#endif
-	/// Contains the resolved addresses for
-	/// this ServerItem.
-	QList< ServerAddress > qlAddresses;
-
-	ItemType itType;
-
-	ServerItem(const FavoriteServer &fs);
-	ServerItem(const PublicInfo &pi);
-	ServerItem(const QString &name, const QString &host, unsigned short port, const QString &uname,
-			   const QString &password = QString());
-#ifdef USE_ZEROCONF
-	ServerItem(const BonjourRecord &br);
-#endif
-	ServerItem(const QString &name, ItemType itype);
-	ServerItem(const ServerItem *si);
-	~ServerItem();
-
-	/// Converts given mime data into a ServerItem object
-	///
-	/// This function checks the clipboard for a valid mumble:// style
-	/// URL and converts it into a ServerItem ready to add to the connect
-	/// dialog. It also parses .lnk files of InternetShortcut/URL type
-	/// to enable those to be dropped onto the clipboard.
-	///
-	/// @note If needed can query the user for a user name using a modal dialog.
-	/// @note If a server item is returned it's the callers reponsibility to delete it.
-	///
-	/// @param mime Mime data to analyze
-	/// @param default_name If true the hostname is set as item name if none is given
-	/// @param p Parent widget to use in case the user has to be queried
-	/// @return Server item or nullptr if mime data invalid.
-	///
-	static ServerItem *fromMimeData(const QMimeData *mime, bool default_name = true, QWidget *p = nullptr,
-									bool convertHttpUrls = false);
-	/// Create a ServerItem from a mumble:// URL
-	static ServerItem *fromUrl(QUrl url, QWidget *p);
-
-	void addServerItem(ServerItem *child);
-
-	FavoriteServer toFavoriteServer() const;
-	QMimeData *toMimeData() const;
-	static QMimeData *toMimeData(const QString &name, const QString &host, unsigned short port,
-								 const QString &channel = QString());
-
-	static QIcon loadIcon(const QString &name);
-
-	void setDatas(double ping = 0.0, quint32 users = 0, quint32 maxusers = 0);
-	bool operator<(const QTreeWidgetItem &) const Q_DECL_OVERRIDE;
-
-	QVariant data(int column, int role) const Q_DECL_OVERRIDE;
-};
-
-class ConnectDialogEdit : public QDialog, protected Ui::ConnectDialogEdit {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ConnectDialogEdit)
-
-	void init();
-
-protected:
-	bool bOk;
-	bool bCustomLabel;
-	ServerItem *m_si;
-
-public slots:
-	void validate();
-	void accept();
-
-	void on_qbFill_clicked();
-	void on_qbDiscard_clicked();
-	void on_qcbShowPassword_toggled(bool);
-	void on_qleName_textEdited(const QString &);
-	void on_qleServer_textEdited(const QString &);
-	void showNotice(const QString &text);
-	bool updateFromClipboard();
-
-public:
-	QString qsName, qsHostname, qsUsername, qsPassword;
-	unsigned short usPort;
-	ConnectDialogEdit(QWidget *parent, const QString &name, const QString &host, const QString &user,
-					  unsigned short port, const QString &password);
-	/// Add a new Server
-	/// Prefills from clipboard content or the connected to server if available
-	ConnectDialogEdit(QWidget *parent);
-	virtual ~ConnectDialogEdit();
-};
-
-class ConnectDialog : public QDialog, public Ui::ConnectDialog {
-	friend class ServerView;
-
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(ConnectDialog)
-protected:
-	static QList< PublicInfo > qlPublicServers;
-	static QString qsUserCountry, qsUserCountryCode, qsUserContinentCode;
-	static Timer tPublicServers;
-
-	QMenu *qmPopup;
-	QPushButton *qpbEdit;
-
-	bool bPublicInit;
-	bool bAutoConnect;
-
-	Timer tPing;
-	Timer tCurrent, tHover, tRestart;
-	QUdpSocket *qusSocket4;
-	QUdpSocket *qusSocket6;
-	QTimer *qtPingTick;
-	QList< ServerItem * > qlItems;
-
-	ServerItem *siAutoConnect;
-
-	QList< UnresolvedServerAddress > qlDNSLookup;
-	QSet< UnresolvedServerAddress > qsDNSActive;
-	QHash< UnresolvedServerAddress, QSet< ServerItem * > > qhDNSWait;
-	QHash< UnresolvedServerAddress, QList< ServerAddress > > qhDNSCache;
-
-	QHash< ServerAddress, quint64 > qhPingRand;
-	QHash< ServerAddress, QSet< ServerItem * > > qhPings;
-
-	QMap< UnresolvedServerAddress, unsigned int > qmPingCache;
-
-	QString qsSearchServername;
-	QString qsSearchLocation;
-
-	bool bIPv4;
-	bool bIPv6;
-	int iPingIndex;
-
-	bool bLastFound;
-
-	/// bAllowPing determines whether ConnectDialog can use
-	/// UDP packets to ping remote hosts to be able to show a
-	/// ping latency and user count.
-	bool bAllowPing;
-	/// bAllowHostLookup determines whether ConnectDialog can
-	/// resolve hosts via DNS, Bonjour, and so on.
-	bool bAllowHostLookup;
-	/// bAllowZeroconf determines whether ConfigDialog can use
-	/// zeroconf to find nearby servers on the local network.
-	bool bAllowZeroconf;
-	/// bAllowFilters determines whether filters are available
-	/// in the ConfigDialog. If this option is diabled, the
-	/// 'Show All' filter is forced, and no other filter can
-	/// be chosen.
-	bool bAllowFilters;
-
-
-	void sendPing(const QHostAddress &, unsigned short port);
-
-	void initList();
-	void fillList();
-
-	void startDns(ServerItem *);
-	void stopDns(ServerItem *);
-
-	/// Calls ConnectDialog::filterServer for each server in
-	/// the public server list
-	void filterPublicServerList() const;
-	/// Hides the given ServerItem according to the current
-	/// filter settings. It is checked that the name of the
-	/// given server matches ConnectDialog#qsSearchServername
-	/// and the location is equal to ConnectDialog#qsSearchLocation.
-	/// Lastly it is checked that the server is reachable or
-	/// populated, should the respective filters be set.
-	///
-	/// \param si  ServerItem that should be filtered
-	void filterServer(ServerItem *const si) const;
-
-	/// Enumerates all countries in ConnectDialog#qlPublicServers
-	/// and adds an entry to the location filter Combobox with
-	/// with the country name as text, the countrycode as
-	/// data and the flag of the country as the icon.
-	void addCountriesToSearchLocation() const;
-public slots:
-	void accept();
-	void fetched(QByteArray xmlData, QUrl, QMap< QString, QString >);
-
-	void udpReply();
-	void lookedUp();
-	void timeTick();
-
-	void on_qaFavoriteAdd_triggered();
-	void on_qaFavoriteAddNew_triggered();
-	void on_qaFavoriteEdit_triggered();
-	void on_qaFavoriteRemove_triggered();
-	void on_qaFavoriteCopy_triggered();
-	void on_qaFavoritePaste_triggered();
-	void on_qaUrl_triggered();
-	void on_qtwServers_currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *);
-	void on_qtwServers_itemDoubleClicked(QTreeWidgetItem *, int);
-	void on_qtwServers_customContextMenuRequested(const QPoint &);
-	/// If the expanded item is the public server list
-	/// the user is asked (only once) for consent to transmit
-	/// the IP to all public servers. If the user does not
-	/// consent the public server list is disabled. If
-	/// the user does consent the public server list is
-	/// filled and the search dialog is shown.
-	/// Finally name resolution is triggered for all child
-	/// items of the expanded item.
-	void on_qtwServers_itemExpanded(QTreeWidgetItem *item);
-	/// Hides the search dialog if the collapsed item is
-	/// the public server list
-	void on_qtwServers_itemCollapsed(QTreeWidgetItem *item);
-	void OnSortChanged(int, Qt::SortOrder);
-
-public:
-	QString qsServer, qsUsername, qsPassword;
-	unsigned short usPort;
-	ConnectDialog(QWidget *parent, bool autoconnect);
-	~ConnectDialog();
-
-#ifdef USE_ZEROCONF
-protected:
-	QList< BonjourRecord > qlBonjourActive;
-public slots:
-	void onUpdateLanList(const QList< BonjourRecord > &);
-
-	void onResolved(const BonjourRecord, const QString, const uint16_t);
-	void onLanResolveError(const BonjourRecord);
-#endif
-private slots:
-	void on_qleSearchServername_textChanged(const QString &searchServername);
-	void on_qcbSearchLocation_currentIndexChanged(int searchLocationIndex);
-	void on_qcbFilter_currentIndexChanged(int filterIndex);
-};
-
-#endif
+	QDialog::accept();
+}
