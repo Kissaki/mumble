@@ -3,1128 +3,1075 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "JackAudio.h"
+#include "ACLEditor.h"
 
-#include "Utils.h"
+#include "ACL.h"
+#include "Channel.h"
+#include "ClientUser.h"
+#include "Database.h"
+#include "Log.h"
+#include "ServerHandler.h"
+#include "User.h"
+
+#if QT_VERSION >= 0x050000
+#	include <QtWidgets/QMessageBox>
+#else
+#	include <QtGui/QMessageBox>
+#endif
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-#ifdef Q_CC_GNU
-#	define RESOLVE(var)                                                     \
-		{                                                                    \
-			var = reinterpret_cast< __typeof__(var) >(qlJack.resolve(#var)); \
-			if (!var)                                                        \
-				return;                                                      \
-		}
-#else
-#	define RESOLVE(var)                                                                      \
-		{                                                                                     \
-			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlJack.resolve(#var)); \
-			if (!var)                                                                         \
-				return;                                                                       \
-		}
-#endif
-
-static std::unique_ptr< JackAudioSystem > jas;
-
-// jackStatusToStringList converts a jack_status_t (a flag type
-// that can contain multiple Jack statuses) to a QStringList.
-static QStringList jackStatusToStringList(const jack_status_t &status) {
-	QStringList statusList;
-
-	if (status & JackFailure) {
-		statusList << QLatin1String("JackFailure - overall operation failed");
-	}
-	if (status & JackInvalidOption) {
-		statusList << QLatin1String("JackInvalidOption - the operation contained an invalid or unsupported option");
-	}
-	if (status & JackNameNotUnique) {
-		statusList << QLatin1String("JackNameNotUnique - the desired client name is not unique");
-	}
-	if (status & JackServerStarted) {
-		statusList << QLatin1String("JackServerStarted - the server was started as a result of this operation");
-	}
-	if (status & JackServerFailed) {
-		statusList << QLatin1String("JackServerFailed - unable to connect to the JACK server");
-	}
-	if (status & JackServerError) {
-		statusList << QLatin1String("JackServerError - communication error with the JACK server");
-	}
-	if (status & JackNoSuchClient) {
-		statusList << QLatin1String("JackNoSuchClient - requested client does not exist");
-	}
-	if (status & JackLoadFailure) {
-		statusList << QLatin1String("JackLoadFailure - unable to load initial client");
-	}
-	if (status & JackInitFailure) {
-		statusList << QLatin1String("JackInitFailure - unable to initialize client");
-	}
-	if (status & JackShmFailure) {
-		statusList << QLatin1String("JackShmFailure - unable to access shared memory");
-	}
-	if (status & JackVersionError) {
-		statusList << QLatin1String("JackVersionError - client's protocol version does not match");
-	}
-	if (status & JackBackendError) {
-		statusList << QLatin1String("JackBackendError - a backend error occurred");
-	}
-	if (status & JackClientZombie) {
-		statusList << QLatin1String("JackClientZombie - client zombified");
-	}
-
-	return statusList;
+ACLGroup::ACLGroup(const QString &name) : Group(nullptr, name) {
+	bInherited = false;
 }
 
-class JackAudioInputRegistrar : public AudioInputRegistrar {
-private:
-	AudioInput *create() Q_DECL_OVERRIDE;
-	const QList< audioDevice > getDeviceChoices() Q_DECL_OVERRIDE;
-	void setDeviceChoice(const QVariant &, Settings &) Q_DECL_OVERRIDE;
-	bool canEcho(const QString &) const Q_DECL_OVERRIDE;
+ACLEditor::ACLEditor(int channelparentid, QWidget *p) : QDialog(p) {
+	// Simple constructor for add channel menu
+	bAddChannelMode = true;
+	iChannel        = channelparentid;
 
-public:
-	JackAudioInputRegistrar();
-};
+	setupUi(this);
 
-class JackAudioOutputRegistrar : public AudioOutputRegistrar {
-private:
-	AudioOutput *create() Q_DECL_OVERRIDE;
-	const QList< audioDevice > getDeviceChoices() Q_DECL_OVERRIDE;
-	void setDeviceChoice(const QVariant &, Settings &) Q_DECL_OVERRIDE;
-	bool usesOutputDelay() const Q_DECL_OVERRIDE;
+	qwChannel->setAccessibleName(tr("Properties"));
+	rteChannelDescription->setAccessibleName(tr("Description"));
+	qleChannelPassword->setAccessibleName(tr("Channel password"));
+	qsbChannelPosition->setAccessibleName(tr("Position"));
+	qsbChannelMaxUsers->setAccessibleName(tr("Maximum users"));
+	qleChannelName->setAccessibleName(tr("Channel name"));
+	qcbGroupList->setAccessibleName(tr("List of groups"));
+	qlwGroupAdd->setAccessibleName(tr("Inherited group members"));
+	qlwGroupRemove->setAccessibleName(tr("Foreign group members"));
+	qlwGroupInherit->setAccessibleName(tr("Inherited channel members"));
+	qcbGroupAdd->setAccessibleName(tr("Add members to group"));
+	qcbGroupRemove->setAccessibleName(tr("Remove member from group"));
+	qlwACLs->setAccessibleName(tr("List of ACL entries"));
+	qcbACLGroup->setAccessibleName(tr("Group this entry applies to"));
+	qcbACLUser->setAccessibleName(tr("User this entry applies to"));
 
-public:
-	JackAudioOutputRegistrar();
-};
+	qsbChannelPosition->setRange(INT_MIN, INT_MAX);
 
-class JackAudioInit : public DeferInit {
-private:
-	std::unique_ptr< JackAudioInputRegistrar > airJackAudio;
-	std::unique_ptr< JackAudioOutputRegistrar > aorJackAudio;
-	void initialize() Q_DECL_OVERRIDE;
-	void destroy() Q_DECL_OVERRIDE;
-};
+	setWindowTitle(tr("Mumble - Add channel"));
+	qtwTab->removeTab(2);
+	qtwTab->removeTab(1);
 
-JackAudioInputRegistrar::JackAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("JACK"), 10) {
-}
+	// Until I come around implementing it hide the password fields
+	qleChannelPassword->hide();
+	qlChannelPassword->hide();
 
-AudioInput *JackAudioInputRegistrar::create() {
-	return new JackAudioInput();
-}
-
-const QList< audioDevice > JackAudioInputRegistrar::getDeviceChoices() {
-	QList< audioDevice > qlReturn;
-
-	auto qlInputDevs = jas->qhInput.keys();
-	std::sort(qlInputDevs.begin(), qlInputDevs.end());
-
-	for (const auto &dev : qlInputDevs) {
-		qlReturn << audioDevice(jas->qhInput.value(dev), dev);
-	}
-
-	return qlReturn;
-}
-
-void JackAudioInputRegistrar::setDeviceChoice(const QVariant &, Settings &) {
-}
-
-bool JackAudioInputRegistrar::canEcho(const QString &) const {
-	return false;
-}
-
-JackAudioOutputRegistrar::JackAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("JACK"), 10) {
-}
-
-AudioOutput *JackAudioOutputRegistrar::create() {
-	return new JackAudioOutput();
-}
-
-const QList< audioDevice > JackAudioOutputRegistrar::getDeviceChoices() {
-	QList< audioDevice > qlReturn;
-
-	QStringList qlOutputDevs = jas->qhOutput.keys();
-	std::sort(qlOutputDevs.begin(), qlOutputDevs.end());
-
-	if (qlOutputDevs.contains(g.s.qsJackAudioOutput)) {
-		qlOutputDevs.removeAll(g.s.qsJackAudioOutput);
-		qlOutputDevs.prepend(g.s.qsJackAudioOutput);
-	}
-
-	foreach (const QString &dev, qlOutputDevs) { qlReturn << audioDevice(jas->qhOutput.value(dev), dev); }
-
-	return qlReturn;
-}
-
-void JackAudioOutputRegistrar::setDeviceChoice(const QVariant &choice, Settings &s) {
-	s.qsJackAudioOutput = choice.toString();
-}
-
-bool JackAudioOutputRegistrar::usesOutputDelay() const {
-	return false;
-}
-
-void JackAudioInit::initialize() {
-	jas.reset(new JackAudioSystem());
-
-	jas->qmWait.lock();
-	jas->qwcWait.wait(&jas->qmWait, 1000);
-	jas->qmWait.unlock();
-
-	if (jas->bAvailable) {
-		airJackAudio.reset(new JackAudioInputRegistrar());
-		aorJackAudio.reset(new JackAudioOutputRegistrar());
+	if (g.sh->uiVersion >= 0x010300) {
+		qsbChannelMaxUsers->setRange(0, INT_MAX);
+		qsbChannelMaxUsers->setValue(0);
+		qsbChannelMaxUsers->setSpecialValueText(tr("Default server value"));
 	} else {
-		jas.reset();
-	}
-}
-
-void JackAudioInit::destroy() {
-	airJackAudio.reset();
-	aorJackAudio.reset();
-	jas.reset();
-}
-
-// Instantiate JackAudioSystem, JackAudioInputRegistrar and JackAudioOutputRegistrar
-static JackAudioInit jai;
-
-JackAudioSystem::JackAudioSystem() : bAvailable(false), users(0), client(nullptr) {
-	QStringList alternatives;
-#ifdef Q_OS_WIN
-	alternatives << QLatin1String("libjack64.dll");
-	alternatives << QLatin1String("libjack32.dll");
-#elif defined(Q_OS_MAC)
-	alternatives << QLatin1String("libjack.dylib");
-	alternatives << QLatin1String("libjack.0.dylib");
-#else
-	alternatives << QLatin1String("libjack.so");
-	alternatives << QLatin1String("libjack.so.0");
-#endif
-	for (const QString &lib : alternatives) {
-		qlJack.setFileName(lib);
-		if (qlJack.load()) {
-			break;
-		}
+		qlChannelMaxUsers->hide();
+		qsbChannelMaxUsers->hide();
 	}
 
-	if (!qlJack.isLoaded()) {
+	qlChannelID->hide();
+
+	qleChannelName->setFocus();
+
+	pcaPassword = nullptr;
+	adjustSize();
+}
+
+ACLEditor::ACLEditor(int channelid, const MumbleProto::ACL &mea, QWidget *p) : QDialog(p) {
+	QLabel *l;
+
+	bAddChannelMode = false;
+
+	iChannel          = channelid;
+	Channel *pChannel = Channel::get(iChannel);
+	if (!pChannel) {
+		g.l->log(Log::Warning, tr("Failed: Invalid channel"));
+		QDialog::reject();
 		return;
 	}
 
-	RESOLVE(jack_get_version_string)
-	RESOLVE(jack_free)
-	RESOLVE(jack_get_client_name)
-	RESOLVE(jack_client_open)
-	RESOLVE(jack_client_close)
-	RESOLVE(jack_activate)
-	RESOLVE(jack_deactivate)
-	RESOLVE(jack_get_sample_rate)
-	RESOLVE(jack_get_buffer_size)
-	RESOLVE(jack_get_client_name)
-	RESOLVE(jack_get_ports)
-	RESOLVE(jack_connect)
-	RESOLVE(jack_port_disconnect)
-	RESOLVE(jack_port_register)
-	RESOLVE(jack_port_unregister)
-	RESOLVE(jack_port_name)
-	RESOLVE(jack_port_by_name)
-	RESOLVE(jack_port_flags)
-	RESOLVE(jack_port_get_buffer)
-	RESOLVE(jack_ringbuffer_create)
-	RESOLVE(jack_ringbuffer_free)
-	RESOLVE(jack_ringbuffer_mlock)
-	RESOLVE(jack_ringbuffer_read)
-	RESOLVE(jack_ringbuffer_read_space)
-	RESOLVE(jack_ringbuffer_write)
-	RESOLVE(jack_ringbuffer_write_space)
-	RESOLVE(jack_ringbuffer_write_advance)
-	RESOLVE(jack_ringbuffer_get_write_vector)
-	RESOLVE(jack_set_process_callback)
-	RESOLVE(jack_set_sample_rate_callback)
-	RESOLVE(jack_set_buffer_size_callback)
-	RESOLVE(jack_on_shutdown)
-
-	qhInput.insert(QString(), tr("Hardware Ports"));
-	qhOutput.insert(QString::number(1), tr("Mono"));
-	qhOutput.insert(QString::number(2), tr("Stereo"));
-
-	bAvailable = true;
-
-	qDebug("JACK %s from %s", jack_get_version_string(), qPrintable(qlJack.fileName()));
-}
-
-JackAudioSystem::~JackAudioSystem() {
-	deinitialize();
-}
-
-bool JackAudioSystem::initialize() {
-	QMutexLocker lock(&qmWait);
-
-	if (client) {
-		lock.unlock();
-		deinitialize();
-		lock.relock();
-	}
-
-	jack_status_t status;
-	client = jack_client_open(g.s.qsJackClientName.toStdString().c_str(),
-							  g.s.bJackStartServer ? JackNullOption : JackNoStartServer, &status);
-	if (!client) {
-		const auto errors = jackStatusToStringList(status);
-		qWarning("JackAudioSystem: unable to open client due to %i errors:", errors.count());
-		for (auto i = 0; i < errors.count(); ++i) {
-			qWarning("JackAudioSystem: %s", qPrintable(errors.at(i)));
-		}
-
-		return false;
-	}
-
-	qDebug("JackAudioSystem: client \"%s\" opened successfully", jack_get_client_name(client));
-
-	auto ret = jack_set_process_callback(client, processCallback, nullptr);
-	if (ret != 0) {
-		qWarning("JackAudioSystem: unable to set process callback - jack_set_process_callback() returned %i", ret);
-		jack_client_close(client);
-		client = nullptr;
-		return false;
-	}
-
-	ret = jack_set_sample_rate_callback(client, sampleRateCallback, nullptr);
-	if (ret != 0) {
-		qWarning("JackAudioSystem: unable to set sample rate callback - jack_set_sample_rate_callback() returned %i",
-				 ret);
-		jack_client_close(client);
-		client = nullptr;
-		return false;
-	}
-
-	ret = jack_set_buffer_size_callback(client, bufferSizeCallback, nullptr);
-	if (ret != 0) {
-		qWarning("JackAudioSystem: unable to set buffer size callback - jack_set_buffer_size_callback() returned %i",
-				 ret);
-		jack_client_close(client);
-		client = nullptr;
-		return false;
-	}
-
-	jack_on_shutdown(client, shutdownCallback, nullptr);
-
-	return true;
-}
-
-void JackAudioSystem::deinitialize() {
-	QMutexLocker lock(&qmWait);
-
-	if (!client) {
-		return;
-	}
-
-	const auto clientName = QString::fromLatin1(jack_get_client_name(client));
-
-	const auto err = jack_client_close(client);
-	if (err != 0) {
-		qWarning("JackAudioSystem: unable to disconnect from the server - jack_client_close() returned %i", err);
-		return;
-	}
-
-	client = nullptr;
-
-	qDebug("JackAudioSystem: client \"%s\" closed successfully", clientName.toStdString().c_str());
-}
-
-bool JackAudioSystem::activate() {
-	QMutexLocker lock(&qmWait);
-
-	if (!client) {
-		lock.unlock();
-
-		if (!initialize()) {
-			return false;
-		}
-
-		lock.relock();
-	}
-
-	if (users++ > 0) {
-		// The client is already active, because there is at least a user
-		return true;
-	}
-
-	const auto ret = jack_activate(client);
-	if (ret != 0) {
-		qWarning("JackAudioSystem: unable to activate client - jack_activate() returned %i", ret);
-		return false;
-	}
-
-	qDebug("JackAudioSystem: client activated");
-
-	return true;
-}
-
-void JackAudioSystem::deactivate() {
-	QMutexLocker lock(&qmWait);
-
-	if (!client) {
-		return;
-	}
-
-	if (--users > 0) {
-		// There is still at least a user, we only decrement the counter
-		return;
-	}
-
-	const auto err = jack_deactivate(client);
-	if (err != 0) {
-		qWarning("JackAudioSystem: unable to remove client from the process graph - jack_deactivate() returned %i",
-				 err);
-		return;
-	}
-
-	qDebug("JackAudioSystem: client deactivated");
-
-	lock.unlock();
-
-	deinitialize();
-}
-
-bool JackAudioSystem::isOk() {
-	QMutexLocker lock(&qmWait);
-	return (client);
-}
-
-uint8_t JackAudioSystem::outPorts() {
-	return static_cast< uint8_t >(qBound< unsigned >(1, g.s.qsJackAudioOutput.toUInt(), JACK_MAX_OUTPUT_PORTS));
-}
-
-jack_nframes_t JackAudioSystem::sampleRate() {
-	QMutexLocker lock(&qmWait);
-
-	if (!client) {
-		return 0;
-	}
-
-	return jack_get_sample_rate(client);
-}
-
-jack_nframes_t JackAudioSystem::bufferSize() {
-	QMutexLocker lock(&qmWait);
-
-	if (!client) {
-		return 0;
-	}
-
-	return jack_get_buffer_size(client);
-}
-
-JackPorts JackAudioSystem::getPhysicalPorts(const uint8_t flags) {
-	QMutexLocker lock(&qmWait);
-
-	if (!client) {
-		return JackPorts();
-	}
-
-	const auto ports = jack_get_ports(client, nullptr, nullptr, JackPortIsPhysical | JackPortIsTerminal);
-	if (!ports) {
-		return JackPorts();
-	}
-
-	JackPorts ret;
-
-	for (auto i = 0; ports[i]; ++i) {
-		if (!ports[i]) {
-			// End of the array
-			break;
-		}
-
-		auto port = jack_port_by_name(client, ports[i]);
-		if (!port) {
-			qWarning("JackAudioSystem: jack_port_by_name() returned an invalid port - skipping it");
-			continue;
-		}
-
-		if (jack_port_flags(port) & flags) {
-			ret.append(port);
-		}
-	}
-
-	jack_free(ports);
-
-	return ret;
-}
-
-void *JackAudioSystem::getPortBuffer(jack_port_t *port, const jack_nframes_t frames) {
-	if (!port) {
-		return nullptr;
-	}
-
-	return jack_port_get_buffer(port, frames);
-}
-
-jack_port_t *JackAudioSystem::registerPort(const char *name, const uint8_t flags) {
-	QMutexLocker lock(&qmWait);
-
-	if (!client || !name) {
-		return nullptr;
-	}
-
-	return jack_port_register(client, name, JACK_DEFAULT_AUDIO_TYPE, flags, 0);
-}
-
-bool JackAudioSystem::unregisterPort(jack_port_t *port) {
-	QMutexLocker lock(&qmWait);
-
-	if (!client || !port) {
-		return false;
-	}
-
-	const auto ret = jack_port_unregister(client, port);
-	if (ret != 0) {
-		qWarning("JackAudioSystem: unable to unregister port - jack_port_unregister() returned %i", ret);
-		return false;
-	}
-
-	return true;
-}
-
-bool JackAudioSystem::connectPort(jack_port_t *sourcePort, jack_port_t *destinationPort) {
-	QMutexLocker lock(&qmWait);
-
-	if (!client || !sourcePort || !destinationPort) {
-		return false;
-	}
-
-	const auto sourcePortName      = jack_port_name(sourcePort);
-	const auto destinationPortName = jack_port_name(destinationPort);
-
-	const auto ret = jack_connect(client, sourcePortName, destinationPortName);
-	if (ret != 0) {
-		qWarning("JackAudioSystem: unable to connect port '%s' to '%s' - jack_connect() returned %i", sourcePortName,
-				 destinationPortName, ret);
-		return false;
-	}
-
-	return true;
-}
-
-bool JackAudioSystem::disconnectPort(jack_port_t *port) {
-	QMutexLocker lock(&qmWait);
-
-	if (!client || !port) {
-		return false;
-	}
-
-	const auto ret = jack_port_disconnect(client, port);
-	if (ret != 0) {
-		qWarning("JackAudioSystem: unable to disconnect port - jack_port_disconnect() returned %i", ret);
-		return false;
-	}
-
-	return true;
-}
-
-// Ringbuffer functions do not have locks.
-// They are single-consumer single-producer, lockless.
-jack_ringbuffer_t *JackAudioSystem::ringbufferCreate(const size_t size) {
-	if (size == 0) {
-		return nullptr;
-	}
-
-	return jack_ringbuffer_create(size);
-}
-
-void JackAudioSystem::ringbufferFree(jack_ringbuffer_t *buffer) {
-	if (!buffer) {
-		return;
-	}
-
-	jack_ringbuffer_free(buffer);
-}
-
-int JackAudioSystem::ringbufferMlock(jack_ringbuffer_t *buffer) {
-	if (!buffer) {
-		return -2;
-	}
-
-	return jack_ringbuffer_mlock(buffer);
-}
-
-size_t JackAudioSystem::ringbufferRead(jack_ringbuffer_t *buffer, const size_t size, void *destination) {
-	if (!buffer || size == 0 || !destination) {
-		return 0;
-	}
-
-	return jack_ringbuffer_read(buffer, static_cast< char * >(destination), size);
-}
-
-size_t JackAudioSystem::ringbufferReadSpace(const jack_ringbuffer_t *buffer) {
-	if (!buffer) {
-		return 0;
-	}
-
-	return jack_ringbuffer_read_space(buffer);
-}
-
-size_t JackAudioSystem::ringbufferWrite(jack_ringbuffer_t *buffer, const size_t size, const void *source) {
-	if (!buffer || size == 0 || !source) {
-		return 0;
-	}
-
-	return jack_ringbuffer_write(buffer, static_cast< const char * >(source), size);
-}
-
-void JackAudioSystem::ringbufferGetWriteVector(const jack_ringbuffer_t *buffer, jack_ringbuffer_data_t *vector) {
-	if (!buffer || !vector) {
-		return;
-	}
-
-	jack_ringbuffer_get_write_vector(buffer, vector);
-}
-
-size_t JackAudioSystem::ringbufferWriteSpace(const jack_ringbuffer_t *buffer) {
-	if (!buffer) {
-		return 0;
-	}
-
-	return jack_ringbuffer_write_space(buffer);
-}
-
-void JackAudioSystem::ringbufferWriteAdvance(jack_ringbuffer_t *buffer, const size_t size) {
-	if (!buffer || size == 0) {
-		return;
-	}
-
-	jack_ringbuffer_write_advance(buffer, size);
-}
-
-int JackAudioSystem::processCallback(jack_nframes_t frames, void *) {
-	auto const jai = dynamic_cast< JackAudioInput * >(g.ai.get());
-	auto const jao = dynamic_cast< JackAudioOutput * >(g.ao.get());
-
-	const bool input  = (jai && jai->isReady());
-	const bool output = (jao && jao->isReady());
-
-	if (input && !jai->process(frames)) {
-		return 1;
-	}
-
-	if (output && !jao->process(frames)) {
-		return 1;
-	}
-
-	return 0;
-}
-
-int JackAudioSystem::sampleRateCallback(jack_nframes_t, void *) {
-	auto const jai = dynamic_cast< JackAudioInput * >(g.ai.get());
-	auto const jao = dynamic_cast< JackAudioOutput * >(g.ao.get());
-
-	if (jai) {
-		jai->activate();
-	}
-
-	if (jao) {
-		jao->activate();
-	}
-
-	return 0;
-}
-
-int JackAudioSystem::bufferSizeCallback(jack_nframes_t frames, void *) {
-	auto const jai = dynamic_cast< JackAudioInput * >(g.ai.get());
-	auto const jao = dynamic_cast< JackAudioOutput * >(g.ao.get());
-
-	if (jai && !jai->allocBuffer(frames)) {
-		return 1;
-	}
-
-	if (jao && !jao->allocBuffer(frames)) {
-		return 1;
-	}
-
-	return 0;
-}
-
-void JackAudioSystem::shutdownCallback(void *) {
-	qWarning("JackAudioSystem: server shutdown");
-	jas->client = nullptr;
-	jas->users  = 0;
-}
-
-JackAudioInput::JackAudioInput() : port(nullptr), buffer(nullptr) {
-	bReady = activate();
-}
-
-JackAudioInput::~JackAudioInput() {
-	qmWait.lock();
-	bReady = false;
-	// Request interruption
-	qsSleep.release(1);
-	qmWait.unlock();
-
-	// Wait for thread to exit
-	wait();
-
-	// Cleanup
-	deactivate();
-}
-
-bool JackAudioInput::isReady() {
-	return bReady;
-}
-
-bool JackAudioInput::allocBuffer(const jack_nframes_t frames) {
-	QMutexLocker lock(&qmWait);
-
-	bufferSize = frames * sizeof(jack_default_audio_sample_t);
-
-	if (buffer) {
-		jas->ringbufferFree(buffer);
-	}
-
-	buffer = jas->ringbufferCreate(bufferSize * JACK_BUFFER_PERIODS);
-
-	if (!buffer) {
-		return false;
-	}
-
-	jas->ringbufferMlock(buffer);
-
-	return true;
-}
-
-bool JackAudioInput::activate() {
-	QMutexLocker lock(&qmWait);
-
-	if (!jas->isOk()) {
-		jas->initialize();
-	}
-
-	eMicFormat   = SampleFloat;
-	iMicChannels = 1;
-	iMicFreq     = jas->sampleRate();
-
-	initializeMixer();
-
-	lock.unlock();
-
-	if (!registerPorts()) {
-		return false;
-	}
-
-	if (!allocBuffer(jas->bufferSize())) {
-		return false;
-	}
-
-	if (!jas->activate()) {
-		return false;
-	}
-
-	return true;
-}
-
-void JackAudioInput::deactivate() {
-	unregisterPorts();
-	jas->deactivate();
-
-	if (buffer) {
-		jas->ringbufferFree(buffer);
-	}
-}
-
-bool JackAudioInput::registerPorts() {
-	unregisterPorts();
-
-	QMutexLocker lock(&qmWait);
-
-	port = jas->registerPort("input", JackPortIsInput);
-	if (!port) {
-		qWarning("JackAudioInput: unable to register port");
-		return false;
-	}
-
-	return true;
-}
-
-bool JackAudioInput::unregisterPorts() {
-	QMutexLocker lock(&qmWait);
-
-	if (!port) {
-		return false;
-	}
-
-	if (!jas->unregisterPort(port)) {
-		qWarning("JackAudioInput: unable to unregister port");
-		return false;
-	}
-
-	port = nullptr;
-
-	return true;
-}
-
-void JackAudioInput::connectPorts() {
-	disconnectPorts();
-
-	QMutexLocker lock(&qmWait);
-
-	if (!port) {
-		return;
-	}
-
-	const JackPorts outputPorts = jas->getPhysicalPorts(JackPortIsOutput);
-	for (auto outputPort : outputPorts) {
-		if (jas->connectPort(outputPort, port)) {
-			break;
-		}
-	}
-}
-
-bool JackAudioInput::disconnectPorts() {
-	QMutexLocker lock(&qmWait);
-
-	if (!port) {
-		return true;
-	}
-
-	if (!jas->disconnectPort(port)) {
-		qWarning("JackAudioInput: unable to disconnect port");
-		return false;
-	}
-
-	return true;
-}
-
-bool JackAudioInput::process(const jack_nframes_t frames) {
-	if (!bReady) {
-		return true;
-	}
-
-	const auto portBuffer = jas->getPortBuffer(port, frames);
-
-	qsSleep.release(1);
-
-	if (!portBuffer || !buffer) {
-		return false;
-	}
-
-	// Ringbuffer will not exceed capacity, just drop the frames.
-	// Since the consumer drains it fully every time, this should never be a problem.
-	jas->ringbufferWrite(buffer, frames * sizeof(jack_default_audio_sample_t), portBuffer);
-
-	return true;
-}
-
-void JackAudioInput::run() {
-	if (!bReady) {
-		return;
-	}
-
-	// Initialization
-	if (g.s.bJackAutoConnect) {
-		connectPorts();
-	}
-
-	// We keep this as the frame size could change, but we are not going to resize this buffer.
-	qmWait.lock();
-	std::unique_ptr< uint8_t[] > sampleBuffer(new uint8_t[bufferSize]);
-	qmWait.unlock();
-
-	do {
-		qmWait.lock();
-
-		while (const auto bytes = qMin(jas->ringbufferReadSpace(buffer), bufferSize)) {
-			jas->ringbufferRead(buffer, bytes, sampleBuffer.get());
-			addMic(sampleBuffer.get(), bytes / sizeof(jack_default_audio_sample_t));
-		}
-
-		qmWait.unlock();
-		qsSleep.acquire(1);
-	} while (bReady);
-}
-
-JackAudioOutput::JackAudioOutput() : buffer(nullptr) {
-	bReady = activate();
-}
-
-JackAudioOutput::~JackAudioOutput() {
-	// Request interruption
-	qmWait.lock();
-	bReady = false;
-	qsSleep.release(1);
-	qmWait.unlock();
-
-	// Wait for thread to exit
-	wait();
-	// Cleanup
-	deactivate();
-}
-
-bool JackAudioOutput::isReady() {
-	return bReady;
-}
-
-bool JackAudioOutput::allocBuffer(const jack_nframes_t frames) {
-	QMutexLocker lock(&qmWait);
-
-	iFrameSize = frames;
-	if (buffer) {
-		jas->ringbufferFree(buffer);
-	}
-
-	buffer = jas->ringbufferCreate(iFrameSize * iSampleSize * JACK_BUFFER_PERIODS);
-	if (!buffer) {
-		return false;
-	}
-
-	jas->ringbufferMlock(buffer);
-
-	return true;
-}
-
-bool JackAudioOutput::activate() {
-	QMutexLocker lock(&qmWait);
-
-	if (!jas->isOk()) {
-		jas->initialize();
-	}
-
-	eSampleFormat = SampleFloat;
-	iChannels     = jas->outPorts();
-	iMixerFreq    = jas->sampleRate();
-	uint32_t channelsMask[32];
-	channelsMask[0] = SPEAKER_FRONT_LEFT;
-	channelsMask[1] = SPEAKER_FRONT_RIGHT;
-	initializeMixer(channelsMask);
-
-	lock.unlock();
-
-	if (!allocBuffer(jas->bufferSize())) {
-		return false;
-	}
-
-	if (!registerPorts()) {
-		return false;
-	}
-
-	if (!jas->activate()) {
-		return false;
-	}
-
-	return true;
-}
-
-void JackAudioOutput::deactivate() {
-	unregisterPorts();
-	jas->deactivate();
-	jas->ringbufferFree(buffer);
-}
-
-bool JackAudioOutput::registerPorts() {
-	unregisterPorts();
-
-	QMutexLocker lock(&qmWait);
-
-	for (decltype(iChannels) i = 0; i < iChannels; ++i) {
-		char name[10];
-		snprintf(name, sizeof(name), "output_%d", i + 1);
-
-		const auto port = jas->registerPort(name, JackPortIsOutput);
-		if (!port) {
-			qWarning("JackAudioOutput: unable to register port #%u", i);
-			return false;
-		}
-
-		ports.append(port);
-		outputBuffers.append(nullptr);
-	}
-
-	return true;
-}
-
-bool JackAudioOutput::unregisterPorts() {
-	QMutexLocker lock(&qmWait);
-
-	bool ret = true;
-
-	for (auto i = 0; i < ports.size(); ++i) {
-		if (!ports[i]) {
-			continue;
-		}
-
-		if (!jas->unregisterPort(ports[i])) {
-			qWarning("JackAudioOutput: unable to unregister port #%u", i);
-			ret = false;
-		}
-	}
-
-	outputBuffers.clear();
-	ports.clear();
-
-	return ret;
-}
-
-void JackAudioOutput::connectPorts() {
-	disconnectPorts();
-
-	QMutexLocker lock(&qmWait);
-
-	const auto inputPorts = jas->getPhysicalPorts(JackPortIsInput);
-	uint8_t i             = 0;
-
-	for (auto inputPort : inputPorts) {
-		if (i == ports.size()) {
-			break;
-		}
-
-		if (ports[i]) {
-			if (!jas->connectPort(ports[i], inputPort)) {
+	msg = mea;
+
+	setupUi(this);
+
+	qwChannel->setAccessibleName(tr("Properties"));
+	rteChannelDescription->setAccessibleName(tr("Description"));
+	qleChannelPassword->setAccessibleName(tr("Channel password"));
+	qsbChannelPosition->setAccessibleName(tr("Position"));
+	qsbChannelMaxUsers->setAccessibleName(tr("Maximum users"));
+	qleChannelName->setAccessibleName(tr("Channel name"));
+	qcbGroupList->setAccessibleName(tr("List of groups"));
+	qlwGroupAdd->setAccessibleName(tr("Inherited group members"));
+	qlwGroupRemove->setAccessibleName(tr("Foreign group members"));
+	qlwGroupInherit->setAccessibleName(tr("Inherited channel members"));
+	qcbGroupAdd->setAccessibleName(tr("Add members to group"));
+	qcbGroupRemove->setAccessibleName(tr("Remove member from group"));
+	qlwACLs->setAccessibleName(tr("List of ACL entries"));
+	qcbACLGroup->setAccessibleName(tr("Group this entry applies to"));
+	qcbACLUser->setAccessibleName(tr("User this entry applies to"));
+
+	qcbChannelTemporary->hide();
+
+	iId = mea.channel_id();
+	setWindowTitle(tr("Mumble - Edit %1").arg(Channel::get(iId)->qsName));
+
+	qlChannelID->setText(tr("ID: %1").arg(iId));
+
+	qleChannelName->setText(pChannel->qsName);
+	if (channelid == 0)
+		qleChannelName->setEnabled(false);
+
+	rteChannelDescription->setText(pChannel->qsDesc);
+
+	qsbChannelPosition->setRange(INT_MIN, INT_MAX);
+	qsbChannelPosition->setValue(pChannel->iPosition);
+
+	if (g.sh->uiVersion >= 0x010300) {
+		qsbChannelMaxUsers->setRange(0, INT_MAX);
+		qsbChannelMaxUsers->setValue(pChannel->uiMaxUsers);
+		qsbChannelMaxUsers->setSpecialValueText(tr("Default server value"));
+	} else {
+		qlChannelMaxUsers->hide();
+		qsbChannelMaxUsers->hide();
+	}
+
+	QGridLayout *grid = new QGridLayout(qgbACLpermissions);
+
+	l = new QLabel(tr("Deny"), qgbACLpermissions);
+	grid->addWidget(l, 0, 1);
+	l = new QLabel(tr("Allow"), qgbACLpermissions);
+	grid->addWidget(l, 0, 2);
+
+	int idx = 1;
+	for (int i = 0; i < ((iId == 0) ? 30 : 16); ++i) {
+		ChanACL::Perm perm = static_cast< ChanACL::Perm >(1 << i);
+		QString name       = ChanACL::permName(perm);
+
+		if (!name.isEmpty()) {
+			// If the server's version is less than 1.4.0 then it won't support the new permission to reset a
+			// comment/avatar. Skipping this iteration of the loop prevents checkboxes for it being added to the UI.
+			if ((g.sh->uiVersion < 0x010400) && (perm == ChanACL::ResetUserContent))
 				continue;
-			}
-		}
 
-		++i;
+			QCheckBox *qcb;
+			l = new QLabel(name, qgbACLpermissions);
+			grid->addWidget(l, idx, 0);
+			qcb = new QCheckBox(qgbACLpermissions);
+			qcb->setToolTip(tr("Deny %1").arg(name));
+			qcb->setWhatsThis(
+				tr("This revokes the %1 privilege. If a privilege is both allowed and denied, it is denied.<br />%2")
+					.arg(name)
+					.arg(ChanACL::whatsThis(perm)));
+			connect(qcb, SIGNAL(clicked(bool)), this, SLOT(ACLPermissions_clicked()));
+			grid->addWidget(qcb, idx, 1);
+
+			qlACLDeny << qcb;
+
+			qcb = new QCheckBox(qgbACLpermissions);
+			qcb->setToolTip(tr("Allow %1").arg(name));
+			qcb->setWhatsThis(
+				tr("This grants the %1 privilege. If a privilege is both allowed and denied, it is denied.<br />%2")
+					.arg(name)
+					.arg(ChanACL::whatsThis(perm)));
+			connect(qcb, SIGNAL(clicked(bool)), this, SLOT(ACLPermissions_clicked()));
+			grid->addWidget(qcb, idx, 2);
+
+			qlACLAllow << qcb;
+
+			qlPerms << perm;
+
+			++idx;
+		}
 	}
+	QSpacerItem *si = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+	grid->addItem(si, idx, 0);
+
+	connect(qcbGroupAdd->lineEdit(), SIGNAL(returnPressed()), qpbGroupAddAdd, SLOT(animateClick()));
+	connect(qcbGroupRemove->lineEdit(), SIGNAL(returnPressed()), qpbGroupRemoveAdd, SLOT(animateClick()));
+
+	foreach (User *u, ClientUser::c_qmUsers) {
+		if (u->iId >= 0) {
+			qhNameCache.insert(u->iId, u->qsName);
+			qhIDCache.insert(u->qsName.toLower(), u->iId);
+		}
+	}
+
+	ChanACL *def = new ChanACL(nullptr);
+
+	def->bApplyHere = true;
+	def->bApplySubs = true;
+	def->bInherited = true;
+	def->iUserId    = -1;
+	def->qsGroup    = QLatin1String("all");
+	def->pAllow =
+		ChanACL::Traverse | ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage | ChanACL::Listen;
+	def->pDeny = (~def->pAllow) & ChanACL::All;
+
+	qlACLs << def;
+
+	for (int i = 0; i < mea.acls_size(); ++i) {
+		const MumbleProto::ACL_ChanACL &as = mea.acls(i);
+
+		ChanACL *acl    = new ChanACL(nullptr);
+		acl->bApplyHere = as.apply_here();
+		acl->bApplySubs = as.apply_subs();
+		acl->bInherited = as.inherited();
+		acl->iUserId    = -1;
+		if (as.has_user_id())
+			acl->iUserId = as.user_id();
+		else
+			acl->qsGroup = u8(as.group());
+		acl->pAllow = static_cast< ChanACL::Permissions >(as.grant());
+		acl->pDeny  = static_cast< ChanACL::Permissions >(as.deny());
+
+		qlACLs << acl;
+	}
+
+	for (int i = 0; i < mea.groups_size(); ++i) {
+		const MumbleProto::ACL_ChanGroup &gs = mea.groups(i);
+
+		ACLGroup *gp     = new ACLGroup(u8(gs.name()));
+		gp->bInherit     = gs.inherit();
+		gp->bInherited   = gs.inherited();
+		gp->bInheritable = gs.inheritable();
+		for (int j = 0; j < gs.add_size(); ++j)
+			gp->qsAdd.insert(gs.add(j));
+		for (int j = 0; j < gs.remove_size(); ++j)
+			gp->qsRemove.insert(gs.remove(j));
+		for (int j = 0; j < gs.inherited_members_size(); ++j)
+			gp->qsTemporary.insert(gs.inherited_members(j));
+
+		qlGroups << gp;
+	}
+
+	iUnknown = -2;
+
+	numInheritACL = -1;
+
+	bInheritACL = mea.inherit_acls();
+	qcbACLInherit->setChecked(bInheritACL);
+
+	foreach (ChanACL *acl, qlACLs) {
+		if (acl->bInherited)
+			numInheritACL++;
+	}
+
+	refill(GroupAdd);
+	refill(GroupRemove);
+	refill(GroupInherit);
+	refill(ACLList);
+	refillGroupNames();
+
+	ACLEnableCheck();
+	groupEnableCheck();
+
+	updatePasswordField();
+
+	qleChannelName->setFocus();
+	adjustSize();
 }
 
-bool JackAudioOutput::disconnectPorts() {
-	QMutexLocker lock(&qmWait);
-
-	bool ret = true;
-
-	for (auto i = 0; i < ports.size(); ++i) {
-		if (ports[i] && !jas->disconnectPort(ports[i])) {
-			qWarning("JackAudioOutput: unable to disconnect port #%u", i);
-			ret = false;
-		}
-	}
-
-	return ret;
+ACLEditor::~ACLEditor() {
+	foreach (ChanACL *acl, qlACLs) { delete acl; }
+	foreach (ACLGroup *gp, qlGroups) { delete gp; }
 }
 
-bool JackAudioOutput::process(const jack_nframes_t frames) {
-	if (!bReady) {
-		return true;
-	}
-
-	// FIXME: This is good on Linux, and maybe Windows.
-	// However, on certain platforms QSemaphore actually uses QWaitCondition, which uses a Mutex internally for locking.
-	// This is in spite of the fact that on most POSIX systems, QMutex is actually implemented using semaphores.
-	qsSleep.release(1);
-
-	for (decltype(iChannels) currentChannel = 0; currentChannel < iChannels; ++currentChannel) {
-		auto outputBuffer = jas->getPortBuffer(ports[currentChannel], frames);
-		if (!outputBuffer) {
-			return false;
-		}
-
-		outputBuffers.replace(currentChannel, reinterpret_cast< jack_default_audio_sample_t * >(outputBuffer));
-	}
-
-	const auto avail = jas->ringbufferReadSpace(buffer);
-	if (avail == 0) {
-		for (decltype(iChannels) currentChannel = 0; currentChannel < iChannels; ++currentChannel) {
-			memset(outputBuffers[currentChannel], 0, frames * sizeof(jack_default_audio_sample_t));
-		}
-
-		return true;
-	}
-
-	const size_t needed = frames * iSampleSize;
-
-	if (iChannels == 1) {
-		jas->ringbufferRead(buffer, avail, reinterpret_cast< char * >(outputBuffers[0]));
-		if (avail < needed) {
-			memset(reinterpret_cast< char * >(&(outputBuffers[avail])), 0, needed - avail);
-		}
-
-		return true;
-	}
-
-	auto samples = qMin(jas->ringbufferReadSpace(buffer), needed) / sizeof(jack_default_audio_sample_t);
-	for (auto currentSample = decltype(samples){ 0 }; currentSample < samples; ++currentSample) {
-		jas->ringbufferRead(
-			buffer, sizeof(jack_default_audio_sample_t),
-			reinterpret_cast< char * >(&outputBuffers[currentSample % iChannels][currentSample / iChannels]));
-	}
-
-	if ((samples / iChannels) < frames) {
-		for (decltype(iChannels) currentChannel = 0; currentChannel < iChannels; ++currentChannel) {
-			memset(&outputBuffers[currentChannel][avail / samples], 0, (needed - avail) / iChannels);
-		}
-	}
-
-	return true;
+void ACLEditor::showEvent(QShowEvent *evt) {
+	ACLEnableCheck();
+	QDialog::showEvent(evt);
 }
 
-void JackAudioOutput::run() {
-	if (!bReady) {
+void ACLEditor::accept() {
+	Channel *pChannel = Channel::get(iChannel);
+	if (!pChannel) {
+		// Channel gone while editing
+		g.l->log(Log::Warning, tr("Failed: Invalid channel"));
+		QDialog::reject();
 		return;
 	}
 
-	// Initialization
-	if (g.s.bJackAutoConnect) {
-		connectPorts();
+	if (qleChannelName->text().isEmpty()) {
+		// Empty channel name
+		QMessageBox::warning(this, QLatin1String("Mumble"), tr("Channel must have a name"), QMessageBox::Ok);
+		qleChannelName->setFocus();
+		return;
 	}
 
-	std::unique_ptr< uint8_t[] > spareSample(new uint8_t[iSampleSize]);
+	// Update channel state
+	if (bAddChannelMode) {
+		g.sh->createChannel(iChannel, qleChannelName->text(), rteChannelDescription->text(),
+							qsbChannelPosition->value(), qcbChannelTemporary->isChecked(), qsbChannelMaxUsers->value());
+	} else {
+		bool needs_update = false;
 
-	jack_ringbuffer_data_t _writeVector[2];
-	jack_ringbuffer_data_t *writeVector = _writeVector;
+		updatePasswordACL();
 
-	// Keep feeding more data into the buffer
-	do {
-		qmWait.lock();
+		MumbleProto::ChannelState mpcs;
+		mpcs.set_channel_id(pChannel->iId);
+		if (pChannel->qsName != qleChannelName->text()) {
+			mpcs.set_name(u8(qleChannelName->text()));
+			needs_update = true;
+		}
+		if (rteChannelDescription->isModified() && (pChannel->qsDesc != rteChannelDescription->text())) {
+			const QString &descriptionText = rteChannelDescription->text();
+			mpcs.set_description(u8(descriptionText));
+			needs_update = true;
+			g.db->setBlob(sha1(descriptionText), descriptionText.toUtf8());
+		}
+		if (pChannel->iPosition != qsbChannelPosition->value()) {
+			mpcs.set_position(qsbChannelPosition->value());
+			needs_update = true;
+		}
+		if (pChannel->uiMaxUsers != static_cast< unsigned int >(qsbChannelMaxUsers->value())) {
+			mpcs.set_max_users(qsbChannelMaxUsers->value());
+			needs_update = true;
+		}
+		if (needs_update)
+			g.sh->sendMessage(mpcs);
 
-		if (jas->ringbufferWriteSpace(buffer) < (iFrameSize * iSampleSize)) {
-			qmWait.unlock();
-			qsSleep.acquire(1);
-			continue;
+		// Update ACL
+		msg.set_inherit_acls(bInheritACL);
+		msg.clear_acls();
+		msg.clear_groups();
+
+		foreach (ChanACL *acl, qlACLs) {
+			if (acl->bInherited || (acl->iUserId < -1))
+				continue;
+			MumbleProto::ACL_ChanACL *mpa = msg.add_acls();
+			mpa->set_apply_here(acl->bApplyHere);
+			mpa->set_apply_subs(acl->bApplySubs);
+			if (acl->iUserId != -1)
+				mpa->set_user_id(acl->iUserId);
+			else
+				mpa->set_group(u8(acl->qsGroup));
+			mpa->set_grant(acl->pAllow);
+			mpa->set_deny(acl->pDeny);
 		}
 
-		jas->ringbufferGetWriteVector(buffer, writeVector);
-
-		auto bOk             = true;
-		size_t writtenFrames = 0;
-		auto wanted          = qMin(writeVector->len / iSampleSize, static_cast< size_t >(iFrameSize));
-		if (wanted > 0) {
-			bOk = mix(writeVector->buf, wanted);
-			writtenFrames += bOk ? wanted : 0;
+		foreach (ACLGroup *gp, qlGroups) {
+			if (gp->bInherited && gp->bInherit && gp->bInheritable && (gp->qsAdd.count() == 0)
+				&& (gp->qsRemove.count() == 0))
+				continue;
+			MumbleProto::ACL_ChanGroup *mpg = msg.add_groups();
+			mpg->set_name(u8(gp->qsName));
+			mpg->set_inherit(gp->bInherit);
+			mpg->set_inheritable(gp->bInheritable);
+			foreach (int pid, gp->qsAdd)
+				if (pid >= 0)
+					mpg->add_add(pid);
+			foreach (int pid, gp->qsRemove)
+				if (pid >= 0)
+					mpg->add_remove(pid);
 		}
+		g.sh->sendMessage(msg);
+	}
+	QDialog::accept();
+}
 
-		const auto gap = writeVector->len - (wanted * iSampleSize);
 
-		if (!bOk || wanted == iFrameSize) {
-			goto next;
+const QString ACLEditor::userName(int pid) {
+	if (qhNameCache.contains(pid))
+		return qhNameCache.value(pid);
+	else
+		return QString::fromLatin1("#%1").arg(pid);
+}
+
+int ACLEditor::id(const QString &uname) {
+	QString name = uname.toLower();
+	if (qhIDCache.contains(name)) {
+		return qhIDCache.value(name);
+	} else {
+		if (!qhNameWait.contains(name)) {
+			MumbleProto::QueryUsers mpuq;
+			mpuq.add_names(u8(name));
+			g.sh->sendMessage(mpuq);
+
+			iUnknown--;
+			qhNameWait.insert(name, iUnknown);
+			qhNameCache.insert(iUnknown, name);
 		}
+		return qhNameWait.value(name);
+	}
+}
 
-		// Corner case where one sample wraps around the buffer
-		if (gap != 0) {
-			writeVector->buf += wanted * iSampleSize;
-			bOk = mix(spareSample.get(), 1);
-			if (bOk) {
-				memcpy(writeVector->buf, spareSample.get(), gap);
-				++writeVector;
-				memcpy(writeVector->buf, spareSample.get() + gap, iSampleSize - gap);
-				++wanted;
-				++writtenFrames;
-			} else {
-				goto next;
+void ACLEditor::returnQuery(const MumbleProto::QueryUsers &mqu) {
+	if (mqu.names_size() != mqu.ids_size())
+		return;
+
+	for (int i = 0; i < mqu.names_size(); ++i) {
+		int pid       = mqu.ids(i);
+		QString name  = u8(mqu.names(i));
+		QString lname = name.toLower();
+		qhIDCache.insert(lname, pid);
+		qhNameCache.insert(pid, name);
+
+		if (qhNameWait.contains(lname)) {
+			int tid = qhNameWait.take(lname);
+
+			foreach (ChanACL *acl, qlACLs)
+				if (acl->iUserId == tid)
+					acl->iUserId = pid;
+			foreach (ACLGroup *gp, qlGroups) {
+				if (gp->qsAdd.remove(tid))
+					gp->qsAdd.insert(pid);
+				if (gp->qsRemove.remove(tid))
+					gp->qsRemove.insert(pid);
 			}
-			writeVector->buf += iSampleSize - gap;
+			qhNameCache.remove(tid);
+		}
+	}
+	refillGroupInherit();
+	refillGroupRemove();
+	refillGroupAdd();
+	refillComboBoxes();
+	refillACL();
+}
+
+void ACLEditor::refill(WaitID wid) {
+	switch (wid) {
+		case ACLList:
+			refillACL();
+			break;
+		case GroupInherit:
+			refillGroupInherit();
+			break;
+		case GroupRemove:
+			refillGroupRemove();
+			break;
+		case GroupAdd:
+			refillGroupAdd();
+			break;
+	}
+}
+
+void ACLEditor::refillComboBoxes() {
+	QList< QComboBox * > ql;
+	ql << qcbGroupAdd;
+	ql << qcbGroupRemove;
+	ql << qcbACLUser;
+
+	QStringList names = qhNameCache.values();
+	names.sort();
+
+	foreach (QComboBox *qcb, ql) {
+		qcb->clear();
+		qcb->addItems(names);
+		qcb->clearEditText();
+	}
+}
+
+void ACLEditor::refillACL() {
+	int idx              = qlwACLs->currentRow();
+	bool previousinherit = bInheritACL;
+	bInheritACL          = qcbACLInherit->isChecked();
+
+	qlwACLs->clear();
+
+	bool first = true;
+
+	foreach (ChanACL *acl, qlACLs) {
+		if (first)
+			first = false;
+		else if (!bInheritACL && acl->bInherited)
+			continue;
+		QString text;
+		if (acl->iUserId == -1)
+			text = QString::fromLatin1("@%1").arg(acl->qsGroup);
+		else
+			text = userName(acl->iUserId);
+		QListWidgetItem *item = new QListWidgetItem(text, qlwACLs);
+		if (acl->bInherited) {
+			QFont f = item->font();
+			f.setItalic(true);
+			item->setFont(f);
+		}
+	}
+	if (bInheritACL && !previousinherit && (idx != 0))
+		idx += numInheritACL;
+	if (!bInheritACL && previousinherit)
+		idx -= numInheritACL;
+
+	qlwACLs->setCurrentRow(idx);
+}
+
+void ACLEditor::refillGroupNames() {
+	QString text = qcbGroupList->currentText().toLower();
+	QStringList qsl;
+
+	foreach (ACLGroup *gp, qlGroups) { qsl << gp->qsName; }
+	qsl.sort();
+
+	qcbGroupList->clear();
+
+	foreach (QString name, qsl) { qcbGroupList->addItem(name); }
+
+	int wantindex = qcbGroupList->findText(text, Qt::MatchFixedString);
+	qcbGroupList->setCurrentIndex(wantindex);
+}
+
+ACLGroup *ACLEditor::currentGroup() {
+	QString group = qcbGroupList->currentText();
+
+	foreach (ACLGroup *gp, qlGroups)
+		if (gp->qsName == group)
+			return gp;
+
+	group = group.toLower();
+
+	foreach (ACLGroup *gp, qlGroups)
+		if (gp->qsName == group)
+			return gp;
+
+	return nullptr;
+}
+
+ChanACL *ACLEditor::currentACL() {
+	int idx = qlwACLs->currentRow();
+	if (idx < 0)
+		return nullptr;
+
+	if (idx && !bInheritACL)
+		idx += numInheritACL;
+	return qlACLs[idx];
+}
+
+void ACLEditor::fillWidgetFromSet(QListWidget *qlw, const QSet< int > &qs) {
+	qlw->clear();
+
+	QList< idname > ql;
+	foreach (int pid, qs) { ql << idname(userName(pid), pid); }
+	std::stable_sort(ql.begin(), ql.end());
+	foreach (idname i, ql) {
+		QListWidgetItem *qlwi = new QListWidgetItem(i.first, qlw);
+		qlwi->setData(Qt::UserRole, i.second);
+		if (i.second < 0) {
+			QFont f = qlwi->font();
+			f.setItalic(true);
+			qlwi->setFont(f);
+		}
+	}
+}
+
+void ACLEditor::refillGroupAdd() {
+	ACLGroup *gp = currentGroup();
+
+	if (!gp)
+		return;
+
+	fillWidgetFromSet(qlwGroupAdd, gp->qsAdd);
+}
+
+void ACLEditor::refillGroupRemove() {
+	ACLGroup *gp = currentGroup();
+	if (!gp)
+		return;
+
+	fillWidgetFromSet(qlwGroupRemove, gp->qsRemove);
+}
+
+void ACLEditor::refillGroupInherit() {
+	ACLGroup *gp = currentGroup();
+
+	if (!gp)
+		return;
+
+	fillWidgetFromSet(qlwGroupInherit, gp->qsTemporary);
+}
+
+void ACLEditor::groupEnableCheck() {
+	ACLGroup *gp = currentGroup();
+
+	bool enabled;
+	if (!gp)
+		enabled = false;
+	else
+		enabled = gp->bInherit;
+
+	qlwGroupRemove->setEnabled(enabled);
+	qlwGroupInherit->setEnabled(enabled);
+	qcbGroupRemove->setEnabled(enabled);
+	qpbGroupRemoveAdd->setEnabled(enabled);
+	qpbGroupRemoveRemove->setEnabled(enabled);
+	qpbGroupInheritRemove->setEnabled(enabled);
+
+	enabled = gp;
+	qlwGroupAdd->setEnabled(enabled);
+	qcbGroupAdd->setEnabled(enabled);
+	qpbGroupAddAdd->setEnabled(enabled);
+	qpbGroupAddRemove->setEnabled(enabled);
+	qcbGroupInherit->setEnabled(enabled);
+	qcbGroupInheritable->setEnabled(enabled);
+
+	if (gp) {
+		qcbGroupInherit->setChecked(gp->bInherit);
+		qcbGroupInheritable->setChecked(gp->bInheritable);
+		qcbGroupInherited->setChecked(gp->bInherited);
+	}
+}
+
+void ACLEditor::ACLEnableCheck() {
+	ChanACL *as = currentACL();
+
+	bool enabled;
+	if (!as)
+		enabled = false;
+	else
+		enabled = !as->bInherited;
+
+	qpbACLRemove->setEnabled(enabled);
+	qpbACLUp->setEnabled(enabled);
+	qpbACLDown->setEnabled(enabled);
+	qcbACLApplyHere->setEnabled(enabled);
+	qcbACLApplySubs->setEnabled(enabled);
+	qcbACLGroup->setEnabled(enabled);
+	qcbACLUser->setEnabled(enabled);
+
+	for (int idx = 0; idx < qlACLAllow.count(); idx++) {
+		// Only enable other checkboxes if writeacl isn't set
+		bool enablethis = enabled
+						  && (qlPerms[idx] == ChanACL::Write || !(as && (as->pAllow & ChanACL::Write))
+							  || qlPerms[idx] == ChanACL::Speak);
+		qlACLAllow[idx]->setEnabled(enablethis);
+		qlACLDeny[idx]->setEnabled(enablethis);
+	}
+
+	if (as) {
+		qcbACLApplyHere->setChecked(as->bApplyHere);
+		qcbACLApplySubs->setChecked(as->bApplySubs);
+
+		for (int idx = 0; idx < qlACLAllow.count(); idx++) {
+			ChanACL::Perm p = qlPerms[idx];
+			qlACLAllow[idx]->setChecked(as->pAllow & p);
+			qlACLDeny[idx]->setChecked(as->pDeny & p);
+		}
+
+		qcbACLGroup->clear();
+		qcbACLGroup->addItem(QString());
+		qcbACLGroup->addItem(QLatin1String("all"));
+		qcbACLGroup->addItem(QLatin1String("auth"));
+		qcbACLGroup->addItem(QLatin1String("in"));
+		qcbACLGroup->addItem(QLatin1String("sub"));
+		qcbACLGroup->addItem(QLatin1String("out"));
+		qcbACLGroup->addItem(QLatin1String("~in"));
+		qcbACLGroup->addItem(QLatin1String("~sub"));
+		qcbACLGroup->addItem(QLatin1String("~out"));
+
+		foreach (ACLGroup *gs, qlGroups)
+			qcbACLGroup->addItem(gs->qsName);
+
+		if (as->iUserId == -1) {
+			qcbACLUser->clearEditText();
+			qcbACLGroup->addItem(as->qsGroup);
+			qcbACLGroup->setCurrentIndex(qcbACLGroup->findText(as->qsGroup, Qt::MatchExactly));
 		} else {
-			++writeVector;
+			qcbACLUser->setEditText(userName(as->iUserId));
+		}
+	}
+	foreach (QAbstractButton *b, qdbbButtons->buttons()) {
+		QPushButton *qpb = qobject_cast< QPushButton * >(b);
+		if (qpb) {
+			qpb->setAutoDefault(false);
+			qpb->setDefault(false);
+		}
+	}
+}
+
+void ACLEditor::on_qtwTab_currentChanged(int index) {
+	if (index == 0) {
+		// Switched to property tab, update password field
+		updatePasswordField();
+	} else if (index == 2) {
+		// Switched to ACL tab, update ACL list
+		updatePasswordACL();
+		refillACL();
+	}
+}
+
+void ACLEditor::updatePasswordField() {
+	// Search for an ACL that represents the current password
+	pcaPassword = nullptr;
+	foreach (ChanACL *acl, qlACLs) {
+		if (acl->isPassword()) {
+			pcaPassword = acl;
+		}
+	}
+	if (pcaPassword)
+		qleChannelPassword->setText(pcaPassword->qsGroup.mid(1));
+	else
+		qleChannelPassword->clear();
+}
+
+void ACLEditor::updatePasswordACL() {
+	if (qleChannelPassword->text().isEmpty()) {
+		// Remove the password if we had one to begin with
+		if (pcaPassword && qlACLs.removeOne(pcaPassword)) {
+			delete pcaPassword;
+
+			// Search and remove the @all deny ACL
+			ChanACL *denyall = nullptr;
+			foreach (ChanACL *acl, qlACLs) {
+				if (acl->qsGroup == QLatin1String("all") && acl->bInherited == false && acl->bApplyHere == true
+					&& acl->pAllow == ChanACL::None
+					&& (acl->pDeny
+							== (ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
+								| ChanACL::LinkChannel)
+						|| // Backwards compat with old behaviour that didn't deny traverse
+						acl->pDeny
+							== (ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
+								| ChanACL::LinkChannel | ChanACL::Traverse))) {
+					denyall = acl;
+				}
+			}
+			if (denyall) {
+				qlACLs.removeOne(denyall);
+				delete denyall;
+			}
+		}
+	} else {
+		// Add or Update
+		if (!pcaPassword || !qlACLs.contains(pcaPassword)) {
+			pcaPassword             = new ChanACL(nullptr);
+			pcaPassword->bApplyHere = true;
+			pcaPassword->bApplySubs = false;
+			pcaPassword->bInherited = false;
+			pcaPassword->pAllow     = ChanACL::None;
+			pcaPassword->pDeny      = ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
+								 | ChanACL::LinkChannel | ChanACL::Traverse;
+			pcaPassword->qsGroup = QLatin1String("all");
+			qlACLs << pcaPassword;
+
+			pcaPassword             = new ChanACL(nullptr);
+			pcaPassword->bApplyHere = true;
+			pcaPassword->bApplySubs = false;
+			pcaPassword->bInherited = false;
+			pcaPassword->pAllow     = ChanACL::Enter | ChanACL::Speak | ChanACL::Whisper | ChanACL::TextMessage
+								  | ChanACL::LinkChannel | ChanACL::Traverse;
+			pcaPassword->pDeny   = ChanACL::None;
+			pcaPassword->qsGroup = QString(QLatin1String("#%1")).arg(qleChannelPassword->text());
+			qlACLs << pcaPassword;
+		} else {
+			pcaPassword->qsGroup = QString(QLatin1String("#%1")).arg(qleChannelPassword->text());
+		}
+	}
+}
+
+void ACLEditor::on_qlwACLs_currentRowChanged() {
+	ACLEnableCheck();
+}
+
+void ACLEditor::on_qpbACLAdd_clicked() {
+	ChanACL *as    = new ChanACL(nullptr);
+	as->bApplyHere = true;
+	as->bApplySubs = true;
+	as->bInherited = false;
+	as->qsGroup    = QLatin1String("all");
+	as->iUserId    = -1;
+	as->pAllow     = ChanACL::None;
+	as->pDeny      = ChanACL::None;
+	qlACLs << as;
+	refillACL();
+	qlwACLs->setCurrentRow(qlwACLs->count() - 1);
+}
+
+void ACLEditor::on_qpbACLRemove_clicked() {
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	qlACLs.removeAll(as);
+	delete as;
+	refillACL();
+}
+
+void ACLEditor::on_qpbACLUp_clicked() {
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	int idx = qlACLs.indexOf(as);
+	if (idx <= numInheritACL + 1)
+		return;
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
+	qlACLs.swapItemsAt(idx - 1, idx);
+#else
+	qlACLs.swap(idx - 1, idx);
+#endif
+	qlwACLs->setCurrentRow(qlwACLs->currentRow() - 1);
+	refillACL();
+}
+
+void ACLEditor::on_qpbACLDown_clicked() {
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	int idx = qlACLs.indexOf(as) + 1;
+	if (idx >= qlACLs.count())
+		return;
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
+	qlACLs.swapItemsAt(idx - 1, idx);
+#else
+	qlACLs.swap(idx - 1, idx);
+#endif
+	qlwACLs->setCurrentRow(qlwACLs->currentRow() + 1);
+	refillACL();
+}
+
+void ACLEditor::on_qcbACLInherit_clicked(bool) {
+	refillACL();
+}
+
+void ACLEditor::on_qcbACLApplyHere_clicked(bool checked) {
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	as->bApplyHere = checked;
+}
+
+void ACLEditor::on_qcbACLApplySubs_clicked(bool checked) {
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	as->bApplySubs = checked;
+}
+
+void ACLEditor::on_qcbACLGroup_activated(const QString &text) {
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	as->iUserId = -1;
+
+	if (text.isEmpty()) {
+		qcbACLGroup->setCurrentIndex(1);
+		as->qsGroup = QLatin1String("all");
+	} else {
+		qcbACLUser->clearEditText();
+		as->qsGroup = text;
+	}
+	refillACL();
+}
+
+void ACLEditor::on_qcbACLUser_activated() {
+	QString text = qcbACLUser->currentText();
+
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	if (text.isEmpty()) {
+		as->iUserId = -1;
+		if (qcbACLGroup->currentIndex() == 0) {
+			qcbACLGroup->setCurrentIndex(1);
+			as->qsGroup = QLatin1String("all");
+		}
+		refillACL();
+	} else {
+		qcbACLGroup->setCurrentIndex(0);
+		as->iUserId = id(text);
+		refillACL();
+	}
+}
+
+void ACLEditor::ACLPermissions_clicked() {
+	QCheckBox *source = qobject_cast< QCheckBox * >(sender());
+
+	ChanACL *as = currentACL();
+	if (!as || as->bInherited)
+		return;
+
+	int allowed = 0;
+	int denied  = 0;
+
+	bool enabled       = true;
+	bool modifiedEnter = false;
+	for (int idx = 0; idx < qlACLAllow.count(); idx++) {
+		ChanACL::Perm p = qlPerms[idx];
+		if (qlACLAllow[idx]->isChecked() && qlACLDeny[idx]->isChecked()) {
+			if (source == qlACLAllow[idx])
+				qlACLDeny[idx]->setChecked(false);
+			else
+				qlACLAllow[idx]->setChecked(false);
 		}
 
-		if (wanted == iFrameSize) {
-			goto next;
+		if (p == ChanACL::Enter && (source == qlACLAllow[idx] || source == qlACLDeny[idx])) {
+			// Unchecking a checkbox is not counted as modifying the Enter privilege
+			// in this context
+			modifiedEnter = source->isChecked();
 		}
 
-		bOk = mix(writeVector->buf, iFrameSize - wanted);
-		writtenFrames += bOk ? (iFrameSize - wanted) : 0;
-	next:
-		jas->ringbufferWriteAdvance(buffer, writtenFrames * iSampleSize);
-		qmWait.unlock();
-		qsSleep.acquire(1);
-	} while (bReady);
+		if (p == ChanACL::Listen && modifiedEnter) {
+			// If Enter privileges are granted, also grant Listen privilege
+			// and vice versa.
+			// This is to make sure that people don't accidentally forget to
+			// modify the Listen permission when they modify the enter permission.
+			// Especially in the case of denying enter, this could potentially lead
+			// to confusion if people were still able to listen to a channel they can't
+			// enter.
+			// However the user still can allow/deny the Listen permission manually after
+			// having changed the enter permission.
+			if (denied & ChanACL::Enter) {
+				qlACLAllow[idx]->setChecked(false);
+				qlACLDeny[idx]->setChecked(true);
+			} else {
+				qlACLAllow[idx]->setChecked(true);
+				qlACLDeny[idx]->setChecked(false);
+			}
+		}
+
+		qlACLAllow[idx]->setEnabled(enabled || p == ChanACL::Speak);
+		qlACLDeny[idx]->setEnabled(enabled || p == ChanACL::Speak);
+
+		if (p == ChanACL::Write && qlACLAllow[idx]->isChecked())
+			enabled = false;
+
+		if (qlACLAllow[idx]->isChecked())
+			allowed |= p;
+		if (qlACLDeny[idx]->isChecked())
+			denied |= p;
+	}
+
+	as->pAllow = static_cast< ChanACL::Permissions >(allowed);
+	as->pDeny  = static_cast< ChanACL::Permissions >(denied);
+}
+
+void ACLEditor::on_qcbGroupList_activated(const QString &text) {
+	ACLGroup *gs = currentGroup();
+	if (text.isEmpty())
+		return;
+	if (!gs) {
+		QString name     = text.toLower();
+		gs               = new ACLGroup(name);
+		gs->bInherited   = false;
+		gs->bInherit     = true;
+		gs->bInheritable = true;
+		gs->qsName       = name;
+		qlGroups << gs;
+	}
+
+	refillGroupNames();
+	refillGroupAdd();
+	refillGroupRemove();
+	refillGroupInherit();
+	groupEnableCheck();
+	qpbGroupAdd->setEnabled(false);
+}
+
+void ACLEditor::on_qcbGroupList_editTextChanged(const QString &text) {
+	qpbGroupAdd->setEnabled(!text.isEmpty());
+}
+
+void ACLEditor::on_qpbGroupAdd_clicked() {
+	on_qcbGroupList_activated(qcbGroupList->currentText());
+}
+
+void ACLEditor::on_qpbGroupRemove_clicked() {
+	ACLGroup *gs = currentGroup();
+	if (!gs)
+		return;
+
+	if (gs->bInherited) {
+		gs->bInheritable = true;
+		gs->bInherit     = true;
+		gs->qsAdd.clear();
+		gs->qsRemove.clear();
+	} else {
+		qlGroups.removeAll(gs);
+		delete gs;
+	}
+	refillGroupNames();
+	refillGroupAdd();
+	refillGroupRemove();
+	refillGroupInherit();
+	groupEnableCheck();
+}
+
+void ACLEditor::on_qcbGroupInherit_clicked(bool checked) {
+	ACLGroup *gs = currentGroup();
+	if (!gs)
+		return;
+
+	gs->bInherit = checked;
+	groupEnableCheck();
+}
+
+void ACLEditor::on_qcbGroupInheritable_clicked(bool checked) {
+	ACLGroup *gs = currentGroup();
+	if (!gs)
+		return;
+
+	gs->bInheritable = checked;
+}
+
+void ACLEditor::on_qpbGroupAddAdd_clicked() {
+	ACLGroup *gs = currentGroup();
+	QString text = qcbGroupAdd->currentText();
+
+	if (!gs)
+		return;
+
+	if (text.isEmpty())
+		return;
+
+	gs->qsAdd << id(text);
+	refillGroupAdd();
+	qcbGroupAdd->clearEditText();
+}
+
+void ACLEditor::on_qpbGroupAddRemove_clicked() {
+	ACLGroup *gs = currentGroup();
+	if (!gs)
+		return;
+
+	QListWidgetItem *item = qlwGroupAdd->currentItem();
+	if (!item)
+		return;
+
+	gs->qsAdd.remove(item->data(Qt::UserRole).toInt());
+	refillGroupAdd();
+	qcbGroupRemove->clearEditText();
+}
+
+void ACLEditor::on_qpbGroupRemoveAdd_clicked() {
+	QString text = qcbGroupRemove->currentText();
+
+	ACLGroup *gs = currentGroup();
+	if (!gs)
+		return;
+
+	if (text.isEmpty())
+		return;
+
+	gs->qsRemove << id(text);
+	refillGroupRemove();
+}
+
+void ACLEditor::on_qpbGroupRemoveRemove_clicked() {
+	ACLGroup *gs = currentGroup();
+	if (!gs)
+		return;
+
+	QListWidgetItem *item = qlwGroupRemove->currentItem();
+	if (!item)
+		return;
+
+	gs->qsRemove.remove(item->data(Qt::UserRole).toInt());
+	refillGroupRemove();
+}
+
+void ACLEditor::on_qpbGroupInheritRemove_clicked() {
+	ACLGroup *gs = currentGroup();
+	if (!gs)
+		return;
+
+	QListWidgetItem *item = qlwGroupInherit->currentItem();
+	if (!item)
+		return;
+
+	gs->qsRemove.insert(item->data(Qt::UserRole).toInt());
+	refillGroupRemove();
 }
