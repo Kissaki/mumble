@@ -3,82 +3,306 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_XBOXINPUT_H_
-#define MUMBLE_MUMBLE_XBOXINPUT_H_
+#include "Zeroconf.h"
 
-#include "win.h"
+#define SYMBOL_EXISTS(symbol) (GetProcAddress(handle, symbol))
 
-#include <QUuid>
+Zeroconf::Zeroconf() : m_ok(false) {
+	qRegisterMetaType< uint16_t >("uint16_t");
+	qRegisterMetaType< BonjourRecord >("BonjourRecord");
+	qRegisterMetaType< QList< BonjourRecord > >("QList<BonjourRecord>");
+#ifdef Q_OS_WIN64
+	static bool winDnsUnavailable = false;
+	if (!winDnsUnavailable) {
+		auto handle = GetModuleHandle(L"dnsapi.dll");
+		if (handle) {
+			if (SYMBOL_EXISTS("DnsServiceBrowse") && SYMBOL_EXISTS("DnsServiceBrowseCancel")
+				&& SYMBOL_EXISTS("DnsServiceResolve") && SYMBOL_EXISTS("DnsServiceResolveCancel")
+				&& SYMBOL_EXISTS("DnsServiceFreeInstance")) {
+				m_ok = true;
+				return;
+			}
+		}
 
-#include <stdint.h>
+		winDnsUnavailable = true;
+		qWarning("Zeroconf: Native mDNS/DNS-SD API not available, falling back to third-party API");
+	}
 
-/// XBOXINPUT_MAX_DEVICES defines the maximum
-/// number of devices that can be connected
-/// to the system at once.
-///
-/// In typical operation, one calls GetState()
-/// in a loop bounded by XBOXINPUT_MAX_DEVICES.
-#define XBOXINPUT_MAX_DEVICES 4
+	static bool dnssdLoadFailed = false;
+	if (!dnssdLoadFailed) {
+		auto handle = LoadLibrary(L"dnssd.DLL");
+		if (!handle) {
+			dnssdLoadFailed = true;
+			qWarning("Zeroconf: Failed to load dnssd.dll, assuming third-party API is not available");
+			return;
+		}
+		FreeLibrary(handle);
+	}
+#endif
+	resetHelperBrowser();
+	resetHelperResolver();
 
-/// XBOXINPUT_TRIGGER_THRESHOLD defines the thresold
-/// that an analog trigger (leftTrigger and
-/// rightTrigger of XboxInputState) must have exceeded
-/// in order to count as a button press.
-#define XBOXINPUT_TRIGGER_THRESHOLD 30
+	m_ok = true;
+}
 
-/// XboxInputState represents the state of an
-/// Xbox controller as returned by GetState().
-struct XboxInputState {
-	uint32_t packetNumber;
-	uint16_t buttons;
-	uint8_t leftTrigger;
-	uint8_t rightTrigger;
-	uint16_t leftThumbX;
-	uint16_t leftThumbY;
-	uint16_t rightThumbY;
-	uint16_t rightThumbX;
-	uint32_t paddingReserved; // Required for XInputGetStateEx. Not required for XInputGetState.
-};
+Zeroconf::~Zeroconf() {
+	if (!m_helperBrowser) {
+		stopBrowser();
+	}
 
-typedef uint32_t(WINAPI *XboxInputGetStateFunc)(uint32_t deviceIndex, XboxInputState *state);
+	if (!m_helperResolver) {
+		cleanupResolvers();
+	}
+}
 
-/// XboxInput is an XInput wrapper that dynamically loads an appropriate
-/// xinput*.dll on construction and provides access to its GetState(Ex)
-/// function.
-class XboxInput {
-public:
-	XboxInput();
-	virtual ~XboxInput();
+void Zeroconf::resetHelperBrowser() {
+	m_helperBrowser.reset(new BonjourServiceBrowser(this));
+	connect(m_helperBrowser.get(), &BonjourServiceBrowser::currentBonjourRecordsChanged, this,
+			&Zeroconf::helperBrowserRecordsChanged);
+	connect(m_helperBrowser.get(), &BonjourServiceBrowser::error, this, &Zeroconf::helperBrowserError);
+}
 
-	/// s_XboxInputGuid is the GUID used by GlobalShortcut_win
-	/// to distinguish XboxInputLibrary's events from other event
-	/// soures.
-	static const QUuid s_XboxInputGuid;
+void Zeroconf::resetHelperResolver() {
+	m_helperResolver.reset(new BonjourServiceResolver(this));
+	connect(m_helperResolver.get(), &BonjourServiceResolver::bonjourRecordResolved, this,
+			&Zeroconf::helperResolverRecordResolved);
+	connect(m_helperResolver.get(), &BonjourServiceResolver::error, this, &Zeroconf::helperResolverError);
+}
 
-	/// isValid determines wheter the XboxInputLibrary
-	/// is usable.
-	bool isValid() const;
+bool Zeroconf::startBrowser(const QString &serviceType) {
+	if (!m_ok) {
+		return false;
+	}
 
-	/// Query the state of the Xbox controller at deviceIndex.
-	/// If the function succeeds, it returns 0 (Windows's ERROR_SUCCESS).
-	/// If no device is connected, it returns 0x48F (Windows's ERROR_DEVICE_NOT_CONNECTED).
-	XboxInputGetStateFunc GetState;
+	stopBrowser();
 
-protected:
-	/// m_getStateFunc represents XInputGetState from the XInput DLL.
-	XboxInputGetStateFunc m_getStateFunc;
+	if (m_helperBrowser) {
+		m_helperBrowser->browseForServiceType(serviceType);
+		return true;
+	}
+#ifdef Q_OS_WIN64
+	const QString queryName = serviceType + QLatin1String(".local");
 
-	/// m_getStateFuncEx represents XInputGetStateEx, which is optionally
-	/// available in the XInput DLL.
-	XboxInputGetStateFunc m_getStateExFunc;
+	DNS_SERVICE_BROWSE_REQUEST request{};
+	request.Version         = DNS_QUERY_REQUEST_VERSION1;
+	request.QueryName       = reinterpret_cast< LPCWSTR >(queryName.utf16());
+	request.pBrowseCallback = callbackBrowseComplete;
+	request.pQueryContext   = this;
 
-	/// m_xinputlib is the handle to the XInput DLL as returned by
-	/// LoadLibrary.
-	HMODULE m_xinputlib;
+	m_cancelBrowser.reset(new DNS_SERVICE_CANCEL{});
+	const auto ret = DnsServiceBrowse(&request, m_cancelBrowser.get());
+	if (ret == DNS_REQUEST_PENDING) {
+		return true;
+	}
 
-	/// m_valid determines whether or not the XboxInputLibrary
-	/// is valid for use.
-	bool m_valid;
-};
+	m_cancelBrowser.reset();
+	qWarning("Zeroconf: DnsServiceBrowse() failed with error %u!", ret);
+#endif
+	return false;
+}
 
+bool Zeroconf::stopBrowser() {
+	if (!m_ok) {
+		return false;
+	}
+
+	if (m_helperBrowser) {
+		resetHelperBrowser();
+		return true;
+	}
+#ifdef Q_OS_WIN64
+	if (m_cancelBrowser) {
+		const auto ret = DnsServiceBrowseCancel(m_cancelBrowser.get());
+		if (ret == ERROR_SUCCESS || ret == ERROR_CANCELLED) {
+			m_cancelBrowser.reset();
+			return true;
+		}
+
+		qWarning("Zeroconf: DnsServiceBrowseCancel() failed with error %u!", ret);
+		return false;
+	}
+#endif
+	return true;
+}
+
+bool Zeroconf::startResolver(const BonjourRecord &record) {
+	if (!m_ok) {
+		return false;
+	}
+
+	if (m_helperResolver) {
+		m_helperResolver->resolveBonjourRecord(record);
+		return true;
+	}
+#ifdef Q_OS_WIN64
+	stopResolver(record);
+
+	auto qualifiedHostname = record.serviceName.toStdWString() + L"." + record.registeredType.toStdWString()
+							 + record.replyDomain.toStdWString();
+
+	m_resolvers.append(Resolver(this, record));
+	auto context = &m_resolvers.last();
+
+	DNS_SERVICE_RESOLVE_REQUEST request{};
+	request.Version                    = DNS_QUERY_REQUEST_VERSION1;
+	request.QueryName                  = &qualifiedHostname[0];
+	request.pResolveCompletionCallback = &Zeroconf::callbackResolveComplete;
+	request.pQueryContext              = context;
+
+	const auto ret = DnsServiceResolve(&request, &context->m_cancel);
+	if (ret == DNS_REQUEST_PENDING) {
+		return true;
+	}
+
+	m_resolvers.removeLast();
+
+	qWarning("Zeroconf: DnsServiceResolve() failed with error %u!", ret);
+#endif
+	return false;
+}
+#ifdef Q_OS_WIN64
+bool Zeroconf::stopResolver(const BonjourRecord &record) {
+	if (!m_ok) {
+		return false;
+	}
+
+	Resolver tmp(this, record);
+	if (!m_resolvers.contains(tmp)) {
+		return true;
+	}
+
+	auto resolver = m_resolvers[m_resolvers.indexOf(tmp)];
+	return stopResolver(resolver);
+}
+
+bool Zeroconf::stopResolver(Resolver &resolver) {
+	if (!m_ok) {
+		return false;
+	}
+
+	const auto ret = DnsServiceResolveCancel(&resolver.m_cancel);
+	if (ret == ERROR_SUCCESS || ret == ERROR_CANCELLED) {
+		return true;
+	}
+
+	qWarning("Zeroconf: DnsServiceResolveCancel() failed with error %u!", ret);
+	return false;
+}
+#endif
+bool Zeroconf::cleanupResolvers() {
+	if (!m_ok) {
+		return false;
+	}
+
+	if (m_helperResolver) {
+		resetHelperResolver();
+		return true;
+	}
+
+	auto result = true;
+#ifdef Q_OS_WIN64
+	for (auto i = 0; i < m_resolvers.size(); ++i) {
+		if (!stopResolver(m_resolvers[i])) {
+			result = false;
+		}
+	}
+
+	m_resolvers.clear();
+#endif
+	return result;
+}
+
+void Zeroconf::helperBrowserRecordsChanged(const QList< BonjourRecord > &records) {
+	emit recordsChanged(records);
+}
+
+void Zeroconf::helperResolverRecordResolved(const BonjourRecord record, const QString hostname, const int port) {
+	emit recordResolved(record, hostname, port);
+}
+
+void Zeroconf::helperBrowserError(const DNSServiceErrorType error) const {
+	qWarning("Zeroconf: Third-party browser API reports error %d", error);
+}
+
+void Zeroconf::helperResolverError(const BonjourRecord record, const DNSServiceErrorType error) {
+	qWarning("Zeroconf: Third-party resolver API reports error %d", error);
+	emit resolveError(record);
+}
+#ifdef Q_OS_WIN64
+void WINAPI Zeroconf::callbackBrowseComplete(const DWORD status, void *context, DNS_RECORD *records) {
+	auto zeroconf = static_cast< Zeroconf * >(context);
+	zeroconf->m_cancelBrowser.reset();
+
+	if (status != ERROR_SUCCESS) {
+		if (records) {
+			DnsRecordListFree(records, DnsFreeRecordList);
+		}
+
+		if (status != ERROR_CANCELLED) {
+			qWarning("Zeroconf: DnsServiceBrowse() reports status code %u, ignoring results", status);
+		}
+
+		return;
+	}
+
+	if (!records) {
+		return;
+	}
+
+	bool changed = false;
+
+	for (auto cur = records; cur; cur = cur->pNext) {
+		if (cur->wType != DNS_TYPE_PTR) {
+			continue;
+		}
+
+		// Example: "_mumble._tcp.local".
+		const auto domain = QString::fromWCharArray(cur->pName);
+		// Example: "Test._mumble._tcp.local".
+		const auto hostname = QString::fromWCharArray(cur->Data.PTR.pNameHost);
+
+		BonjourRecord record;
+		record.serviceName = hostname.left(hostname.lastIndexOf(domain));
+		// Trim trailing ".".
+		record.serviceName.resize(record.serviceName.size() - 1);
+
+		record.replyDomain    = domain.mid(domain.lastIndexOf('.'));
+		record.registeredType = domain.left(domain.lastIndexOf(record.replyDomain));
+
+		if (!zeroconf->m_records.contains(record)) {
+			zeroconf->m_records.append(record);
+			changed = true;
+		}
+	}
+
+	DnsRecordListFree(records, DnsFreeRecordList);
+
+	if (changed) {
+		emit zeroconf->recordsChanged(zeroconf->m_records);
+	}
+}
+
+void WINAPI Zeroconf::callbackResolveComplete(const DWORD status, void *context, DNS_SERVICE_INSTANCE *instance) {
+	if (status != ERROR_SUCCESS) {
+		if (instance) {
+			DnsServiceFreeInstance(instance);
+		}
+
+		if (status != ERROR_CANCELLED) {
+			qWarning("Zeroconf: DnsServiceResolve() reports status code %u, ignoring result", status);
+		}
+
+		return;
+	}
+
+	if (!instance) {
+		return;
+	}
+
+	auto resolverContext = static_cast< Resolver * >(context);
+	emit resolverContext->m_zeroconf->recordResolved(resolverContext->m_record,
+													 QString::fromWCharArray(instance->pszHostName), instance->wPort);
+
+	DnsServiceFreeInstance(instance);
+}
 #endif
