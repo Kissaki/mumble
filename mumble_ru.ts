@@ -3,76 +3,69 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_ZEROCONF_H_
-#define MUMBLE_MUMBLE_ZEROCONF_H_
+#ifndef MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
+#define MUMBLE_MUMBLE_WASAPINOTIFICATIONCLIENT_H_
 
-#include "BonjourServiceBrowser.h"
-#include "BonjourServiceResolver.h"
+#include <QtCore/QMutex>
+#include <QtCore/QObject>
+#include <mmdeviceapi.h>
 
-#include <memory>
-
-#ifdef Q_OS_WIN64
-#	include <windns.h>
-#endif
-
-class Zeroconf : public QObject {
-private:
+/**
+ * @brief Singleton for acting on WASAPINotification events for given devices.
+ */
+class WASAPINotificationClient : public QObject, public IMMNotificationClient {
 	Q_OBJECT
-	Q_DISABLE_COPY(Zeroconf)
-protected:
-#ifdef Q_OS_WIN64
-	struct Resolver {
-		Zeroconf *m_zeroconf;
-		BonjourRecord m_record;
-		DNS_SERVICE_CANCEL m_cancel;
-
-		bool operator==(const Resolver &other) const { return m_record == other.m_record; }
-
-		Resolver(Zeroconf *zeroconf, const BonjourRecord &record) : m_zeroconf(zeroconf), m_record(record){};
-	};
-#endif
-	bool m_ok;
-	QList< BonjourRecord > m_records;
-	std::unique_ptr< BonjourServiceBrowser > m_helperBrowser;
-	std::unique_ptr< BonjourServiceResolver > m_helperResolver;
-#ifdef Q_OS_WIN64
-	QList< Resolver > m_resolvers;
-	std::unique_ptr< DNS_SERVICE_CANCEL > m_cancelBrowser;
-
-	bool stopResolver(Resolver &resolver);
-
-	static void WINAPI callbackBrowseComplete(const DWORD status, void *context, DNS_RECORD *records);
-	static void WINAPI callbackResolveComplete(const DWORD status, void *context, DNS_SERVICE_INSTANCE *instance);
-#endif
-	void resetHelperBrowser();
-	void resetHelperResolver();
-
-	void helperBrowserRecordsChanged(const QList< BonjourRecord > &records);
-	void helperResolverRecordResolved(const BonjourRecord record, const QString hostname, const int port);
-	void helperBrowserError(const DNSServiceErrorType error) const;
-	void helperResolverError(const BonjourRecord record, const DNSServiceErrorType error);
-
 public:
-	inline bool isOk() const { return m_ok; }
-	inline QList< BonjourRecord > currentRecords() const {
-		return m_helperBrowser ? m_helperBrowser->currentRecords() : m_records;
-	}
+	/* IMMNotificationClient interface */
+	HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDevice);
+	HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key);
+	HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId);
+	HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId);
+	HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState);
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface);
+	ULONG STDMETHODCALLTYPE AddRef();
+	ULONG STDMETHODCALLTYPE Release();
 
-	bool startBrowser(const QString &serviceType);
-	bool stopBrowser();
+	/* Enlist/Unlist functionality */
+	void enlistDefaultDeviceAsUsed(LPCWSTR pwstrDefaultDevice);
 
-	bool startResolver(const BonjourRecord &record);
-#ifdef Q_OS_WIN64
-	bool stopResolver(const BonjourRecord &record);
-#endif
-	bool cleanupResolvers();
+	void enlistDeviceAsUsed(LPCWSTR pwstrDevice);
+	void enlistDeviceAsUsed(const QString &device);
 
-	Zeroconf();
-	~Zeroconf();
+	void unlistDevice(LPCWSTR pwstrDevice);
+
+	void clearUsedDefaultDeviceList();
+	void clearUsedDeviceLists();
+
+	/**
+	 * @return Singleton instance reference.
+	 */
+	static WASAPINotificationClient &get();
+
+private:
+	WASAPINotificationClient();
+	~WASAPINotificationClient() Q_DECL_OVERRIDE;
+
+	WASAPINotificationClient(const WASAPINotificationClient &);
+	WASAPINotificationClient &operator=(const WASAPINotificationClient &);
+
+	static WASAPINotificationClient &doGet();
+	static void doGetOnce();
+
+	void restartAudio();
+
+	/* _fu = Non locking versions */
+	void _clearUsedDeviceLists();
+	void _enlistDeviceAsUsed(const QString &device);
+
+	QStringList usedDefaultDevices;
+	QStringList usedDevices;
+	IMMDeviceEnumerator *pEnumerator;
+	LONG _cRef;
+	QMutex listsMutex;
+
 signals:
-	void recordsChanged(const QList< BonjourRecord > &records);
-	void recordResolved(const BonjourRecord record, const QString hostname, const uint16_t port);
-	void resolveError(const BonjourRecord record);
+	void doResetAudio();
 };
 
-#endif
+#endif // WASAPINOTIFICATIONCLIENT_H_
