@@ -3,419 +3,656 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#define _USE_MATH_DEFINES
+#include "OverlayClient.h"
+#include "Channel.h"
+#include "Database.h"
+#include "MainWindow.h"
+#include "Message.h"
+#include "NetworkConfig.h"
+#include "OverlayEditor.h"
+#include "OverlayPositionableItem.h"
+#include "OverlayText.h"
+#include "ServerHandler.h"
+#include "Themes.h"
+#include "User.h"
+#include "Utils.h"
+#include "GlobalShortcut.h"
 
-#include <QtCore/QtCore>
-#include <QtGui/QtGui>
-#include <QtWidgets/QMessageBox>
+#ifdef Q_OS_WIN
+#	include <QtGui/QBitmap>
+#endif
 
-#include "ManualPlugin.h"
-#include "ui_ManualPlugin.h"
-#include <QPointer>
+#include <QtGui/QImageReader>
+#include <QtWidgets/QGraphicsProxyWidget>
 
-#include <float.h>
-
-#include "../../plugins/mumble_plugin.h"
+#ifdef Q_OS_WIN
+#	include <psapi.h>
+#endif
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-static QPointer< Manual > mDlg = nullptr;
-static bool bLinkable          = false;
-static bool bActive            = true;
+OverlayClient::OverlayClient(QLocalSocket *socket, QObject *p)
+	: QObject(p), framesPerSecond(0), ougUsers(&g.s.os), iMouseX(0), iMouseY(0) {
+	qlsSocket = socket;
+	qlsSocket->setParent(nullptr);
+	connect(qlsSocket, SIGNAL(readyRead()), this, SLOT(readyRead()));
 
-static int iAzimuth   = 180;
-static int iElevation = 0;
+	omMsg.omh.iLength = -1;
+	smMem             = nullptr;
+	uiWidth = uiHeight = 0;
 
-static const QString defaultContext  = QString::fromLatin1("Mumble");
-static const QString defaultIdentity = QString::fromLatin1("Agent47");
+	uiPid = ~0ULL;
 
-static struct {
-	float avatar_pos[3];
-	float avatar_front[3];
-	float avatar_top[3];
-	float camera_pos[3];
-	float camera_front[3];
-	float camera_top[3];
-	std::string context;
-	std::wstring identity;
-} my = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, std::string(), std::wstring() };
+	bWasVisible = false;
+	bDelete     = false;
 
-Manual::Manual(QWidget *p) : QDialog(p) {
-	setupUi(this);
+	qgv.setScene(&qgs);
+	qgv.installEventFilter(this);
+	qgv.viewport()->installEventFilter(this);
 
-	qgvPosition->viewport()->installEventFilter(this);
-	qgvPosition->scale(1.0f, 1.0f);
-	qgsScene = new QGraphicsScene(QRectF(-5.0f, -5.0f, 10.0f, 10.0f), this);
+	// Make sure it has a native window id
+	qgv.winId();
 
-	const float indicatorDiameter = 4.0f;
-	QPainterPath indicator;
-	// The center of the indicator's circle will represent the current position
-	indicator.addEllipse(QRectF(-indicatorDiameter / 2, -indicatorDiameter / 2, indicatorDiameter, indicatorDiameter));
-	// A line will indicate the indicator's orientation (azimuth)
-	indicator.moveTo(0, indicatorDiameter / 2);
-	indicator.lineTo(0, indicatorDiameter);
+	qgpiCursor.reset(new OverlayMouse());
+	qgpiCursor->hide();
+	qgpiCursor->setZValue(10.0f);
 
-	qgiPosition = qgsScene->addPath(indicator);
+	ougUsers.setZValue(-1.0f);
+	qgs.addItem(&ougUsers);
+	ougUsers.show();
 
-	qgvPosition->setScene(qgsScene);
-	qgvPosition->fitInView(-5.0f, -5.0f, 10.0f, 10.0f, Qt::KeepAspectRatio);
+	qgpiFPS.reset(new OverlayPositionableItem(&g.s.os.qrfFps));
+	qgs.addItem(qgpiFPS.data());
+	qgpiFPS->setPos(g.s.os.qrfFps.x(), g.s.os.qrfFps.y());
+	qgpiFPS->show();
 
-	qdsbX->setRange(-FLT_MAX, FLT_MAX);
-	qdsbY->setRange(-FLT_MAX, FLT_MAX);
-	qdsbZ->setRange(-FLT_MAX, FLT_MAX);
+	// Time
+	qgpiTime.reset(new OverlayPositionableItem(&g.s.os.qrfTime));
+	qgs.addItem(qgpiTime.data());
+	qgpiTime->setPos(g.s.os.qrfTime.x(), g.s.os.qrfTime.y());
+	qgpiTime->show();
 
-	qdsbX->setValue(my.avatar_pos[0]);
-	qdsbY->setValue(my.avatar_pos[1]);
-	qdsbZ->setValue(my.avatar_pos[2]);
+	iOffsetX = iOffsetY = 0;
 
-	qpbActivated->setChecked(bActive);
-	qpbLinked->setChecked(bLinkable);
-
-	qsbAzimuth->setValue(iAzimuth);
-	qsbElevation->setValue(iElevation);
-	updateTopAndFront(iAzimuth, iElevation);
-
-	// Set context and identity to default values in order to
-	// a) make positional audio work out of the box (needs a context)
-	// b) make the user aware of what each field might contain
-	qleContext->setText(defaultContext);
-	qleIdentity->setText(defaultIdentity);
-	my.context  = defaultContext.toStdString();
-	my.identity = defaultIdentity.toStdWString();
-
-	qsbSilentUserDisplaytime->setValue(g.s.manualPlugin_silentUserDisplaytime);
-
-	updateLoopRunning.store(false);
+	connect(&qgs, SIGNAL(changed(const QList< QRectF > &)), this, SLOT(changed(const QList< QRectF > &)));
 }
 
-void Manual::setSpeakerPositions(const QHash< unsigned int, Position2D > &positions) {
-	if (mDlg) {
-		QMetaObject::invokeMethod(mDlg, "on_speakerPositionUpdate", Qt::QueuedConnection,
-								  Q_ARG(PositionMap, positions));
+OverlayClient::~OverlayClient() {
+	qlsSocket->disconnectFromServer();
+	if (!qlsSocket->waitForDisconnected(1000)) {
+		qDebug() << "OverlayClient: Failed to cleanly disconnect: " << qlsSocket->errorString();
+		qlsSocket->abort();
+	}
+
+	qlsSocket->deleteLater();
+
+	ougUsers.reset();
+}
+
+bool OverlayClient::eventFilter(QObject *o, QEvent *e) {
+	if (e->type() == QEvent::Paint) {
+		e->accept();
+		return true;
+	}
+	return QObject::eventFilter(o, e);
+}
+
+void OverlayClient::updateFPS() {
+	if (g.s.os.bFps) {
+		const BasepointPixmap &pm =
+			OverlayTextLine(QString(QLatin1String("%1")).arg(iroundf(framesPerSecond + 0.5f)), g.s.os.qfFps)
+				.createPixmap(g.s.os.qcFps);
+		qgpiFPS->setVisible(true);
+		qgpiFPS->setPixmap(pm);
+		// offset to use basepoint
+		// TODO: settings are providing a top left anchor, so shift down by ascent
+		qgpiFPS->setOffset(-pm.qpBasePoint + QPoint(0, pm.iAscent));
+		qgpiFPS->updateRender();
+	} else {
+		qgpiFPS->setVisible(false);
 	}
 }
 
-bool Manual::eventFilter(QObject *obj, QEvent *evt) {
-	if ((evt->type() == QEvent::MouseButtonPress) || (evt->type() == QEvent::MouseMove)) {
-		QMouseEvent *qme = dynamic_cast< QMouseEvent * >(evt);
-		if (qme) {
-			if (qme->buttons() & Qt::LeftButton) {
-				QPointF qpf = qgvPosition->mapToScene(qme->pos());
-				qdsbX->setValue(qpf.x());
-				qdsbZ->setValue(-qpf.y());
-				qgiPosition->setPos(qpf);
-			}
-		}
-	}
-	return QDialog::eventFilter(obj, evt);
-}
-
-void Manual::changeEvent(QEvent *e) {
-	QDialog::changeEvent(e);
-	switch (e->type()) {
-		case QEvent::LanguageChange:
-			retranslateUi(this);
-			break;
-		default:
-			break;
+void OverlayClient::updateTime() {
+	if (g.s.os.bTime) {
+		const BasepointPixmap &pm =
+			OverlayTextLine(QString(QLatin1String("%1")).arg(QTime::currentTime().toString()), g.s.os.qfFps)
+				.createPixmap(g.s.os.qcFps);
+		qgpiTime->setVisible(true);
+		qgpiTime->setPixmap(pm);
+		qgpiTime->setOffset(-pm.qpBasePoint + QPoint(0, pm.iAscent));
+		qgpiTime->updateRender();
+	} else {
+		qgpiTime->setVisible(false);
 	}
 }
 
-void Manual::on_qpbUnhinge_pressed() {
-	qpbUnhinge->setEnabled(false);
-	mDlg->setParent(nullptr);
-	mDlg->show();
-}
+#if !defined(Q_OS_MAC) || (defined(Q_OS_MAC) && defined(USE_MAC_UNIVERSAL))
+void OverlayClient::updateMouse() {
+#	if defined(Q_OS_WIN)
+	QPixmap pm;
 
-void Manual::on_qpbLinked_clicked(bool b) {
-	bLinkable = b;
-}
+	HICON c = ::GetCursor();
+	ICONINFO info;
+	ZeroMemory(&info, sizeof(info));
+	if (c && ::GetIconInfo(c, &info)) {
+		extern QPixmap qt_pixmapFromWinHBITMAP(HBITMAP bitmap, int format = 0);
 
-void Manual::on_qpbActivated_clicked(bool b) {
-	bActive = b;
-}
-
-void Manual::on_qdsbX_valueChanged(double d) {
-	my.avatar_pos[0] = my.camera_pos[0] = static_cast< float >(d);
-	qgiPosition->setPos(my.avatar_pos[0], -my.avatar_pos[2]);
-}
-
-void Manual::on_qdsbY_valueChanged(double d) {
-	my.avatar_pos[1] = my.camera_pos[1] = static_cast< float >(d);
-}
-
-void Manual::on_qdsbZ_valueChanged(double d) {
-	my.avatar_pos[2] = my.camera_pos[2] = static_cast< float >(d);
-	qgiPosition->setPos(my.avatar_pos[0], -my.avatar_pos[2]);
-}
-
-void Manual::on_qsbAzimuth_valueChanged(int i) {
-	if (i > 360)
-		qdAzimuth->setValue(i % 360);
-	else
-		qdAzimuth->setValue(i);
-
-	updateTopAndFront(i, qsbElevation->value());
-}
-
-void Manual::on_qsbElevation_valueChanged(int i) {
-	qdElevation->setValue(90 - i);
-	updateTopAndFront(qsbAzimuth->value(), i);
-}
-
-void Manual::on_qdAzimuth_valueChanged(int i) {
-	if (i < 0)
-		qsbAzimuth->setValue(360 + i);
-	else
-		qsbAzimuth->setValue(i);
-}
-
-void Manual::on_qdElevation_valueChanged(int i) {
-	if (i < -90)
-		qdElevation->setValue(180);
-	else if (i < 0)
-		qdElevation->setValue(0);
-	else
-		qsbElevation->setValue(90 - i);
-}
-
-void Manual::on_qleContext_editingFinished() {
-	my.context = qleContext->text().toStdString();
-}
-
-void Manual::on_qleIdentity_editingFinished() {
-	my.identity = qleIdentity->text().toStdWString();
-}
-
-void Manual::on_buttonBox_clicked(QAbstractButton *button) {
-	if (buttonBox->buttonRole(button) == buttonBox->ResetRole) {
-		qpbLinked->setChecked(false);
-		qpbActivated->setChecked(true);
-
-		bLinkable = false;
-		bActive   = true;
-
-		qdsbX->setValue(0);
-		qdsbY->setValue(0);
-		qdsbZ->setValue(0);
-
-		qleContext->clear();
-		qleIdentity->clear();
-
-		qsbElevation->setValue(0);
-		qsbAzimuth->setValue(0);
-	}
-}
-
-void Manual::on_qsbSilentUserDisplaytime_valueChanged(int value) {
-	g.s.manualPlugin_silentUserDisplaytime = value;
-}
-
-void Manual::on_speakerPositionUpdate(QHash< unsigned int, Position2D > positions) {
-	// First iterate over the stale items to check whether one of them is actually no longer stale
-	QMutableHashIterator< unsigned int, StaleEntry > staleIt(staleSpeakerPositions);
-	while (staleIt.hasNext()) {
-		staleIt.next();
-
-		const unsigned int sessionID = staleIt.key();
-		QGraphicsItem *staleItem     = staleIt.value().staleItem;
-
-		if (positions.contains(sessionID)) {
-			// The item is no longer stale -> restore opacity and re-insert into speakerPositions
-			staleItem->setOpacity(1.0);
-
-			staleIt.remove();
-			speakerPositions.insert(sessionID, staleItem);
-		} else if (!updateLoopRunning.load()) {
-			QMetaObject::invokeMethod(this, "on_updateStaleSpeakers", Qt::QueuedConnection);
-			updateLoopRunning.store(true);
-		}
-	}
-
-	// Now iterate over all active items and check whether they have become stale or whether their
-	// position can be updated
-	QMutableHashIterator< unsigned int, QGraphicsItem * > speakerIt(speakerPositions);
-	while (speakerIt.hasNext()) {
-		speakerIt.next();
-
-		const unsigned int sessionID = speakerIt.key();
-		QGraphicsItem *speakerItem   = speakerIt.value();
-
-		if (positions.contains(sessionID)) {
-			Position2D newPos = positions.take(sessionID);
-
-			// Update speaker's position (remember that y-axis is inverted in screen-coordinates
-			speakerItem->setPos(newPos.x, -newPos.y);
+		if (info.hbmColor) {
+			pm = qt_pixmapFromWinHBITMAP(info.hbmColor);
+			pm.setMask(QBitmap(qt_pixmapFromWinHBITMAP(info.hbmMask)));
 		} else {
-			// Remove the stale item
-			speakerIt.remove();
-			if (g.s.manualPlugin_silentUserDisplaytime == 0) {
-				// Delete it immediately
-				delete speakerItem;
-			} else {
-				staleSpeakerPositions.insert(sessionID, { std::chrono::steady_clock::now(), speakerItem });
+			QBitmap orig(qt_pixmapFromWinHBITMAP(info.hbmMask));
+			QImage img = orig.toImage();
+
+			int h = img.height() / 2;
+			int w = img.bytesPerLine() / sizeof(quint32);
+
+			QImage out(img.width(), h, QImage::Format_MonoLSB);
+			QImage outmask(img.width(), h, QImage::Format_MonoLSB);
+
+			for (int i = 0; i < h; ++i) {
+				const quint32 *srcimg  = reinterpret_cast< const quint32 * >(img.scanLine(i + h));
+				const quint32 *srcmask = reinterpret_cast< const quint32 * >(img.scanLine(i));
+
+				quint32 *dstimg  = reinterpret_cast< quint32 * >(out.scanLine(i));
+				quint32 *dstmask = reinterpret_cast< quint32 * >(outmask.scanLine(i));
+
+				for (int j = 0; j < w; ++j) {
+					dstmask[j] = srcmask[j];
+					dstimg[j]  = srcimg[j];
+				}
+			}
+			pm = QBitmap::fromImage(out);
+		}
+
+		if (info.hbmMask)
+			::DeleteObject(info.hbmMask);
+		if (info.hbmColor)
+			::DeleteObject(info.hbmColor);
+
+		iOffsetX = info.xHotspot;
+		iOffsetY = info.yHotspot;
+	}
+
+	qgpiCursor->setPixmap(pm);
+#	else
+#	endif
+
+	qgpiCursor->setPos(iMouseX - iOffsetX, iMouseY - iOffsetY);
+}
+#endif
+
+// Qt gets very very unhappy if we embed or unmbed the widget that an event is called from.
+// This means that if any modal dialog is open, we'll be in a event loop of an object
+// that we're about to reparent.
+
+void OverlayClient::showGui() {
+	int count = 0;
+
+	{
+		QWidgetList widgets = qApp->topLevelWidgets();
+		foreach (QWidget *w, widgets) {
+			if (w->isHidden() && (w != g.mw))
+				continue;
+			count++;
+		}
+	}
+	// If there's more than one window up, we're likely deep in a message loop.
+	if (count > 1)
+		return;
+
+	g.ocIntercept = this;
+
+	bWasVisible = !g.mw->isHidden();
+
+	if (bWasVisible) {
+		if (g.s.bMinimalView) {
+			g.s.qbaMinimalViewGeometry = g.mw->saveGeometry();
+			g.s.qbaMinimalViewState    = g.mw->saveState();
+		} else {
+			g.s.qbaMainWindowGeometry = g.mw->saveGeometry();
+			g.s.qbaMainWindowState    = g.mw->saveState();
+			g.s.qbaHeaderState        = g.mw->qtvUsers->header()->saveState();
+		}
+	}
+
+	{
+	outer:
+		QWidgetList widgets = qApp->topLevelWidgets();
+		widgets.removeAll(g.mw);
+		widgets.prepend(g.mw);
+
+		foreach (QWidget *w, widgets) {
+			if (!w->graphicsProxyWidget()) {
+				if ((w == g.mw) || (!w->isHidden())) {
+					QGraphicsProxyWidget *qgpw = new QGraphicsProxyWidget(nullptr, Qt::Window);
+					qgpw->setOpacity(0.90f);
+					qgpw->setWidget(w);
+					if (w == g.mw) {
+						qgpw->setPos(uiWidth / 10, uiHeight / 10);
+						qgpw->resize((uiWidth * 8) / 10, (uiHeight * 8) / 10);
+					}
+
+					qgs.addItem(qgpw);
+					qgpw->show();
+					qgpw->setActive(true);
+					goto outer;
+				}
 			}
 		}
 	}
 
-	// Finally iterate over the remaining new speakers and create new items for them
-	QHashIterator< unsigned int, Position2D > remainingIt(positions);
-	while (remainingIt.hasNext()) {
-		remainingIt.next();
+	QEvent activateEvent(QEvent::WindowActivate);
+	qApp->sendEvent(&qgs, &activateEvent);
 
-		const float speakerRadius  = 1.2;
-		QGraphicsItem *speakerItem = qgsScene->addEllipse(-speakerRadius, -speakerRadius, 2 * speakerRadius,
-														  2 * speakerRadius, QPen(), QBrush(Qt::red));
+	QPoint p = QCursor::pos();
+	iMouseX  = qBound< int >(0, p.x(), uiWidth - 1);
+	iMouseY  = qBound< int >(0, p.y(), uiHeight - 1);
 
-		Position2D pos = remainingIt.value();
+	qgpiCursor->setPos(iMouseX, iMouseY);
 
-		// y-axis is inverted in screen-space
-		speakerItem->setPos(pos.x, -pos.y);
+	qgs.setFocus();
+#ifndef Q_OS_MAC
+	g.mw->qteChat->activateWindow();
+#endif
+	g.mw->qteChat->setFocus();
 
-		speakerPositions.insert(remainingIt.key(), speakerItem);
-	}
+	qgv.setAttribute(Qt::WA_WState_Hidden, false);
+	qApp->setActiveWindow(&qgv);
+	qgv.setFocus();
+
+	ougUsers.bShowExamples = true;
+
+#ifdef Q_OS_MAC
+	qApp->setAttribute(Qt::AA_DontUseNativeMenuBar);
+	g.mw->setUnifiedTitleAndToolBarOnMac(false);
+	if (!g.s.os.qsStyle.isEmpty())
+		qApp->setStyle(g.s.os.qsStyle);
+#endif
+
+	setupScene(true);
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_INTERACTIVE;
+	om.omh.iLength = sizeof(struct OverlayMsgInteractive);
+	om.omin.state  = true;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	g.o->updateOverlay();
 }
 
-void Manual::on_updateStaleSpeakers() {
-	if (staleSpeakerPositions.isEmpty()) {
-		// If there are no stale speakers, this loop doesn't have to run
-		updateLoopRunning.store(false);
+void OverlayClient::hideGui() {
+	ougUsers.bShowExamples = false;
+
+	QList< QWidget * > widgetlist;
+
+	foreach (QGraphicsItem *qgi, qgs.items(Qt::DescendingOrder)) {
+		QGraphicsProxyWidget *qgpw = qgraphicsitem_cast< QGraphicsProxyWidget * >(qgi);
+		if (qgpw && qgpw->widget()) {
+			QWidget *w = qgpw->widget();
+
+			qgpw->setVisible(false);
+			widgetlist << w;
+		}
+	}
+
+	foreach (QWidget *w, widgetlist) {
+		QGraphicsProxyWidget *qgpw = w->graphicsProxyWidget();
+		if (qgpw) {
+			qgpw->setVisible(false);
+			qgpw->setWidget(nullptr);
+			delete qgpw;
+		}
+	}
+
+	if (g.ocIntercept == this)
+		g.ocIntercept = nullptr;
+
+	foreach (QWidget *w, widgetlist) {
+		if (bWasVisible)
+			w->show();
+	}
+
+	if (bWasVisible) {
+		if (g.s.bMinimalView && !g.s.qbaMinimalViewGeometry.isNull()) {
+			g.mw->restoreGeometry(g.s.qbaMinimalViewGeometry);
+			g.mw->restoreState(g.s.qbaMinimalViewState);
+		} else if (!g.s.bMinimalView && !g.s.qbaMainWindowGeometry.isNull()) {
+			g.mw->restoreGeometry(g.s.qbaMainWindowGeometry);
+			g.mw->restoreState(g.s.qbaMainWindowState);
+		}
+	}
+
+#ifdef Q_OS_MAC
+	qApp->setAttribute(Qt::AA_DontUseNativeMenuBar, false);
+	g.mw->setUnifiedTitleAndToolBarOnMac(true);
+	Themes::apply();
+#endif
+
+	setupScene(false);
+
+	qgv.setAttribute(Qt::WA_WState_Hidden, true);
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_INTERACTIVE;
+	om.omh.iLength = sizeof(struct OverlayMsgInteractive);
+	om.omin.state  = false;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	g.o->updateOverlay();
+
+	if (bDelete)
+		deleteLater();
+}
+
+void OverlayClient::scheduleDelete() {
+	bDelete = true;
+	hideGui();
+}
+
+void OverlayClient::readyReadMsgInit(unsigned int length) {
+	if (length != sizeof(OverlayMsgInit)) {
 		return;
 	}
 
-	// Iterate over all stale items and check whether they have to be removed entirely. If not, update
-	// their opacity.
-	QMutableHashIterator< unsigned int, StaleEntry > staleIt(staleSpeakerPositions);
-	while (staleIt.hasNext()) {
-		staleIt.next();
+	OverlayMsgInit *omi = &omMsg.omi;
 
-		StaleEntry entry = staleIt.value();
+	uiWidth  = omi->uiWidth;
+	uiHeight = omi->uiHeight;
+	qrLast   = QRect();
 
-		double elapsedTime =
-			static_cast< std::chrono::duration< double > >(std::chrono::steady_clock::now() - entry.staleSince).count();
+	delete smMem;
 
-		if (elapsedTime >= g.s.manualPlugin_silentUserDisplaytime) {
-			// The item has been around long enough - remove it now
-			staleIt.remove();
-			delete entry.staleItem;
+	smMem = new SharedMemory2(this, uiWidth * uiHeight * 4);
+	if (!smMem->data()) {
+		qWarning() << "OverlayClient: Failed to create shared memory" << uiWidth << uiHeight;
+		delete smMem;
+		smMem = nullptr;
+		return;
+	}
+	QByteArray key = smMem->name().toUtf8();
+	key.append(static_cast< char >(0));
+
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_SHMEM;
+	om.omh.iLength = key.length();
+	Q_ASSERT(sizeof(om.oms.a_cName) >= static_cast< size_t >(key.length())); // Name should be auto-generated and short
+	memcpy(om.oms.a_cName, key.constData(), key.length());
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + om.omh.iLength);
+
+	setupRender();
+
+	Overlay *o = static_cast< Overlay * >(parent());
+	QTimer::singleShot(0, o, SLOT(updateOverlay()));
+}
+
+void OverlayClient::readyRead() {
+	while (true) {
+		quint64 ready = static_cast< quint64 >(qlsSocket->bytesAvailable());
+
+		if (omMsg.omh.iLength == -1) {
+			if (ready < sizeof(OverlayMsgHeader)) {
+				break;
+			} else {
+				qlsSocket->read(omMsg.headerbuffer, sizeof(OverlayMsgHeader));
+				if ((omMsg.omh.uiMagic != OVERLAY_MAGIC_NUMBER) || (omMsg.omh.iLength < 0)
+					|| (omMsg.omh.iLength > static_cast< int >(sizeof(OverlayMsgShmem)))) {
+					disconnect();
+					return;
+				}
+				ready -= sizeof(OverlayMsgHeader);
+			}
+		}
+
+		if (ready >= static_cast< unsigned int >(omMsg.omh.iLength)) {
+			qint64 length = qlsSocket->read(omMsg.msgbuffer, omMsg.omh.iLength);
+
+			if (length != omMsg.omh.iLength) {
+				disconnect();
+				return;
+			}
+
+			switch (omMsg.omh.uiType) {
+				case OVERLAY_MSGTYPE_INIT: {
+					readyReadMsgInit(static_cast< unsigned int >(length));
+				} break;
+				case OVERLAY_MSGTYPE_SHMEM: {
+					if (smMem)
+						smMem->systemRelease();
+				} break;
+				case OVERLAY_MSGTYPE_PID: {
+					if (length != static_cast< qint64 >(sizeof(OverlayMsgPid)))
+						break;
+
+					OverlayMsgPid *omp = &omMsg.omp;
+					uiPid              = omp->pid;
+#ifdef Q_OS_WIN
+					HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, (DWORD) uiPid);
+					if (h) {
+						wchar_t buf[MAX_PATH];
+						if (GetModuleFileNameEx(h, 0, buf, MAX_PATH) != 0) {
+							qsExecutablePath = QString::fromWCharArray(buf);
+						}
+						CloseHandle(h);
+					}
+#else
+					qsExecutablePath = QLatin1String("Unknown");
+#endif
+				} break;
+				case OVERLAY_MSGTYPE_FPS: {
+					if (length != sizeof(OverlayMsgFps))
+						break;
+
+					OverlayMsgFps *omf = &omMsg.omf;
+					framesPerSecond    = omf->fps;
+					// qWarning() << "FPS: " << omf->fps;
+
+					Overlay *o = static_cast< Overlay * >(parent());
+					QTimer::singleShot(0, o, SLOT(updateOverlay()));
+				} break;
+				default:
+					break;
+			}
+			omMsg.omh.iLength = -1;
 		} else {
-			// Let the item fade out
-			double opacity = (g.s.manualPlugin_silentUserDisplaytime - elapsedTime)
-							 / static_cast< double >(g.s.manualPlugin_silentUserDisplaytime);
-			entry.staleItem->setOpacity(opacity);
+			break;
 		}
 	}
+}
 
-	if (!staleSpeakerPositions.isEmpty()) {
-		updateLoopRunning.store(true);
-		// Call this function again in the next iteration of the event loop
-		QMetaObject::invokeMethod(this, "on_updateStaleSpeakers", Qt::QueuedConnection);
+void OverlayClient::reset() {
+	if (!uiWidth || !uiHeight || !smMem)
+		return;
+
+	qgpiLogo.reset();
+
+	ougUsers.reset();
+
+	setupScene(g.ocIntercept == this);
+}
+
+void OverlayClient::setupScene(bool show) {
+	if (show) {
+		qgs.setBackgroundBrush(QColor(0, 0, 0, 64));
+
+		if (!qgpiLogo) {
+			qgpiLogo.reset(new OverlayMouse());
+			qgpiLogo->hide();
+			qgpiLogo->setOpacity(0.8f);
+			qgpiLogo->setZValue(-5.0f);
+
+
+			QImageReader qir(QLatin1String("skin:mumble.svg"));
+			QSize sz = qir.size();
+			sz.scale(uiWidth, uiHeight, Qt::KeepAspectRatio);
+			qir.setScaledSize(sz);
+
+			qgpiLogo->setPixmap(QPixmap::fromImage(qir.read()));
+
+			QRectF qrf = qgpiLogo->boundingRect();
+			qgpiLogo->setPos(iroundf((uiWidth - qrf.width()) / 2.0f + 0.5f),
+							 iroundf((uiHeight - qrf.height()) / 2.0f + 0.5f));
+		}
+
+		qgpiCursor->show();
+		qgs.addItem(qgpiCursor.data());
+
+		qgpiLogo->show();
+		qgs.addItem(qgpiLogo.data());
 	} else {
-		updateLoopRunning.store(false);
+		qgs.setBackgroundBrush(Qt::NoBrush);
+
+		if (qgpiCursor->scene())
+			qgs.removeItem(qgpiCursor.data());
+		qgpiCursor->hide();
+
+		if (qgpiLogo) {
+			if (qgpiLogo->scene())
+				qgs.removeItem(qgpiLogo.data());
+			qgpiLogo->hide();
+		}
 	}
+	ougUsers.updateUsers();
+	updateFPS();
+	updateTime();
 }
 
-void Manual::updateTopAndFront(int azimuth, int elevation) {
-	iAzimuth   = azimuth;
-	iElevation = elevation;
+void OverlayClient::setupRender() {
+	qgs.setSceneRect(0, 0, uiWidth, uiHeight);
+	qgv.setScene(nullptr);
+	qgv.setGeometry(-2, -2, uiWidth + 2, uiHeight + 2);
+	qgv.viewport()->setGeometry(0, 0, uiWidth, uiHeight);
+	qgv.setScene(&qgs);
 
-	qgiPosition->setRotation(azimuth);
+	smMem->erase();
 
-	double azim = azimuth * M_PI / 180.;
-	double elev = elevation * M_PI / 180.;
+	OverlayMsg om;
+	om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+	om.omh.uiType  = OVERLAY_MSGTYPE_BLIT;
+	om.omh.iLength = sizeof(OverlayMsgBlit);
+	om.omb.x       = 0;
+	om.omb.y       = 0;
+	om.omb.w       = uiWidth;
+	om.omb.h       = uiHeight;
+	qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgBlit));
 
-	my.avatar_front[0] = static_cast< float >(cos(elev) * sin(azim));
-	my.avatar_front[1] = static_cast< float >(sin(elev));
-	my.avatar_front[2] = static_cast< float >(cos(elev) * cos(azim));
-
-	my.avatar_top[0] = static_cast< float >(-sin(elev) * sin(azim));
-	my.avatar_top[1] = static_cast< float >(cos(elev));
-	my.avatar_top[2] = static_cast< float >(-sin(elev) * cos(azim));
-
-	memcpy(my.camera_top, my.avatar_top, sizeof(float) * 3);
-	memcpy(my.camera_front, my.avatar_front, sizeof(float) * 3);
+	reset();
 }
 
-static int trylock() {
-	return bLinkable;
-}
+bool OverlayClient::update() {
+	if (!uiWidth || !uiHeight || !smMem)
+		return true;
 
-static void unlock() {
-	if (mDlg) {
-		mDlg->qpbLinked->setChecked(false);
-	}
-	bLinkable = false;
-}
+	ougUsers.updateUsers();
+	updateFPS();
+	updateTime();
 
-static void config(void *ptr) {
-	QWidget *w = reinterpret_cast< QWidget * >(ptr);
-
-	if (mDlg) {
-		mDlg->setParent(w, Qt::Dialog);
-		mDlg->qpbUnhinge->setEnabled(true);
+	if (qlsSocket->bytesToWrite() > 1024) {
+		return (t.elapsed() <= 5000000ULL);
 	} else {
-		mDlg = new Manual(w);
-	}
-
-	mDlg->show();
-}
-
-static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front,
-				 float *camera_top, std::string &context, std::wstring &identity) {
-	if (!bLinkable)
-		return false;
-
-	if (!bActive) {
-		memset(avatar_pos, 0, sizeof(float) * 3);
-		memset(camera_pos, 0, sizeof(float) * 3);
+		t.restart();
 		return true;
 	}
-
-	memcpy(avatar_pos, my.avatar_pos, sizeof(float) * 3);
-	memcpy(avatar_front, my.avatar_front, sizeof(float) * 3);
-	memcpy(avatar_top, my.avatar_top, sizeof(float) * 3);
-
-	memcpy(camera_pos, my.camera_pos, sizeof(float) * 3);
-	memcpy(camera_front, my.camera_front, sizeof(float) * 3);
-	memcpy(camera_top, my.camera_top, sizeof(float) * 3);
-
-	context.assign(my.context);
-	identity.assign(my.identity);
-
-	return true;
 }
 
-static const std::wstring longdesc() {
-	return std::wstring(L"This is the manual placement plugin. It allows you to place yourself manually.");
+void OverlayClient::changed(const QList< QRectF > &region) {
+	if (region.isEmpty())
+		return;
+
+	qlDirty.append(region);
+	QMetaObject::invokeMethod(this, "render", Qt::QueuedConnection);
 }
 
-static std::wstring description(L"Manual placement plugin");
-static std::wstring shortname(L"Manual placement");
+void OverlayClient::render() {
+	const QList< QRectF > region = qlDirty;
+	qlDirty.clear();
 
-static void about(void *ptr) {
-	QWidget *w = reinterpret_cast< QWidget * >(ptr);
+	if (!uiWidth || !uiHeight || !smMem)
+		return;
 
-	QMessageBox::about(w, QString::fromStdWString(description), QString::fromStdWString(longdesc()));
+	QRect active;
+	QRectF dirtyf;
+
+	if (region.isEmpty())
+		return;
+
+	foreach (const QRectF &r, region) { dirtyf |= r; }
+
+
+	QRect dirty = dirtyf.toAlignedRect();
+	dirty       = dirty.intersected(QRect(0, 0, uiWidth, uiHeight));
+
+	if ((dirty.width() <= 0) || (dirty.height() <= 0))
+		return;
+
+	QRect target = dirty;
+	target.moveTo(0, 0);
+
+	QImage img(reinterpret_cast< unsigned char * >(smMem->data()), uiWidth, uiHeight,
+			   QImage::Format_ARGB32_Premultiplied);
+	QImage qi(target.size(), QImage::Format_ARGB32_Premultiplied);
+	qi.fill(0);
+
+	QPainter p;
+	p.begin(&qi);
+	p.setRenderHints(p.renderHints(), false);
+	p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+	qgs.render(&p, target, dirty, Qt::IgnoreAspectRatio);
+	p.end();
+
+	p.begin(&img);
+	p.setRenderHints(p.renderHints(), false);
+	p.setCompositionMode(QPainter::CompositionMode_Source);
+	p.drawImage(dirty.x(), dirty.y(), qi);
+	p.end();
+
+	if (dirty.isValid()) {
+		OverlayMsg om;
+		om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+		om.omh.uiType  = OVERLAY_MSGTYPE_BLIT;
+		om.omh.iLength = sizeof(OverlayMsgBlit);
+		om.omb.x       = dirty.x();
+		om.omb.y       = dirty.y();
+		om.omb.w       = dirty.width();
+		om.omb.h       = dirty.height();
+		qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgBlit));
+	}
+
+	if (qgpiCursor->isVisible()) {
+		active = QRect(0, 0, uiWidth, uiHeight);
+	} else {
+		active = qgs.itemsBoundingRect().toAlignedRect();
+		if (active.isEmpty())
+			active = QRect(0, 0, 0, 0);
+		active = active.intersected(QRect(0, 0, uiWidth, uiHeight));
+	}
+
+	if (active != qrLast) {
+		qrLast = active;
+
+		OverlayMsg om;
+		om.omh.uiMagic = OVERLAY_MAGIC_NUMBER;
+		om.omh.uiType  = OVERLAY_MSGTYPE_ACTIVE;
+		om.omh.iLength = sizeof(OverlayMsgActive);
+		om.oma.x       = qrLast.x();
+		om.oma.y       = qrLast.y();
+		om.oma.w       = qrLast.width();
+		om.oma.h       = qrLast.height();
+		qlsSocket->write(om.headerbuffer, sizeof(OverlayMsgHeader) + sizeof(OverlayMsgActive));
+	}
+
+	qlsSocket->flush();
 }
 
-static MumblePlugin manual = { MUMBLE_PLUGIN_MAGIC,
-							   description,
-							   shortname,
-							   nullptr, // About is handled by MumblePluginQt
-							   nullptr, // Config is handled by MumblePluginQt
-							   trylock,
-							   unlock,
-							   longdesc,
-							   fetch };
+void OverlayClient::openEditor() {
+	OverlayEditor oe(g.mw, &ougUsers);
+	connect(&oe, SIGNAL(applySettings()), this, SLOT(updateLayout()));
 
-static MumblePluginQt manualqt = { MUMBLE_PLUGIN_MAGIC_QT, about, config };
-
-MumblePlugin *ManualPlugin_getMumblePlugin() {
-	return &manual;
-}
-
-MumblePluginQt *ManualPlugin_getMumblePluginQt() {
-	return &manualqt;
+	oe.exec();
 }
