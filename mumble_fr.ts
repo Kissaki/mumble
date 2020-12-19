@@ -33,94 +33,35 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifndef MUMBLE_MUMBLE_USERVOLUME_H_
+#define MUMBLE_MUMBLE_USERVOLUME_H_
 
-#include "UserLocalVolumeDialog.h"
+#include <QMap>
+
 #include "ClientUser.h"
-#include "Database.h"
-#include "MainWindow.h"
+#include "ui_UserLocalVolumeDialog.h"
 
-#include <QtGui/QCloseEvent>
-#include <QtWidgets/QPushButton>
+class UserLocalVolumeDialog : public QDialog, private Ui::UserLocalVolumeDialog {
+	Q_OBJECT
+	Q_DISABLE_COPY(UserLocalVolumeDialog);
 
-#include <cmath>
+	/// The session ID for the user that the dialog is changing the volume for.
+	unsigned int m_clientSession;
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+	/// The user's original adjustment (in dB) when entering the dialog.
+	int m_originalVolumeAdjustmentDecibel;
+	QMap< unsigned int, UserLocalVolumeDialog * > *m_qmUserVolTracker;
 
-UserLocalVolumeDialog::UserLocalVolumeDialog(unsigned int sessionId,
-											 QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker)
-	: QDialog(nullptr), m_clientSession(sessionId), m_qmUserVolTracker(qmUserVolTracker) {
-	setupUi(this);
-	qsUserLocalVolume->setAccessibleName(tr("User volume"));
-	qsbUserLocalVolume->setAccessibleName(tr("User volume"));
+public slots:
+	void closeEvent(QCloseEvent *event);
+	void on_qsUserLocalVolume_valueChanged(int value);
+	void on_qsbUserLocalVolume_valueChanged(int value);
+	void on_qbbUserLocalVolume_clicked(QAbstractButton *b);
+	void reject();
 
-	ClientUser *user = ClientUser::get(sessionId);
-	if (user) {
-		QString title = tr("Adjusting local volume for %1").arg(user->qsName);
-		setWindowTitle(title);
-		qsUserLocalVolume->setValue(qRound(log2(user->getLocalVolumeAdjustments()) * 6.0));
-		m_originalVolumeAdjustmentDecibel = qsUserLocalVolume->value();
-	}
+public:
+	static void present(unsigned int sessionId, QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker);
+	UserLocalVolumeDialog(unsigned int sessionId, QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker);
+};
 
-	if (g.mw && g.mw->windowFlags() & Qt::WindowStaysOnTopHint) {
-		// If the main window is set to always be on top of other windows, we should make the
-		// volume dialog behave the same in order for it to not get hidden behind the main window.
-		setWindowFlags(Qt::WindowStaysOnTopHint);
-	}
-}
-
-void UserLocalVolumeDialog::closeEvent(QCloseEvent *event) {
-	m_qmUserVolTracker->remove(m_clientSession);
-	event->accept();
-}
-
-void UserLocalVolumeDialog::present(unsigned int sessionId,
-									QMap< unsigned int, UserLocalVolumeDialog * > *qmUserVolTracker) {
-	if (qmUserVolTracker->contains(sessionId)) {
-		qmUserVolTracker->value(sessionId)->raise();
-	} else {
-		UserLocalVolumeDialog *uservol = new UserLocalVolumeDialog(sessionId, qmUserVolTracker);
-		uservol->show();
-		qmUserVolTracker->insert(sessionId, uservol);
-	}
-}
-
-void UserLocalVolumeDialog::on_qsUserLocalVolume_valueChanged(int value) {
-	qsbUserLocalVolume->setValue(value);
-	ClientUser *user = ClientUser::get(m_clientSession);
-	if (user) {
-		// Decibel formula: +6db = *2
-		user->setLocalVolumeAdjustment(static_cast< float >(pow(2.0, qsUserLocalVolume->value() / 6.0)));
-	}
-}
-
-void UserLocalVolumeDialog::on_qsbUserLocalVolume_valueChanged(int value) {
-	qsUserLocalVolume->setValue(value);
-}
-
-void UserLocalVolumeDialog::on_qbbUserLocalVolume_clicked(QAbstractButton *button) {
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Reset)) {
-		qsUserLocalVolume->setValue(0);
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Ok)) {
-		ClientUser *user = ClientUser::get(m_clientSession);
-		if (user) {
-			if (!user->qsHash.isEmpty()) {
-				g.db->setUserLocalVolume(user->qsHash, user->getLocalVolumeAdjustments());
-			} else {
-				g.mw->logChangeNotPermanent(QObject::tr("Local Volume Adjustment..."), user);
-			}
-		}
-		UserLocalVolumeDialog::close();
-	}
-	if (button == qbbUserLocalVolume->button(QDialogButtonBox::Cancel)) {
-		qsUserLocalVolume->setValue(m_originalVolumeAdjustmentDecibel);
-		UserLocalVolumeDialog::close();
-	}
-}
-
-void UserLocalVolumeDialog::reject() {
-	m_qmUserVolTracker->remove(m_clientSession);
-	UserLocalVolumeDialog::close();
-}
+#endif
