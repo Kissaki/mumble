@@ -3,24 +3,48 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
-#define MUMBLE_MUMBLE_PTTBUTTONWIDGET_H_
+#ifndef MUMBLE_MUMBLE_OVERLAYEDITOR_H_
+#define MUMBLE_MUMBLE_OVERLAYEDITOR_H_
 
-#include "ui_PTTButtonWidget.h"
+#include "OverlayEditorScene.h"
+#include "ui_OverlayEditor.h"
 
-class PTTButtonWidget : public QWidget, public Ui::qwPTTButtonWidget {
+struct OverlaySettings;
+
+class OverlayEditor : public QDialog, public Ui::OverlayEditor {
+private:
 	Q_OBJECT
-	Q_DISABLE_COPY(PTTButtonWidget)
+	Q_DISABLE_COPY(OverlayEditor)
 protected:
-	void closeEvent(QCloseEvent *e) Q_DECL_OVERRIDE;
+	QGraphicsItem *qgiPromote;
+	OverlayEditorScene oes;
+	OverlaySettings *os;
+
+	void enterEvent(QEvent *e) Q_DECL_OVERRIDE;
+	void leaveEvent(QEvent *e) Q_DECL_OVERRIDE;
 
 public:
-	PTTButtonWidget(QWidget *p = 0);
-public slots:
-	void on_qpbPushToTalk_pressed();
-	void on_qpbPushToTalk_released();
+	OverlayEditor(QWidget *p = nullptr, QGraphicsItem *qgi = nullptr, OverlaySettings *osptr = nullptr);
+	~OverlayEditor() Q_DECL_OVERRIDE;
 signals:
-	void triggered(bool checked, QVariant);
+	void applySettings();
+public slots:
+	void reset();
+	void apply();
+	void accept() Q_DECL_OVERRIDE;
+
+	void on_qrbPassive_clicked();
+	void on_qrbTalking_clicked();
+	void on_qrbWhisper_clicked();
+	void on_qrbShout_clicked();
+
+	void on_qcbAvatar_clicked();
+	void on_qcbUser_clicked();
+	void on_qcbChannel_clicked();
+	void on_qcbMutedDeafened_clicked();
+	void on_qcbBox_clicked();
+
+	void on_qsZoom_valueChanged(int);
 };
 
-#endif // PTTBUTTONWIDGET_H_
+#endif
