@@ -3,217 +3,297 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayText.h"
+#include "LookConfig.h"
+#include "Themes.h"
 
-#include "Utils.h"
+#include "AudioInput.h"
+#include "AudioOutput.h"
+#include "MainWindow.h"
 
-#include <QtCore/QDebug>
-#include <QtGui/QFontMetrics>
-#include <QtGui/QPainter>
-#include <QtGui/QPen>
+#include <QtCore/QFileSystemWatcher>
+#include <QtCore/QStack>
+#include <QtCore/QTimer>
 
 // We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
 // (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-BasepointPixmap::BasepointPixmap() : qpBasePoint(0, 0), iAscent(-1), iDescent(-1) {
+const QString LookConfig::name = QLatin1String("LookConfig");
+
+static ConfigWidget *LookConfigNew(Settings &st) {
+	return new LookConfig(st);
 }
 
-BasepointPixmap::BasepointPixmap(const QPixmap &pm)
-	: QPixmap(pm), qpBasePoint(0, pm.height()), iAscent(-1), iDescent(-1) {
-}
+static ConfigRegistrar registrar(1100, LookConfigNew);
 
-BasepointPixmap::BasepointPixmap(int w, int h) : QPixmap(w, h), qpBasePoint(0, h), iAscent(-1), iDescent(-1) {
-}
+LookConfig::LookConfig(Settings &st) : ConfigWidget(st) {
+	setupUi(this);
+	qsbSilentUserLifetime->setAccessibleName(tr("Silent user lifetime"));
+	qsbPrefixCharCount->setAccessibleName(tr("Prefix character count"));
+	qsbChannelHierarchyDepth->setAccessibleName(tr("Channel hierarchy depth"));
+	qleChannelSeparator->setAccessibleName(tr("Channel separator"));
+	qsbPostfixCharCount->setAccessibleName(tr("Postfix character count"));
+	qleAbbreviationReplacement->setAccessibleName(tr("Abbreviation replacement"));
+	qsbMaxNameLength->setAccessibleName(tr("Maximum name length"));
+	qsbRelFontSize->setAccessibleName(tr("Relative font size"));
+	qcbLanguage->setAccessibleName(tr("Language"));
+	qcbTheme->setAccessibleName(tr("Theme"));
+	qcbAlwaysOnTop->setAccessibleName(tr("Always on top"));
+	qcbChannelDrag->setAccessibleName(tr("Channel dragging"));
+	qcbExpand->setAccessibleName(tr("Automatically expand channels when"));
+	qcbUserDrag->setAccessibleName(tr("User dragging behavior"));
 
-BasepointPixmap::BasepointPixmap(int w, int h, const QPoint &bp)
-	: QPixmap(w, h), qpBasePoint(bp), iAscent(-1), iDescent(-1) {
-}
+#ifndef Q_OS_MAC
+	if (!QSystemTrayIcon::isSystemTrayAvailable())
+#endif
+		qgbTray->hide();
 
-OverlayTextLine::OverlayTextLine(const QString &s, const QFont &f)
-	: fEdgeFactor(0.05f), qsText(s), qfFont(f), fXCorrection(0.0), fYCorrection(0.0), iCurWidth(-1), iCurHeight(-1),
-	  fBaseliningThreshold(0.5f), bElided(false) {
-	QFontMetrics fm(f);
-	fAscent  = static_cast< float >(fm.ascent());
-	fDescent = static_cast< float >(fm.descent());
-	fEdge    = qMax(static_cast< float >(f.pointSizeF()) * fEdgeFactor, 1.0f);
-}
+	qcbLanguage->addItem(tr("System default"));
+	QDir d(QLatin1String(":"), QLatin1String("mumble_*.qm"), QDir::Name, QDir::Files);
+	foreach (const QString &key, d.entryList()) {
+		QString cc        = key.mid(7, key.indexOf(QLatin1Char('.')) - 7);
+		QLocale tmpLocale = QLocale(cc);
 
-BasepointPixmap OverlayTextLine::render(int w, int h, const QColor &col, const QPoint &bp) const {
-	BasepointPixmap img(w, h, bp);
-	img.fill(Qt::transparent);
+		// If there is no native language name, use the locale
+		QString displayName = cc;
+		if (!tmpLocale.nativeLanguageName().isEmpty()) {
+			displayName = QString(QLatin1String("%1 (%2)")).arg(tmpLocale.nativeLanguageName()).arg(cc);
+		} else if (cc == QLatin1String("eo")) {
+			// Can't initialize QLocale for a countryless language (QTBUG-8452, QTBUG-14592).
+			// We only have one so special case it.
+			displayName = QLatin1String("Esperanto (eo)");
+		}
 
-	QPainter imgp(&img);
-	imgp.setRenderHint(QPainter::Antialiasing);
-	imgp.setRenderHint(QPainter::TextAntialiasing);
-	imgp.setBackground(QColor(0, 0, 0, 0));
-	imgp.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-	QColor qc(col);
-	qc.setAlpha(255);
-
-	imgp.setBrush(qc);
-	imgp.setPen(QPen(Qt::black, fEdge, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-	imgp.drawPath(qpp);
-
-	imgp.setPen(Qt::NoPen);
-	imgp.drawPath(qpp);
-
-	img.iAscent  = iroundf(fAscent + 0.5f);
-	img.iDescent = iroundf(fDescent + 0.5f);
-	return img;
-}
-
-BasepointPixmap OverlayTextLine::createPixmap(QColor col) {
-	if (qsText.isEmpty()) {
-		return BasepointPixmap();
+		qcbLanguage->addItem(displayName, QVariant(cc));
 	}
 
-	QRectF qr;
-	if (qpp.isEmpty()) {
-		qpp.addText(0.0f, fAscent, qfFont, qsText);
-		qr = qpp.controlPointRect();
+	qcbExpand->addItem(tr("None"), Settings::NoChannels);
+	qcbExpand->addItem(tr("Only with users"), Settings::ChannelsWithUsers);
+	qcbExpand->addItem(tr("All"), Settings::AllChannels);
 
-		// fit into (0,0)-based coordinates
-		fXCorrection = 0.0f;
-		fYCorrection = 0.0f;
+	qcbChannelDrag->insertItem(Settings::Ask, tr("Ask"), Settings::Ask);
+	qcbChannelDrag->insertItem(Settings::DoNothing, tr("Do Nothing"), Settings::DoNothing);
+	qcbChannelDrag->insertItem(Settings::Move, tr("Move"), Settings::Move);
 
-		if (qr.left() < fEdge) {
-			fXCorrection = fEdge - static_cast< float >(qr.left());
-		}
+	qcbUserDrag->insertItem(Settings::Ask, tr("Ask"), Settings::Ask);
+	qcbUserDrag->insertItem(Settings::DoNothing, tr("Do Nothing"), Settings::DoNothing);
+	qcbUserDrag->insertItem(Settings::Move, tr("Move"), Settings::Move);
 
-		if (qr.top() < fEdge) {
-			fYCorrection = fEdge - static_cast< float >(qr.top());
-		}
+	connect(qrbLCustom, SIGNAL(toggled(bool)), qcbLockLayout, SLOT(setEnabled(bool)));
 
-		QMatrix correction;
-		correction.translate(fXCorrection, fYCorrection);
-		qpp = correction.map(qpp);
+	QDir userThemeDirectory = Themes::getUserThemesDirectory();
+	if (userThemeDirectory.exists()) {
+		m_themeDirectoryWatcher = new QFileSystemWatcher(this);
+
+		// Use a timer to cut down floods of directory changes. We only want
+		// to trigger a refresh after nothing has happened for 200ms in the
+		// watched directory.
+		m_themeDirectoryDebouncer = new QTimer(this);
+		m_themeDirectoryDebouncer->setSingleShot(true);
+		m_themeDirectoryDebouncer->setInterval(200);
+		m_themeDirectoryDebouncer->connect(m_themeDirectoryWatcher, SIGNAL(directoryChanged(QString)), SLOT(start()));
+
+		connect(m_themeDirectoryDebouncer, SIGNAL(timeout()), SLOT(themeDirectoryChanged()));
+		m_themeDirectoryWatcher->addPath(userThemeDirectory.path());
+
+		QUrl userThemeDirectoryUrl = QUrl::fromLocalFile(userThemeDirectory.path());
+		//: This link is located next to the theme heading in the ui config and opens the user theme directory
+		qlThemesDirectory->setText(tr("<a href=\"%1\">Browse</a>").arg(userThemeDirectoryUrl.toString()));
+		qlThemesDirectory->setOpenExternalLinks(true);
 	}
-
-	qr = qpp.controlPointRect();
-
-	return render(iroundf(qr.right() + 2.0f * fEdge + 0.5f), iroundf(qr.bottom() + 2.0f * fEdge + 0.5f), col,
-				  QPoint(iroundf(fXCorrection + 0.5f), iroundf(fYCorrection + fAscent + 0.5f)));
 }
 
-BasepointPixmap OverlayTextLine::createPixmap(unsigned int maxwidth, unsigned int height, QColor col) {
-	float twice_edge = 2.0f * fEdge;
+QString LookConfig::title() const {
+	return tr("User Interface");
+}
 
-	if (!height || !maxwidth)
-		return BasepointPixmap();
+const QString &LookConfig::getName() const {
+	return LookConfig::name;
+}
 
-	if (qpp.isEmpty() || iCurWidth > static_cast< int >(maxwidth) || iCurHeight != static_cast< int >(height)
-		|| (static_cast< int >(maxwidth) > iCurWidth && bElided)) {
-		QFont f = qfFont;
-		QFontMetrics fm(f);
+QIcon LookConfig::icon() const {
+	return QIcon(QLatin1String("skin:config_ui.png"));
+}
 
-		// fit the font into a bounding box with padding
-		float ps   = static_cast< float >(f.pointSizeF());
-		float f_ad = static_cast< float >(fm.ascent() + fm.descent() + 1) / ps;
+void LookConfig::reloadThemes(const boost::optional< ThemeInfo::StyleInfo > configuredStyle) {
+	const ThemeMap themes = Themes::getThemes();
 
-		float pointsize = static_cast< float >(height) / (f_ad + 2.0f * fEdgeFactor);
+	int selectedThemeEntry = 0;
 
-		if (fEdgeFactor * ps > 1.0f) {
-			pointsize = static_cast< float >(height - 2) / f_ad;
-		}
-
-		if (pointsize <= 0.0f) {
-			return BasepointPixmap();
-		}
-
-		f.setPointSizeF(pointsize);
-		setFont(f);
-		fm         = QFontMetrics(f);
-		twice_edge = 2.0f * fEdge;
-
-		if (!qpp.isEmpty()) {
-			qpp = QPainterPath();
-		}
-
-		// calculate text metrics for eliding and scaling
-		QRectF bb;
-		qpp.addText(0.0f, 0.0f, f, qsText);
-		bb = qpp.controlPointRect();
-
-		qreal effective_ascent  = -bb.top();
-		qreal effective_descent = bb.bottom();
-		float scale             = 1.0f;
-		bool keep_baseline      = true;
-		if (effective_descent > fDescent || effective_ascent > fAscent) {
-			qreal scale_ascent  = effective_ascent > 0.0f ? fAscent / effective_ascent : 1.0f;
-			qreal scale_descent = effective_descent > 0.0f ? fDescent / effective_descent : 1.0f;
-			scale               = static_cast< float >(qMin(scale_ascent, scale_descent));
-
-			if (scale < fBaseliningThreshold) {
-				float text_height = static_cast< float >(bb.height()) + twice_edge;
-				scale             = static_cast< float >(height) / text_height;
-				keep_baseline     = false;
+	qcbTheme->clear();
+	qcbTheme->addItem(tr("None"));
+	for (ThemeMap::const_iterator theme = themes.begin(); theme != themes.end(); ++theme) {
+		for (ThemeInfo::StylesMap::const_iterator styleit = theme->styles.begin(); styleit != theme->styles.end();
+			 ++styleit) {
+			if (configuredStyle && configuredStyle->themeName == styleit->themeName
+				&& configuredStyle->name == styleit->name) {
+				selectedThemeEntry = qcbTheme->count();
 			}
 
-			qWarning() << QString(QLatin1String("Text \"%1\" did not fit (+%2/-%3): (+%4/-%5). Scaling to %6."))
-							  .arg(qsText)
-							  .arg(fAscent)
-							  .arg(fDescent)
-							  .arg(effective_ascent)
-							  .arg(effective_descent)
-							  .arg(scale);
+			qcbTheme->addItem(theme->name + QLatin1String(" - ") + styleit->name, QVariant::fromValue(*styleit));
 		}
-
-		// eliding by previously calculated width
-		if ((bb.width() * scale) + twice_edge > maxwidth) {
-			int eliding_width = iroundf((static_cast< float >(maxwidth) / scale) - twice_edge + 0.5f);
-			QString str       = fm.elidedText(qsText, Qt::ElideRight, eliding_width);
-
-			// use ellipsis as shortest possible string
-			if (str.trimmed().isEmpty()) {
-				str = QString(QChar(0x2026));
-			}
-
-			qpp = QPainterPath();
-			qpp.addText(0.0f, 0.0f, f, str);
-			bb      = qpp.controlPointRect();
-			bElided = true;
-		} else {
-			bElided = false;
-		}
-
-		// translation to "pixmap space":
-		QMatrix correction;
-		//  * adjust left edge
-		correction.translate(-bb.x() + fEdge, 0.0f);
-		//  * scale overly high text (still on baseline)
-		correction.scale(scale, scale);
-
-		if (keep_baseline) {
-			//  * translate down to baseline
-			correction.translate(0.0f, (fAscent + fEdge) / scale);
-		} else {
-			//  * translate into bounding box
-			correction.translate(0.0f, -bb.top() + fEdge);
-		}
-
-		qpp        = correction.map(qpp);
-		iCurWidth  = iroundf(bb.width() * scale + 0.5f);
-		iCurHeight = height;
 	}
 
-	QRectF qr = qpp.controlPointRect();
-
-	return render(iroundf(qr.width() + twice_edge + 0.5f), iroundf(fAscent + fDescent + twice_edge + 0.5f), col,
-				  QPoint(0, iroundf(fAscent + fEdge + 0.5f)));
+	qcbTheme->setCurrentIndex(selectedThemeEntry);
 }
 
-void OverlayTextLine::setFont(const QFont &font) {
-	qfFont = font;
-	qpp    = QPainterPath();
-	QFontMetrics fm(font);
-	fAscent  = static_cast< float >(fm.ascent() + 1);
-	fDescent = static_cast< float >(fm.descent() + 1);
-	fEdge    = qMax(static_cast< float >(font.pointSizeF()) * fEdgeFactor, 1.0f);
+void LookConfig::load(const Settings &r) {
+	loadComboBox(qcbLanguage, 0);
+	loadComboBox(qcbChannelDrag, 0);
+	loadComboBox(qcbUserDrag, 0);
+
+	// Load Layout checkbox state
+	switch (r.wlWindowLayout) {
+		case Settings::LayoutClassic:
+			qrbLClassic->setChecked(true);
+			break;
+		case Settings::LayoutStacked:
+			qrbLStacked->setChecked(true);
+			break;
+		case Settings::LayoutHybrid:
+			qrbLHybrid->setChecked(true);
+			break;
+		case Settings::LayoutCustom:
+		default:
+			s.wlWindowLayout = Settings::LayoutCustom;
+			qrbLCustom->setChecked(true);
+			break;
+	}
+	qcbLockLayout->setEnabled(r.wlWindowLayout == Settings::LayoutCustom);
+
+
+	for (int i = 0; i < qcbLanguage->count(); i++) {
+		if (qcbLanguage->itemData(i).toString() == r.qsLanguage) {
+			loadComboBox(qcbLanguage, i);
+			break;
+		}
+	}
+
+	loadComboBox(qcbAlwaysOnTop, r.aotbAlwaysOnTop);
+
+	loadComboBox(qcbExpand, r.ceExpand);
+	loadComboBox(qcbChannelDrag, r.ceChannelDrag);
+	loadComboBox(qcbUserDrag, r.ceUserDrag);
+	loadCheckBox(qcbUsersTop, r.bUserTop);
+	loadCheckBox(qcbAskOnQuit, r.bAskOnQuit);
+	loadCheckBox(qcbEnableDeveloperMenu, r.bEnableDeveloperMenu);
+	loadCheckBox(qcbLockLayout, (r.wlWindowLayout == Settings::LayoutCustom) && r.bLockLayout);
+	loadCheckBox(qcbHideTray, r.bHideInTray);
+	loadCheckBox(qcbStateInTray, r.bStateInTray);
+	loadCheckBox(qcbShowUserCount, r.bShowUserCount);
+	loadCheckBox(qcbShowVolumeAdjustments, r.bShowVolumeAdjustments);
+	loadCheckBox(qcbShowContextMenuInMenuBar, r.bShowContextMenuInMenuBar);
+	loadCheckBox(qcbShowTransmitModeComboBox, r.bShowTransmitModeComboBox);
+	loadCheckBox(qcbHighContrast, r.bHighContrast);
+	loadCheckBox(qcbChatBarUseSelection, r.bChatBarUseSelection);
+	loadCheckBox(qcbFilterHidesEmptyChannels, r.bFilterHidesEmptyChannels);
+
+	const boost::optional< ThemeInfo::StyleInfo > configuredStyle = Themes::getConfiguredStyle(r);
+	reloadThemes(configuredStyle);
+
+	loadCheckBox(qcbLocalUserVisible, r.bTalkingUI_LocalUserStaysVisible);
+	loadCheckBox(qcbAbbreviateChannelNames, r.bTalkingUI_AbbreviateChannelNames);
+	loadCheckBox(qcbAbbreviateCurrentChannel, r.bTalkingUI_AbbreviateCurrentChannel);
+	loadCheckBox(qcbShowLocalListeners, r.bTalkingUI_ShowLocalListeners);
+	qsbRelFontSize->setValue(r.iTalkingUI_RelativeFontSize);
+	qsbSilentUserLifetime->setValue(r.iTalkingUI_SilentUserLifeTime);
+	qsbChannelHierarchyDepth->setValue(r.iTalkingUI_ChannelHierarchyDepth);
+	qsbMaxNameLength->setValue(r.iTalkingUI_MaxChannelNameLength);
+	qsbPrefixCharCount->setValue(r.iTalkingUI_PrefixCharCount);
+	qsbPostfixCharCount->setValue(r.iTalkingUI_PostfixCharCount);
+	qleChannelSeparator->setText(r.qsTalkingUI_ChannelSeparator);
+	qleAbbreviationReplacement->setText(r.qsTalkingUI_AbbreviationReplacement);
 }
 
-void OverlayTextLine::setEdge(float ew) {
-	fEdge = ew;
-	qpp   = QPainterPath();
+void LookConfig::save() const {
+	const QString oldLanguage = s.qsLanguage;
+	if (qcbLanguage->currentIndex() == 0)
+		s.qsLanguage = QString();
+	else
+		s.qsLanguage = qcbLanguage->itemData(qcbLanguage->currentIndex()).toString();
+
+	if (s.qsLanguage != oldLanguage) {
+		s.requireRestartToApply = true;
+	}
+
+	// Save Layout radioboxes state
+	if (qrbLClassic->isChecked()) {
+		s.wlWindowLayout = Settings::LayoutClassic;
+	} else if (qrbLStacked->isChecked()) {
+		s.wlWindowLayout = Settings::LayoutStacked;
+	} else if (qrbLHybrid->isChecked()) {
+		s.wlWindowLayout = Settings::LayoutHybrid;
+	} else {
+		s.wlWindowLayout = Settings::LayoutCustom;
+	}
+
+	s.ceExpand      = static_cast< Settings::ChannelExpand >(qcbExpand->currentIndex());
+	s.ceChannelDrag = static_cast< Settings::ChannelDrag >(qcbChannelDrag->currentIndex());
+	s.ceUserDrag    = static_cast< Settings::ChannelDrag >(qcbUserDrag->currentIndex());
+
+	if (qcbUsersTop->isChecked() != s.bUserTop) {
+		s.bUserTop              = qcbUsersTop->isChecked();
+		s.requireRestartToApply = true;
+	}
+
+	s.aotbAlwaysOnTop           = static_cast< Settings::AlwaysOnTopBehaviour >(qcbAlwaysOnTop->currentIndex());
+	s.bAskOnQuit                = qcbAskOnQuit->isChecked();
+	s.bEnableDeveloperMenu      = qcbEnableDeveloperMenu->isChecked();
+	s.bLockLayout               = qcbLockLayout->isChecked();
+	s.bHideInTray               = qcbHideTray->isChecked();
+	s.bStateInTray              = qcbStateInTray->isChecked();
+	s.bShowUserCount            = qcbShowUserCount->isChecked();
+	s.bShowVolumeAdjustments    = qcbShowVolumeAdjustments->isChecked();
+	s.bShowContextMenuInMenuBar = qcbShowContextMenuInMenuBar->isChecked();
+	s.bShowTransmitModeComboBox = qcbShowTransmitModeComboBox->isChecked();
+	s.bHighContrast             = qcbHighContrast->isChecked();
+	s.bChatBarUseSelection      = qcbChatBarUseSelection->isChecked();
+	s.bFilterHidesEmptyChannels = qcbFilterHidesEmptyChannels->isChecked();
+
+	QVariant themeData = qcbTheme->itemData(qcbTheme->currentIndex());
+	if (themeData.isNull()) {
+		Themes::setConfiguredStyle(s, boost::none, s.requireRestartToApply);
+	} else {
+		Themes::setConfiguredStyle(s, themeData.value< ThemeInfo::StyleInfo >(), s.requireRestartToApply);
+	}
+
+	s.bTalkingUI_LocalUserStaysVisible    = qcbLocalUserVisible->isChecked();
+	s.bTalkingUI_AbbreviateChannelNames   = qcbAbbreviateChannelNames->isChecked();
+	s.bTalkingUI_AbbreviateCurrentChannel = qcbAbbreviateCurrentChannel->isChecked();
+	s.bTalkingUI_ShowLocalListeners       = qcbShowLocalListeners->isChecked();
+	s.iTalkingUI_RelativeFontSize         = qsbRelFontSize->value();
+	s.iTalkingUI_SilentUserLifeTime       = qsbSilentUserLifetime->value();
+	s.iTalkingUI_ChannelHierarchyDepth    = qsbChannelHierarchyDepth->value();
+	s.iTalkingUI_MaxChannelNameLength     = qsbMaxNameLength->value();
+	s.iTalkingUI_PrefixCharCount          = qsbPrefixCharCount->value();
+	s.iTalkingUI_PostfixCharCount         = qsbPostfixCharCount->value();
+	s.qsTalkingUI_ChannelSeparator        = qleChannelSeparator->text();
+	s.qsTalkingUI_AbbreviationReplacement = qleAbbreviationReplacement->text();
+}
+
+void LookConfig::accept() const {
+	g.mw->setShowDockTitleBars((g.s.wlWindowLayout == Settings::LayoutCustom) && !g.s.bLockLayout);
+}
+
+void LookConfig::themeDirectoryChanged() {
+	qWarning() << "Theme directory changed";
+	QVariant themeData = qcbTheme->itemData(qcbTheme->currentIndex());
+	if (themeData.isNull()) {
+		reloadThemes(boost::none);
+	} else {
+		reloadThemes(themeData.value< ThemeInfo::StyleInfo >());
+	}
+}
+
+void LookConfig::on_qcbAbbreviateChannelNames_stateChanged(int state) {
+	bool abbreviateNames = state == Qt::Checked;
+
+	// Only enable the abbreviation related settings if abbreviation is actually enabled
+	qcbAbbreviateCurrentChannel->setEnabled(abbreviateNames);
+	qsbChannelHierarchyDepth->setEnabled(abbreviateNames);
+	qsbMaxNameLength->setEnabled(abbreviateNames);
+	qsbPrefixCharCount->setEnabled(abbreviateNames);
+	qsbPostfixCharCount->setEnabled(abbreviateNames);
+	qleChannelSeparator->setEnabled(abbreviateNames);
+	qleAbbreviationReplacement->setEnabled(abbreviateNames);
 }
