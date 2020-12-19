@@ -3,69 +3,58 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_WASAPI_H_
-#define MUMBLE_MUMBLE_WASAPI_H_
+#ifndef MUMBLE_MUMBLE_USERVIEW_H_
+#define MUMBLE_MUMBLE_USERVIEW_H_
 
-#include "AudioInput.h"
-#include "AudioOutput.h"
+#include <QtCore/QtGlobal>
+#include <QtWidgets/QStyledItemDelegate>
+#include <QtWidgets/QTreeView>
 
-#include "win.h"
+#include "Timer.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QUuid>
-
-#include <audioclient.h>
-#include <avrt.h>
-#include <functiondiscoverykeys.h>
-#include <ksmedia.h>
-#include <mmdeviceapi.h>
-#include <mmreg.h>
-#include <strsafe.h>
-#ifdef _INC_FUNCTIONDISCOVERYKEYS
-#	undef _INC_FUNCTIONDISCOVERYKEYS
-#endif
-#include <audiopolicy.h>
-#include <functiondiscoverykeys_devpkey.h>
-#include <propidl.h>
-
-class WASAPISystem : public QObject {
+class UserDelegate : public QStyledItemDelegate {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(WASAPISystem)
+	Q_DISABLE_COPY(UserDelegate)
 public:
-	static const QHash< QString, QString > getDevices(EDataFlow dataflow);
-	static const QHash< QString, QString > getInputDevices();
-	static const QHash< QString, QString > getOutputDevices();
-	static const QList< audioDevice > mapToDevice(const QHash< QString, QString > &, const QString &);
+	UserDelegate(QObject *parent = nullptr);
+	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const Q_DECL_OVERRIDE;
+
+	//! Width/height in px of user/channel flag icons
+	const static int FLAG_ICON_DIMENSION;
+	//! Padding in px around user/channel flag icons
+	const static int FLAG_ICON_PADDING;
+	//! Width/height in px of user/channel flags including padding
+	const static int FLAG_DIMENSION;
+
+public slots:
+	bool helpEvent(QHelpEvent *event, QAbstractItemView *view, const QStyleOptionViewItem &option,
+				   const QModelIndex &index) Q_DECL_OVERRIDE;
 };
 
-class WASAPIInput : public AudioInput {
+class UserView : public QTreeView {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(WASAPIInput)
-public:
-	WASAPIInput();
-	~WASAPIInput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
-};
-
-class WASAPIOutput : public AudioOutput {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(WASAPIOutput)
-
-	bool setVolumeForSessionControl(IAudioSessionControl *control, const DWORD mumblePID, QSet< QUuid > &seen);
-	bool setVolumeForSessionControl2(IAudioSessionControl2 *control2, const DWORD mumblePID, QSet< QUuid > &seen);
-
+	Q_DISABLE_COPY(UserView)
 protected:
-	typedef QPair< float, float > VolumePair;
-	QMap< ISimpleAudioVolume *, VolumePair > qmVolumes;
-	void setVolumes(IMMDevice *, bool talking);
+	void mouseReleaseEvent(QMouseEvent *) Q_DECL_OVERRIDE;
+	void keyPressEvent(QKeyEvent *) Q_DECL_OVERRIDE;
+	bool event(QEvent *) Q_DECL_OVERRIDE;
+
+	QTimer *qtSearch;
+	QPersistentModelIndex qpmiSearch;
+	Timer tSearch;
+	QString qsSearch;
 
 public:
-	WASAPIOutput();
-	~WASAPIOutput() Q_DECL_OVERRIDE;
-	void run() Q_DECL_OVERRIDE;
+	UserView(QWidget *);
+	void keyboardSearch(const QString &search) Q_DECL_OVERRIDE;
+	void dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight,
+					 const QVector< int > &roles = QVector< int >()) Q_DECL_OVERRIDE;
+public slots:
+	void nodeActivated(const QModelIndex &idx);
+	void selectSearchResult();
+	void updateChannel(const QModelIndex &index);
 };
 
 #endif
