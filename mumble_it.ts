@@ -1,331 +1,106 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>GlobalShortcutTarget</class>
- <widget class="QDialog" name="GlobalShortcutTarget">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>421</width>
-    <height>542</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Whisper Target</string>
-  </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="qlTarget">
-     <property name="text">
-      <string>Shout/Whisper to:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="2">
-    <widget class="QStackedWidget" name="qswStack">
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
-     <widget class="QWidget" name="qwSelectionPage">
-      <layout class="QHBoxLayout" name="horizontalLayout_3">
-       <item>
-        <widget class="QGroupBox" name="qgbSelection">
-         <property name="title">
-          <string>Current selection</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_5">
-          <item>
-           <widget class="QLabel" name="qlWhenShouting">
-            <property name="text">
-             <string>When shouting to channel:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QWidget" name="widget" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <layout class="QVBoxLayout" name="verticalLayout_6">
-             <item>
-              <widget class="QCheckBox" name="qcbShoutLinks">
-               <property name="toolTip">
-                <string>The whisper will also be transmitted to linked channels.</string>
-               </property>
-               <property name="text">
-                <string>Shout to linked channels</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="qcbShoutSubchans">
-               <property name="toolTip">
-                <string>The whisper will also be sent to the subchannels of the channel target.</string>
-               </property>
-               <property name="text">
-                <string>Shout to subchannels</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <spacer name="verticalSpacer_3">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwUserPage">
-      <layout class="QVBoxLayout" name="verticalLayout">
-       <item>
-        <widget class="QGroupBox" name="qgbUser">
-         <property name="title">
-          <string>List of users</string>
-         </property>
-         <layout class="QGridLayout" name="gridLayout_2">
-          <item row="0" column="0" rowspan="4">
-           <widget class="QListWidget" name="qlwUsers"/>
-          </item>
-          <item row="0" column="1">
-           <widget class="MUComboBox" name="qcbUser"/>
-          </item>
-          <item row="1" column="1">
-           <widget class="QPushButton" name="qpbAdd">
-            <property name="text">
-             <string>Add</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QPushButton" name="qpbRemove">
-            <property name="text">
-             <string>Remove</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="1">
-           <spacer name="verticalSpacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>94</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="qwChannelPage">
-      <layout class="QVBoxLayout" name="verticalLayout_2">
-       <item>
-        <widget class="QGroupBox" name="qgbChannel">
-         <property name="title">
-          <string>Channel Target</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_3">
-          <item>
-           <widget class="QTreeWidget" name="qtwChannels">
-            <property name="indentation">
-             <number>10</number>
-            </property>
-            <property name="rootIsDecorated">
-             <bool>true</bool>
-            </property>
-            <property name="sortingEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="headerHidden">
-             <bool>true</bool>
-            </property>
-            <column>
-             <property name="text">
-              <string notr="true">Name</string>
-             </property>
-            </column>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout">
-            <item>
-             <widget class="QLabel" name="qlGroup">
-              <property name="text">
-               <string>Restrict to Group</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="qleGroup">
-              <property name="toolTip">
-               <string>If specified, only members of this group will receive the whisper.</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <item>
-             <widget class="QCheckBox" name="qcbLinks">
-              <property name="toolTip">
-               <string>The whisper will also be transmitted to linked channels.</string>
-              </property>
-              <property name="text">
-               <string>Shout to Linked channels</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="qcbChildren">
-              <property name="toolTip">
-               <string>The whisper will also be sent to the subchannels of the channel target.</string>
-              </property>
-              <property name="text">
-               <string>Shout to subchannels</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </widget>
-   </item>
-   <item row="2" column="0" colspan="2">
-    <widget class="QGroupBox" name="qgbModifiers">
-     <property name="title">
-      <string>Modifiers</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <widget class="QCheckBox" name="qcbForceCenter">
-        <property name="toolTip">
-         <string>Do not send positional audio information when using this whisper shortcut.</string>
-        </property>
-        <property name="text">
-         <string>Ignore positional audio</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QComboBox" name="qcbTarget">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="frame">
-      <bool>true</bool>
-     </property>
-     <item>
-      <property name="text">
-       <string>Current selection</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>List of users</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Channel</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="3" column="0" colspan="2">
-    <widget class="QDialogButtonBox" name="qbbButtons">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <tabstops>
-  <tabstop>qlwUsers</tabstop>
-  <tabstop>qcbUser</tabstop>
-  <tabstop>qpbAdd</tabstop>
-  <tabstop>qpbRemove</tabstop>
-  <tabstop>qtwChannels</tabstop>
-  <tabstop>qleGroup</tabstop>
-  <tabstop>qcbLinks</tabstop>
-  <tabstop>qcbChildren</tabstop>
-  <tabstop>qcbForceCenter</tabstop>
-  <tabstop>qbbButtons</tabstop>
- </tabstops>
- <resources/>
- <connections>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>accepted()</signal>
-   <receiver>GlobalShortcutTarget</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>227</x>
-     <y>290</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>157</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qbbButtons</sender>
-   <signal>rejected()</signal>
-   <receiver>GlobalShortcutTarget</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>295</x>
-     <y>296</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "Log.h"
+
+#include <QtCore/QOperatingSystemVersion>
+
+#include <Foundation/Foundation.h>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+
+@interface MUUserNotificationCenterDelegate : NSObject <NSUserNotificationCenterDelegate>
+@end
+
+@implementation MUUserNotificationCenterDelegate
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didDeliverNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
+}
+
+- (void) userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
+	[center removeDeliveredNotification:notification];
+}
+
+- (BOOL) userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification {
+	Q_UNUSED(center);
+	Q_UNUSED(notification);
+
+	return NO;
+}
+@end
+
+static NSString *Log_QString_to_NSString(const QString& string) {
+	return const_cast<NSString *>(reinterpret_cast<const NSString *>(CFStringCreateWithCharacters(kCFAllocatorDefault,
+	                                reinterpret_cast<const UniChar *>(string.unicode()), string.length())));
+}
+
+#endif
+
+#if QT_VERSION < 0x050800
+extern bool qt_mac_execute_apple_script(const QString &script, AEDesc *ret);
+
+static bool growl_available() {
+	static int isAvailable = -1;
+	if (isAvailable == -1)  {
+		OSStatus err = LSFindApplicationForInfo('GRRR', CFSTR("com.Growl.GrowlHelperApp"), CFSTR("GrowlHelperApp.app"), nullptr, nullptr);
+		isAvailable = (err != kLSApplicationNotFoundErr) ? 1 : 0;
+		if (isAvailable) {
+			QStringList qslAllEvents;
+			for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
+				Log::MsgType t = static_cast<Log::MsgType>(i);
+				qslAllEvents << QString::fromLatin1("\"%1\"").arg(g.l->msgName(t));
+			}
+			QString qsScript = QString::fromLatin1(
+				"tell application \"GrowlHelperApp\"\n"
+				"	set the allNotificationsList to {%1}\n"
+				"	set the enabledNotificationsList to {%1}\n"
+				"	register as application \"Mumble\""
+				"		all notifications allNotificationsList"
+				"		default notifications enabledNotificationsList"
+				"		icon of application \"Mumble\"\n"
+				"end tell\n").arg(qslAllEvents.join(QLatin1String(",")));
+			qt_mac_execute_apple_script(qsScript, nullptr);
+		}
+	}
+	return isAvailable == 1;
+}
+#endif // QT_VERSION
+
+void Log::postNotification(MsgType mt, const QString &plain) {
+	QString title = msgName(mt);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+# if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+	const QOperatingSystemVersion current = QOperatingSystemVersion::current();
+	if (current.majorVersion() > 10 || (current.majorVersion() == 10 && current.minorVersion() >= 8)) {
+# else
+	if (QSysInfo::MacintoshVersion >= QSysInfo::MV_MOUNTAINLION) {
+# endif
+		NSUserNotificationCenter *userNotificationCenter = [NSUserNotificationCenter defaultUserNotificationCenter];
+		if (userNotificationCenter.delegate == nil) {
+			// We hand the delegate property a delegate with a retain count of 1.  We don't keep
+			// a reference to the delegate anywhere else, so it's not really a leak.
+			userNotificationCenter.delegate = [[MUUserNotificationCenterDelegate alloc] init];
+		}
+		NSUserNotification *userNotification = [[[NSUserNotification alloc] init] autorelease];
+		userNotification.title = [Log_QString_to_NSString(title) autorelease];
+		userNotification.informativeText = [Log_QString_to_NSString(plain) autorelease];
+		[userNotificationCenter scheduleNotification:userNotification];
+	} else
+#endif
+	{
+#if QT_VERSION < 0x050800
+		QString qsScript = QString::fromLatin1(
+			"tell application \"GrowlHelperApp\"\n"
+			"	notify with name \"%1\" title \"%1\" description \"%2\" application name \"Mumble\"\n"
+			"end tell\n").arg(title).arg(plain);
+		if (growl_available())
+			qt_mac_execute_apple_script(qsScript, nullptr);
+#endif
+	}
+}
