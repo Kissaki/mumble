@@ -1,91 +1,103 @@
-// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Copyright 2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "TaskList.h"
+#ifndef MUMBLE_MUMBLE_TALKINGUISELECTION_H_
+#define MUMBLE_MUMBLE_TALKINGUISELECTION_H_
 
-#include "MumbleApplication.h"
+#include <memory>
 
-#include "win.h"
+class QWidget;
 
-#include <QtCore/QFileInfo>
-#include <QtCore/QSettings>
-#include <QtCore/QString>
-#include <QtCore/QUrl>
-#include <QtCore/QUrlQuery>
+/// Base class of all selections within the TalkingUI
+class TalkingUISelection {
+protected:
+	/// The widget that is used to represent this selection (it'll be marked
+	/// as selected).
+	QWidget *m_widget;
 
-// We disable clang-format for these includes as apparently the order in which they are
-// included is important.
-// clang-format off
-#include <shlobj.h>
-#include <shobjidl.h>
-#include <propkey.h>
-#include <propvarutil.h>
-// clang-format on
+	explicit TalkingUISelection() = default;
 
-extern bool bIsWin7;
+public:
+	explicit TalkingUISelection(QWidget *widget);
+	virtual ~TalkingUISelection() = default;
 
-void TaskList::addToRecentList(QString name, QString user, QString host, int port) {
-	if (!bIsWin7)
-		return;
+	/// Turns this selection on or off. Turning it on usually involves marking the
+	/// associated Widget in a certain way while deactivating the selection reverts this effect.
+	///
+	/// @param active Whether to activate this selection
+	virtual void setActive(bool active);
 
-	HRESULT hr;
-	IShellLink *link   = nullptr;
-	IPropertyStore *ps = nullptr;
-	PROPVARIANT pt;
+	/// Applies this selection. This is a shortcut for setActive(true).
+	virtual void apply() final;
 
-	hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IShellLink),
-						  reinterpret_cast< void ** >(&link));
-	if (!link || FAILED(hr))
-		return;
+	/// Discards this selection. This is a shortcut for setActive(false).
+	virtual void discard() final;
 
-	QUrl url;
-	url.setScheme(QLatin1String("mumble"));
-	url.setUserName(user);
-	url.setHost(host);
-	url.setPort(port);
+	/// Synchronizes this selection to the MainWindow
+	virtual void syncToMainWindow() const = 0;
 
-	QUrlQuery query;
-	query.addQueryItem(QLatin1String("title"), name);
-	query.addQueryItem(QLatin1String("version"), QLatin1String("1.2.0"));
-	url.setQuery(query);
+	bool operator==(const TalkingUISelection &other) const;
+	bool operator!=(const TalkingUISelection &other) const;
 
-	QSettings settings(QLatin1String("HKEY_CLASSES_ROOT"), QSettings::NativeFormat);
+	bool operator==(const QWidget *widget) const;
+	bool operator!=(const QWidget *widget) const;
 
-	QString app = settings.value(QLatin1String("mumble/DefaultIcon/.")).toString();
-	if (app.isEmpty() || !QFileInfo(app).exists())
-		app = QCoreApplication::applicationFilePath();
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const = 0;
+};
 
-	link->SetPath(app.toStdWString().c_str());
-	link->SetArguments(QString::fromLatin1(url.toEncoded()).toStdWString().c_str());
+/// A class representing the selection of a user in the TalkingUI
+class UserSelection : public TalkingUISelection {
+protected:
+	const unsigned int m_userSession;
 
-	hr = link->QueryInterface(__uuidof(IPropertyStore), reinterpret_cast< void ** >(&ps));
-	if (FAILED(hr)) {
-		qFatal("TaskList: Failed to get property store");
-		goto cleanup;
-	}
+public:
+	explicit UserSelection(QWidget *widget, unsigned int userSession);
+	explicit UserSelection(const UserSelection &) = default;
 
-	InitPropVariantFromString(name.toStdWString().c_str(), &pt);
-	hr = ps->SetValue(PKEY_Title, pt);
-	PropVariantClear(&pt);
+	virtual void syncToMainWindow() const override;
 
-	if (FAILED(hr)) {
-		qFatal("TaskList: Failed to set title");
-		goto cleanup;
-	}
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
 
-	hr = ps->Commit();
-	if (FAILED(hr)) {
-		qFatal("TaskList: Failed commit");
-		goto cleanup;
-	}
+/// A class representing the selection of a channel in the TalkingUI
+class ChannelSelection : public TalkingUISelection {
+protected:
+	const int m_channelID;
 
-	SHAddToRecentDocs(SHARD_LINK, link);
+public:
+	explicit ChannelSelection(QWidget *widget, int channelID);
+	explicit ChannelSelection(const ChannelSelection &) = default;
 
-cleanup:
-	if (ps)
-		ps->Release();
-	if (link)
-		link->Release();
-}
+	virtual void syncToMainWindow() const override;
+
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
+
+class ListenerSelection : public TalkingUISelection {
+protected:
+	unsigned int m_userSession;
+	const int m_channelID;
+
+public:
+	explicit ListenerSelection(QWidget *widget, unsigned int userSession, int channelID);
+	explicit ListenerSelection(const ListenerSelection &) = default;
+
+	virtual void syncToMainWindow() const override;
+
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
+
+/// A class representing an empty selection in the TalkingUI
+class EmptySelection : public TalkingUISelection {
+public:
+	explicit EmptySelection()                       = default;
+	explicit EmptySelection(const EmptySelection &) = default;
+
+	virtual void syncToMainWindow() const override;
+
+	virtual std::unique_ptr< TalkingUISelection > cloneToHeap() const override;
+};
+
+#endif // MUMBLE_MUMBLE_TALKINGUISELECTION_H_
