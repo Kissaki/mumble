@@ -1,21 +1,17 @@
-# This file controls whether the translations foudn in this
-# directory are simply a fallback for the cases in which Qt
-# doesn't ship with its own translation for that locale or
-# whether our translations are actually enforced (aka they
-# overwrite Qt's)
-#
-# A line starting with a # is interpreted as a comment and is
-# discarded
-# All non-empty lines that are no comment have to be in the format
-# <operator> <fileName>
-# where <operator> is either fallback or overwrite (or override)
-#
-# To provide translation file x.ts as a fallback use
-# fallback x.ts
-# to force its usage use
-# overwrite x.ts
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-fallback qt_it.ts
-fallback qt_nl.ts
-fallback qt_tr.ts
-overwrite qt_zh_CN.ts
+#ifndef MUMBLE_MUMBLE_WIDGETS_MUCOMBOBOX_H_
+#define MUMBLE_MUMBLE_WIDGETS_MUCOMBOBOX_H_
+
+#include <QComboBox>
+
+class MUComboBox : public QComboBox {
+	Q_OBJECT
+public:
+	MUComboBox(QWidget *parent = nullptr);
+};
+
+#endif
