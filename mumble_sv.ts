@@ -1,386 +1,894 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>NetworkConfig</class>
- <widget class="QWidget" name="NetworkConfig">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>576</width>
-    <height>572</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string notr="true">Form</string>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout_2">
-   <item>
-    <widget class="QGroupBox" name="qgbConnection">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Connection</string>
-     </property>
-     <layout class="QVBoxLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbTcpMode">
-        <property name="toolTip">
-         <string>Use TCP compatibility mode</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Enable TCP compatibility mode&lt;/b&gt;.&lt;br /&gt;This will make Mumble use only TCP when communicating with the server. This will increase overhead and cause lost packets to produce noticeable pauses in communication, so this should only be used if you are unable to use the default (which uses UDP for voice and TCP for control).</string>
-        </property>
-        <property name="text">
-         <string>Force TCP mode</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbQoS">
-        <property name="toolTip">
-         <string>Enable QoS to prioritize packets</string>
-        </property>
-        <property name="whatsThis">
-         <string>This will enable QoS, which will attempt to prioritize voice packets over other traffic.</string>
-        </property>
-        <property name="text">
-         <string>Use Quality of Service</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbAutoReconnect">
-        <property name="toolTip">
-         <string>Reconnect when disconnected</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Reconnect when disconnected&lt;/b&gt;.&lt;br /&gt;This will make Mumble try to automatically reconnect after 10 seconds if your server connection fails.</string>
-        </property>
-        <property name="text">
-         <string>Reconnect automatically</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbAutoConnect">
-        <property name="toolTip">
-         <string>Reconnect to last used server when starting Mumble</string>
-        </property>
-        <property name="text">
-         <string>Reconnect to last server on startup</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbSuppressIdentity">
-        <property name="toolTip">
-         <string>Don't send certificate to server and don't save passwords. (Not saved).</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;This will suppress identity information from the client.&lt;/b&gt;&lt;p&gt;The client will not identify itself with a certificate, even if defined, and will not cache passwords for connections. This is primarily a test-option and is not saved.&lt;/p&gt;</string>
-        </property>
-        <property name="text">
-         <string>Suppress certificate and password storage</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbProxy">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Proxy</string>
-     </property>
-     <layout class="QGridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="qlType">
-        <property name="text">
-         <string>Type</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="3">
-       <widget class="MUComboBox" name="qcbType">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Type of proxy to connect through</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Type of proxy to connect through.&lt;/b&gt;&lt;br /&gt;This makes Mumble connect through a proxy for all outgoing connections. Note: Proxy tunneling forces Mumble into TCP compatibility mode, causing all voice data to be sent via the control channel.</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>Direct connection</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>HTTP(S) proxy</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>SOCKS5 proxy</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="qlHostname">
-        <property name="text">
-         <string>Hostname</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="qleHostname">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Hostname of the proxy</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Hostname of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the hostname of the proxy you wish to tunnel network traffic through.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QLabel" name="qlPort">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Port</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="3">
-       <widget class="QLineEdit" name="qlePort">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>20</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>60</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Port number of the proxy</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Port number of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the port number that the proxy expects connections on.</string>
-        </property>
-        <property name="inputMask">
-         <string/>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="maxLength">
-         <number>5</number>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="qlUsername">
-        <property name="text">
-         <string>Username</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1" colspan="3">
-       <widget class="QLineEdit" name="qleUsername">
-        <property name="toolTip">
-         <string>Username for proxy authentication</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Username for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the username you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="qlPassword">
-        <property name="text">
-         <string>Password</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1" colspan="3">
-       <widget class="QLineEdit" name="qlePassword">
-        <property name="toolTip">
-         <string>Password for proxy authentication</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Password for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the password you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</string>
-        </property>
-        <property name="inputMask">
-         <string/>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="echoMode">
-         <enum>QLineEdit::Password</enum>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbPrivacy">
-     <property name="title">
-      <string>Privacy</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <widget class="QCheckBox" name="qcbHideOS">
-        <property name="toolTip">
-         <string>Prevent OS information being sent to Mumble servers and web servers</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Don't send OS information to servers&lt;/b&gt;&lt;br/&gt;
-Prevents the client from sending potentially identifying information about the operating system to the Mumble server and web servers.</string>
-        </property>
-        <property name="text">
-         <string>Do not send OS information to Mumble servers and web servers</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="qgbServices">
-     <property name="title">
-      <string>Mumble services</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QCheckBox" name="qcbAutoUpdate">
-        <property name="toolTip">
-         <string>Check for new releases of Mumble automatically.</string>
-        </property>
-        <property name="whatsThis">
-         <string>This will check for new releases of Mumble every time you start the program, and notify you if one is available.</string>
-        </property>
-        <property name="text">
-         <string>Check for application updates on startup</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbPluginUpdate">
-        <property name="toolTip">
-         <string>Check for new releases of plugins automatically.</string>
-        </property>
-        <property name="whatsThis">
-         <string>This will check for new releases of plugins every time you start the program, and download them automatically.</string>
-        </property>
-        <property name="text">
-         <string>Download plugin and overlay updates on startup</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbUsage">
-        <property name="toolTip">
-         <string>Submit anonymous statistics to the Mumble project</string>
-        </property>
-        <property name="whatsThis">
-         <string>&lt;b&gt;Submit anonymous statistics.&lt;/b&gt;&lt;br /&gt;Mumble has a small development team, and as such needs to focus its development where it is needed most. By submitting a bit of statistics you help the project determine where to focus development.</string>
-        </property>
-        <property name="text">
-         <string>Submit anonymous statistics</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="qcbDisablePublicList">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="toolTip">
-         <string>When toggled this hides the public server list from the connect dialog</string>
-        </property>
-        <property name="text">
-         <string>Hide public server list</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <spacer>
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeType">
-      <enum>QSizePolicy::Expanding</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-  </layout>
- </widget>
- <customwidgets>
-  <customwidget>
-   <class>MUComboBox</class>
-   <extends>QComboBox</extends>
-   <header>widgets/MUComboBox.h</header>
-  </customwidget>
- </customwidgets>
- <resources/>
- <connections/>
-</ui>
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+#include "OverlayConfig.h"
+
+#include "Channel.h"
+#include "Database.h"
+#include "MainWindow.h"
+#include "Message.h"
+#include "NetworkConfig.h"
+#include "Overlay.h"
+#include "OverlayPositionableItem.h"
+#include "OverlayText.h"
+#include "OverlayUserGroup.h"
+#include "PathListWidget.h"
+#include "Screen.h"
+#include "ServerHandler.h"
+#include "User.h"
+#include "GlobalShortcut.h"
+
+#ifdef Q_OS_WIN
+#	include "../../overlay/overlay_blacklist.h"
+#	include "../../overlay/overlay_launchers.h"
+#	include "../../overlay/overlay_whitelist.h"
+#endif
+
+#include <QtGui/QScreen>
+#include <QtGui/QWindow>
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QDesktopWidget>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QFontDialog>
+
+// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
+// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Global.h"
+
+const QString OverlayConfig::name = QLatin1String("OverlayConfig");
+
+static const int OVERLAYCONFIG_PATH_ROLE    = Qt::UserRole;
+static const int OVERLAYCONFIG_BUILTIN_ROLE = Qt::UserRole + 1;
+
+// Hide overlay config for Mac OS X universal builds
+#if !defined(USE_MAC_UNIVERSAL)
+static ConfigWidget *OverlayConfigDialogNew(Settings &st) {
+	return new OverlayConfig(st);
+}
+
+static ConfigRegistrar registrar(6000, OverlayConfigDialogNew);
+#endif
+
+void OverlayConfig::initDisplayFps() {
+	// set up FPS preview
+	qgsFpsPreview.clear();
+	qgsFpsPreview.setBackgroundBrush(qgvFpsPreview->backgroundBrush());
+
+	qgpiFpsDemo = new QGraphicsPixmapItem();
+	refreshFpsDemo();
+
+	qgsFpsPreview.addItem(qgpiFpsDemo);
+	qgpiFpsDemo->show();
+
+	qgvFpsPreview->setScene(&qgsFpsPreview);
+	qgvFpsPreview->centerOn(qgpiFpsDemo);
+
+	qgpiFpsLive = new OverlayPositionableItem(&s.os.qrfFps, true);
+	qgpiFpsLive->setZValue(-2.0f);
+	refreshFpsLive();
+}
+
+void OverlayConfig::initDisplayClock() {
+	qgpiTimeLive = new OverlayPositionableItem(&s.os.qrfTime, true);
+	qgpiTimeLive->setZValue(-2.0f);
+	refreshTimeLive();
+}
+
+void OverlayConfig::initDisplay() {
+	// set up overlay preview
+	qgpiScreen = new QGraphicsPixmapItem();
+	qgpiScreen->setPixmap(qpScreen);
+	qgpiScreen->setOpacity(0.5f);
+	qgpiScreen->setZValue(-10.0f);
+
+	initDisplayFps();
+	initDisplayClock();
+
+	qgtiInstructions = new QGraphicsTextItem();
+	qgtiInstructions->setHtml(QString::fromLatin1("<ul><li>%1</li><li>%2</li><li>%3</li></ul>")
+								  .arg(tr("To move the users, drag the little red dot."),
+									   tr("To resize the users, mouse wheel over a user."),
+									   tr("For more options, right click a user.")));
+	qgtiInstructions->setOpacity(1.0f);
+	qgtiInstructions->setZValue(-5.0f);
+	qgtiInstructions->setDefaultTextColor(Qt::white);
+
+	qgs.clear();
+	qgs.setSceneRect(QRectF(0, 0, qgpiScreen->pixmap().width(), qgpiScreen->pixmap().height()));
+	qgs.setBackgroundBrush(qgvView->backgroundBrush());
+
+	qgs.addItem(qgpiScreen);
+	qgpiScreen->show();
+
+	qgs.addItem(qgpiFpsLive);
+	qgpiFpsLive->show();
+
+	qgs.addItem(qgpiTimeLive);
+	qgpiTimeLive->show();
+
+	oug                = new OverlayUserGroup(&s.os);
+	oug->bShowExamples = true;
+	qgs.addItem(oug);
+	oug->show();
+
+	qgs.addItem(qgtiInstructions);
+	qgtiInstructions->show();
+
+	qgvView->setScene(&qgs);
+
+	qgvView->installEventFilter(this);
+}
+
+void OverlayConfig::refreshFpsDemo() {
+	bpFpsDemo = OverlayTextLine(QString::fromLatin1("%1").arg(42), s.os.qfFps).createPixmap(s.os.qcFps);
+	qgpiFpsDemo->setPixmap(bpFpsDemo);
+	qgvFpsPreview->centerOn(qgpiFpsDemo);
+}
+
+void OverlayConfig::refreshFpsLive() {
+	if (s.os.bFps) {
+		qgpiFpsLive->setPixmap(bpFpsDemo.scaled(bpFpsDemo.size() * fViewScale));
+		qgpiFpsLive->setOffset((-bpFpsDemo.qpBasePoint + QPoint(0, bpFpsDemo.iAscent)) * fViewScale);
+	} else {
+		qgpiFpsLive->setPixmap(QPixmap());
+	}
+	qgpiFpsLive->setItemVisible(s.os.bFps);
+}
+
+void OverlayConfig::refreshTimeLive() {
+	if (s.os.bTime) {
+		bpTimeDemo = OverlayTextLine(QString::fromLatin1("%1").arg(QTime::currentTime().toString()), s.os.qfFps)
+						 .createPixmap(s.os.qcFps);
+		qgpiTimeLive->setPixmap(bpTimeDemo.scaled(bpTimeDemo.size() * fViewScale));
+		qgpiTimeLive->setOffset((-bpTimeDemo.qpBasePoint + QPoint(0, bpTimeDemo.iAscent)) * fViewScale);
+	} else {
+		qgpiTimeLive->setPixmap(QPixmap());
+	}
+	qgpiTimeLive->setItemVisible(s.os.bTime);
+}
+
+OverlayConfig::OverlayConfig(Settings &st)
+	: ConfigWidget(st), qgpiScreen(nullptr), qgs(), qgsFpsPreview(), qgpiFpsDemo(nullptr), oug(nullptr),
+	  qgtiInstructions(nullptr), fViewScale(1.0f) {
+	setupUi(this);
+
+	qlwPaths->setPathType(PathListWidget::FOLDER);
+
+	qcbOverlayExclusionMode->insertItem(static_cast< int >(OverlaySettings::LauncherFilterExclusionMode),
+										tr("Launcher Filter"));
+	qcbOverlayExclusionMode->insertItem(static_cast< int >(OverlaySettings::WhitelistExclusionMode), tr("Whitelist"));
+	qcbOverlayExclusionMode->insertItem(static_cast< int >(OverlaySettings::BlacklistExclusionMode), tr("Blacklist"));
+	qcbOverlayExclusionMode->setCurrentIndex(static_cast< int >(OverlaySettings::LauncherFilterExclusionMode));
+
+	if (!isInstalled()) {
+		qswOverlayPage->setCurrentWidget(qwOverlayInstall);
+	} else if (needsUpgrade()) {
+		qswOverlayPage->setCurrentWidget(qwOverlayUpgrade);
+	} else {
+		qswOverlayPage->setCurrentWidget(qwOverlayConfig);
+		qpbUninstall->setVisible(supportsInstallableOverlay());
+	}
+
+	// Grab a desktop screenshot as background
+	QScreen *screen = qApp->primaryScreen();
+
+	if (const QWindow *window = windowHandle()) {
+		screen = window->screen();
+	}
+
+	// From Qt's documentation (Qt Widgets screenshot example):
+	// "Although this is unlikely to happen, applications should check for null
+	// pointers since there might be situations in which no screen is connected."
+	if (screen) {
+		qpScreen = screen->grabWindow(0);
+	}
+
+	if (qpScreen.size().isEmpty()) {
+		qWarning() << __FUNCTION__ << "failed to grab screenshot, falling back.";
+
+		if (screen) {
+			const QRect desktopSize = screen->geometry();
+			qpScreen                = QPixmap(desktopSize.width(), desktopSize.height());
+		} else {
+			qpScreen = QPixmap(1280, 720);
+		}
+
+		qpScreen.fill(Qt::darkGreen);
+	}
+
+	initDisplay();
+
+	// Attach the upgrade button to the install click handler. Currently, the
+	// actions they perform are the same. The distinction is only there to inform
+	// users as to what's actually going on.
+	connect(qpbUpgrade, SIGNAL(clicked()), this, SLOT(on_qpbInstall_clicked()));
+}
+
+void OverlayConfig::updateOverlayExclusionModeState() {
+	OverlaySettings::OverlayExclusionMode exclusionMode =
+		static_cast< OverlaySettings::OverlayExclusionMode >(qcbOverlayExclusionMode->currentIndex());
+
+	switch (exclusionMode) {
+		case OverlaySettings::LauncherFilterExclusionMode:
+			qwLaunchers->setHidden(false);
+			qwWhitelist->setHidden(false);
+			qwPaths->setHidden(false);
+			qwBlacklist->setHidden(false);
+
+			// Show all whitelist items (including built-in items)
+			// in launcher filter mode.
+			for (int i = 0; i < qlwWhitelist->count(); i++) {
+				QListWidgetItem *item = qlwWhitelist->item(i);
+				item->setHidden(false);
+			}
+
+			break;
+		case OverlaySettings::WhitelistExclusionMode:
+			qwLaunchers->setHidden(true);
+			qwWhitelist->setHidden(false);
+			qwPaths->setHidden(true);
+			qwBlacklist->setHidden(true);
+
+			// Hide the built-in items when in WhitelistExclusionMode.
+			// They are only considered in launcher filter mode.
+			for (int i = 0; i < qlwWhitelist->count(); i++) {
+				QListWidgetItem *item = qlwWhitelist->item(i);
+				bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+				if (isBuiltin) {
+					item->setHidden(true);
+				} else {
+					item->setHidden(false);
+				}
+			}
+
+			break;
+		case OverlaySettings::BlacklistExclusionMode:
+			qwLaunchers->setHidden(true);
+			qwWhitelist->setHidden(true);
+			qwPaths->setHidden(true);
+			qwBlacklist->setHidden(false);
+			break;
+	}
+}
+
+void OverlayConfig::load(const Settings &r) {
+	s.os = r.os;
+
+	loadCheckBox(qcbEnable, s.os.bEnable);
+	qcbShowFps->setChecked(s.os.bFps);
+	qcbShowTime->setChecked(s.os.bTime);
+	qgpFps->setEnabled(s.os.bEnable);
+
+	qcbOverlayExclusionMode->setCurrentIndex(static_cast< int >(s.os.oemOverlayExcludeMode));
+
+	// Launchers
+	{
+		qlwLaunchers->clear();
+
+		QStringList builtinLaunchers;
+#ifdef Q_OS_WIN
+		int i = 0;
+		while (overlayLaunchers[i]) {
+			QString str = QLatin1String(overlayLaunchers[i]);
+			builtinLaunchers << str;
+			++i;
+		}
+#endif
+		foreach (QString str, builtinLaunchers) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwLaunchers);
+			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
+			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(true));
+
+			// Use italic for 'default' items.
+			QFont font = qlwiApplication->font();
+			font.setItalic(true);
+			qlwiApplication->setFont(font);
+
+			qlwiApplication->setFlags(qlwiApplication->flags() | Qt::ItemIsUserCheckable);
+
+			if (s.os.qslLaunchersExclude.contains(str)) {
+				qlwiApplication->setCheckState(Qt::Unchecked);
+			} else {
+				qlwiApplication->setCheckState(Qt::Checked);
+			}
+		}
+
+		foreach (QString str, s.os.qslLaunchers) {
+			if (builtinLaunchers.contains(str)) {
+				continue;
+			}
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwLaunchers);
+			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
+			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
+		}
+	}
+
+	// Whitelist
+	{
+		qlwWhitelist->clear();
+
+		QStringList builtinWhitelist;
+#ifdef Q_OS_WIN
+		int i = 0;
+		while (overlayWhitelist[i]) {
+			QString str = QLatin1String(overlayWhitelist[i]);
+			builtinWhitelist << str;
+			++i;
+		}
+#endif
+		foreach (QString str, builtinWhitelist) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwWhitelist);
+			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
+			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(true));
+
+			// Use italic for 'default' items.
+			QFont font = qlwiApplication->font();
+			font.setItalic(true);
+			qlwiApplication->setFont(font);
+
+			qlwiApplication->setFlags(qlwiApplication->flags() | Qt::ItemIsUserCheckable);
+
+			if (s.os.qslWhitelistExclude.contains(str)) {
+				qlwiApplication->setCheckState(Qt::Unchecked);
+			} else {
+				qlwiApplication->setCheckState(Qt::Checked);
+			}
+		}
+
+		foreach (QString str, s.os.qslWhitelist) {
+			if (builtinWhitelist.contains(str)) {
+				continue;
+			}
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwWhitelist);
+			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
+			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
+		}
+	}
+
+	// Paths
+	{
+		qlwPaths->clear();
+
+		foreach (QString str, s.os.qslPaths) {
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(QIcon(), str, qlwPaths);
+			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
+			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
+		}
+	}
+
+	// Blacklist
+	{
+		qlwBlacklist->clear();
+
+		QStringList builtinBlacklist;
+#ifdef Q_OS_WIN
+		int i = 0;
+		while (overlayBlacklist[i]) {
+			QString str = QLatin1String(overlayBlacklist[i]);
+			builtinBlacklist << str;
+			++i;
+		}
+#endif
+		foreach (QString str, builtinBlacklist) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwBlacklist);
+			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
+			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(true));
+
+			// Use italic for 'default' items.
+			QFont font = qlwiApplication->font();
+			font.setItalic(true);
+			qlwiApplication->setFont(font);
+
+			qlwiApplication->setFlags(qlwiApplication->flags() | Qt::ItemIsUserCheckable);
+
+			if (s.os.qslBlacklistExclude.contains(str)) {
+				qlwiApplication->setCheckState(Qt::Unchecked);
+			} else {
+				qlwiApplication->setCheckState(Qt::Checked);
+			}
+		}
+
+		foreach (QString str, s.os.qslBlacklist) {
+			if (builtinBlacklist.contains(str)) {
+				continue;
+			}
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwBlacklist);
+			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
+			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
+		}
+	}
+
+	initDisplay();
+	resizeScene(true);
+	update();
+}
+
+QString OverlayConfig::title() const {
+	return tr("Overlay");
+}
+
+const QString &OverlayConfig::getName() const {
+	return OverlayConfig::name;
+}
+
+QIcon OverlayConfig::icon() const {
+	return QIcon(QLatin1String("skin:config_osd.png"));
+}
+
+void OverlayConfig::save() const {
+	s.os.bEnable = qcbEnable->isChecked();
+	s.os.bFps    = qcbShowFps->isChecked();
+	s.os.bTime   = qcbShowTime->isChecked();
+
+	// Directly save overlay config
+
+	s.os.oemOverlayExcludeMode =
+		static_cast< OverlaySettings::OverlayExclusionMode >(qcbOverlayExclusionMode->currentIndex());
+
+	// Launchers
+	{
+		s.os.qslLaunchers.clear();
+		s.os.qslLaunchersExclude.clear();
+
+		for (int i = 0; i < qlwLaunchers->count(); i++) {
+			bool isBuiltin = (qlwLaunchers->item(i)->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool());
+
+			bool isChecked = false;
+			if (isBuiltin) {
+				isChecked = qlwLaunchers->item(i)->checkState() == Qt::Checked;
+			}
+
+			QString str = qlwLaunchers->item(i)->data(OVERLAYCONFIG_PATH_ROLE).toString();
+
+			if (isBuiltin) {
+				if (!isChecked) {
+					s.os.qslLaunchersExclude << str;
+				}
+			} else {
+				s.os.qslLaunchers << str;
+			}
+		}
+	}
+
+	// Whitelist
+	{
+		s.os.qslWhitelist.clear();
+		s.os.qslWhitelistExclude.clear();
+
+		for (int i = 0; i < qlwWhitelist->count(); i++) {
+			bool isBuiltin = (qlwWhitelist->item(i)->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool());
+
+			bool isChecked = false;
+			if (isBuiltin) {
+				isChecked = qlwWhitelist->item(i)->checkState() == Qt::Checked;
+			}
+
+			QString str = qlwWhitelist->item(i)->data(OVERLAYCONFIG_PATH_ROLE).toString();
+
+			if (isBuiltin) {
+				if (!isChecked) {
+					s.os.qslWhitelistExclude << str;
+				}
+			} else {
+				s.os.qslWhitelist << str;
+			}
+		}
+	}
+
+	// Paths
+	{
+		s.os.qslPaths.clear();
+		s.os.qslPathsExclude.clear();
+
+		for (int i = 0; i < qlwPaths->count(); i++) {
+			bool isBuiltin = (qlwPaths->item(i)->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool());
+
+			bool isChecked = false;
+			if (isBuiltin) {
+				isChecked = qlwPaths->item(i)->checkState() == Qt::Checked;
+			}
+
+			QString str = qlwPaths->item(i)->data(OVERLAYCONFIG_PATH_ROLE).toString();
+
+			if (isBuiltin) {
+				if (!isChecked) {
+					s.os.qslPathsExclude << str;
+				}
+			} else {
+				s.os.qslPaths << str;
+			}
+		}
+	}
+
+	// Blacklist
+	{
+		s.os.qslBlacklist.clear();
+		s.os.qslBlacklistExclude.clear();
+
+		for (int i = 0; i < qlwBlacklist->count(); i++) {
+			bool isBuiltin = (qlwBlacklist->item(i)->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool());
+
+			bool isChecked = false;
+			if (isBuiltin) {
+				isChecked = qlwBlacklist->item(i)->checkState() == Qt::Checked;
+			}
+
+			QString str = qlwBlacklist->item(i)->data(OVERLAYCONFIG_PATH_ROLE).toString();
+
+			if (isBuiltin) {
+				if (!isChecked) {
+					s.os.qslBlacklistExclude << str;
+				}
+			} else {
+				s.os.qslBlacklist << str;
+			}
+		}
+	}
+
+	g.qs->beginGroup(QLatin1String("overlay"));
+	s.os.save();
+	g.qs->endGroup();
+#ifdef Q_OS_WIN
+	// On MS windows force sync so the registry is updated.
+	g.qs->sync();
+#endif
+}
+
+void OverlayConfig::accept() const {
+	g.o->forceSettings();
+	g.o->setActive(s.os.bEnable);
+}
+
+bool OverlayConfig::eventFilter(QObject *obj, QEvent *evt) {
+	if (evt->type() == QEvent::Resize)
+		QMetaObject::invokeMethod(this, "resizeScene", Qt::QueuedConnection);
+	return ConfigWidget::eventFilter(obj, evt);
+}
+
+void OverlayConfig::resizeScene(bool force) {
+	QSize sz = qgvView->viewport()->size();
+
+	int ph = qgpiScreen->pixmap().height();
+	int pw = qgpiScreen->pixmap().width();
+	if (!force && ((ph == sz.height() && pw <= sz.width()) || (ph <= sz.height() && pw == sz.width()))) {
+		return;
+	}
+
+	qgpiScreen->setPixmap(qpScreen.scaled(sz, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+	qgs.setSceneRect(QRectF(0, 0, qgpiScreen->pixmap().width(), qgpiScreen->pixmap().height()));
+
+	fViewScale = static_cast< float >(qgpiScreen->pixmap().height()) / static_cast< float >(qpScreen.height());
+	refreshFpsLive();
+	refreshTimeLive();
+
+	QFont f = qgtiInstructions->font();
+	f.setPointSizeF(qgs.sceneRect().height() / 20.0f);
+	qgtiInstructions->setFont(f);
+
+	qgtiInstructions->setPos(qgs.sceneRect().width() / 20.0f, qgs.sceneRect().height() / 10.0f);
+	qgtiInstructions->setTextWidth(qgs.sceneRect().width() * 18.0f / 20.0f);
+
+	qgvView->fitInView(qgs.sceneRect(), Qt::KeepAspectRatio);
+	oug->updateLayout();
+	oug->updateUsers();
+
+	qgpiFpsLive->updateRender();
+	qgpiTimeLive->updateRender();
+}
+
+void OverlayConfig::on_qlwLaunchers_itemSelectionChanged() {
+	QList< QListWidgetItem * > items = qlwLaunchers->selectedItems();
+	if (items.isEmpty()) {
+		qpbLaunchersRemove->setEnabled(false);
+		return;
+	}
+
+	QListWidgetItem *item = items.at(0);
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+
+	if (isBuiltin) {
+		qpbLaunchersRemove->setEnabled(false);
+	} else {
+		qpbLaunchersRemove->setEnabled(true);
+	}
+}
+
+void OverlayConfig::on_qcbOverlayExclusionMode_currentIndexChanged(int) {
+	updateOverlayExclusionModeState();
+}
+
+void OverlayConfig::on_qpbLaunchersAdd_clicked() {
+#if defined(Q_OS_WIN)
+	QString file = QFileDialog::getOpenFileName(this, tr("Choose executable"), QString(), QLatin1String("*.exe"));
+#elif defined(Q_OS_MAC)
+	QString file = QFileDialog::getOpenFileName(this, tr("Choose application"), QString(), QLatin1String("*.app"));
+#else
+	QString file = QString();
+#endif
+
+	if (!file.isEmpty()) {
+		QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(file);
+		QStringList qslIdentifiers;
+		for (int i = 0; i < qlwLaunchers->count(); i++)
+			qslIdentifiers << qlwLaunchers->item(i)->data(Qt::UserRole).toString();
+		if (!qslIdentifiers.contains(qsAppIdentifier)) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwLaunchers);
+			qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
+			qlwLaunchers->setCurrentItem(qlwiApplication);
+		}
+	}
+}
+
+void OverlayConfig::on_qpbLaunchersRemove_clicked() {
+	int row = qlwLaunchers->currentRow();
+	if (row != -1)
+		delete qlwLaunchers->takeItem(row);
+}
+
+void OverlayConfig::on_qlwWhitelist_itemSelectionChanged() {
+	QList< QListWidgetItem * > items = qlwWhitelist->selectedItems();
+	if (items.isEmpty()) {
+		qpbWhitelistRemove->setEnabled(false);
+		return;
+	}
+
+	QListWidgetItem *item = items.at(0);
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+
+	if (isBuiltin) {
+		qpbWhitelistRemove->setEnabled(false);
+	} else {
+		qpbWhitelistRemove->setEnabled(true);
+	}
+}
+
+void OverlayConfig::addWhitelistPath(const QString &path) {
+	QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(path);
+	QListWidget *sel        = qlwWhitelist;
+	QStringList qslIdentifiers;
+	for (int i = 0; i < sel->count(); i++)
+		qslIdentifiers << sel->item(i)->data(Qt::UserRole).toString();
+	if (!qslIdentifiers.contains(qsAppIdentifier)) {
+		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, sel);
+		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
+		sel->setCurrentItem(qlwiApplication);
+	}
+}
+
+void OverlayConfig::on_qpbWhitelistAdd_clicked() {
+#if defined(Q_OS_WIN)
+	QString file = QFileDialog::getOpenFileName(this, tr("Choose executable"), QString(), QLatin1String("*.exe"));
+#elif defined(Q_OS_MAC)
+	QString file = QFileDialog::getOpenFileName(this, tr("Choose application"), QString(), QLatin1String("*.app"));
+#else
+	QString file = QString();
+#endif
+
+	if (!file.isEmpty()) {
+		addWhitelistPath(file);
+	}
+}
+
+void OverlayConfig::on_qpbWhitelistRemove_clicked() {
+	QListWidget *sel = qlwWhitelist;
+	int row          = sel->currentRow();
+	if (row != -1)
+		delete sel->takeItem(row);
+}
+
+void OverlayConfig::on_qlwPaths_itemSelectionChanged() {
+	QList< QListWidgetItem * > items = qlwPaths->selectedItems();
+	if (items.isEmpty()) {
+		qpbPathsRemove->setEnabled(false);
+		return;
+	}
+
+	QListWidgetItem *item = items.at(0);
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+
+	if (isBuiltin) {
+		qpbPathsRemove->setEnabled(false);
+	} else {
+		qpbPathsRemove->setEnabled(true);
+	}
+}
+
+void OverlayConfig::on_qpbPathsAdd_clicked() {
+	QString existingPath = QFileDialog::getExistingDirectory(this, tr("Choose path"));
+	QString dir          = QDir::toNativeSeparators(existingPath);
+
+	QListWidget *sel = qlwPaths;
+	QStringList qslIdentifiers;
+	for (int i = 0; i < sel->count(); i++)
+		qslIdentifiers << sel->item(i)->data(Qt::UserRole).toString();
+	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
+		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), dir, sel);
+		qlwiPath->setData(Qt::UserRole, QVariant(dir));
+		sel->setCurrentItem(qlwiPath);
+	}
+}
+
+void OverlayConfig::on_qpbPathsRemove_clicked() {
+	int row = qlwPaths->currentRow();
+	if (row != -1)
+		delete qlwPaths->takeItem(row);
+}
+
+void OverlayConfig::on_qlwBlacklist_itemSelectionChanged() {
+	QList< QListWidgetItem * > items = qlwBlacklist->selectedItems();
+	if (items.isEmpty()) {
+		qpbBlacklistRemove->setEnabled(false);
+		return;
+	}
+
+	QListWidgetItem *item = items.at(0);
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+
+	if (isBuiltin) {
+		qpbBlacklistRemove->setEnabled(false);
+	} else {
+		qpbBlacklistRemove->setEnabled(true);
+	}
+}
+
+void OverlayConfig::on_qpbBlacklistAdd_clicked() {
+#if defined(Q_OS_WIN)
+	QString file = QFileDialog::getOpenFileName(this, tr("Choose executable"), QString(), QLatin1String("*.exe"));
+#elif defined(Q_OS_MAC)
+	QString file = QFileDialog::getOpenFileName(this, tr("Choose application"), QString(), QLatin1String("*.app"));
+#else
+	QString file = QString();
+#endif
+
+	if (!file.isEmpty()) {
+		QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(file);
+		QListWidget *sel        = qlwBlacklist;
+		QStringList qslIdentifiers;
+		for (int i = 0; i < sel->count(); i++)
+			qslIdentifiers << sel->item(i)->data(Qt::UserRole).toString();
+		if (!qslIdentifiers.contains(qsAppIdentifier)) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, sel);
+			qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
+			sel->setCurrentItem(qlwiApplication);
+		}
+	}
+}
+
+void OverlayConfig::on_qpbBlacklistRemove_clicked() {
+	QListWidget *sel = qlwBlacklist;
+	int row          = sel->currentRow();
+	if (row != -1)
+		delete sel->takeItem(row);
+}
+
+void OverlayConfig::on_qcbEnable_stateChanged(int state) {
+	qgpFps->setEnabled(state == Qt::Checked);
+}
+
+void OverlayConfig::on_qpbInstall_clicked() {
+	qpbInstall->setEnabled(false);
+
+	if (installFiles()) {
+		qswOverlayPage->setCurrentWidget(qwOverlayConfig);
+	}
+
+	qpbInstall->setEnabled(true);
+}
+
+void OverlayConfig::on_qpbUninstall_clicked() {
+	qpbUninstall->setEnabled(false);
+
+	if (uninstallFiles()) {
+		qswOverlayPage->setCurrentWidget(qwOverlayInstall);
+	}
+
+	qpbUninstall->setEnabled(true);
+}
+
+void OverlayConfig::on_qcbShowFps_stateChanged(int state) {
+	Q_UNUSED(state);
+	s.os.bFps = qcbShowFps->isChecked();
+	refreshFpsLive();
+}
+
+void OverlayConfig::on_qcbShowTime_stateChanged(int state) {
+	Q_UNUSED(state);
+	s.os.bTime = qcbShowTime->isChecked();
+	refreshTimeLive();
+}
+
+void OverlayConfig::on_qpbFpsFont_clicked() {
+	bool ok;
+	QFont new_font = QFontDialog::getFont(&ok, s.os.qfFps);
+
+	if (ok) {
+		s.os.qfFps = new_font;
+
+		refreshFpsDemo();
+		refreshFpsLive();
+		refreshTimeLive();
+	}
+}
+
+void OverlayConfig::on_qpbFpsColor_clicked() {
+	QColor color = QColorDialog::getColor(s.os.qcFps);
+
+	if (color.isValid()) {
+		s.os.qcFps = color;
+
+		refreshFpsDemo();
+		refreshFpsLive();
+		refreshTimeLive();
+	}
+}
+
+void OverlayConfig::on_qpbLoadPreset_clicked() {
+	QString fn = QFileDialog::getOpenFileName(this, tr("Load Overlay Presets"), QDir::homePath(),
+											  tr("Mumble overlay presets (*.mumblelay)"));
+
+	if (fn.isEmpty()) {
+		return;
+	}
+
+	QSettings qs(fn, QSettings::IniFormat);
+	OverlaySettings load_preset;
+
+	qs.beginGroup(QLatin1String("overlay"));
+	load_preset.load(&qs);
+	qs.endGroup();
+
+#ifdef Q_OS_WIN
+	load_preset.qslLaunchers        = s.os.qslLaunchers;
+	load_preset.qslLaunchersExclude = s.os.qslLaunchersExclude;
+
+	load_preset.qslWhitelist        = s.os.qslWhitelist;
+	load_preset.qslWhitelistExclude = s.os.qslWhitelistExclude;
+
+	load_preset.qslPaths        = s.os.qslPaths;
+	load_preset.qslPathsExclude = s.os.qslPathsExclude;
+
+	load_preset.qslBlacklist        = s.os.qslBlacklist;
+	load_preset.qslBlacklistExclude = s.os.qslBlacklistExclude;
+#endif
+	load_preset.bEnable = s.os.bEnable;
+	s.os                = load_preset;
+
+	load(s);
+}
+
+void OverlayConfig::on_qpbSavePreset_clicked() {
+	QString fn = QFileDialog::getSaveFileName(this, tr("Save Overlay Presets"), QDir::homePath(),
+											  tr("Mumble overlay presets (*.mumblelay)"));
+
+	if (fn.isEmpty()) {
+		return;
+	}
+
+	QSettings qs(fn, QSettings::IniFormat);
+
+	if (!qs.isWritable()) {
+		qWarning() << __FUNCTION__ << "preset save file" << fn << "is not writable!";
+		return;
+	}
+
+	qs.beginGroup(QLatin1String("overlay"));
+	s.os.save(&qs);
+	qs.remove(QLatin1String("enable"));
+	qs.remove(QLatin1String("usewhitelist"));
+	qs.remove(QLatin1String("blacklist"));
+	qs.remove(QLatin1String("whitelist"));
+	qs.remove(QLatin1String("enablelauncherfilter"));
+	qs.remove(QLatin1String("launchers"));
+	qs.endGroup();
+}
