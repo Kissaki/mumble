@@ -3,166 +3,138 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "OverlayEditor.h"
+#ifndef MUMBLE_MUMBLE_GLOBALSHORTCUT_WIN_H_
+#define MUMBLE_MUMBLE_GLOBALSHORTCUT_WIN_H_
 
-#include "Channel.h"
-#include "Database.h"
-#include "MainWindow.h"
-#include "Message.h"
-#include "NetworkConfig.h"
-#include "OverlayClient.h"
-#include "OverlayText.h"
-#include "ServerHandler.h"
-#include "User.h"
-#include "Utils.h"
+#include "Timer.h"
 #include "GlobalShortcut.h"
 
-#include <QtWidgets/QGraphicsProxyWidget>
+#ifdef USE_GKEY
+#	include "GKey.h"
+#endif
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name
-// (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#ifdef USE_XBOXINPUT
+#	include "XboxInput.h"
+#endif
 
-OverlayEditor::OverlayEditor(QWidget *p, QGraphicsItem *qgi, OverlaySettings *osptr)
-	: QDialog(p), qgiPromote(qgi), oes(g.s.os) {
-	setupUi(this);
-	qsZoom->setAccessibleName(tr("Zoom level"));
-	os = osptr ? osptr : &g.s.os;
+#define DIRECTINPUT_VERSION 0x0800
+#include <dinput.h>
 
-	connect(qdbbBox->button(QDialogButtonBox::Apply), SIGNAL(clicked()), this, SLOT(apply()));
-	connect(qdbbBox->button(QDialogButtonBox::Reset), SIGNAL(clicked()), this, SLOT(reset()));
+typedef QPair< GUID, DWORD > qpButton;
 
-	QGraphicsProxyWidget *qgpw = graphicsProxyWidget();
-	if (qgpw) {
-		qgpw->setFlag(QGraphicsItem::ItemIgnoresParentOpacity);
-		if (g.ocIntercept) {
-			qgpw->setPos(iroundf(static_cast< float >(g.ocIntercept->uiWidth) / 16.0f + 0.5f),
-						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) / 16.0f + 0.5f));
-			qgpw->resize(iroundf(static_cast< float >(g.ocIntercept->uiWidth) * 14.0f / 16.0f + 0.5f),
-						 iroundf(static_cast< float >(g.ocIntercept->uiHeight) * 14.0f / 16.0f + 0.5f));
-		}
-	}
+struct InputDevice {
+	LPDIRECTINPUTDEVICE8 pDID;
 
-	qgvView->setScene(&oes);
+	QString name;
 
-	reset();
-}
+	GUID guid;
+	QVariant vguid;
 
-OverlayEditor::~OverlayEditor() {
-	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.9f);
-	if (qgiPromote)
-		qgiPromote->setZValue(-1.0f);
-}
+	GUID guidproduct;
+	QVariant vguidproduct;
 
-void OverlayEditor::enterEvent(QEvent *e) {
-	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.9f);
+	uint16_t vendor_id;
+	uint16_t product_id;
 
-	qgpw = graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(1.0f);
+	// dwType to name
+	QHash< DWORD, QString > qhNames;
 
-	if (qgiPromote)
-		qgiPromote->setZValue(-1.0f);
+	// Map dwType to dwOfs in our structure
+	QHash< DWORD, DWORD > qhTypeToOfs;
 
-	QDialog::enterEvent(e);
-}
+	// Map dwOfs in our structure to dwType
+	QHash< DWORD, DWORD > qhOfsToType;
 
-void OverlayEditor::leaveEvent(QEvent *e) {
-	QGraphicsProxyWidget *qgpw = g.mw->graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.3f);
+	// Buttons active since last reset
+	QSet< DWORD > activeMap;
+};
 
-	qgpw = graphicsProxyWidget();
-	if (qgpw)
-		qgpw->setOpacity(0.3f);
+class GlobalShortcutWin : public GlobalShortcutEngine {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(GlobalShortcutWin)
+public:
+	LPDIRECTINPUT8 pDI;
+	QHash< GUID, InputDevice * > qhInputDevices;
+	HHOOK hhMouse, hhKeyboard;
+	unsigned int uiHardwareDevices;
+	Timer tDoubleClick;
+	bool bHook;
+#ifdef USE_GKEY
+	GKeyLibrary *gkey;
+#endif
+#ifdef USE_XBOXINPUT
+	/// xboxinputLastPacket holds the last packet number
+	/// that was processed. Any new data queried for a
+	/// device is only valid if the packet number is
+	/// different than last time we queried it.
+	uint32_t xboxinputLastPacket[XBOXINPUT_MAX_DEVICES];
+	XboxInput *xboxinput;
+	/// nxboxinput holds the number of XInput devices
+	/// available on the system. It is filled out by
+	/// our EnumDevices callback.
+	int nxboxinput;
+#endif
 
-	if (qgiPromote)
-		qgiPromote->setZValue(1.0f);
+	static BOOL CALLBACK EnumSuitableDevicesCB(LPCDIDEVICEINSTANCE, LPDIRECTINPUTDEVICE8, DWORD, DWORD, LPVOID);
+	static BOOL CALLBACK EnumDevicesCB(LPCDIDEVICEINSTANCE, LPVOID);
+	static BOOL CALLBACK EnumDeviceObjectsCallback(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef);
+	static LRESULT CALLBACK HookKeyboard(int, WPARAM, LPARAM);
+	static LRESULT CALLBACK HookMouse(int, WPARAM, LPARAM);
 
-	QDialog::leaveEvent(e);
-}
+	/// Handle an incoming Windows keyboard message.
+	///
+	/// Returns true if the GlobalShortcut engine signals that the
+	/// button should be suppressed. Returns false otherwise.
+	static bool handleKeyboardMessage(DWORD scancode, DWORD vkcode, bool extended, bool down);
 
-void OverlayEditor::reset() {
-	oes.os = *os;
-	oes.resync();
+	/// Handle an incoming Windows mouse message.
+	///
+	/// Returns true if the GlobalShortcut engine signals that the
+	/// button should be suppressed. Returns false otherwise.
+	static bool handleMouseMessage(unsigned int btn, bool down);
 
-	qcbAvatar->setChecked(oes.os.bAvatar);
-	qcbUser->setChecked(oes.os.bUserName);
-	qcbChannel->setChecked(oes.os.bChannel);
-	qcbMutedDeafened->setChecked(oes.os.bMutedDeafened);
-	qcbBox->setChecked(oes.os.bBox);
-}
+	virtual bool canSuppress() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+	bool event(QEvent *e) Q_DECL_OVERRIDE;
+public slots:
+	void timeTicked();
 
-void OverlayEditor::apply() {
-	*os = oes.os;
-	emit applySettings();
-}
+public:
+	GlobalShortcutWin();
+	~GlobalShortcutWin() Q_DECL_OVERRIDE;
+	void unacquire();
+	QString buttonName(const QVariant &) Q_DECL_OVERRIDE;
 
-void OverlayEditor::accept() {
-	apply();
-	QDialog::accept();
-}
+	/// Inject a native Windows keyboard message into GlobalShortcutWin's
+	/// event stream. This method is meant to be called from the main thread
+	/// to pass native Windows keyboard messages to GlobalShortcutWin.
+	///
+	/// @param  msg  The keyboard message to inject into GlobalShortcutWin.
+	///              Must be WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN or WM_SYSKEYUP.
+	///              Otherwise the message will be ignored.
+	///
+	/// @return      Returns true if the GlobalShortcut engine signalled that
+	///              the button should be suppressed. Returns false otherwise.
+	bool injectKeyboardMessage(MSG *msg);
 
-void OverlayEditor::on_qrbPassive_clicked() {
-	oes.tsColor = Settings::Passive;
-	oes.resync();
-}
+	/// Inject a native Windows mouse message into GlobalShortcutWin's
+	/// event stream. This method is meant to be called from the main thread
+	/// to pass native Windows mouse messages to GlobalShortcutWin.
+	///
+	/// @param  msg  The keyboard message to inject into GlobalShortcutWin.
+	///              Must be WM_LBUTTONDOWN, WM_LBUTTONUP, WM_RBUTTONDOWN,
+	///              WM_RBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_XBUTTONDOWN
+	///              or WM_XBUTTONUP. Otherwise the message will be ignored.
+	///
+	/// @return      Returns true if the GlobalShortcut engine signalled that
+	///              the button should be suppressed. Returns false otherwise.
+	bool injectMouseMessage(MSG *msg);
 
-void OverlayEditor::on_qrbTalking_clicked() {
-	oes.tsColor = Settings::Talking;
-	oes.resync();
-}
+private:
+	bool areScreenReadersActive();
+};
 
-void OverlayEditor::on_qrbWhisper_clicked() {
-	oes.tsColor = Settings::Whispering;
-	oes.resync();
-}
+uint qHash(const GUID &);
 
-void OverlayEditor::on_qrbShout_clicked() {
-	oes.tsColor = Settings::Shouting;
-	oes.resync();
-}
-
-void OverlayEditor::on_qcbAvatar_clicked() {
-	oes.os.bAvatar = qcbAvatar->isChecked();
-	if (!oes.os.bAvatar && !oes.os.bUserName) {
-		qcbUser->setChecked(true);
-		oes.os.bUserName = true;
-		oes.updateUserName();
-	}
-	oes.updateAvatar();
-}
-
-void OverlayEditor::on_qcbUser_clicked() {
-	oes.os.bUserName = qcbUser->isChecked();
-	if (!oes.os.bAvatar && !oes.os.bUserName) {
-		qcbAvatar->setChecked(true);
-		oes.os.bAvatar = true;
-		oes.updateAvatar();
-	}
-	oes.updateUserName();
-}
-
-void OverlayEditor::on_qcbChannel_clicked() {
-	oes.os.bChannel = qcbChannel->isChecked();
-	oes.updateChannel();
-}
-
-void OverlayEditor::on_qcbMutedDeafened_clicked() {
-	oes.os.bMutedDeafened = qcbMutedDeafened->isChecked();
-	oes.updateMuted();
-}
-
-void OverlayEditor::on_qcbBox_clicked() {
-	oes.os.bBox = qcbBox->isChecked();
-	oes.moveBox();
-}
-
-void OverlayEditor::on_qsZoom_valueChanged(int zoom) {
-	oes.uiZoom = zoom;
-	oes.resync();
-}
+#endif
