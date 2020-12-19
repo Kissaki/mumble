@@ -3,90 +3,94 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CLIENTUSER_H_
-#define MUMBLE_MUMBLE_CLIENTUSER_H_
+#ifndef MUMBLE_MUMBLE_COREAUDIO_H_
+#	define MUMBLE_MUMBLE_COREAUDIO_H_
 
-#include <QtCore/QHash>
-#include <QtCore/QReadWriteLock>
+#	include "AudioInput.h"
+#	include "AudioOutput.h"
 
-#include "Settings.h"
-#include "Timer.h"
-#include "User.h"
+#	include <AudioToolbox/AudioToolbox.h>
+#	include <Carbon/Carbon.h>
 
-class ClientUser : public QObject, public User {
+#	include "Global.h"
+
+class CoreAudioSystem : public QObject {
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(ClientUser)
-
-protected:
-	float m_localVolume = 1.0f;
-
+	Q_DISABLE_COPY(CoreAudioSystem)
 public:
-	Settings::TalkState tsState;
-	Timer tLastTalkStateChange;
-	bool bLocalIgnore;
-	bool bLocalIgnoreTTS;
-	bool bLocalMute;
-
-	float fPowerMin, fPowerMax;
-	float fAverageAvailable;
-
-	int iFrames;
-	int iSequence;
-
-	QByteArray qbaTextureFormat;
-	QString qsFriendName;
-
-	QString getFlagsString() const;
-	ClientUser(QObject *p = nullptr);
-
-	float getLocalVolumeAdjustments() const;
-
-	/**
-	 * Determines whether a user is active or not
-	 * A user is active when it is currently speaking or when the user has
-	 * spoken within Settings::uiActiveTime amount of seconds.
-	 */
-	bool isActive();
-
-	static QHash< unsigned int, ClientUser * > c_qmUsers;
-	static QReadWriteLock c_qrwlUsers;
-
-	static QList< ClientUser * > c_qlTalking;
-	static QReadWriteLock c_qrwlTalking;
-	static QList< ClientUser * > getTalking();
-	static QList< ClientUser * > getActive();
-
-	static void sortUsersOverlay(QList< ClientUser * > &list);
-
-	static ClientUser *get(unsigned int);
-	static bool isValid(unsigned int);
-	static ClientUser *add(unsigned int, QObject *p = nullptr);
-	static ClientUser *match(const ClientUser *p, bool matchname = false);
-	static void remove(unsigned int);
-	static void remove(ClientUser *);
-
-protected:
-	static bool lessThanOverlay(const ClientUser *, const ClientUser *);
-public slots:
-	void setTalking(Settings::TalkState ts);
-	void setMute(bool mute);
-	void setDeaf(bool deaf);
-	void setSuppress(bool suppress);
-	void setLocalIgnore(bool ignore);
-	void setLocalIgnoreTTS(bool ignoreTTS);
-	void setLocalMute(bool mute);
-	void setSelfMute(bool mute);
-	void setSelfDeaf(bool deaf);
-	void setPrioritySpeaker(bool priority);
-	void setRecording(bool recording);
-	void setLocalVolumeAdjustment(float adjustment);
-signals:
-	void talkingStateChanged();
-	void muteDeafStateChanged();
-	void prioritySpeakerStateChanged();
-	void recordingStateChanged();
-	void localVolumeAdjustmentsChanged(float newAdjustment, float oldAdjustment);
+	static CFStringRef QStringToCFString(const QString &str);
+	static const QHash< QString, QString > getDevices(bool input);
+	static const QList< audioDevice > getDeviceChoices(bool input);
 };
 
+class CoreAudioInput : public AudioInput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CoreAudioInput)
+protected:
+	AudioUnit au;
+	AUEventListenerRef el;
+	AudioBufferList buflist;
+	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+							   AudioUnitElement element);
+	static OSStatus inputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+								  UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
+
+public:
+	CoreAudioInput();
+	~CoreAudioInput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
+class CoreAudioOutput : public AudioOutput {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(CoreAudioOutput)
+protected:
+	AudioUnit au;
+	AUEventListenerRef el;
+	static void propertyChange(void *udata, AudioUnit au, AudioUnitPropertyID prop, AudioUnitScope scope,
+							   AudioUnitElement element);
+	static OSStatus outputCallback(void *udata, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+								   UInt32 busnum, UInt32 npackets, AudioBufferList *buflist);
+
+public:
+	CoreAudioOutput();
+	~CoreAudioOutput() Q_DECL_OVERRIDE;
+	void run() Q_DECL_OVERRIDE;
+};
+
+class CoreAudioInputRegistrar : public AudioInputRegistrar {
+public:
+	CoreAudioInputRegistrar() : AudioInputRegistrar(QLatin1String("CoreAudio"), 10) {}
+	virtual AudioInput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	virtual bool canEcho(const QString &) const;
+};
+
+class CoreAudioOutputRegistrar : public AudioOutputRegistrar {
+public:
+	CoreAudioOutputRegistrar() : AudioOutputRegistrar(QLatin1String("CoreAudio"), 10) {}
+	virtual AudioOutput *create();
+	virtual const QList< audioDevice > getDeviceChoices();
+	virtual void setDeviceChoice(const QVariant &, Settings &);
+	bool canMuteOthers() const;
+};
+
+class CoreAudioInit : public DeferInit {
+	CoreAudioInputRegistrar *cairReg;
+	CoreAudioOutputRegistrar *caorReg;
+
+public:
+	CoreAudioInit() : cairReg(nullptr), caorReg(nullptr) {}
+	void initialize();
+	void destroy();
+};
+
+#else
+class CoreAudioSystem;
+class CoreAudioInput;
+class CoreAudioOutput;
 #endif
