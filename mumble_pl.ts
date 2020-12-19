@@ -3,79 +3,100 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
-#define MUMBLE_MUMBLE_AUDIOOUTPUTSPEECH_H_
+#include "OpusCodec.h"
 
-#include <celt.h>
-#include <speex/speex.h>
-#include <speex/speex_jitter.h>
-#include <speex/speex_resampler.h>
+#include "Audio.h"
+#include "MumbleApplication.h"
+#include "Version.h"
 
-#include <QtCore/QMutex>
+#ifdef Q_CC_GNU
+#	define RESOLVE(var)                                                        \
+		{                                                                       \
+			var    = reinterpret_cast< __typeof__(var) >(qlOpus.resolve(#var)); \
+			bValid = bValid && var;                                             \
+		}
+#else
+#	define RESOLVE(var)                                                                      \
+		{                                                                                     \
+			*reinterpret_cast< void ** >(&var) = static_cast< void * >(qlOpus.resolve(#var)); \
+			bValid                             = bValid && var;                               \
+		}
+#endif
 
-#include "AudioOutputUser.h"
-#include "Message.h"
+OpusCodec::OpusCodec() {
+	bValid = false;
+	qlOpus.setLoadHints(QLibrary::ResolveAllSymbolsHint);
 
-class CELTCodec;
-class OpusCodec;
-class ClientUser;
-struct OpusDecoder;
+	QStringList alternatives;
+#if defined(Q_OS_MAC)
+	alternatives << QString::fromLatin1("libopus0.dylib");
+	alternatives << QString::fromLatin1("opus0.dylib");
+	alternatives << QString::fromLatin1("libopus.dylib");
+	alternatives << QString::fromLatin1("opus.dylib");
+#elif defined(Q_OS_UNIX)
+	alternatives << QString::fromLatin1("libopus.so.0");
+	alternatives << QString::fromLatin1("libopus0.so");
+	alternatives << QString::fromLatin1("libopus.so");
+	alternatives << QString::fromLatin1("opus.so");
+#else
+	alternatives << QString::fromLatin1("opus0.dll");
+	alternatives << QString::fromLatin1("opus.dll");
+#endif
+	foreach (const QString &lib, alternatives) {
+		qlOpus.setFileName(MumbleApplication::instance()->applicationVersionRootPath() + QLatin1String("/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
 
-class AudioOutputSpeech : public AudioOutputUser {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(AudioOutputSpeech)
-protected:
-	unsigned int iAudioBufferSize;
-	unsigned int iBufferOffset;
-	unsigned int iBufferFilled;
-	unsigned int iOutputSize;
-	unsigned int iLastConsume;
-	unsigned int iFrameSize;
-	unsigned int iFrameSizePerChannel;
-	unsigned int iSampleRate;
-	unsigned int iMixerFreq;
-	bool bLastAlive;
-	bool bHasTerminator;
+#ifdef Q_OS_MAC
+		qlOpus.setFileName(QApplication::instance()->applicationDirPath() + QLatin1String("/../Codecs/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
 
-	float *fFadeIn;
-	float *fFadeOut;
-	float *fResamplerBuffer;
+#ifdef MUMBLE_LIBRARY_PATH
+		qlOpus.setFileName(QLatin1String(MUMTEXT(MUMBLE_LIBRARY_PATH) "/") + lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+#endif
 
-	SpeexResamplerState *srs;
+		qlOpus.setFileName(lib);
+		if (qlOpus.load()) {
+			bValid = true;
+			break;
+		}
+	}
 
-	QMutex qmJitter;
-	JitterBuffer *jbJitter;
-	int iMissCount;
+	RESOLVE(opus_get_version_string);
 
-	CELTCodec *cCodec;
-	CELTDecoder *cdDecoder;
+	RESOLVE(opus_encode);
+	RESOLVE(opus_decode_float);
 
-	OpusCodec *oCodec;
-	OpusDecoder *opusState;
+	RESOLVE(opus_encoder_create);
+	RESOLVE(opus_encoder_ctl);
+	RESOLVE(opus_encoder_destroy);
+	RESOLVE(opus_decoder_create);
+	RESOLVE(opus_decoder_ctl);
+	RESOLVE(opus_decoder_destroy);
 
-	SpeexBits sbBits;
-	void *dsSpeex;
+	RESOLVE(opus_decoder_get_nb_samples);
 
-	QList< QByteArray > qlFrames;
+	RESOLVE(opus_packet_get_samples_per_frame);
+}
 
-public:
-	unsigned char ucFlags;
-	MessageHandler::UDPMessageType umtType;
-	int iMissedFrames;
-	ClientUser *p;
+OpusCodec::~OpusCodec() {
+	qlOpus.unload();
+}
 
-	/// Fetch and decode frames from the jitter buffer. Called in mix().
-	///
-	/// @param frameCount Number of frames to decode. frame means a bundle of one sample from each channel.
-	virtual bool prepareSampleBuffer(unsigned int frameCount) Q_DECL_OVERRIDE;
+bool OpusCodec::isValid() const {
+	return bValid;
+}
 
-	void addFrameToBuffer(const QByteArray &, unsigned int iBaseSeq);
-
-	/// @param systemMaxBufferSize maximum number of samples the system audio play back may request each time
-	AudioOutputSpeech(ClientUser *, unsigned int freq, MessageHandler::UDPMessageType type,
-					  unsigned int systemMaxBufferSize);
-	~AudioOutputSpeech() Q_DECL_OVERRIDE;
-};
-
-#endif // AUDIOOUTPUTSPEECH_H_
+void OpusCodec::report() const {
+	qDebug("%s from %s", opus_get_version_string(), qPrintable(qlOpus.fileName()));
+}
