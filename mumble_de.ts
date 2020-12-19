@@ -1,100 +1,50 @@
-// Copyright 2020 The Mumble Developers. All rights reserved.
+// Copyright 2005-2020 The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
-#define MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+#ifndef MUMBLE_MUMBLE_LOCKFILE_H_
+#define MUMBLE_MUMBLE_LOCKFILE_H_
 
-#include "TalkingUIComponent.h"
-#include "TalkingUIEntry.h"
+#include <QtCore/QtGlobal>
 
-#include <QString>
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
 
-#include <memory>
+#include <QtCore/QString>
 
-class QWidget;
-class QGroupBox;
-class TalkingUI;
-
-enum class ContainerType { CHANNEL };
-
-class TalkingUIContainer : public TalkingUIComponent {
-	friend class TalkingUIUser;
-
-protected:
-	std::vector< std::unique_ptr< TalkingUIEntry > > m_entries;
-
-	int m_associatedChannelID = -1;
-
-	bool m_permanent = false;
-
-	TalkingUI &m_talkingUI;
-
-	virtual int find(unsigned int associatedUserSession, EntryType type) const;
+/// UserLockFile implements an atomic lock file
+/// that can be used as a mutex between different
+/// processes run by the same user.
+class UserLockFile {
+#if defined(Q_OS_WIN)
+	HANDLE m_handle;
+#endif
+	QString m_path;
 
 public:
-	TalkingUIContainer(int associatedChannelID, TalkingUI &talkingUI);
-	virtual ~TalkingUIContainer() = default;
+	/// Constructs a LockFile at path.
+	/// The path should be somewhere
+	/// owned by the current user, such
+	/// as inside the home directory of
+	/// the user. This is to avoid clashing
+	/// with other lock files.
+	UserLockFile(const QString &path);
 
-	virtual QString getName() const = 0;
+	/// Destroys the LockFile, and ensures
+	/// that it is released.
+	~UserLockFile();
 
-	virtual int compare(const TalkingUIContainer &other) const = 0;
+	/// Returns the path that the lock file
+	/// exists at.
+	QString path() const;
 
-	virtual ContainerType getType() const = 0;
+	/// Acquires the lock file.
+	bool acquire();
 
-	virtual int getAssociatedChannelID() const;
-
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(const TalkingUIEntry *entry);
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type);
-
-	virtual std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries();
-	virtual const std::vector< std::unique_ptr< TalkingUIEntry > > &getEntries() const;
-
-	virtual bool contains(unsigned int associatedUserSession, EntryType type) const;
-
-	virtual std::size_t size() const;
-	virtual bool isEmpty() const;
-
-	virtual void setPermanent(bool permanent);
-	virtual bool isPermanent() const;
-
-	virtual TalkingUIEntry *get(unsigned int associatedUserSession, EntryType type);
-
-	bool operator==(const TalkingUIContainer &other) const;
-	bool operator!=(const TalkingUIContainer &other) const;
-	bool operator>(const TalkingUIContainer &other) const;
-	bool operator>=(const TalkingUIContainer &other) const;
-	bool operator<(const TalkingUIContainer &other) const;
-	bool operator<=(const TalkingUIContainer &other) const;
+	/// Releases the lock file.
+	void release();
 };
 
-
-class TalkingUIChannel : public TalkingUIContainer {
-protected:
-	QGroupBox *m_channelBox;
-
-	EntryPriority m_highestUserPriority = EntryPriority::LOWEST;
-
-	void updatePriority();
-
-public:
-	TalkingUIChannel(int associatedChannelID, QString name, TalkingUI &talkingUI);
-	virtual ~TalkingUIChannel();
-
-	virtual QString getName() const override;
-	virtual void setName(const QString &name);
-
-	virtual int compare(const TalkingUIContainer &other) const override;
-
-	virtual QWidget *getWidget() override;
-	virtual const QWidget *getWidget() const override;
-
-	virtual ContainerType getType() const override;
-
-	virtual void addEntry(std::unique_ptr< TalkingUIEntry > entry) override;
-	virtual std::unique_ptr< TalkingUIEntry > removeEntry(unsigned int associatedUserSession, EntryType type) override;
-};
-
-#endif // MUMBLE_MUMBLE_TALKINGUICONTAINER_H_
+#endif
