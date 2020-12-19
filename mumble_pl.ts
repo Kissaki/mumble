@@ -3,85 +3,70 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_CELTCODEC_H_
-#define MUMBLE_MUMBLE_CELTCODEC_H_
+#include "CELTCodec.h"
 
-#include <celt.h>
+#include "Audio.h"
+#include "Version.h"
 
-#include <QtCore/QLibrary>
-#include <QtCore/QString>
+CELTCodec::CELTCodec(const QString &version) {
+	bValid            = true;
+	cmMode            = nullptr;
+	qsVersion         = version;
+	iBitstreamVersion = INT_MIN;
 
-#ifndef Q_OS_WIN
-#	define __cdecl
-#endif
+	this->celt_encoder_destroy = ::celt_encoder_destroy;
+	this->celt_encoder_ctl     = ::celt_encoder_ctl;
 
-class CELTCodec {
-private:
-	Q_DISABLE_COPY(CELTCodec)
-protected:
-	const CELTMode *cmMode;
-	QString qsVersion;
-	QLibrary qlCELT;
-	bool bValid;
-	mutable int iBitstreamVersion;
+	this->celt_decoder_destroy = ::celt_decoder_destroy;
+	this->celt_decoder_ctl     = ::celt_decoder_ctl;
+}
 
-	void (*celt_mode_destroy)(CELTMode *mode);
-	int(__cdecl *celt_mode_info)(const CELTMode *mode, int request, celt_int32 *value);
+CELTCodec::~CELTCodec() {
+	if (cmMode)
+		::celt_mode_destroy(const_cast< CELTMode * >(cmMode));
+}
 
-public:
-	void(__cdecl *celt_encoder_destroy)(CELTEncoder *st);
-	int(__cdecl *celt_encoder_ctl)(CELTEncoder *st, int request, ...);
+bool CELTCodec::isValid() const {
+	return bValid;
+}
 
-	void(__cdecl *celt_decoder_destroy)(CELTDecoder *st);
-	int(__cdecl *celt_decoder_ctl)(CELTDecoder *st, int request, ...);
+int CELTCodec::bitstreamVersion() const {
+	if (cmMode && iBitstreamVersion == INT_MIN)
+		::celt_mode_info(cmMode, CELT_GET_BITSTREAM_VERSION, reinterpret_cast< celt_int32 * >(&iBitstreamVersion));
 
-	CELTCodec(const QString &celt_version);
-	virtual ~CELTCodec();
-	bool isValid() const;
-	int bitstreamVersion() const;
-	QString version() const;
+	return iBitstreamVersion;
+}
 
-	virtual void report() const;
+QString CELTCodec::version() const {
+	return qsVersion;
+}
 
-	virtual CELTEncoder *encoderCreate()                                                                         = 0;
-	virtual CELTDecoder *decoderCreate()                                                                         = 0;
-	virtual int encode(CELTEncoder *st, const celt_int16 *pcm, unsigned char *compressed, int nbCompressedBytes) = 0;
-	virtual int decode_float(CELTDecoder *st, const unsigned char *data, int len, float *pcm)                    = 0;
-};
+void CELTCodec::report() const {
+	qWarning("CELT bitstream %08x from internal CELT with SBCELT decoding", bitstreamVersion());
+}
 
-class CELTCodec070 : public CELTCodec {
-protected:
-	CELTMode *(*celt_mode_create)(celt_int32 Fs, int frame_size, int *error);
-	CELTEncoder *(__cdecl *celt_encoder_create)(const CELTMode *mode, int channels, int *error);
-	CELTDecoder *(__cdecl *celt_decoder_create)(const CELTMode *mode, int channels, int *error);
-	int(__cdecl *celt_encode_float)(CELTEncoder *st, const float *pcm, float *optional_synthesis,
-									unsigned char *compressed, int nbCompressedBytes);
-	int(__cdecl *celt_encode)(CELTEncoder *st, const celt_int16 *pcm, celt_int16 *optional_synthesis,
-							  unsigned char *compressed, int nbCompressedBytes);
-	int(__cdecl *celt_decode_float)(CELTDecoder *st, const unsigned char *data, int len, float *pcm);
-	int(__cdecl *celt_decode)(CELTDecoder *st, const unsigned char *data, int len, celt_int16 *pcm);
-	const char *(__cdecl *celt_strerror)(int error);
+CELTCodecSBCELT::CELTCodecSBCELT() : CELTCodec(QLatin1String("0.7.0")) {
+	if (bValid) {
+		cmMode       = ::celt_mode_create(SAMPLE_RATE, SAMPLE_RATE / 100, nullptr);
+		cmSBCELTMode = ::sbcelt_mode_create(SAMPLE_RATE, SAMPLE_RATE / 100, nullptr);
 
-public:
-	CELTCodec070(const QString &celt_version);
-	CELTEncoder *encoderCreate() Q_DECL_OVERRIDE;
-	CELTDecoder *decoderCreate() Q_DECL_OVERRIDE;
-	int encode(CELTEncoder *st, const celt_int16 *pcm, unsigned char *compressed,
-			   int nbCompressedBytes) Q_DECL_OVERRIDE;
-	int decode_float(CELTDecoder *st, const unsigned char *data, int len, float *pcm) Q_DECL_OVERRIDE;
-};
+		this->celt_decoder_destroy = ::sbcelt_decoder_destroy;
+		this->celt_decoder_ctl     = ::sbcelt_decoder_ctl;
+	}
+}
 
-class CELTCodecSBCELT : public CELTCodec {
-protected:
-	const CELTMode *cmSBCELTMode;
+CELTEncoder *CELTCodecSBCELT::encoderCreate() {
+	return ::celt_encoder_create(cmMode, 1, nullptr);
+}
 
-public:
-	CELTCodecSBCELT();
-	CELTEncoder *encoderCreate() Q_DECL_OVERRIDE;
-	CELTDecoder *decoderCreate() Q_DECL_OVERRIDE;
-	int encode(CELTEncoder *st, const celt_int16 *pcm, unsigned char *compressed,
-			   int nbCompressedBytes) Q_DECL_OVERRIDE;
-	int decode_float(CELTDecoder *st, const unsigned char *data, int len, float *pcm) Q_DECL_OVERRIDE;
-};
+CELTDecoder *CELTCodecSBCELT::decoderCreate() {
+	return ::sbcelt_decoder_create(cmSBCELTMode, 1, nullptr);
+}
 
-#endif // CELTCODEC_H_
+int CELTCodecSBCELT::encode(CELTEncoder *st, const celt_int16 *pcm, unsigned char *compressed, int nbCompressedBytes) {
+	return ::celt_encode(st, pcm, nullptr, compressed, nbCompressedBytes);
+}
+
+int CELTCodecSBCELT::decode_float(CELTDecoder *st, const unsigned char *data, int len, float *pcm) {
+	return ::sbcelt_decode_float(st, data, len, pcm);
+}
