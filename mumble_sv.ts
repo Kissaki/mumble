@@ -3,130 +3,279 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_AUDIOOUTPUT_H_
-#define MUMBLE_MUMBLE_AUDIOOUTPUT_H_
-
-#include <QtCore/QObject>
-#include <QtCore/QThread>
-#include <boost/shared_ptr.hpp>
-
-#ifdef USE_MANUAL_PLUGIN
-#	include "ManualPlugin.h"
-#endif
-
-// AudioOutput depends on User being valid. This means it's important
-// to removeBuffer from here BEFORE MainWindow gets any UserLeft
-// messages. Any decendant user should feel free to remove unused
-// AudioOutputUser objects; it's better to recreate them than
-// having them use resources while unused.
-
-#ifndef SPEAKER_FRONT_LEFT
-#	define SPEAKER_FRONT_LEFT 0x1
-#	define SPEAKER_FRONT_RIGHT 0x2
-#	define SPEAKER_FRONT_CENTER 0x4
-#	define SPEAKER_LOW_FREQUENCY 0x8
-#	define SPEAKER_BACK_LEFT 0x10
-#	define SPEAKER_BACK_RIGHT 0x20
-#	define SPEAKER_FRONT_LEFT_OF_CENTER 0x40
-#	define SPEAKER_FRONT_RIGHT_OF_CENTER 0x80
-#	define SPEAKER_BACK_CENTER 0x100
-#	define SPEAKER_SIDE_LEFT 0x200
-#	define SPEAKER_SIDE_RIGHT 0x400
-#	define SPEAKER_TOP_CENTER 0x800
-#	define SPEAKER_TOP_FRONT_LEFT 0x1000
-#	define SPEAKER_TOP_FRONT_CENTER 0x2000
-#	define SPEAKER_TOP_FRONT_RIGHT 0x4000
-#	define SPEAKER_TOP_BACK_LEFT 0x8000
-#	define SPEAKER_TOP_BACK_CENTER 0x10000
-#	define SPEAKER_TOP_BACK_RIGHT 0x20000
-#endif
+#include "AudioOutputSample.h"
 
 #include "Audio.h"
-#include "Message.h"
+#include "Utils.h"
 
-class AudioOutput;
-class ClientUser;
-class AudioOutputUser;
-class AudioOutputSample;
+#include <QtCore/QDebug>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QMessageBox>
 
-typedef boost::shared_ptr< AudioOutput > AudioOutputPtr;
+#include <cmath>
 
-class AudioOutputRegistrar {
-private:
-	Q_DISABLE_COPY(AudioOutputRegistrar)
-public:
-	static QMap< QString, AudioOutputRegistrar * > *qmNew;
-	static QString current;
-	static AudioOutputPtr newFromChoice(QString choice = QString());
+SoundFile::SoundFile(const QString &fname) {
+	siInfo.frames     = 0;
+	siInfo.channels   = 1;
+	siInfo.samplerate = 0;
+	siInfo.sections   = 0;
+	siInfo.seekable   = 0;
+	siInfo.format     = 0;
 
-	const QString name;
-	int priority;
+	sfFile = nullptr;
 
-	AudioOutputRegistrar(const QString &n, int priority = 0);
-	virtual ~AudioOutputRegistrar();
-	virtual AudioOutput *create()                              = 0;
-	virtual const QList< audioDevice > getDeviceChoices()      = 0;
-	virtual void setDeviceChoice(const QVariant &, Settings &) = 0;
-	virtual bool canMuteOthers() const;
-	virtual bool usesOutputDelay() const;
-	virtual bool canExclusive() const;
-};
+	qfFile.setFileName(fname);
 
-class AudioOutput : public QThread {
-private:
-	Q_OBJECT
-	Q_DISABLE_COPY(AudioOutput)
-private:
-	/// Speaker positional vector
-	float *fSpeakers         = nullptr;
-	float *fSpeakerVolume    = nullptr;
-	bool *bSpeakerPositional = nullptr;
-	/// Used when panning stereo stream w.r.t. each speaker.
-	float *fStereoPanningFactor = nullptr;
+	if (qfFile.open(QIODevice::ReadOnly)) {
+		static SF_VIRTUAL_IO svi = { &SoundFile::vio_get_filelen, &SoundFile::vio_seek, &SoundFile::vio_read,
+									 &SoundFile::vio_write, &SoundFile::vio_tell };
 
-protected:
-	enum { SampleShort, SampleFloat } eSampleFormat = SampleFloat;
-	volatile bool bRunning                          = true;
-	unsigned int iFrameSize                         = SAMPLE_RATE / 100;
-	volatile unsigned int iMixerFreq                = 0;
-	unsigned int iChannels                          = 0;
-	unsigned int iSampleSize                        = 0;
-	unsigned int iBufferSize                        = 0;
-	QReadWriteLock qrwlOutputs;
-	QMultiHash< const ClientUser *, AudioOutputUser * > qmOutputs;
+		sfFile = sf_open_virtual(&svi, SFM_READ, &siInfo, this);
 
-#ifdef USE_MANUAL_PLUGIN
-	QHash< unsigned int, Position2D > positions;
-#endif
+		if (!sfFile) {
+			qWarning("AudioOutputSample: Failed to open sound-file: %s", qUtf8Printable(strError()));
+		}
+	}
+}
 
-	virtual void removeBuffer(AudioOutputUser *);
-	void initializeMixer(const unsigned int *chanmasks, bool forceheadphone = false);
-	bool mix(void *output, unsigned int frameCount);
+SoundFile::~SoundFile() {
+	if (sfFile)
+		sf_close(sfFile);
+}
 
-public:
-	void wipe();
+bool SoundFile::isOpen() const {
+	return sfFile && qfFile.isOpen();
+}
 
-	/// Construct an AudioOutput.
-	///
-	/// This constructor is only ever called by Audio::startOutput(), and is guaranteed
-	/// to be called on the application's main thread.
-	AudioOutput(){};
+int SoundFile::channels() const {
+	return siInfo.channels;
+}
 
-	/// Destroy an AudioOutput.
-	///
-	/// This destructor is only ever called by Audio::stopOutput() and Audio::stop(),
-	/// and is guaranteed to be called on the application's main thread.
-	~AudioOutput() Q_DECL_OVERRIDE;
+int SoundFile::samplerate() const {
+	return siInfo.samplerate;
+}
 
-	void addFrameToBuffer(ClientUser *, const QByteArray &, unsigned int iSeq, MessageHandler::UDPMessageType type);
-	void removeBuffer(const ClientUser *);
-	AudioOutputSample *playSample(const QString &filename, bool loop = false);
-	void run() Q_DECL_OVERRIDE = 0;
-	virtual bool isAlive() const;
-	const float *getSpeakerPos(unsigned int &nspeakers);
-	static float calcGain(float dotproduct, float distance);
-	unsigned int getMixerFreq() const;
-	void setBufferSize(unsigned int bufferSize);
-};
+int SoundFile::error() const {
+	return sf_error(sfFile);
+}
 
-#endif
+QString SoundFile::strError() const {
+	return QLatin1String(sf_strerror(sfFile));
+}
+
+sf_count_t SoundFile::seek(sf_count_t frames, int whence) {
+	return sf_seek(sfFile, frames, whence);
+}
+
+sf_count_t SoundFile::read(float *ptr, sf_count_t items) {
+	return sf_read_float(sfFile, ptr, items);
+}
+
+sf_count_t SoundFile::vio_get_filelen(void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return (sf->qfFile.size());
+}
+
+sf_count_t SoundFile::vio_seek(sf_count_t offset, int whence, void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	if (whence == SEEK_SET) {
+		sf->qfFile.seek(offset);
+	} else if (whence == SEEK_END) {
+		sf->qfFile.seek(sf->qfFile.size() - offset);
+	} else {
+		sf->qfFile.seek(sf->qfFile.pos() + offset);
+	}
+	return sf->qfFile.pos();
+}
+
+sf_count_t SoundFile::vio_read(void *ptr, sf_count_t count, void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return sf->qfFile.read(reinterpret_cast< char * >(ptr), count);
+}
+
+sf_count_t SoundFile::vio_write(const void *ptr, sf_count_t count, void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return sf->qfFile.write(reinterpret_cast< const char * >(ptr), count);
+}
+
+sf_count_t SoundFile::vio_tell(void *user_data) {
+	SoundFile *sf = reinterpret_cast< SoundFile * >(user_data);
+
+	if (!sf->qfFile.isOpen())
+		return -1;
+
+	return sf->qfFile.pos();
+}
+
+AudioOutputSample::AudioOutputSample(const QString &name, SoundFile *psndfile, bool loop, unsigned int freq,
+									 unsigned int systemMaxBufferSize)
+	: AudioOutputUser(name) {
+	int err;
+
+	sfHandle       = psndfile;
+	iOutSampleRate = freq;
+
+	if (sfHandle->channels() == 1) {
+		iBufferSize = systemMaxBufferSize;
+		bStereo     = false;
+	} else if (sfHandle->channels() == 2) {
+		iBufferSize = systemMaxBufferSize * 2;
+		bStereo     = true;
+	} else {
+		sfHandle = nullptr; // sound file is corrupted
+		return;
+	}
+
+	pfBuffer = new float[iBufferSize];
+
+	/* qWarning() << "Channels: " << sfHandle->channels();
+	qWarning() << "Samplerate: " << sfHandle->samplerate();
+	qWarning() << "Target Sr.: " << freq;
+	qWarning() << "Format: " << sfHandle->format() << endl; */
+
+	// If the frequencies don't match initialize the resampler
+	if (sfHandle->samplerate() != static_cast< int >(freq)) {
+		srs = speex_resampler_init(bStereo ? 2 : 1, sfHandle->samplerate(), iOutSampleRate, 3, &err);
+		if (err != RESAMPLER_ERR_SUCCESS) {
+			qWarning() << "Initialize " << sfHandle->samplerate() << " to " << iOutSampleRate << " resampler failed!";
+			srs      = nullptr;
+			sfHandle = nullptr;
+			return;
+		}
+	} else {
+		srs = nullptr;
+	}
+
+	iLastConsume = iBufferFilled = 0;
+	bLoop                        = loop;
+	bEof                         = false;
+}
+
+AudioOutputSample::~AudioOutputSample() {
+	if (srs)
+		speex_resampler_destroy(srs);
+
+	delete sfHandle;
+	sfHandle = nullptr;
+}
+
+SoundFile *AudioOutputSample::loadSndfile(const QString &filename) {
+	SoundFile *sf;
+
+	// Create the filehandle and do a quick check if everything is ok
+	sf = new SoundFile(filename);
+
+	if (!sf->isOpen()) {
+		qWarning() << "File " << filename << " failed to open";
+		delete sf;
+		return nullptr;
+	}
+
+	if (sf->error() != SF_ERR_NO_ERROR) {
+		qWarning() << "File " << filename << " couldn't be loaded: " << sf->strError();
+		delete sf;
+		return nullptr;
+	}
+
+	if (sf->channels() <= 0 || sf->channels() > 2) {
+		qWarning() << "File " << filename << " contains " << sf->channels() << " Channels, only 1 or 2 are supported.";
+		delete sf;
+		return nullptr;
+	}
+	return sf;
+}
+
+QString AudioOutputSample::browseForSndfile(QString defaultpath) {
+	QString file = QFileDialog::getOpenFileName(nullptr, tr("Choose sound file"), defaultpath,
+												QLatin1String("*.wav *.ogg *.ogv *.oga *.flac *.aiff"));
+	if (!file.isEmpty()) {
+		SoundFile *sf = AudioOutputSample::loadSndfile(file);
+		if (!sf) {
+			QMessageBox::critical(nullptr, tr("Invalid sound file"),
+								  tr("The file '%1' cannot be used by Mumble. Please select a file with a compatible "
+									 "format and encoding.")
+									  .arg(file.toHtmlEscaped()));
+			return QString();
+		}
+		delete sf;
+	}
+	return file;
+}
+
+bool AudioOutputSample::prepareSampleBuffer(unsigned int frameCount) {
+	unsigned int channels    = bStereo ? 2 : 1;
+	unsigned int sampleCount = frameCount * channels;
+	// Forward the buffer
+	for (unsigned int i = iLastConsume; i < iBufferFilled; ++i)
+		pfBuffer[i - iLastConsume] = pfBuffer[i];
+	iBufferFilled -= iLastConsume;
+	iLastConsume = sampleCount;
+
+	// Check if we can satisfy request with current buffer
+	if (iBufferFilled >= sampleCount)
+		return true;
+
+	// Calculate the required buffersize to hold the results
+	unsigned int iInputFrames = static_cast< unsigned int >(
+		ceilf(static_cast< float >(frameCount * sfHandle->samplerate()) / static_cast< float >(iOutSampleRate)));
+	unsigned int iInputSamples = iInputFrames * channels;
+
+	STACKVAR(float, fOut, iInputSamples);
+
+	bool eof = false;
+	sf_count_t read;
+	do {
+		resizeBuffer(iBufferFilled + sampleCount);
+
+		// If we need to resample, write to the buffer on stack
+		float *pOut = (srs) ? fOut : pfBuffer + iBufferFilled;
+
+		// Try to read all samples needed to satifsy this request
+		if ((read = sfHandle->read(pOut, iInputSamples)) < iInputSamples) {
+			if (sfHandle->error() != SF_ERR_NO_ERROR || !bLoop) {
+				// We reached the eof or encountered an error, stuff with zeroes
+				memset(pOut, 0, sizeof(float) * (iInputSamples - read));
+				read = iInputSamples;
+				eof  = true;
+			} else {
+				sfHandle->seek(SEEK_SET, 0);
+			}
+		}
+
+		spx_uint32_t inlen  = static_cast< unsigned int >(read) / channels;
+		spx_uint32_t outlen = frameCount;
+		if (srs) {
+			// If necessary resample
+			if (!bStereo) {
+				speex_resampler_process_float(srs, 0, pOut, &inlen, pfBuffer + iBufferFilled, &outlen);
+			} else {
+				speex_resampler_process_interleaved_float(srs, pOut, &inlen, pfBuffer + iBufferFilled, &outlen);
+			}
+		}
+
+		iBufferFilled += outlen * channels;
+	} while (iBufferFilled < sampleCount);
+
+	if (eof && !bEof) {
+		emit playbackFinished();
+		bEof = true;
+	}
+
+	return !eof;
+}
