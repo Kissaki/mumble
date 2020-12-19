@@ -3,100 +3,91 @@
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#ifndef MUMBLE_MUMBLE_OVERLAYCONFIG_H_
-#define MUMBLE_MUMBLE_OVERLAYCONFIG_H_
+#ifndef MUMBLE_MUMBLE_OVERLAYCLIENT_H_
+#define MUMBLE_MUMBLE_OVERLAYCLIENT_H_
 
-#include "ConfigWidget.h"
-#include "OverlayText.h"
+#include <QtCore/QScopedPointer>
+#include <QtCore/QUrl>
+#include <QtNetwork/QLocalSocket>
 
-#include "ui_Overlay.h"
+#include "../../overlay/overlay.h"
+#include "OverlayUserGroup.h"
+#include "SharedMemory.h"
+#include "Timer.h"
 
-class OverlayUserGroup;
-struct OverlayAppInfo;
+class ClientUser;
+class Overlay;
+class QLibrary;
+class QLocalServer;
 class OverlayPositionableItem;
 
-class OverlayConfig : public ConfigWidget, public Ui::OverlayConfig {
+class OverlayClient : public QObject {
+	friend class Overlay;
+
 private:
 	Q_OBJECT
-	Q_DISABLE_COPY(OverlayConfig)
-
-	void initDisplay();
-	void initDisplayFps();
-	void initDisplayClock();
-	void refreshFpsDemo();
-	void refreshFpsLive();
-	void refreshTimeLive();
-	void addWhitelistPath(const QString &path);
-
+	Q_DISABLE_COPY(OverlayClient)
 protected:
-	QPixmap qpScreen;
-	QGraphicsPixmapItem *qgpiScreen;
-	QGraphicsScene qgs;
-	QGraphicsScene qgsFpsPreview;
-	BasepointPixmap bpFpsDemo;
-	BasepointPixmap bpTimeDemo;
-	QGraphicsPixmapItem *qgpiFpsDemo;
-	OverlayPositionableItem *qgpiFpsLive;
-	OverlayPositionableItem *qgpiTimeLive;
-	OverlayUserGroup *oug;
-	QGraphicsTextItem *qgtiInstructions;
+	OverlayMsg omMsg;
+	QLocalSocket *qlsSocket;
+	SharedMemory2 *smMem;
+	QRect qrLast;
+	Timer t;
 
-	float fViewScale;
+	float framesPerSecond;
+	int iOffsetX, iOffsetY;
+
+	/// The process ID of the process this OverlayClient is connected to.
+	quint64 uiPid;
+	/// The path to the executable of the process that this OverlayClient is connected to.
+	QString qsExecutablePath;
+
+	QGraphicsScene qgs;
+
+	QScopedPointer< QGraphicsPixmapItem > qgpiCursor;
+	QScopedPointer< QGraphicsPixmapItem > qgpiLogo;
+	QScopedPointer< OverlayPositionableItem > qgpiFPS;
+	QScopedPointer< OverlayPositionableItem > qgpiTime;
+
+	OverlayUserGroup ougUsers;
+
+#ifdef Q_OS_MAC
+	QMap< Qt::CursorShape, QPixmap > qmCursors;
+#endif
+
+	bool bWasVisible;
+	bool bDelete;
+
+	void setupRender();
+	void setupScene(bool show);
 
 	bool eventFilter(QObject *, QEvent *) Q_DECL_OVERRIDE;
 
-	bool supportsInstallableOverlay();
-	bool isInstalled();
-	bool needsUpgrade();
-	bool installFiles();
-	bool uninstallFiles();
-	bool supportsCertificates();
-	bool installerIsValid();
-	void showCertificates();
+	void readyReadMsgInit(unsigned int length);
 
-	void updateOverlayExclusionModeState();
+	QList< QRectF > qlDirty;
 protected slots:
-	void on_qpbInstall_clicked();
-	void on_qpbUninstall_clicked();
-
-	void on_qcbOverlayExclusionMode_currentIndexChanged(int);
-
-	void on_qlwLaunchers_itemSelectionChanged();
-	void on_qpbLaunchersAdd_clicked();
-	void on_qpbLaunchersRemove_clicked();
-
-	void on_qlwWhitelist_itemSelectionChanged();
-	void on_qpbWhitelistAdd_clicked();
-	void on_qpbWhitelistRemove_clicked();
-
-	void on_qlwPaths_itemSelectionChanged();
-	void on_qpbPathsAdd_clicked();
-	void on_qpbPathsRemove_clicked();
-
-	void on_qlwBlacklist_itemSelectionChanged();
-	void on_qpbBlacklistAdd_clicked();
-	void on_qpbBlacklistRemove_clicked();
-
-	void on_qcbEnable_stateChanged(int);
-	void on_qcbShowFps_stateChanged(int);
-	void on_qcbShowTime_stateChanged(int);
-	void on_qpbFpsFont_clicked();
-	void on_qpbFpsColor_clicked();
-	void on_qpbLoadPreset_clicked();
-	void on_qpbSavePreset_clicked();
-	void resizeScene(bool force = false);
+	void readyRead();
+	void changed(const QList< QRectF > &);
+	void render();
 
 public:
-	/// The uniqe name of this ConfigWidget
-	static const QString name;
-	OverlayConfig(Settings &st);
-	virtual QString title() const Q_DECL_OVERRIDE;
-	virtual const QString &getName() const Q_DECL_OVERRIDE;
-	virtual QIcon icon() const Q_DECL_OVERRIDE;
+	QGraphicsView qgv;
+	unsigned int uiWidth, uiHeight;
+	int iMouseX, iMouseY;
+
+	OverlayClient(QLocalSocket *, QObject *);
+	~OverlayClient() Q_DECL_OVERRIDE;
+	void reset();
 public slots:
-	void accept() const Q_DECL_OVERRIDE;
-	void save() const Q_DECL_OVERRIDE;
-	void load(const Settings &r) Q_DECL_OVERRIDE;
+	void showGui();
+	void hideGui();
+	void scheduleDelete();
+	void updateMouse();
+	void updateFPS();
+	void updateTime();
+	bool update();
+	void openEditor();
 };
 
 #endif
