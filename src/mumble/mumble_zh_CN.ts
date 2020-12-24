@@ -1,5715 +1,5735 @@
-<?xml version="1.0" ?><!DOCTYPE TS><TS language="zh_CN" version="2.1">
-<context>
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="zh-CN" sourcelanguage="en">
+  <context>
     <name>ACLEditor</name>
     <message>
-        <source>Deny</source>
-        <translation>拒绝</translation>
+      <source>Deny</source>
+      <translation type="unfinished">Deny</translation>
     </message>
     <message>
-        <source>Allow</source>
-        <translation>允许</translation>
+      <source>Allow</source>
+      <translation type="unfinished">Allow</translation>
     </message>
     <message>
-        <source>Allow %1</source>
-        <translation>允许%1</translation>
+      <source>Allow %1</source>
+      <translation type="unfinished">Allow %1</translation>
     </message>
     <message>
-        <source>Deny %1</source>
-        <translation>拒绝%1</translation>
+      <source>Deny %1</source>
+      <translation type="unfinished">Deny %1</translation>
     </message>
     <message>
-        <source>Mumble - Add channel</source>
-        <translation>Mumble - 添加频道</translation>
+      <source>Mumble - Add channel</source>
+      <translation type="unfinished">Mumble - Add channel</translation>
     </message>
     <message>
-        <source>Default server value</source>
-        <translation>服务器默认设置</translation>
+      <source>Default server value</source>
+      <translation type="unfinished">Default server value</translation>
     </message>
     <message>
-        <source>Failed: Invalid channel</source>
-        <translation>失败：无效的频道</translation>
+      <source>Failed: Invalid channel</source>
+      <translation type="unfinished">Failed: Invalid channel</translation>
     </message>
     <message>
-        <source>Mumble - Edit %1</source>
-        <translation>Mumble - 编辑 %1</translation>
+      <source>Mumble - Edit %1</source>
+      <translation type="unfinished">Mumble - Edit %1</translation>
     </message>
     <message>
-        <source>ID: %1</source>
-        <translation>ID：%1</translation>
+      <source>ID: %1</source>
+      <translation type="unfinished">ID: %1</translation>
     </message>
     <message>
-        <source>This grants the %1 privilege. If a privilege is both allowed and denied, it is denied.&lt;br /&gt;%2</source>
-        <translation>授予“%1”权限。如果一项权限既被设为允许又被设为禁止，那么它将被禁止。&lt;br /&gt;%2</translation>
+      <source>This grants the %1 privilege. If a privilege is both allowed and denied, it is denied.&lt;br /&gt;%2</source>
+      <translation type="unfinished">This grants the %1 privilege. If a privilege is both allowed and denied, it is denied.&lt;br /&gt;%2</translation>
     </message>
     <message>
-        <source>Channel must have a name</source>
-        <translation>必须给频道命名</translation>
+      <source>Channel must have a name</source>
+      <translation type="unfinished">Channel must have a name</translation>
     </message>
     <message>
-        <source>This revokes the %1 privilege. If a privilege is both allowed and denied, it is denied.&lt;br /&gt;%2</source>
-        <translation>撤销“%1”权限。如果一项权限既被设为允许又被设为禁止，那么它将被禁止。&lt;br /&gt;%2</translation>
+      <source>This revokes the %1 privilege. If a privilege is both allowed and denied, it is denied.&lt;br /&gt;%2</source>
+      <translation type="unfinished">This revokes the %1 privilege. If a privilege is both allowed and denied, it is denied.&lt;br /&gt;%2</translation>
     </message>
     <message>
-        <source>Dialog</source>
-        <translation>对话框</translation>
+      <source>Dialog</source>
+      <translation type="unfinished">Dialog</translation>
     </message>
     <message>
-        <source>Name</source>
-        <translation>名称</translation>
+      <source>Name</source>
+      <translation type="unfinished">Name</translation>
     </message>
     <message>
-        <source>Enter the channel name here.</source>
-        <translation>在这里输入频道名。</translation>
+      <source>Enter the channel name here.</source>
+      <translation type="unfinished">Enter the channel name here.</translation>
     </message>
     <message>
-        <source>Description</source>
-        <translation>描述</translation>
+      <source>Description</source>
+      <translation type="unfinished">Description</translation>
     </message>
     <message>
-        <source>Password</source>
-        <translation>密码</translation>
+      <source>Password</source>
+      <translation type="unfinished">Password</translation>
     </message>
     <message>
-        <source>Enter the channel password here.</source>
-        <translation>在这里输入频道密码。</translation>
+      <source>Enter the channel password here.</source>
+      <translation type="unfinished">Enter the channel password here.</translation>
     </message>
     <message>
-        <source>Check to create a temporary channel.</source>
-        <translation>选中此项以创建一个临时频道。</translation>
+      <source>Check to create a temporary channel.</source>
+      <translation type="unfinished">Check to create a temporary channel.</translation>
     </message>
     <message>
-        <source>Temporary</source>
-        <translation>临时频道</translation>
+      <source>Temporary</source>
+      <translation type="unfinished">Temporary</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Position&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Position&lt;/b&gt;&lt;br/&gt;
 This value enables you to change the way Mumble arranges the channels in the tree. A channel with a higher &lt;i&gt;Position&lt;/i&gt; value will always be placed below one with a lower value and the other way around. If the &lt;i&gt;Position&lt;/i&gt; value of two channels is equal they will get sorted alphabetically by their name.</source>
-        <oldsource>&lt;b&gt;Position&lt;/b&gt;&lt;br/&gt;
+      <oldsource>&lt;b&gt;Position&lt;/b&gt;&lt;br/&gt;
 This value enables you to change the way mumble arranges the channels in the tree. A channel with a higher &lt;i&gt;Position&lt;/i&gt; value will always be placed below one with a lower value and the other way around. If the &lt;i&gt;Position&lt;/i&gt; value of two channels is equal they will get sorted alphabetically by their name.</oldsource>
-        <translation>&lt;b&gt;位置&lt;/b&gt;&lt;br/&gt;
-这个值允许您更改 Mumble 在频道树列表中排列频道的方式。一个拥有较高&lt;i&gt;位置&lt;/i&gt;值的频道总是被排在拥有较低值的频道下方。如果两个频道的&lt;i&gt;位置&lt;/i&gt;值相同，它们将按名称顺序排列。</translation>
+      <translation type="unfinished">&lt;b&gt;Position&lt;/b&gt;&lt;br/&gt;
+This value enables you to change the way Mumble arranges the channels in the tree. A channel with a higher &lt;i&gt;Position&lt;/i&gt; value will always be placed below one with a lower value and the other way around. If the &lt;i&gt;Position&lt;/i&gt; value of two channels is equal they will get sorted alphabetically by their name.</translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation>位置序号</translation>
+      <source>Position</source>
+      <translation type="unfinished">Position</translation>
     </message>
     <message>
-        <source>&amp;Groups</source>
-        <translation>分组(&amp;G)</translation>
+      <source>&amp;Groups</source>
+      <translation type="unfinished">&amp;Groups</translation>
     </message>
     <message>
-        <source>Group</source>
-        <translation>分组</translation>
+      <source>Group</source>
+      <translation type="unfinished">Group</translation>
     </message>
     <message>
-        <source>List of groups</source>
-        <translation>分组列表</translation>
+      <source>List of groups</source>
+      <translation type="unfinished">List of groups</translation>
     </message>
     <message>
-        <source>Remove selected group</source>
-        <translation>删除所选分组</translation>
+      <source>Remove selected group</source>
+      <translation type="unfinished">Remove selected group</translation>
     </message>
     <message>
-        <source>Remove</source>
-        <translation>删除</translation>
+      <source>Remove</source>
+      <translation type="unfinished">Remove</translation>
     </message>
     <message>
-        <source>Inherit group members from parent</source>
-        <translation>从上级分组继承组成员</translation>
+      <source>Inherit group members from parent</source>
+      <translation type="unfinished">Inherit group members from parent</translation>
     </message>
     <message>
-        <source>Inherit</source>
-        <translation>继承</translation>
+      <source>Inherit</source>
+      <translation type="unfinished">Inherit</translation>
     </message>
     <message>
-        <source>Make group inheritable to sub-channels</source>
-        <translation>允许分组被子频道继承</translation>
+      <source>Make group inheritable to sub-channels</source>
+      <translation type="unfinished">Make group inheritable to sub-channels</translation>
     </message>
     <message>
-        <source>Inheritable</source>
-        <translation>可继承</translation>
+      <source>Inheritable</source>
+      <translation type="unfinished">Inheritable</translation>
     </message>
     <message>
-        <source>Group was inherited from parent channel</source>
-        <translation>分组是从上级频道继承的</translation>
+      <source>Group was inherited from parent channel</source>
+      <translation type="unfinished">Group was inherited from parent channel</translation>
     </message>
     <message>
-        <source>Inherited</source>
-        <translation>来自继承</translation>
+      <source>Inherited</source>
+      <translation type="unfinished">Inherited</translation>
     </message>
     <message>
-        <source>Members</source>
-        <translation>成员</translation>
+      <source>Members</source>
+      <translation type="unfinished">Members</translation>
     </message>
     <message>
-        <source>Add</source>
-        <translation>添加</translation>
+      <source>Add</source>
+      <translation type="unfinished">Add</translation>
     </message>
     <message>
-        <source>Add member to group</source>
-        <translation>添加成员到分组</translation>
+      <source>Add member to group</source>
+      <translation type="unfinished">Add member to group</translation>
     </message>
     <message>
-        <source>Remove member from group</source>
-        <translation>将成员从分组删除</translation>
+      <source>Remove member from group</source>
+      <translation type="unfinished">Remove member from group</translation>
     </message>
     <message>
-        <source>&amp;ACL</source>
-        <translation>&amp;ACL（访问控制列表）</translation>
+      <source>&amp;ACL</source>
+      <translation type="unfinished">&amp;ACL</translation>
     </message>
     <message>
-        <source>Active ACLs</source>
-        <translation>激活的 ACL</translation>
+      <source>Active ACLs</source>
+      <translation type="unfinished">Active ACLs</translation>
     </message>
     <message>
-        <source>List of entries</source>
-        <translation>规则列表</translation>
+      <source>List of entries</source>
+      <translation type="unfinished">List of entries</translation>
     </message>
     <message>
-        <source>Inherit ACL of parent?</source>
-        <translation>是否从父级继承 ACL？</translation>
+      <source>Inherit ACL of parent?</source>
+      <translation type="unfinished">Inherit ACL of parent?</translation>
     </message>
     <message>
-        <source>This sets whether or not the ACL up the chain of parent channels are applied to this object. Only those entries that are marked in the parent as &quot;Apply to sub-channels&quot; will be inherited.</source>
-        <translation>设置是否应用从父频道继承的 ACL 选项。只有被标记为“作用于子频道”的规则才会被继承。</translation>
+      <source>This sets whether or not the ACL up the chain of parent channels are applied to this object. Only those entries that are marked in the parent as &quot;Apply to sub-channels&quot; will be inherited.</source>
+      <translation type="unfinished">This sets whether or not the ACL up the chain of parent channels are applied to this object. Only those entries that are marked in the parent as &quot;Apply to sub-channels&quot; will be inherited.</translation>
     </message>
     <message>
-        <source>Inherit ACLs</source>
-        <translation>继承 ACL</translation>
+      <source>Inherit ACLs</source>
+      <translation type="unfinished">Inherit ACLs</translation>
     </message>
     <message>
-        <source>Move entry up</source>
-        <translation>规则上移</translation>
+      <source>Move entry up</source>
+      <translation type="unfinished">Move entry up</translation>
     </message>
     <message>
-        <source>This moves the entry up in the list. As entries are evaluated in order, this may change the effective permissions of users. You cannot move an entry above an inherited entry, if you really need that you&apos;ll have to duplicate the inherited entry.</source>
-        <translation>在列表中将您选中的规则向上移动。一条规则通过顺序来决定优先级，这将会改变用户的权限的实际效果。您不能将一条规则移动到到继承的规则之上。如果您确实需要这样做，就需要新建一条重复的规则。</translation>
+      <source>This moves the entry up in the list. As entries are evaluated in order, this may change the effective permissions of users. You cannot move an entry above an inherited entry, if you really need that you&apos;ll have to duplicate the inherited entry.</source>
+      <translation type="unfinished">This moves the entry up in the list. As entries are evaluated in order, this may change the effective permissions of users. You cannot move an entry above an inherited entry, if you really need that you&apos;ll have to duplicate the inherited entry.</translation>
     </message>
     <message>
-        <source>&amp;Up</source>
-        <translation>上移(&amp;U)</translation>
+      <source>&amp;Up</source>
+      <translation type="unfinished">&amp;Up</translation>
     </message>
     <message>
-        <source>Move entry down</source>
-        <translation>规则下移</translation>
+      <source>Move entry down</source>
+      <translation type="unfinished">Move entry down</translation>
     </message>
     <message>
-        <source>This moves the entry down in the list. As entries are evaluated in order, this may change the effective permissions of users.</source>
-        <translation>在列表中将您选中的规则向下移动。一条规则通过顺序来决定优先级，这将会改变用户的权限的实际效果。</translation>
+      <source>This moves the entry down in the list. As entries are evaluated in order, this may change the effective permissions of users.</source>
+      <translation type="unfinished">This moves the entry down in the list. As entries are evaluated in order, this may change the effective permissions of users.</translation>
     </message>
     <message>
-        <source>&amp;Down</source>
-        <translation>下移(&amp;D)</translation>
+      <source>&amp;Down</source>
+      <translation type="unfinished">&amp;Down</translation>
     </message>
     <message>
-        <source>Add new entry</source>
-        <translation>添加新规则</translation>
+      <source>Add new entry</source>
+      <translation type="unfinished">Add new entry</translation>
     </message>
     <message>
-        <source>This adds a new entry, initially set with no permissions and applying to all.</source>
-        <translation>添加一条新的规则，它默认没有任何权限，并对所有成员生效。</translation>
+      <source>This adds a new entry, initially set with no permissions and applying to all.</source>
+      <translation type="unfinished">This adds a new entry, initially set with no permissions and applying to all.</translation>
     </message>
     <message>
-        <source>&amp;Add</source>
-        <translation>添加(&amp;A)</translation>
+      <source>&amp;Add</source>
+      <translation type="unfinished">&amp;Add</translation>
     </message>
     <message>
-        <source>Remove entry</source>
-        <translation>删除规则</translation>
+      <source>Remove entry</source>
+      <translation type="unfinished">Remove entry</translation>
     </message>
     <message>
-        <source>This removes the currently selected entry.</source>
-        <translation>删除当前所选的规则。</translation>
+      <source>This removes the currently selected entry.</source>
+      <translation type="unfinished">This removes the currently selected entry.</translation>
     </message>
     <message>
-        <source>&amp;Remove</source>
-        <translation>删除(&amp;R)</translation>
+      <source>&amp;Remove</source>
+      <translation type="unfinished">&amp;Remove</translation>
     </message>
     <message>
-        <source>Context</source>
-        <translation>上下文</translation>
+      <source>Context</source>
+      <translation type="unfinished">Context</translation>
     </message>
     <message>
-        <source>Entry should apply to this channel.</source>
-        <oldsource>Entry should apply to this channel</oldsource>
-        <translation>规则应作用于当前频道。</translation>
+      <source>Entry should apply to this channel.</source>
+      <oldsource>Entry should apply to this channel</oldsource>
+      <translation type="unfinished">Entry should apply to this channel.</translation>
     </message>
     <message>
-        <source>This makes the entry apply to this channel.</source>
-        <translation>将此规则设置为作用于当前频道。</translation>
+      <source>This makes the entry apply to this channel.</source>
+      <translation type="unfinished">This makes the entry apply to this channel.</translation>
     </message>
     <message>
-        <source>Applies to this channel</source>
-        <translation>作用于当前频道</translation>
+      <source>Applies to this channel</source>
+      <translation type="unfinished">Applies to this channel</translation>
     </message>
     <message>
-        <source>Entry should apply to sub-channels.</source>
-        <translation>规则应作用于子频道。</translation>
+      <source>Entry should apply to sub-channels.</source>
+      <translation type="unfinished">Entry should apply to sub-channels.</translation>
     </message>
     <message>
-        <source>Add new group</source>
-        <translation>添加新分组</translation>
+      <source>Add new group</source>
+      <translation type="unfinished">Add new group</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Add&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Add&lt;/b&gt;&lt;br/&gt;
 Add a new group.</source>
-        <translation>&lt;b&gt;添加&lt;/b&gt;&lt;br/&gt;
-添加一个新的分组。</translation>
+      <translation type="unfinished">&lt;b&gt;Add&lt;/b&gt;&lt;br/&gt;
+Add a new group.</translation>
     </message>
     <message>
-        <source>Inherited members</source>
-        <translation>被继承的成员</translation>
+      <source>Inherited members</source>
+      <translation type="unfinished">Inherited members</translation>
     </message>
     <message>
-        <source>Contains the list of members added to the group by this channel.</source>
-        <translation>包含被该频道添加到分组的成员列表。</translation>
+      <source>Contains the list of members added to the group by this channel.</source>
+      <translation type="unfinished">Contains the list of members added to the group by this channel.</translation>
     </message>
     <message>
-        <source>Contains a list of members whose group membership will not be inherited from the parent channel.</source>
-        <translation>包含不从父频道继承分组成员关系的成员列表。</translation>
+      <source>Contains a list of members whose group membership will not be inherited from the parent channel.</source>
+      <translation type="unfinished">Contains a list of members whose group membership will not be inherited from the parent channel.</translation>
     </message>
     <message>
-        <source>Contains the list of members inherited by other channels.</source>
-        <translation>包含被其他频道继承的成员列表。</translation>
+      <source>Contains the list of members inherited by other channels.</source>
+      <translation type="unfinished">Contains the list of members inherited by other channels.</translation>
     </message>
     <message>
-        <source>Type in the name of a user you wish to add to the group and click Add.</source>
-        <translation>输入您希望添加到分组的用户名并点击添加。</translation>
+      <source>Type in the name of a user you wish to add to the group and click Add.</source>
+      <translation type="unfinished">Type in the name of a user you wish to add to the group and click Add.</translation>
     </message>
     <message>
-        <source>Type in the name of a user you wish to remove from the group and click Add.</source>
-        <translation>输入您希望从分组删除的用户名并点击添加。</translation>
+      <source>Type in the name of a user you wish to remove from the group and click Add.</source>
+      <translation type="unfinished">Type in the name of a user you wish to remove from the group and click Add.</translation>
     </message>
     <message>
-        <source>Exclude</source>
-        <translation>例外</translation>
+      <source>Exclude</source>
+      <translation type="unfinished">Exclude</translation>
     </message>
     <message>
-        <source>Excluded members</source>
-        <translation>例外成员</translation>
+      <source>Excluded members</source>
+      <translation type="unfinished">Excluded members</translation>
     </message>
     <message>
-        <source>This makes the entry apply to sub-channels of this channel.</source>
-        <translation>这将使规则作用于此频道的所有子频道。</translation>
+      <source>This makes the entry apply to sub-channels of this channel.</source>
+      <translation type="unfinished">This makes the entry apply to sub-channels of this channel.</translation>
     </message>
     <message>
-        <source>Applies to sub-channels</source>
-        <translation>作用于子频道</translation>
+      <source>Applies to sub-channels</source>
+      <translation type="unfinished">Applies to sub-channels</translation>
     </message>
     <message>
-        <source>Permissions</source>
-        <translation>权限</translation>
+      <source>Permissions</source>
+      <translation type="unfinished">Permissions</translation>
     </message>
     <message>
-        <source>User/Group</source>
-        <translation>用户/分组</translation>
+      <source>User/Group</source>
+      <translation type="unfinished">User/Group</translation>
     </message>
     <message>
-        <source>Group this entry applies to</source>
-        <translation>该规则作用的分组</translation>
+      <source>Group this entry applies to</source>
+      <translation type="unfinished">Group this entry applies to</translation>
     </message>
     <message>
-        <source>User ID</source>
-        <translation>用户 ID</translation>
+      <source>User ID</source>
+      <translation type="unfinished">User ID</translation>
     </message>
     <message>
-        <source>User this entry applies to</source>
-        <translation>该规则作用的用户</translation>
+      <source>User this entry applies to</source>
+      <translation type="unfinished">User this entry applies to</translation>
     </message>
     <message>
-        <source>This controls which user this entry applies to. Just type in the user name and hit enter to query the server for a match.</source>
-        <translation>此选项控制规则将作用于哪些用户。请输入用户名并按回车键，以向服务器查询匹配。</translation>
+      <source>This controls which user this entry applies to. Just type in the user name and hit enter to query the server for a match.</source>
+      <translation type="unfinished">This controls which user this entry applies to. Just type in the user name and hit enter to query the server for a match.</translation>
     </message>
     <message>
-        <source>&amp;Properties</source>
-        <translation>属性(&amp;P)</translation>
+      <source>&amp;Properties</source>
+      <translation type="unfinished">&amp;Properties</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Name&lt;/b&gt;&lt;br /&gt;Enter the channel name in this field. The name has to comply with the restriction imposed by the server you are connected to.</source>
-        <translation>&lt;b&gt;名称&lt;/b&gt;&lt;br /&gt;在此输入频道名称。名称需要符合您所连接的服务器的限制。</translation>
+      <source>&lt;b&gt;Name&lt;/b&gt;&lt;br /&gt;Enter the channel name in this field. The name has to comply with the restriction imposed by the server you are connected to.</source>
+      <translation type="unfinished">&lt;b&gt;Name&lt;/b&gt;&lt;br /&gt;Enter the channel name in this field. The name has to comply with the restriction imposed by the server you are connected to.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Temporary&lt;/b&gt;&lt;br /&gt;
+      <source>&lt;b&gt;Temporary&lt;/b&gt;&lt;br /&gt;
 When checked the channel created will be marked as temporary. This means when the last player leaves it the channel will be automatically deleted by the server.</source>
-        <translation>&lt;b&gt;临时频道&lt;/b&gt;&lt;br /&gt;
-选中后，创建的频道将被标记为临时频道。这意味着此频道的最后一名用户离开后，频道将被服务器自动删除。</translation>
+      <translation type="unfinished">&lt;b&gt;Temporary&lt;/b&gt;&lt;br /&gt;
+When checked the channel created will be marked as temporary. This means when the last player leaves it the channel will be automatically deleted by the server.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Group&lt;/b&gt;&lt;br /&gt;
+      <source>&lt;b&gt;Group&lt;/b&gt;&lt;br /&gt;
 These are all the groups currently defined for the channel. To create a new group, just type in the name and press enter.</source>
-        <translation>&lt;b&gt;分组&lt;/b&gt;&lt;br /&gt;
-此频道目前定义的所有分组。要创建一个新的分组，只需要输入名称并按回车键。</translation>
+      <translation type="unfinished">&lt;b&gt;Group&lt;/b&gt;&lt;br /&gt;
+These are all the groups currently defined for the channel. To create a new group, just type in the name and press enter.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Remove&lt;/b&gt;&lt;br /&gt;This removes the currently selected group. If the group was inherited, it will not be removed from the list, but all local information about the group will be cleared.</source>
-        <translation>&lt;b&gt;删除&lt;/b&gt;&lt;br /&gt;删除当前所选分组。如果分组是继承的，将无法从列表中删除，但所有关于此分组的本地信息将被清除。</translation>
+      <source>&lt;b&gt;Remove&lt;/b&gt;&lt;br /&gt;This removes the currently selected group. If the group was inherited, it will not be removed from the list, but all local information about the group will be cleared.</source>
+      <translation type="unfinished">&lt;b&gt;Remove&lt;/b&gt;&lt;br /&gt;This removes the currently selected group. If the group was inherited, it will not be removed from the list, but all local information about the group will be cleared.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Inherit&lt;/b&gt;&lt;br /&gt;This inherits all the members in the group from the parent, if the group is marked as &lt;i&gt;Inheritable&lt;/i&gt; in the parent channel.</source>
-        <translation>&lt;b&gt;继承&lt;/b&gt;&lt;br /&gt;如果此分组在父频道被标记为&lt;i&gt;可继承&lt;/i&gt;，则从父级继承此分组的所有成员。</translation>
+      <source>&lt;b&gt;Inherit&lt;/b&gt;&lt;br /&gt;This inherits all the members in the group from the parent, if the group is marked as &lt;i&gt;Inheritable&lt;/i&gt; in the parent channel.</source>
+      <translation type="unfinished">&lt;b&gt;Inherit&lt;/b&gt;&lt;br /&gt;This inherits all the members in the group from the parent, if the group is marked as &lt;i&gt;Inheritable&lt;/i&gt; in the parent channel.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Inheritable&lt;/b&gt;&lt;br /&gt;This makes this group inheritable to sub-channels. If the group is non-inheritable, sub-channels are still free to create a new group with the same name.</source>
-        <translation>&lt;b&gt;可继承&lt;/b&gt;&lt;br /&gt;标记此分组能够被子频道继承。如果分组不可被继承，子频道也可以自由建立一个同名的新分组。</translation>
+      <source>&lt;b&gt;Inheritable&lt;/b&gt;&lt;br /&gt;This makes this group inheritable to sub-channels. If the group is non-inheritable, sub-channels are still free to create a new group with the same name.</source>
+      <translation type="unfinished">&lt;b&gt;Inheritable&lt;/b&gt;&lt;br /&gt;This makes this group inheritable to sub-channels. If the group is non-inheritable, sub-channels are still free to create a new group with the same name.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Inherited&lt;/b&gt;&lt;br /&gt;This indicates that the group was inherited from the parent channel. You cannot edit this flag, it&apos;s just for information.</source>
-        <translation>&lt;b&gt;来自继承&lt;/b&gt;&lt;br /&gt;表示此分组是从父频道继承来的，您不能编辑这个标识，这仅仅是一条信息。</translation>
+      <source>&lt;b&gt;Inherited&lt;/b&gt;&lt;br /&gt;This indicates that the group was inherited from the parent channel. You cannot edit this flag, it&apos;s just for information.</source>
+      <translation type="unfinished">&lt;b&gt;Inherited&lt;/b&gt;&lt;br /&gt;This indicates that the group was inherited from the parent channel. You cannot edit this flag, it&apos;s just for information.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Members&lt;/b&gt;&lt;br /&gt;
+      <source>&lt;b&gt;Members&lt;/b&gt;&lt;br /&gt;
 This list contains all members that were added to the group by the current channel. Be aware that this does not include members inherited by higher levels of the channel tree. These can be found in the &lt;i&gt;Inherited members&lt;/i&gt; list. To prevent this list to be inherited by lower level channels uncheck &lt;i&gt;Inheritable&lt;/i&gt; or manually add the members to the &lt;i&gt;Excluded members&lt;/i&gt; list.</source>
-        <translation>&lt;b&gt;成员&lt;/b&gt;&lt;br /&gt;
-此列表包含所有被当前频道添加到该分组的成员。请注意这里不包含继承自频道树中更高层级频道的成员。您可以在&lt;i&gt;继承的成员&lt;/i&gt;列表中找到此类成员。如果不希望成员被低层级的频道继承，可以取消选择&lt;i&gt;可继承&lt;/i&gt;选项或者将成员添加到&lt;i&gt;例外成员&lt;/i&gt;列表。</translation>
+      <translation type="unfinished">&lt;b&gt;Members&lt;/b&gt;&lt;br /&gt;
+This list contains all members that were added to the group by the current channel. Be aware that this does not include members inherited by higher levels of the channel tree. These can be found in the &lt;i&gt;Inherited members&lt;/i&gt; list. To prevent this list to be inherited by lower level channels uncheck &lt;i&gt;Inheritable&lt;/i&gt; or manually add the members to the &lt;i&gt;Excluded members&lt;/i&gt; list.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Excluded members&lt;/b&gt;&lt;br /&gt;
+      <source>&lt;b&gt;Excluded members&lt;/b&gt;&lt;br /&gt;
 Contains a list of members whose group membership will not be inherited from the parent channel.</source>
-        <translation>&lt;b&gt;例外成员&lt;/b&gt;&lt;br /&gt;
-包含不会从父频道继承分组成员关系的成员列表。</translation>
+      <translation type="unfinished">&lt;b&gt;Excluded members&lt;/b&gt;&lt;br /&gt;
+Contains a list of members whose group membership will not be inherited from the parent channel.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Inherited members&lt;/b&gt;&lt;br /&gt;
+      <source>&lt;b&gt;Inherited members&lt;/b&gt;&lt;br /&gt;
 Contains the list of members inherited by the current channel. Uncheck &lt;i&gt;Inherit&lt;/i&gt; to prevent inheritance from higher level channels.</source>
-        <translation>&lt;b&gt;继承的成员&lt;/b&gt;&lt;br /&gt;
-包含被当前频道继承的成员列表。取消&lt;i&gt;继承&lt;/i&gt;选项可以阻止从高层级频道继承。</translation>
+      <translation type="unfinished">&lt;b&gt;Inherited members&lt;/b&gt;&lt;br /&gt;
+Contains the list of members inherited by the current channel. Uncheck &lt;i&gt;Inherit&lt;/i&gt; to prevent inheritance from higher level channels.</translation>
     </message>
     <message>
-        <source>This controls which group of users this entry applies to.&lt;br /&gt;Note that the group is evaluated in the context of the channel the entry is used in. For example, the default ACL on the Root channel gives &lt;i&gt;Write&lt;/i&gt; permission to the &lt;i&gt;admin&lt;/i&gt; group. This entry, if inherited by a channel, will give a user write privileges if he belongs to the &lt;i&gt;admin&lt;/i&gt; group in that channel, even if he doesn&apos;t belong to the &lt;i&gt;admin&lt;/i&gt; group in the channel where the ACL originated.&lt;br /&gt;If a group name starts with &apos;!&apos;, its membership is negated, and if it starts with &apos;~&apos;, it is evaluated in the channel the ACL was defined in, rather than the channel the ACL is active in.&lt;br /&gt;If a group name starts with &apos;#&apos;, it is interpreted as an access token. Users must have entered whatever follows the &apos;#&apos; in their list of access tokens to match. This can be used for very simple password access to channels for non-authenticated users.&lt;br /&gt;If a group name starts with &apos;$&apos;, it will only match users whose certificate hash matches what follows the &apos;$&apos;.&lt;br /&gt;A few special predefined groups are:&lt;br /&gt;&lt;b&gt;all&lt;/b&gt; - Everyone will match.&lt;br /&gt;&lt;b&gt;auth&lt;/b&gt; - All authenticated users will match.&lt;br /&gt;&lt;b&gt;sub,a,b,c&lt;/b&gt; - User currently in a sub-channel minimum &lt;i&gt;a&lt;/i&gt; common parents, and between &lt;i&gt;b&lt;/i&gt; and &lt;i&gt;c&lt;/i&gt; channels down the chain. See the website for more extensive documentation on this one.&lt;br /&gt;&lt;b&gt;in&lt;/b&gt; - Users currently in the channel will match (convenience for &apos;&lt;i&gt;sub,0,0,0&lt;/i&gt;&apos;).&lt;br /&gt;&lt;b&gt;out&lt;/b&gt; - Users outside the channel will match (convenience for &apos;&lt;i&gt;!sub,0,0,0&lt;/i&gt;&apos;).&lt;br /&gt;Note that an entry applies to either a user or a group, not both.</source>
-        <translation>控制此规则作用于哪个用户组。&lt;br /&gt;请注意分组由规则所作用的频道的上下文关系决定。例如，Root 频道的默认 ACL 允许 &lt;i&gt;admin&lt;/i&gt; 组的&lt;i&gt;编辑&lt;/i&gt;权限。如果某个频道继承了这条规则，并且一名用户属于此频道的 &lt;i&gt;admin&lt;/i&gt; 组，即使他不属于该 ACL 原始定义频道的 &lt;i&gt;admin&lt;/i&gt; 组，此用户也会有编辑权限。&lt;br /&gt;如果一个分组名以“!”符号开头，则它的规则会被反转，而如果分组名以“~”开头，则它的规则会按照定义 ACL 的原始频道而非当前频道进行计算。&lt;br /&gt;如果分组名以“#”开头，它将会被解释为一个访问令牌。用户需要在他们的访问令牌列表中添加“#”号后面对应的字符串才能匹配。这是一种非常简单的使未认证用户通过密码访问频道的方式。&lt;br /&gt;如果分组名以“$”开头，则只会匹配证书哈希与“$”后面的字符串匹配的用户。&lt;br /&gt;还有一些特殊的预定义组如下：&lt;br /&gt;&lt;b&gt;all&lt;/b&gt; - 匹配所有人。&lt;br /&gt;&lt;b&gt;auth&lt;/b&gt; - 匹配所有已认证用户。&lt;br /&gt;&lt;b&gt;sub,a,b,c&lt;/b&gt; - 匹配处于共同父频道数至少为 &lt;i&gt;a&lt;/i&gt; 的、子频道深度介于 &lt;i&gt;b&lt;/i&gt; 和 &lt;i&gt;c&lt;/i&gt; 之间的频道中的用户。查看网站上的扩展文档以了解本预定义组的更多信息。&lt;br /&gt;&lt;b&gt;in&lt;/b&gt; - 匹配在当前频道的用户（“&lt;i&gt;sub,0,0,0&lt;/i&gt;”的简写）。&lt;br /&gt;&lt;b&gt;out&lt;/b&gt; - 匹配不在当前频道的用户（“&lt;i&gt;!sub,0,0,0&lt;/i&gt;”的简写）。&lt;br /&gt;请注意，规则仅适用于用户或分组之一，而不能同时适用于两者。</translation>
+      <source>This controls which group of users this entry applies to.&lt;br /&gt;Note that the group is evaluated in the context of the channel the entry is used in. For example, the default ACL on the Root channel gives &lt;i&gt;Write&lt;/i&gt; permission to the &lt;i&gt;admin&lt;/i&gt; group. This entry, if inherited by a channel, will give a user write privileges if he belongs to the &lt;i&gt;admin&lt;/i&gt; group in that channel, even if he doesn&apos;t belong to the &lt;i&gt;admin&lt;/i&gt; group in the channel where the ACL originated.&lt;br /&gt;If a group name starts with &apos;!&apos;, its membership is negated, and if it starts with &apos;~&apos;, it is evaluated in the channel the ACL was defined in, rather than the channel the ACL is active in.&lt;br /&gt;If a group name starts with &apos;#&apos;, it is interpreted as an access token. Users must have entered whatever follows the &apos;#&apos; in their list of access tokens to match. This can be used for very simple password access to channels for non-authenticated users.&lt;br /&gt;If a group name starts with &apos;$&apos;, it will only match users whose certificate hash matches what follows the &apos;$&apos;.&lt;br /&gt;A few special predefined groups are:&lt;br /&gt;&lt;b&gt;all&lt;/b&gt; - Everyone will match.&lt;br /&gt;&lt;b&gt;auth&lt;/b&gt; - All authenticated users will match.&lt;br /&gt;&lt;b&gt;sub,a,b,c&lt;/b&gt; - User currently in a sub-channel minimum &lt;i&gt;a&lt;/i&gt; common parents, and between &lt;i&gt;b&lt;/i&gt; and &lt;i&gt;c&lt;/i&gt; channels down the chain. See the website for more extensive documentation on this one.&lt;br /&gt;&lt;b&gt;in&lt;/b&gt; - Users currently in the channel will match (convenience for &apos;&lt;i&gt;sub,0,0,0&lt;/i&gt;&apos;).&lt;br /&gt;&lt;b&gt;out&lt;/b&gt; - Users outside the channel will match (convenience for &apos;&lt;i&gt;!sub,0,0,0&lt;/i&gt;&apos;).&lt;br /&gt;Note that an entry applies to either a user or a group, not both.</source>
+      <translation type="unfinished">This controls which group of users this entry applies to.&lt;br /&gt;Note that the group is evaluated in the context of the channel the entry is used in. For example, the default ACL on the Root channel gives &lt;i&gt;Write&lt;/i&gt; permission to the &lt;i&gt;admin&lt;/i&gt; group. This entry, if inherited by a channel, will give a user write privileges if he belongs to the &lt;i&gt;admin&lt;/i&gt; group in that channel, even if he doesn&apos;t belong to the &lt;i&gt;admin&lt;/i&gt; group in the channel where the ACL originated.&lt;br /&gt;If a group name starts with &apos;!&apos;, its membership is negated, and if it starts with &apos;~&apos;, it is evaluated in the channel the ACL was defined in, rather than the channel the ACL is active in.&lt;br /&gt;If a group name starts with &apos;#&apos;, it is interpreted as an access token. Users must have entered whatever follows the &apos;#&apos; in their list of access tokens to match. This can be used for very simple password access to channels for non-authenticated users.&lt;br /&gt;If a group name starts with &apos;$&apos;, it will only match users whose certificate hash matches what follows the &apos;$&apos;.&lt;br /&gt;A few special predefined groups are:&lt;br /&gt;&lt;b&gt;all&lt;/b&gt; - Everyone will match.&lt;br /&gt;&lt;b&gt;auth&lt;/b&gt; - All authenticated users will match.&lt;br /&gt;&lt;b&gt;sub,a,b,c&lt;/b&gt; - User currently in a sub-channel minimum &lt;i&gt;a&lt;/i&gt; common parents, and between &lt;i&gt;b&lt;/i&gt; and &lt;i&gt;c&lt;/i&gt; channels down the chain. See the website for more extensive documentation on this one.&lt;br /&gt;&lt;b&gt;in&lt;/b&gt; - Users currently in the channel will match (convenience for &apos;&lt;i&gt;sub,0,0,0&lt;/i&gt;&apos;).&lt;br /&gt;&lt;b&gt;out&lt;/b&gt; - Users outside the channel will match (convenience for &apos;&lt;i&gt;!sub,0,0,0&lt;/i&gt;&apos;).&lt;br /&gt;Note that an entry applies to either a user or a group, not both.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Password&lt;/b&gt;&lt;br /&gt;This field allows you to easily set and change the password of a channel. It uses Mumble&apos;s access tokens feature in the background. Use ACLs and groups if you need more fine grained and powerful access control.</source>
-        <translation>&lt;b&gt;密码&lt;/b&gt;&lt;br /&gt;您可以为频道设置一个密码，其本质为 Mumble 的访问令牌功能。如果您需要更细致、强大的访问控制，请使用 ACL 和分组功能。</translation>
+      <source>&lt;b&gt;Password&lt;/b&gt;&lt;br /&gt;This field allows you to easily set and change the password of a channel. It uses Mumble&apos;s access tokens feature in the background. Use ACLs and groups if you need more fine grained and powerful access control.</source>
+      <translation type="unfinished">&lt;b&gt;Password&lt;/b&gt;&lt;br /&gt;This field allows you to easily set and change the password of a channel. It uses Mumble&apos;s access tokens feature in the background. Use ACLs and groups if you need more fine grained and powerful access control.</translation>
     </message>
     <message>
-        <source>This shows all the entries active on this channel. Entries inherited from parent channels will be shown in italics.&lt;br /&gt;ACLs are evaluated top to bottom, meaning priority increases as you move down the list.</source>
-        <translation>显示当前频道被激活的所有规则。从父频道继承的规则以斜体显示。&lt;br /&gt;ACL 的优先级是自上而下的，这意味着列表最下面的规则拥有最高的优先级。</translation>
+      <source>This shows all the entries active on this channel. Entries inherited from parent channels will be shown in italics.&lt;br /&gt;ACLs are evaluated top to bottom, meaning priority increases as you move down the list.</source>
+      <translation type="unfinished">This shows all the entries active on this channel. Entries inherited from parent channels will be shown in italics.&lt;br /&gt;ACLs are evaluated top to bottom, meaning priority increases as you move down the list.</translation>
     </message>
     <message>
-        <source>ID of the channel.</source>
-        <translation>频道的 ID。</translation>
+      <source>ID of the channel.</source>
+      <translation type="unfinished">ID of the channel.</translation>
     </message>
     <message>
-        <source>Maximum Users</source>
-        <translation>最大用户数</translation>
+      <source>Maximum Users</source>
+      <translation type="unfinished">Maximum Users</translation>
     </message>
     <message>
-        <source>Maximum number of users allowed in the channel</source>
-        <translation>频道内允许的最大用户数</translation>
+      <source>Maximum number of users allowed in the channel</source>
+      <translation type="unfinished">Maximum number of users allowed in the channel</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Maximum Users&lt;/b&gt;&lt;br /&gt;
+      <source>&lt;b&gt;Maximum Users&lt;/b&gt;&lt;br /&gt;
 This value allows you to set the maximum number of users allowed in the channel. If the value is above zero, only that number of users will be allowed to enter the channel. If the value is zero, the maximum number of users in the channel is given by the server&apos;s default limit.</source>
-        <translation>&lt;b&gt;最大用户数&lt;/b&gt;&lt;br /&gt;
-该值设置频道内允许的最大用户数。如果该值为 0，则使用服务器的默认设置。</translation>
+      <translation type="unfinished">&lt;b&gt;Maximum Users&lt;/b&gt;&lt;br /&gt;
+This value allows you to set the maximum number of users allowed in the channel. If the value is above zero, only that number of users will be allowed to enter the channel. If the value is zero, the maximum number of users in the channel is given by the server&apos;s default limit.</translation>
     </message>
     <message>
-        <source>This is the sort order for the channel.</source>
-        <translation>这是用于排序此频道的参数。</translation>
+      <source>This is the sort order for the channel.</source>
+      <translation type="unfinished">This is the sort order for the channel.</translation>
     </message>
     <message>
-        <source>Properties</source>
-        <translation>属性</translation>
+      <source>Properties</source>
+      <translation type="unfinished">Properties</translation>
     </message>
     <message>
-        <source>Channel password</source>
-        <translation>频道密码</translation>
+      <source>Channel password</source>
+      <translation type="unfinished">Channel password</translation>
     </message>
     <message>
-        <source>Maximum users</source>
-        <translation>最大用户数</translation>
+      <source>Maximum users</source>
+      <translation type="unfinished">Maximum users</translation>
     </message>
     <message>
-        <source>Channel name</source>
-        <translation>频道名</translation>
+      <source>Channel name</source>
+      <translation type="unfinished">Channel name</translation>
     </message>
     <message>
-        <source>Inherited group members</source>
-        <translation>被继承的组成员</translation>
+      <source>Inherited group members</source>
+      <translation type="unfinished">Inherited group members</translation>
     </message>
     <message>
-        <source>Foreign group members</source>
-        <translation>组外成员</translation>
+      <source>Foreign group members</source>
+      <translation type="unfinished">Foreign group members</translation>
     </message>
     <message>
-        <source>Inherited channel members</source>
-        <translation>被继承的频道成员</translation>
+      <source>Inherited channel members</source>
+      <translation type="unfinished">Inherited channel members</translation>
     </message>
     <message>
-        <source>Add members to group</source>
-        <translation>向分组内添加成员</translation>
+      <source>Add members to group</source>
+      <translation type="unfinished">Add members to group</translation>
     </message>
     <message>
-        <source>List of ACL entries</source>
-        <translation>ACL 条目列表</translation>
+      <source>List of ACL entries</source>
+      <translation type="unfinished">List of ACL entries</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ALSAAudioInput</name>
     <message>
-        <source>Default ALSA Card</source>
-        <translation>默认 ALSA 声卡</translation>
+      <source>Default ALSA Card</source>
+      <translation type="unfinished">Default ALSA Card</translation>
     </message>
     <message>
-        <source>Opening chosen ALSA Input failed: %1</source>
-        <translation>开启所选 ALSA 输入设备失败：%1</translation>
+      <source>Opening chosen ALSA Input failed: %1</source>
+      <translation type="unfinished">Opening chosen ALSA Input failed: %1</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ALSAAudioOutput</name>
     <message>
-        <source>Default ALSA Card</source>
-        <translation>默认 ALSA 声卡</translation>
+      <source>Default ALSA Card</source>
+      <translation type="unfinished">Default ALSA Card</translation>
     </message>
     <message>
-        <source>Opening chosen ALSA Output failed: %1</source>
-        <translation>开启所选 ALSA 输出设备失败：%1</translation>
+      <source>Opening chosen ALSA Output failed: %1</source>
+      <translation type="unfinished">Opening chosen ALSA Output failed: %1</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ASIOConfig</name>
     <message>
-        <source>%1 (version %2)</source>
-        <translation>%1（版本 %2）</translation>
+      <source>%1 (version %2)</source>
+      <translation type="unfinished">%1 (version %2)</translation>
     </message>
     <message>
-        <source>%1 -&gt; %2 samples buffer, with %3 sample resolution (%4 preferred) at %5 Hz</source>
-        <oldsource>%1 -&gt; %2 samples buffer, with %3 sample resolution (%4 preferred) at %5Hz</oldsource>
-        <translation>%1 -&gt; %2 采样缓冲，%3 采样分辨率（%4 首选），频率 %5 Hz</translation>
+      <source>%1 -&gt; %2 samples buffer, with %3 sample resolution (%4 preferred) at %5 Hz</source>
+      <oldsource>%1 -&gt; %2 samples buffer, with %3 sample resolution (%4 preferred) at %5Hz</oldsource>
+      <translation type="unfinished">%1 -&gt; %2 samples buffer, with %3 sample resolution (%4 preferred) at %5 Hz</translation>
     </message>
     <message>
-        <source>ASIO Initialization failed: %1</source>
-        <translation>ASIO 初始化失败：%1</translation>
+      <source>ASIO Initialization failed: %1</source>
+      <translation type="unfinished">ASIO Initialization failed: %1</translation>
     </message>
     <message>
-        <source>Failed to instantiate ASIO driver</source>
-        <translation>ASIO 驱动实例化失败</translation>
+      <source>Failed to instantiate ASIO driver</source>
+      <translation type="unfinished">Failed to instantiate ASIO driver</translation>
     </message>
     <message>
-        <source>ASIO</source>
-        <translation>ASIO</translation>
+      <source>ASIO</source>
+      <translation type="unfinished">ASIO</translation>
     </message>
     <message>
-        <source>Device selection</source>
-        <translation>设备选择</translation>
+      <source>Device selection</source>
+      <translation type="unfinished">Device selection</translation>
     </message>
     <message>
-        <source>Device</source>
-        <translation>设备</translation>
+      <source>Device</source>
+      <translation type="unfinished">Device</translation>
     </message>
     <message>
-        <source>Device to use for microphone</source>
-        <translation>麦克风使用的硬件</translation>
+      <source>Device to use for microphone</source>
+      <translation type="unfinished">Device to use for microphone</translation>
     </message>
     <message>
-        <source>This chooses what device to query. You still need to actually query the device and select which channels to use.</source>
-        <translation>此选项选择需要查询的设备。您需要实际查询设备并且选择需要使用的通道。</translation>
+      <source>This chooses what device to query. You still need to actually query the device and select which channels to use.</source>
+      <translation type="unfinished">This chooses what device to query. You still need to actually query the device and select which channels to use.</translation>
     </message>
     <message>
-        <source>Query selected device</source>
-        <translation>查询所选设备</translation>
+      <source>Query selected device</source>
+      <translation type="unfinished">Query selected device</translation>
     </message>
     <message>
-        <source>This queries the selected device for channels. Be aware that many ASIO drivers are buggy to the extreme, and querying them might cause a crash of either the application or the system.</source>
-        <translation>查询所选设备的通道。请注意很多 ASIO 驱动是非常不完善的，查询它们可能会导致应用或系统崩溃。</translation>
+      <source>This queries the selected device for channels. Be aware that many ASIO drivers are buggy to the extreme, and querying them might cause a crash of either the application or the system.</source>
+      <translation type="unfinished">This queries the selected device for channels. Be aware that many ASIO drivers are buggy to the extreme, and querying them might cause a crash of either the application or the system.</translation>
     </message>
     <message>
-        <source>&amp;Query</source>
-        <translation>查询(&amp;Q)</translation>
+      <source>&amp;Query</source>
+      <translation type="unfinished">&amp;Query</translation>
     </message>
     <message>
-        <source>Configure selected device</source>
-        <translation>配置所选设备</translation>
+      <source>Configure selected device</source>
+      <translation type="unfinished">Configure selected device</translation>
     </message>
     <message>
-        <source>This configures the selected device. Be aware that many ASIO drivers are buggy to the extreme, and querying them might cause a crash of either the application or the system.</source>
-        <translation>配置所选的设备。请注意很多 ASIO 驱动是非常不完善的，查询它们可能会导致应用或系统崩溃。</translation>
+      <source>This configures the selected device. Be aware that many ASIO drivers are buggy to the extreme, and querying them might cause a crash of either the application or the system.</source>
+      <translation type="unfinished">This configures the selected device. Be aware that many ASIO drivers are buggy to the extreme, and querying them might cause a crash of either the application or the system.</translation>
     </message>
     <message>
-        <source>&amp;Configure</source>
-        <translation>配置(&amp;C)</translation>
+      <source>&amp;Configure</source>
+      <translation type="unfinished">&amp;Configure</translation>
     </message>
     <message>
-        <source>Capabilities</source>
-        <translation>性能</translation>
+      <source>Capabilities</source>
+      <translation type="unfinished">Capabilities</translation>
     </message>
     <message>
-        <source>Driver name</source>
-        <translation>设备名</translation>
+      <source>Driver name</source>
+      <translation type="unfinished">Driver name</translation>
     </message>
     <message>
-        <source>Buffer size</source>
-        <translation>缓存大小</translation>
+      <source>Buffer size</source>
+      <translation type="unfinished">Buffer size</translation>
     </message>
     <message>
-        <source>This will configure the input channels for ASIO. Make sure you select at least one channel as microphone and speaker. &lt;i&gt;Microphone&lt;/i&gt; should be where your microphone is attached, and &lt;i&gt;Speaker&lt;/i&gt; should be a channel that samples &apos;&lt;i&gt;What you hear&lt;/i&gt;&apos;.&lt;br /&gt;For example, on the Audigy 2 ZS, a good selection for Microphone would be &apos;&lt;i&gt;Mic L&lt;/i&gt;&apos; while Speaker should be &apos;&lt;i&gt;Mix L&lt;/i&gt;&apos; and &apos;&lt;i&gt;Mix R&lt;/i&gt;&apos;.</source>
-        <translation>配置 ASIO 的输入通道。确保至少选择一个通道作为麦克风和扬声器。&lt;i&gt;麦克风&lt;/i&gt;应当是您的麦克风所连接的通道，而&lt;i&gt;扬声器&lt;/i&gt;应当是发出“&lt;i&gt;您听到的声音&lt;/i&gt;”的通道。&lt;br /&gt;例如，在 Audigy 2 ZS 上，麦克风应选择“&lt;i&gt;Mic L&lt;/i&gt;”，而扬声器应选择“&lt;i&gt;Mix L&lt;/i&gt;”和“&lt;i&gt;Mix R&lt;/i&gt;”。</translation>
+      <source>This will configure the input channels for ASIO. Make sure you select at least one channel as microphone and speaker. &lt;i&gt;Microphone&lt;/i&gt; should be where your microphone is attached, and &lt;i&gt;Speaker&lt;/i&gt; should be a channel that samples &apos;&lt;i&gt;What you hear&lt;/i&gt;&apos;.&lt;br /&gt;For example, on the Audigy 2 ZS, a good selection for Microphone would be &apos;&lt;i&gt;Mic L&lt;/i&gt;&apos; while Speaker should be &apos;&lt;i&gt;Mix L&lt;/i&gt;&apos; and &apos;&lt;i&gt;Mix R&lt;/i&gt;&apos;.</source>
+      <translation type="unfinished">This will configure the input channels for ASIO. Make sure you select at least one channel as microphone and speaker. &lt;i&gt;Microphone&lt;/i&gt; should be where your microphone is attached, and &lt;i&gt;Speaker&lt;/i&gt; should be a channel that samples &apos;&lt;i&gt;What you hear&lt;/i&gt;&apos;.&lt;br /&gt;For example, on the Audigy 2 ZS, a good selection for Microphone would be &apos;&lt;i&gt;Mic L&lt;/i&gt;&apos; while Speaker should be &apos;&lt;i&gt;Mix L&lt;/i&gt;&apos; and &apos;&lt;i&gt;Mix R&lt;/i&gt;&apos;.</translation>
     </message>
     <message>
-        <source>Configure input channels</source>
-        <translation>设置输入通道</translation>
+      <source>Configure input channels</source>
+      <translation type="unfinished">Configure input channels</translation>
     </message>
     <message>
-        <source>Channels</source>
-        <translation>通道</translation>
+      <source>Channels</source>
+      <translation type="unfinished">Channels</translation>
     </message>
     <message>
-        <source>Microphone</source>
-        <translation>麦克风</translation>
+      <source>Microphone</source>
+      <translation type="unfinished">Microphone</translation>
     </message>
     <message>
-        <source>&lt;-</source>
-        <translation>&lt;-</translation>
+      <source>&lt;-</source>
+      <translation type="unfinished">&lt;-</translation>
     </message>
     <message>
-        <source>-&gt;</source>
-        <translation>-&gt;</translation>
+      <source>-&gt;</source>
+      <translation type="unfinished">-&gt;</translation>
     </message>
     <message>
-        <source>Unused</source>
-        <translation>未使用</translation>
+      <source>Unused</source>
+      <translation type="unfinished">Unused</translation>
     </message>
     <message>
-        <source>Speakers</source>
-        <translation>扬声器</translation>
+      <source>Speakers</source>
+      <translation type="unfinished">Speakers</translation>
     </message>
     <message>
-        <source>List of microphones</source>
-        <translation>麦克风列表</translation>
+      <source>List of microphones</source>
+      <translation type="unfinished">List of microphones</translation>
     </message>
     <message>
-        <source>List of speakers</source>
-        <translation>扬声器列表</translation>
+      <source>List of speakers</source>
+      <translation type="unfinished">List of speakers</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ASIOInput</name>
     <message>
-        <source>You need to select at least one microphone and one speaker source to use ASIO.</source>
-        <translation>要使用 ASIO，您必须选择至少一个麦克风与一个扬声器源。</translation>
+      <source>You need to select at least one microphone and one speaker source to use ASIO.</source>
+      <translation type="unfinished">You need to select at least one microphone and one speaker source to use ASIO.</translation>
     </message>
     <message>
-        <source>Opening selected ASIO device failed. No input will be done.</source>
-        <translation>开启所选 ASIO 设备失败。无法进行输入。</translation>
+      <source>Opening selected ASIO device failed. No input will be done.</source>
+      <translation type="unfinished">Opening selected ASIO device failed. No input will be done.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AboutDialog</name>
     <message>
-        <source>About Mumble</source>
-        <translation>关于 Mumble</translation>
+      <source>About Mumble</source>
+      <translation type="unfinished">About Mumble</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Mumble (%1)&lt;/h3&gt;&lt;p&gt;%3&lt;/p&gt;&lt;p&gt;&lt;b&gt;A voice-chat utility for gamers&lt;/b&gt;&lt;/p&gt;&lt;p&gt;&lt;tt&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/tt&gt;&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Mumble (%1)&lt;/h3&gt;&lt;p&gt;%3&lt;/p&gt;&lt;p&gt;&lt;b&gt;面向游戏玩家的语音聊天工具&lt;/b&gt;&lt;/p&gt;&lt;p&gt;&lt;tt&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/tt&gt;&lt;/p&gt;</translation>
+      <source>&lt;h3&gt;Mumble (%1)&lt;/h3&gt;&lt;p&gt;%3&lt;/p&gt;&lt;p&gt;&lt;b&gt;A voice-chat utility for gamers&lt;/b&gt;&lt;/p&gt;&lt;p&gt;&lt;tt&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/tt&gt;&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;h3&gt;Mumble (%1)&lt;/h3&gt;&lt;p&gt;%3&lt;/p&gt;&lt;p&gt;&lt;b&gt;A voice-chat utility for gamers&lt;/b&gt;&lt;/p&gt;&lt;p&gt;&lt;tt&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/tt&gt;&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;About Mumble</source>
-        <translation>关于 Mumble(&amp;A)</translation>
+      <source>&amp;About Mumble</source>
+      <translation type="unfinished">&amp;About Mumble</translation>
     </message>
     <message>
-        <source>&amp;License</source>
-        <translation>许可(&amp;L)</translation>
+      <source>&amp;License</source>
+      <translation type="unfinished">&amp;License</translation>
     </message>
     <message>
-        <source>A&amp;uthors</source>
-        <translation>作者(&amp;U)</translation>
+      <source>A&amp;uthors</source>
+      <translation type="unfinished">A&amp;uthors</translation>
     </message>
     <message>
-        <source>&amp;Third-Party Licenses</source>
-        <translation>第三方许可(&amp;T)</translation>
+      <source>&amp;Third-Party Licenses</source>
+      <translation type="unfinished">&amp;Third-Party Licenses</translation>
     </message>
     <message>
-        <source>OK</source>
-        <translation>确定</translation>
+      <source>OK</source>
+      <translation type="unfinished">OK</translation>
     </message>
     <message>
-        <source>License agreement</source>
-        <translation>许可</translation>
+      <source>License agreement</source>
+      <translation type="unfinished">License agreement</translation>
     </message>
     <message>
-        <source>Authors</source>
-        <translation>作者</translation>
+      <source>Authors</source>
+      <translation type="unfinished">Authors</translation>
     </message>
     <message>
-        <source>Third-party license agreements</source>
-        <translation>第三方许可</translation>
+      <source>Third-party license agreements</source>
+      <translation type="unfinished">Third-party license agreements</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AudioInput</name>
     <message>
-        <source>Interface</source>
-        <translation>接口</translation>
+      <source>Interface</source>
+      <translation type="unfinished">Interface</translation>
     </message>
     <message>
-        <source>System</source>
-        <translation>系统</translation>
+      <source>System</source>
+      <translation type="unfinished">System</translation>
     </message>
     <message>
-        <source>Input method for audio</source>
-        <translation>音频输入方式</translation>
+      <source>Input method for audio</source>
+      <translation type="unfinished">Input method for audio</translation>
     </message>
     <message>
-        <source>Device</source>
-        <translation>设备</translation>
+      <source>Device</source>
+      <translation type="unfinished">Device</translation>
     </message>
     <message>
-        <source>Input device for audio</source>
-        <translation>音频输入设备</translation>
+      <source>Input device for audio</source>
+      <translation type="unfinished">Input device for audio</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the input device to use for audio.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;音频采用的输入设备。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;This is the input device to use for audio.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This is the input device to use for audio.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Transmission</source>
-        <translation>传输</translation>
+      <source>Transmission</source>
+      <translation type="unfinished">Transmission</translation>
     </message>
     <message>
-        <source>&amp;Transmit</source>
-        <translation>传输模式(&amp;T)</translation>
+      <source>&amp;Transmit</source>
+      <translation type="unfinished">&amp;Transmit</translation>
     </message>
     <message>
-        <source>When to transmit your speech</source>
-        <translation>何时传输您的语音</translation>
+      <source>When to transmit your speech</source>
+      <translation type="unfinished">When to transmit your speech</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets when speech should be transmitted.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;Continuous&lt;/i&gt; - All the time&lt;br /&gt;&lt;i&gt;Voice Activity&lt;/i&gt; - When you are speaking clearly.&lt;br /&gt;&lt;i&gt;Push To Talk&lt;/i&gt; - When you hold down the hotkey set under &lt;i&gt;Shortcuts&lt;/i&gt;.</source>
-        <translation>&lt;b&gt;设置何时传输您的语音。&lt;/b&gt;&lt;br /&gt;&lt;i&gt;连续发言&lt;/i&gt; - 始终发送语音。&lt;br /&gt;&lt;i&gt;语音激活&lt;/i&gt; - 当您清楚地发言时。&lt;br /&gt;&lt;i&gt;按键发言&lt;/i&gt; - 当您按住您设置的&lt;i&gt;快捷键&lt;/i&gt;时。</translation>
+      <source>&lt;b&gt;This sets when speech should be transmitted.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;Continuous&lt;/i&gt; - All the time&lt;br /&gt;&lt;i&gt;Voice Activity&lt;/i&gt; - When you are speaking clearly.&lt;br /&gt;&lt;i&gt;Push To Talk&lt;/i&gt; - When you hold down the hotkey set under &lt;i&gt;Shortcuts&lt;/i&gt;.</source>
+      <translation type="unfinished">&lt;b&gt;This sets when speech should be transmitted.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;Continuous&lt;/i&gt; - All the time&lt;br /&gt;&lt;i&gt;Voice Activity&lt;/i&gt; - When you are speaking clearly.&lt;br /&gt;&lt;i&gt;Push To Talk&lt;/i&gt; - When you hold down the hotkey set under &lt;i&gt;Shortcuts&lt;/i&gt;.</translation>
     </message>
     <message>
-        <source>DoublePush Time</source>
-        <translation>双击时间</translation>
+      <source>DoublePush Time</source>
+      <translation type="unfinished">DoublePush Time</translation>
     </message>
     <message>
-        <source>If you press the PTT key twice in this time it will get locked.</source>
-        <translation>如果您在这个时间内连续按下两次按键发言键，它将会被锁定。</translation>
+      <source>If you press the PTT key twice in this time it will get locked.</source>
+      <translation type="unfinished">If you press the PTT key twice in this time it will get locked.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;DoublePush Time&lt;/b&gt;&lt;br /&gt;If you press the push-to-talk key twice during the configured interval of time it will be locked. Mumble will keep transmitting until you hit the key once more to unlock PTT again.</source>
-        <translation>&lt;b&gt;双击时间&lt;/b&gt;&lt;br /&gt;如果您在配置的时间间隔内按下两次按键发言快捷键，它将会被锁定。 Mumble 将连续传输语音，直到您再次按下该键解锁按键发言状态。</translation>
+      <source>&lt;b&gt;DoublePush Time&lt;/b&gt;&lt;br /&gt;If you press the push-to-talk key twice during the configured interval of time it will be locked. Mumble will keep transmitting until you hit the key once more to unlock PTT again.</source>
+      <translation type="unfinished">&lt;b&gt;DoublePush Time&lt;/b&gt;&lt;br /&gt;If you press the push-to-talk key twice during the configured interval of time it will be locked. Mumble will keep transmitting until you hit the key once more to unlock PTT again.</translation>
     </message>
     <message>
-        <source>Reset audio cue to default</source>
-        <translation>重置音频提示为默认值</translation>
+      <source>Reset audio cue to default</source>
+      <translation type="unfinished">Reset audio cue to default</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Reset&lt;/b&gt;&lt;br/&gt;Reset the paths for the files to their default.</source>
-        <translation>&lt;b&gt;重置&lt;/b&gt;&lt;br/&gt;重置文件的路径为默认值。</translation>
+      <source>&lt;b&gt;Reset&lt;/b&gt;&lt;br/&gt;Reset the paths for the files to their default.</source>
+      <translation type="unfinished">&lt;b&gt;Reset&lt;/b&gt;&lt;br/&gt;Reset the paths for the files to their default.</translation>
     </message>
     <message>
-        <source>Browse for on audio file</source>
-        <translation>浏览传输开启时的音频文件</translation>
+      <source>Browse for on audio file</source>
+      <translation type="unfinished">Browse for on audio file</translation>
     </message>
     <message>
-        <source>Browse for off audio file</source>
-        <translation>浏览传输关闭时的音频文件</translation>
+      <source>Browse for off audio file</source>
+      <translation type="unfinished">Browse for off audio file</translation>
     </message>
     <message>
-        <source>Off</source>
-        <translation>关闭</translation>
+      <source>Off</source>
+      <translation type="unfinished">Off</translation>
     </message>
     <message>
-        <source>On</source>
-        <translation>开启</translation>
+      <source>On</source>
+      <translation type="unfinished">On</translation>
     </message>
     <message>
-        <source>Preview the audio cues</source>
-        <translation>试听音频提示</translation>
+      <source>Preview the audio cues</source>
+      <translation type="unfinished">Preview the audio cues</translation>
     </message>
     <message>
-        <source>Use SNR based speech detection</source>
-        <translation>使用信噪比语音检测</translation>
+      <source>Use SNR based speech detection</source>
+      <translation type="unfinished">Use SNR based speech detection</translation>
     </message>
     <message>
-        <source>Signal to Noise</source>
-        <translation>信噪比</translation>
+      <source>Signal to Noise</source>
+      <translation type="unfinished">Signal to Noise</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets speech detection to use Amplitude.&lt;/b&gt;&lt;br /&gt;In this mode, the raw strength of the input signal is used to detect speech.</source>
-        <translation>&lt;b&gt;设置使用振幅进行语音检测&lt;/b&gt;&lt;br /&gt;在此模式下，使用输入信号的原始强度检测您是否在说话。</translation>
+      <source>&lt;b&gt;This sets speech detection to use Amplitude.&lt;/b&gt;&lt;br /&gt;In this mode, the raw strength of the input signal is used to detect speech.</source>
+      <translation type="unfinished">&lt;b&gt;This sets speech detection to use Amplitude.&lt;/b&gt;&lt;br /&gt;In this mode, the raw strength of the input signal is used to detect speech.</translation>
     </message>
     <message>
-        <source>Amplitude</source>
-        <translation>振幅</translation>
+      <source>Amplitude</source>
+      <translation type="unfinished">Amplitude</translation>
     </message>
     <message>
-        <source>Voice &amp;Hold</source>
-        <translation>语音保持(&amp;H)</translation>
+      <source>Voice &amp;Hold</source>
+      <translation type="unfinished">Voice &amp;Hold</translation>
     </message>
     <message>
-        <source>How long to keep transmitting after silence</source>
-        <translation>安静后保持多久的传输时间</translation>
+      <source>How long to keep transmitting after silence</source>
+      <translation type="unfinished">How long to keep transmitting after silence</translation>
     </message>
     <message>
-        <source>Silence Below</source>
-        <translation>安静阈值</translation>
+      <source>Silence Below</source>
+      <translation type="unfinished">Silence Below</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets the trigger values for voice detection.&lt;/b&gt;&lt;br /&gt;Use this together with the Audio Statistics window to manually tune the trigger values for detecting speech. Input values below &quot;Silence Below&quot; always count as silence. Values above &quot;Speech Above&quot; always count as voice. Values in between will count as voice if you&apos;re already talking, but will not trigger a new detection.</source>
-        <translation>&lt;b&gt;设置语音检测的触发值。&lt;/b&gt;&lt;br /&gt;将此功能与“音频统计”窗口一起使用，可手动调整用于检测语音的触发值。低于“安静阈值”的输入值始终算作安静。高于“语音阈值”的值始终算作语音。如果您已经在说话，那么介于中间的值不会触发新的检测，都算作语音。</translation>
+      <source>&lt;b&gt;This sets the trigger values for voice detection.&lt;/b&gt;&lt;br /&gt;Use this together with the Audio Statistics window to manually tune the trigger values for detecting speech. Input values below &quot;Silence Below&quot; always count as silence. Values above &quot;Speech Above&quot; always count as voice. Values in between will count as voice if you&apos;re already talking, but will not trigger a new detection.</source>
+      <translation type="unfinished">&lt;b&gt;This sets the trigger values for voice detection.&lt;/b&gt;&lt;br /&gt;Use this together with the Audio Statistics window to manually tune the trigger values for detecting speech. Input values below &quot;Silence Below&quot; always count as silence. Values above &quot;Speech Above&quot; always count as voice. Values in between will count as voice if you&apos;re already talking, but will not trigger a new detection.</translation>
     </message>
     <message>
-        <source>Speech Above</source>
-        <translation>语音阈值</translation>
+      <source>Speech Above</source>
+      <translation type="unfinished">Speech Above</translation>
     </message>
     <message>
-        <source>Signal values above this count as voice</source>
-        <translation>超过此值的信号即为语音</translation>
+      <source>Signal values above this count as voice</source>
+      <translation type="unfinished">Signal values above this count as voice</translation>
     </message>
     <message>
-        <source>Compression</source>
-        <translation>压缩</translation>
+      <source>Compression</source>
+      <translation type="unfinished">Compression</translation>
     </message>
     <message>
-        <source>&amp;Quality</source>
-        <translation>质量(&amp;Q)</translation>
+      <source>&amp;Quality</source>
+      <translation type="unfinished">&amp;Quality</translation>
     </message>
     <message>
-        <source>Quality of compression (peak bandwidth)</source>
-        <translation>压缩质量（峰值带宽）</translation>
+      <source>Quality of compression (peak bandwidth)</source>
+      <translation type="unfinished">Quality of compression (peak bandwidth)</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets the quality of compression.&lt;/b&gt;&lt;br /&gt;This determines how much bandwidth Mumble is allowed to use for outgoing audio.</source>
-        <translation>&lt;b&gt;设置压缩质量&lt;/b&gt;&lt;br /&gt;这决定了允许 Mumble 传出音频使用的带宽。</translation>
+      <source>&lt;b&gt;This sets the quality of compression.&lt;/b&gt;&lt;br /&gt;This determines how much bandwidth Mumble is allowed to use for outgoing audio.</source>
+      <translation type="unfinished">&lt;b&gt;This sets the quality of compression.&lt;/b&gt;&lt;br /&gt;This determines how much bandwidth Mumble is allowed to use for outgoing audio.</translation>
     </message>
     <message>
-        <source>Audio per packet</source>
-        <translation>数据包音频量</translation>
+      <source>Audio per packet</source>
+      <translation type="unfinished">Audio per packet</translation>
     </message>
     <message>
-        <source>How many audio frames to send per packet</source>
-        <translation>每个数据包发送多少音频帧</translation>
+      <source>How many audio frames to send per packet</source>
+      <translation type="unfinished">How many audio frames to send per packet</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This selects how many audio frames should be put in one packet.&lt;/b&gt;&lt;br /&gt;Increasing this will increase the latency of your voice, but will also reduce bandwidth requirements.</source>
-        <translation>&lt;b&gt;选择应将多少个音频帧放入一个数据包中。&lt;/b&gt;&lt;br /&gt;增加此值会增加语音的延迟，但也会降低带宽要求。</translation>
+      <source>&lt;b&gt;This selects how many audio frames should be put in one packet.&lt;/b&gt;&lt;br /&gt;Increasing this will increase the latency of your voice, but will also reduce bandwidth requirements.</source>
+      <translation type="unfinished">&lt;b&gt;This selects how many audio frames should be put in one packet.&lt;/b&gt;&lt;br /&gt;Increasing this will increase the latency of your voice, but will also reduce bandwidth requirements.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This shows peak outgoing bandwidth used.&lt;/b&gt;&lt;br /&gt;This shows the peak amount of bandwidth sent out from your machine. Audio bitrate is the maximum bitrate (as we use VBR) for the audio data alone. Position is the bitrate used for positional information. Overhead is our framing and the IP packet headers (IP and UDP is 75% of this overhead).</source>
-        <translation>&lt;b&gt;显示使用的峰值传出带宽。&lt;/b&gt;&lt;br /&gt;显示从您的计算机发出的峰值带宽量。音频比特率是单独音频数据的最大比特率（因为我们使用 VBR）。位置是用于位置信息的比特率。开销是我们的帧数据和 IP 数据包标头（IP 和 UDP 占此开销的 75%）。</translation>
+      <source>&lt;b&gt;This shows peak outgoing bandwidth used.&lt;/b&gt;&lt;br /&gt;This shows the peak amount of bandwidth sent out from your machine. Audio bitrate is the maximum bitrate (as we use VBR) for the audio data alone. Position is the bitrate used for positional information. Overhead is our framing and the IP packet headers (IP and UDP is 75% of this overhead).</source>
+      <translation type="unfinished">&lt;b&gt;This shows peak outgoing bandwidth used.&lt;/b&gt;&lt;br /&gt;This shows the peak amount of bandwidth sent out from your machine. Audio bitrate is the maximum bitrate (as we use VBR) for the audio data alone. Position is the bitrate used for positional information. Overhead is our framing and the IP packet headers (IP and UDP is 75% of this overhead).</translation>
     </message>
     <message>
-        <source>Audio Processing</source>
-        <translation>音频处理</translation>
+      <source>Audio Processing</source>
+      <translation type="unfinished">Audio Processing</translation>
     </message>
     <message>
-        <source>Noise suppression</source>
-        <translation>噪声抑制</translation>
+      <source>Noise suppression</source>
+      <translation type="unfinished">Noise suppression</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets the amount of noise suppression to apply.&lt;/b&gt;&lt;br /&gt;The higher this value, the more aggressively stationary noise will be suppressed.</source>
-        <translation>&lt;b&gt;设置要应用的噪声抑制量。&lt;/b&gt;&lt;br /&gt;该值越高，被消除的静止噪声就越多。</translation>
+      <source>&lt;b&gt;This sets the amount of noise suppression to apply.&lt;/b&gt;&lt;br /&gt;The higher this value, the more aggressively stationary noise will be suppressed.</source>
+      <translation type="unfinished">&lt;b&gt;This sets the amount of noise suppression to apply.&lt;/b&gt;&lt;br /&gt;The higher this value, the more aggressively stationary noise will be suppressed.</translation>
     </message>
     <message>
-        <source>Maximum amplification of input sound</source>
-        <translation>输入声音的最大放大倍数</translation>
+      <source>Maximum amplification of input sound</source>
+      <translation type="unfinished">Maximum amplification of input sound</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Maximum amplification of input.&lt;/b&gt;&lt;br /&gt;Mumble normalizes the input volume before compressing, and this sets how much it&apos;s allowed to amplify.&lt;br /&gt;The actual level is continually updated based on your current speech pattern, but it will never go above the level specified here.&lt;br /&gt;If the &lt;i&gt;Microphone loudness&lt;/i&gt; level of the audio statistics hover around 100%, you probably want to set this to 2.0 or so, but if, like most people, you are unable to reach 100%, set this to something much higher.&lt;br /&gt;Ideally, set it so &lt;i&gt;Microphone Loudness * Amplification Factor &gt;= 100&lt;/i&gt;, even when you&apos;re speaking really soft.&lt;br /&gt;&lt;br /&gt;Note that there is no harm in setting this to maximum, but Mumble will start picking up other conversations if you leave it to auto-tune to that level.</source>
-        <translation>&lt;b&gt;输入的最大放大倍数&lt;/b&gt;&lt;br /&gt;Mumble 会在压缩前将输入音量标准化，并设置允许放大的倍数。&lt;br /&gt;实际级别会根据您当前的语音模式不断更新，但永远不会超过此处指定的级别。&lt;br /&gt;如果音频统计的&lt;i&gt;麦克风响度&lt;/i&gt;级别徘徊在 100% 左右，您可能希望将此值设置为 2.0 左右，但如果像大多数人一样，无法达到 100%，请将此值设置得更高。&lt;br /&gt;一般来说，应该将其设置到&lt;i&gt;麦克风响度 * 放大倍数 &gt;= 100&lt;/i&gt;，即使您说话十分柔和。&lt;br /&gt;&lt;br /&gt;请注意，将此值设置为最大没有任何害处，但如果您使其自动调整到该级别，Mumble 将会开始接收其他对话。</translation>
+      <source>&lt;b&gt;Maximum amplification of input.&lt;/b&gt;&lt;br /&gt;Mumble normalizes the input volume before compressing, and this sets how much it&apos;s allowed to amplify.&lt;br /&gt;The actual level is continually updated based on your current speech pattern, but it will never go above the level specified here.&lt;br /&gt;If the &lt;i&gt;Microphone loudness&lt;/i&gt; level of the audio statistics hover around 100%, you probably want to set this to 2.0 or so, but if, like most people, you are unable to reach 100%, set this to something much higher.&lt;br /&gt;Ideally, set it so &lt;i&gt;Microphone Loudness * Amplification Factor &gt;= 100&lt;/i&gt;, even when you&apos;re speaking really soft.&lt;br /&gt;&lt;br /&gt;Note that there is no harm in setting this to maximum, but Mumble will start picking up other conversations if you leave it to auto-tune to that level.</source>
+      <translation type="unfinished">&lt;b&gt;Maximum amplification of input.&lt;/b&gt;&lt;br /&gt;Mumble normalizes the input volume before compressing, and this sets how much it&apos;s allowed to amplify.&lt;br /&gt;The actual level is continually updated based on your current speech pattern, but it will never go above the level specified here.&lt;br /&gt;If the &lt;i&gt;Microphone loudness&lt;/i&gt; level of the audio statistics hover around 100%, you probably want to set this to 2.0 or so, but if, like most people, you are unable to reach 100%, set this to something much higher.&lt;br /&gt;Ideally, set it so &lt;i&gt;Microphone Loudness * Amplification Factor &gt;= 100&lt;/i&gt;, even when you&apos;re speaking really soft.&lt;br /&gt;&lt;br /&gt;Note that there is no harm in setting this to maximum, but Mumble will start picking up other conversations if you leave it to auto-tune to that level.</translation>
     </message>
     <message>
-        <source>Current speech detection chance</source>
-        <translation>当前语音检测状态</translation>
+      <source>Current speech detection chance</source>
+      <translation type="unfinished">Current speech detection chance</translation>
     </message>
     <message>
-        <source>Enabling this will cancel the echo from your speakers. Mixed has low CPU impact, but only works well if your speakers are equally loud and equidistant from the microphone. Multichannel echo cancellation provides much better echo cancellation, but at a higher CPU cost.</source>
-        <translation>启用该选项将消除从您的扬声器里发出的回声。混合模式消耗的 CPU 资源较少，但是它仅在扬声器与麦克风音量等级相近并距离相等时工作良好。多通道回声消除提供更好的回声消除效果，但是消耗的 CPU 资源较多。</translation>
+      <source>Enabling this will cancel the echo from your speakers. Mixed has low CPU impact, but only works well if your speakers are equally loud and equidistant from the microphone. Multichannel echo cancellation provides much better echo cancellation, but at a higher CPU cost.</source>
+      <translation type="unfinished">Enabling this will cancel the echo from your speakers. Mixed has low CPU impact, but only works well if your speakers are equally loud and equidistant from the microphone. Multichannel echo cancellation provides much better echo cancellation, but at a higher CPU cost.</translation>
     </message>
     <message>
-        <source>Disabled</source>
-        <translation>禁用</translation>
+      <source>Disabled</source>
+      <translation type="unfinished">Disabled</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets speech detection to use Signal to Noise ratio.&lt;/b&gt;&lt;br /&gt;In this mode, the input is analyzed for something resembling a clear signal, and the clarity of that signal is used to trigger speech detection.</source>
-        <translation>&lt;b&gt;设置使用信噪比进行语音检测。&lt;/b&gt;&lt;br /&gt;在此模式下，分析输入信号是否类似于清晰信号，并以该信号的清晰度触发语音检测。</translation>
+      <source>&lt;b&gt;This sets speech detection to use Signal to Noise ratio.&lt;/b&gt;&lt;br /&gt;In this mode, the input is analyzed for something resembling a clear signal, and the clarity of that signal is used to trigger speech detection.</source>
+      <translation type="unfinished">&lt;b&gt;This sets speech detection to use Signal to Noise ratio.&lt;/b&gt;&lt;br /&gt;In this mode, the input is analyzed for something resembling a clear signal, and the clarity of that signal is used to trigger speech detection.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</source>
-        <translation>&lt;b&gt;显示当前的语音检测设置。&lt;/b&gt;&lt;br /&gt;您可以在设置对话框或者音频向导中改变设置。</translation>
+      <source>&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</source>
+      <translation type="unfinished">&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</translation>
     </message>
     <message>
-        <source>Signal values below this count as silence</source>
-        <translation>低于此值的信号被视为安静</translation>
+      <source>Signal values below this count as silence</source>
+      <translation type="unfinished">Signal values below this count as silence</translation>
     </message>
     <message>
-        <source>Maximum bandwidth used for sending audio</source>
-        <translation>用于发送的音频的最大带宽</translation>
+      <source>Maximum bandwidth used for sending audio</source>
+      <translation type="unfinished">Maximum bandwidth used for sending audio</translation>
     </message>
     <message>
-        <source>Use Amplitude based speech detection</source>
-        <translation>使用振幅语音检测</translation>
+      <source>Use Amplitude based speech detection</source>
+      <translation type="unfinished">Use Amplitude based speech detection</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This selects how long after a perceived stop in speech transmission should continue.&lt;/b&gt;&lt;br /&gt;Set this higher if your voice breaks up when you speak (seen by a rapidly blinking voice icon next to your name).</source>
-        <translation>&lt;b&gt;选择感知到说话停止后应该持续传输多长时间。&lt;/b&gt;&lt;br /&gt;如果您发言时遇到声音中断（通过您名字旁边快速闪烁的语音图标检查），请将此值调高。</translation>
+      <source>&lt;b&gt;This selects how long after a perceived stop in speech transmission should continue.&lt;/b&gt;&lt;br /&gt;Set this higher if your voice breaks up when you speak (seen by a rapidly blinking voice icon next to your name).</source>
+      <translation type="unfinished">&lt;b&gt;This selects how long after a perceived stop in speech transmission should continue.&lt;/b&gt;&lt;br /&gt;Set this higher if your voice breaks up when you speak (seen by a rapidly blinking voice icon next to your name).</translation>
     </message>
     <message>
-        <source>Exclusive mode</source>
-        <translation>独占模式</translation>
+      <source>Exclusive mode</source>
+      <translation type="unfinished">Exclusive mode</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</source>
-        <translation>&lt;b&gt;以独占模式开启设备&lt;/b&gt;&lt;br /&gt;其他应用程序将无法使用该设备。</translation>
+      <source>&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</source>
+      <translation type="unfinished">&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</translation>
     </message>
     <message>
-        <source>Exclusive</source>
-        <translation>独占</translation>
+      <source>Exclusive</source>
+      <translation type="unfinished">Exclusive</translation>
     </message>
     <message>
-        <source>R&amp;eset</source>
-        <translation>重置(&amp;E)</translation>
+      <source>R&amp;eset</source>
+      <translation type="unfinished">R&amp;eset</translation>
     </message>
     <message>
-        <source>&amp;Browse...</source>
-        <translation>浏览(&amp;B)...</translation>
+      <source>&amp;Browse...</source>
+      <translation type="unfinished">&amp;Browse...</translation>
     </message>
     <message>
-        <source>B&amp;rowse...</source>
-        <translation>浏览(&amp;R)...</translation>
+      <source>B&amp;rowse...</source>
+      <translation type="unfinished">B&amp;rowse...</translation>
     </message>
     <message>
-        <source>&amp;Preview</source>
-        <translation>试听(&amp;P)</translation>
+      <source>&amp;Preview</source>
+      <translation type="unfinished">&amp;Preview</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Preview&lt;/b&gt;&lt;br/&gt;Plays the current &lt;i&gt;on&lt;/i&gt; sound followed by the current &lt;i&gt;off&lt;/i&gt; sound.</source>
-        <translation>&lt;b&gt;试听&lt;/b&gt;&lt;br/&gt;播放当前设置的&lt;i&gt;开启&lt;/i&gt;提示音和&lt;i&gt;关闭&lt;/i&gt;提示音。</translation>
+      <source>&lt;b&gt;Preview&lt;/b&gt;&lt;br/&gt;Plays the current &lt;i&gt;on&lt;/i&gt; sound followed by the current &lt;i&gt;off&lt;/i&gt; sound.</source>
+      <translation type="unfinished">&lt;b&gt;Preview&lt;/b&gt;&lt;br/&gt;Plays the current &lt;i&gt;on&lt;/i&gt; sound followed by the current &lt;i&gt;off&lt;/i&gt; sound.</translation>
     </message>
     <message>
-        <source>Displays an always on top window with a push to talk button in it</source>
-        <translation>显示一个总是置顶的窗口，其中包含一个“按键发言”按钮</translation>
+      <source>Displays an always on top window with a push to talk button in it</source>
+      <translation type="unfinished">Displays an always on top window with a push to talk button in it</translation>
     </message>
     <message>
-        <source>Display push to talk window</source>
-        <translation>显示按键发言窗口</translation>
+      <source>Display push to talk window</source>
+      <translation type="unfinished">Display push to talk window</translation>
     </message>
     <message>
-        <source>Misc</source>
-        <translation>其他</translation>
+      <source>Misc</source>
+      <translation type="unfinished">Misc</translation>
     </message>
     <message>
-        <source>Audible audio cue when starting or stopping to transmit</source>
-        <translation>开始或停止传输时发出提示音</translation>
+      <source>Audible audio cue when starting or stopping to transmit</source>
+      <translation type="unfinished">Audible audio cue when starting or stopping to transmit</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This enables transmission audio cues.&lt;/b&gt;&lt;br /&gt;Setting this will give you a short audio beep when you start and stop transmitting.</source>
-        <translation>&lt;b&gt;启用传输状态提示音&lt;/b&gt;&lt;br /&gt;设置在开始传输音频和停止传输音频时播放的简短提示音。</translation>
+      <source>&lt;b&gt;This enables transmission audio cues.&lt;/b&gt;&lt;br /&gt;Setting this will give you a short audio beep when you start and stop transmitting.</source>
+      <translation type="unfinished">&lt;b&gt;This enables transmission audio cues.&lt;/b&gt;&lt;br /&gt;Setting this will give you a short audio beep when you start and stop transmitting.</translation>
     </message>
     <message>
-        <source>Audio cue</source>
-        <translation>音频提示</translation>
+      <source>Audio cue</source>
+      <translation type="unfinished">Audio cue</translation>
     </message>
     <message>
-        <source>Gets played when starting to transmit</source>
-        <translation>开始传输时播放</translation>
+      <source>Gets played when starting to transmit</source>
+      <translation type="unfinished">Gets played when starting to transmit</translation>
     </message>
     <message>
-        <source>Gets played when stopping to transmit</source>
-        <translation>停止传输时播放</translation>
+      <source>Gets played when stopping to transmit</source>
+      <translation type="unfinished">Gets played when stopping to transmit</translation>
     </message>
     <message>
-        <source>Hold Time</source>
-        <translation>保持时间</translation>
+      <source>Hold Time</source>
+      <translation type="unfinished">Hold Time</translation>
     </message>
     <message>
-        <source>Time the microphone stays open after the PTT key is released</source>
-        <translation>释放按键发言键后麦克风保持打开的时间</translation>
+      <source>Time the microphone stays open after the PTT key is released</source>
+      <translation type="unfinished">Time the microphone stays open after the PTT key is released</translation>
     </message>
     <message>
-        <source>Server maximum network bandwidth is only %1 kbit/s. Audio quality auto-adjusted to %2 kbit/s (%3 ms)</source>
-        <translation>服务器限制带宽为 %1 千比特/秒。语音质量已自动调整到 %2 千比特/秒（%3 毫秒）</translation>
+      <source>Server maximum network bandwidth is only %1 kbit/s. Audio quality auto-adjusted to %2 kbit/s (%3 ms)</source>
+      <translation type="unfinished">Server maximum network bandwidth is only %1 kbit/s. Audio quality auto-adjusted to %2 kbit/s (%3 ms)</translation>
     </message>
     <message>
-        <source>Max. Amplification</source>
-        <translation>最大放大倍数</translation>
+      <source>Max. Amplification</source>
+      <translation type="unfinished">Max. Amplification</translation>
     </message>
     <message>
-        <source>Idle action</source>
-        <translation>空闲操作</translation>
+      <source>Idle action</source>
+      <translation type="unfinished">Idle action</translation>
     </message>
     <message>
-        <source>minutes do</source>
-        <translation>分钟后</translation>
+      <source>minutes do</source>
+      <translation type="unfinished">minutes do</translation>
     </message>
     <message>
-        <source>nothing</source>
-        <translation>什么也不做</translation>
+      <source>nothing</source>
+      <translation type="unfinished">nothing</translation>
     </message>
     <message>
-        <source>deafen</source>
-        <translation>关闭扬声器</translation>
+      <source>deafen</source>
+      <translation type="unfinished">deafen</translation>
     </message>
     <message>
-        <source>mute</source>
-        <translation>关闭麦克风</translation>
+      <source>mute</source>
+      <translation type="unfinished">mute</translation>
     </message>
     <message>
-        <source>after</source>
-        <translation>在空闲</translation>
+      <source>after</source>
+      <translation type="unfinished">after</translation>
     </message>
     <message>
-        <source>Echo Cancellation</source>
-        <translation>回声消除</translation>
+      <source>Echo Cancellation</source>
+      <translation type="unfinished">Echo Cancellation</translation>
     </message>
     <message>
-        <source>Mixed echo cancellation</source>
-        <translation>混合回声消除</translation>
+      <source>Mixed echo cancellation</source>
+      <translation type="unfinished">Mixed echo cancellation</translation>
     </message>
     <message>
-        <source>Multichannel echo cancellation</source>
-        <translation>多通道回声消除</translation>
+      <source>Multichannel echo cancellation</source>
+      <translation type="unfinished">Multichannel echo cancellation</translation>
     </message>
     <message>
-        <source>The idle action will be reversed upon any key or mouse button input</source>
-        <translation>在检测到任何鼠标或键盘动作后，撤销空闲操作</translation>
+      <source>The idle action will be reversed upon any key or mouse button input</source>
+      <translation type="unfinished">The idle action will be reversed upon any key or mouse button input</translation>
     </message>
     <message>
-        <source>Undo Idle action upon activity</source>
-        <translation>在活动时撤消空闲操作</translation>
+      <source>Undo Idle action upon activity</source>
+      <translation type="unfinished">Undo Idle action upon activity</translation>
     </message>
     <message>
-        <source>Audio input</source>
-        <translation>音频输入</translation>
+      <source>Audio input</source>
+      <translation type="unfinished">Audio input</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;音频采用的输入方式。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Enable Opus&apos; low-delay mode when the quality is set to &lt;b&gt;64 kb/s&lt;/b&gt; or higher. </source>
-        <translation>当质量设置为 &lt;b&gt;64 千比特/秒&lt;/b&gt;或更高时，启用 Opus 的低延迟模式。</translation>
+      <source>Enable Opus&apos; low-delay mode when the quality is set to &lt;b&gt;64 kb/s&lt;/b&gt; or higher. </source>
+      <translation type="unfinished">Enable Opus&apos; low-delay mode when the quality is set to &lt;b&gt;64 kb/s&lt;/b&gt; or higher. </translation>
     </message>
     <message>
-        <source>If checked, Mumble will enable Opus&apos; low-delay mode when the quality is set to &lt;b&gt;64 kbit/s&lt;/b&gt; or higher. Low-delay mode decreases latency by &lt;b&gt;~15 milliseconds&lt;/b&gt; in the round trip. This mode may require an higher bitrate to preserve the same quality, in comparison with the music and VOIP modes.</source>
-        <translation>选中时，Mumble 会在质量设置为 &lt;b&gt;64 千比特/秒&lt;/b&gt;或更高时启用 Opus 的低延迟模式。低延迟模式下，每次往返会降低&lt;b&gt;约 15 毫秒&lt;/b&gt;延迟。与音乐和 VOIP 模式相比，此模式可能需要较高的比特率以保证音频质量。</translation>
+      <source>If checked, Mumble will enable Opus&apos; low-delay mode when the quality is set to &lt;b&gt;64 kbit/s&lt;/b&gt; or higher. Low-delay mode decreases latency by &lt;b&gt;~15 milliseconds&lt;/b&gt; in the round trip. This mode may require an higher bitrate to preserve the same quality, in comparison with the music and VOIP modes.</source>
+      <translation type="unfinished">If checked, Mumble will enable Opus&apos; low-delay mode when the quality is set to &lt;b&gt;64 kbit/s&lt;/b&gt; or higher. Low-delay mode decreases latency by &lt;b&gt;~15 milliseconds&lt;/b&gt; in the round trip. This mode may require an higher bitrate to preserve the same quality, in comparison with the music and VOIP modes.</translation>
     </message>
     <message>
-        <source>Allow low delay mode</source>
-        <translation>允许低延迟模式</translation>
+      <source>Allow low delay mode</source>
+      <translation type="unfinished">Allow low delay mode</translation>
     </message>
     <message>
-        <source>Don&apos;t use noise suppression.</source>
-        <translation>不使用噪声抑制。</translation>
+      <source>Don&apos;t use noise suppression.</source>
+      <translation type="unfinished">Don&apos;t use noise suppression.</translation>
     </message>
     <message>
-        <source>Use the noise suppression algorithm provided by Speex.</source>
-        <translation>使用 Speex 提供的噪声抑制算法。</translation>
+      <source>Use the noise suppression algorithm provided by Speex.</source>
+      <translation type="unfinished">Use the noise suppression algorithm provided by Speex.</translation>
     </message>
     <message>
-        <source>Use the noise suppression algorithm provided by RNNoise.</source>
-        <translation>使用 RNNoise 提供的噪声抑制算法。</translation>
+      <source>Use the noise suppression algorithm provided by RNNoise.</source>
+      <translation type="unfinished">Use the noise suppression algorithm provided by RNNoise.</translation>
     </message>
     <message>
-        <source>Use a combination of Speex and RNNoise to do noise suppression.</source>
-        <translation>使用 Speex 与 RNNoise 组合的噪声抑制。</translation>
+      <source>Use a combination of Speex and RNNoise to do noise suppression.</source>
+      <translation type="unfinished">Use a combination of Speex and RNNoise to do noise suppression.</translation>
     </message>
     <message>
-        <source>Both</source>
-        <translation>同时</translation>
+      <source>Both</source>
+      <translation type="unfinished">Both</translation>
     </message>
     <message>
-        <source>This controls the amount by which Speex will suppress noise.</source>
-        <translation>此选项控制 Speex 噪声抑制量。</translation>
+      <source>This controls the amount by which Speex will suppress noise.</source>
+      <translation type="unfinished">This controls the amount by which Speex will suppress noise.</translation>
     </message>
     <message>
-        <source>Speex suppression strength</source>
-        <translation>Speex 抑制强度</translation>
+      <source>Speex suppression strength</source>
+      <translation type="unfinished">Speex suppression strength</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AudioInputDialog</name>
     <message>
-        <source>Continuous</source>
-        <translation>连续发言</translation>
+      <source>Continuous</source>
+      <translation type="unfinished">Continuous</translation>
     </message>
     <message>
-        <source>Voice Activity</source>
-        <translation>语音激活</translation>
+      <source>Voice Activity</source>
+      <translation type="unfinished">Voice Activity</translation>
     </message>
     <message>
-        <source>Push To Talk</source>
-        <translation>按键发言</translation>
+      <source>Push To Talk</source>
+      <translation type="unfinished">Push To Talk</translation>
     </message>
     <message>
-        <source>Audio Input</source>
-        <translation>音频输入</translation>
+      <source>Audio Input</source>
+      <translation type="unfinished">Audio Input</translation>
     </message>
     <message>
-        <source>%1 ms</source>
-        <translation>%1 毫秒</translation>
+      <source>%1 ms</source>
+      <translation type="unfinished">%1 ms</translation>
     </message>
     <message>
-        <source>Off</source>
-        <translation>关闭</translation>
+      <source>Off</source>
+      <translation type="unfinished">Off</translation>
     </message>
     <message>
-        <source>%1 s</source>
-        <translation>%1 秒</translation>
+      <source>%1 s</source>
+      <translation type="unfinished">%1 s</translation>
     </message>
     <message>
-        <source>%1 kb/s</source>
-        <translation>%1 千字节/秒</translation>
+      <source>%1 kb/s</source>
+      <translation type="unfinished">%1 kb/s</translation>
     </message>
     <message>
-        <source>-%1 dB</source>
-        <translation>-%1 分贝</translation>
+      <source>-%1 dB</source>
+      <translation type="unfinished">-%1 dB</translation>
     </message>
     <message>
-        <source>%1 kbit/s (Audio %2, Position %4, Overhead %3)</source>
-        <translation>%1 千比特/秒（音频 %2，位置 %4，开销 %3）</translation>
+      <source>%1 kbit/s (Audio %2, Position %4, Overhead %3)</source>
+      <translation type="unfinished">%1 kbit/s (Audio %2, Position %4, Overhead %3)</translation>
     </message>
     <message>
-        <source>Audio system</source>
-        <translation>音频系统</translation>
+      <source>Audio system</source>
+      <translation type="unfinished">Audio system</translation>
     </message>
     <message>
-        <source>Input device</source>
-        <translation>输入设备</translation>
+      <source>Input device</source>
+      <translation type="unfinished">Input device</translation>
     </message>
     <message>
-        <source>Echo cancellation mode</source>
-        <translation>回声消除模式</translation>
+      <source>Echo cancellation mode</source>
+      <translation type="unfinished">Echo cancellation mode</translation>
     </message>
     <message>
-        <source>Transmission mode</source>
-        <translation>传输模式</translation>
+      <source>Transmission mode</source>
+      <translation type="unfinished">Transmission mode</translation>
     </message>
     <message>
-        <source>PTT lock threshold</source>
-        <translation>按键发言锁定阈值</translation>
+      <source>PTT lock threshold</source>
+      <translation type="unfinished">PTT lock threshold</translation>
     </message>
     <message>
-        <source>PTT hold threshold</source>
-        <translation>按键发言按住阈值</translation>
+      <source>PTT hold threshold</source>
+      <translation type="unfinished">PTT hold threshold</translation>
     </message>
     <message>
-        <source>Silence below</source>
-        <translation>安静阈值</translation>
+      <source>Silence below</source>
+      <translation type="unfinished">Silence below</translation>
     </message>
     <message>
-        <source>Current speech detection chance</source>
-        <translation>当前语音检测状态</translation>
+      <source>Current speech detection chance</source>
+      <translation type="unfinished">Current speech detection chance</translation>
     </message>
     <message>
-        <source>Speech above</source>
-        <translation>语音阈值</translation>
+      <source>Speech above</source>
+      <translation type="unfinished">Speech above</translation>
     </message>
     <message>
-        <source>Speech below</source>
-        <translation>最大语音阈值</translation>
+      <source>Speech below</source>
+      <translation type="unfinished">Speech below</translation>
     </message>
     <message>
-        <source>Audio per packet</source>
-        <translation>数据包音频量</translation>
+      <source>Audio per packet</source>
+      <translation type="unfinished">Audio per packet</translation>
     </message>
     <message>
-        <source>Quality of compression (peak bandwidth)</source>
-        <translation>压缩质量（峰值带宽）</translation>
+      <source>Quality of compression (peak bandwidth)</source>
+      <translation type="unfinished">Quality of compression (peak bandwidth)</translation>
     </message>
     <message>
-        <source>Noise suppression</source>
-        <translation>噪声抑制</translation>
+      <source>Noise suppression</source>
+      <translation type="unfinished">Noise suppression</translation>
     </message>
     <message>
-        <source>Maximum amplification</source>
-        <translation>最大放大倍数</translation>
+      <source>Maximum amplification</source>
+      <translation type="unfinished">Maximum amplification</translation>
     </message>
     <message>
-        <source>Transmission started sound</source>
-        <translation>传输开始提示音</translation>
+      <source>Transmission started sound</source>
+      <translation type="unfinished">Transmission started sound</translation>
     </message>
     <message>
-        <source>Transmission stopped sound</source>
-        <translation>传输结束提示音</translation>
+      <source>Transmission stopped sound</source>
+      <translation type="unfinished">Transmission stopped sound</translation>
     </message>
     <message>
-        <source>Initiate idle action after (in minutes)</source>
-        <translation>几分钟后执行空闲操作</translation>
+      <source>Initiate idle action after (in minutes)</source>
+      <translation type="unfinished">Initiate idle action after (in minutes)</translation>
     </message>
     <message>
-        <source>Idle action</source>
-        <translation>空闲操作</translation>
+      <source>Idle action</source>
+      <translation type="unfinished">Idle action</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AudioOutput</name>
     <message>
-        <source>Interface</source>
-        <translation>接口</translation>
+      <source>Interface</source>
+      <translation type="unfinished">Interface</translation>
     </message>
     <message>
-        <source>System</source>
-        <translation>系统</translation>
+      <source>System</source>
+      <translation type="unfinished">System</translation>
     </message>
     <message>
-        <source>Output method for audio</source>
-        <translation>音频输出方式</translation>
+      <source>Output method for audio</source>
+      <translation type="unfinished">Output method for audio</translation>
     </message>
     <message>
-        <source>Device</source>
-        <translation>设备</translation>
+      <source>Device</source>
+      <translation type="unfinished">Device</translation>
     </message>
     <message>
-        <source>Output device for audio</source>
-        <translation>音频输出设备</translation>
+      <source>Output device for audio</source>
+      <translation type="unfinished">Output device for audio</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the output device to use for audio.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;音频采用的输出设备。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;This is the output device to use for audio.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This is the output device to use for audio.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Positional Audio</source>
-        <translation>位置音频</translation>
+      <source>Positional Audio</source>
+      <translation type="unfinished">Positional Audio</translation>
     </message>
     <message>
-        <source>Audio Output</source>
-        <translation>音频输出</translation>
+      <source>Audio Output</source>
+      <translation type="unfinished">Audio Output</translation>
     </message>
     <message>
-        <source>Default &amp;Jitter Buffer</source>
-        <translation>默认抖动缓冲区(&amp;J)</translation>
+      <source>Default &amp;Jitter Buffer</source>
+      <translation type="unfinished">Default &amp;Jitter Buffer</translation>
     </message>
     <message>
-        <source>Safety margin for jitter buffer</source>
-        <translation>抖动缓冲安全边际</translation>
+      <source>Safety margin for jitter buffer</source>
+      <translation type="unfinished">Safety margin for jitter buffer</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets the minimum safety margin for the jitter buffer.&lt;/b&gt;&lt;br /&gt;All incoming audio is buffered, and the jitter buffer continually tries to push the buffer to the minimum sustainable by your network, so latency can be as low as possible. This sets the minimum buffer size to use. If the start of sentences you hear is very jittery, increase this value.</source>
-        <translation>&lt;b&gt;设置抖动缓冲区的最小安全边际。&lt;/b&gt;&lt;br /&gt;所有传入的音频都被缓冲，抖动缓冲区不断尝试将缓冲区推进到您的网络最低的可持续限度，以尽可能降低延迟。这将设置要使用的最小缓冲区大小。如果您听到的句子开头抖动较大，请增大这个值。</translation>
+      <source>&lt;b&gt;This sets the minimum safety margin for the jitter buffer.&lt;/b&gt;&lt;br /&gt;All incoming audio is buffered, and the jitter buffer continually tries to push the buffer to the minimum sustainable by your network, so latency can be as low as possible. This sets the minimum buffer size to use. If the start of sentences you hear is very jittery, increase this value.</source>
+      <translation type="unfinished">&lt;b&gt;This sets the minimum safety margin for the jitter buffer.&lt;/b&gt;&lt;br /&gt;All incoming audio is buffered, and the jitter buffer continually tries to push the buffer to the minimum sustainable by your network, so latency can be as low as possible. This sets the minimum buffer size to use. If the start of sentences you hear is very jittery, increase this value.</translation>
     </message>
     <message>
-        <source>Minimum distance to user before sound volume decreases</source>
-        <translation>语音音量开始减小的最小用户距离</translation>
+      <source>Minimum distance to user before sound volume decreases</source>
+      <translation type="unfinished">Minimum distance to user before sound volume decreases</translation>
     </message>
     <message>
-        <source>This sets the minimum distance for sound calculations. The volume of other users&apos; speech will not decrease until they are at least this far away from you.</source>
-        <translation>设置声音计算的最小距离。在其他用户与您的距离超出这个值之前，他们的语音音量不会被减小。</translation>
+      <source>This sets the minimum distance for sound calculations. The volume of other users&apos; speech will not decrease until they are at least this far away from you.</source>
+      <translation type="unfinished">This sets the minimum distance for sound calculations. The volume of other users&apos; speech will not decrease until they are at least this far away from you.</translation>
     </message>
     <message>
-        <source>This sets the maximum distance for sound calculations. When farther away than this, other users&apos; speech volume will not decrease any further.</source>
-        <translation>设置声音计算的最大距离。在其他用户与您的距离超过这个值时，他们的语音音量将不会继续被减小。</translation>
+      <source>This sets the maximum distance for sound calculations. When farther away than this, other users&apos; speech volume will not decrease any further.</source>
+      <translation type="unfinished">This sets the maximum distance for sound calculations. When farther away than this, other users&apos; speech volume will not decrease any further.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This enables one of the loopback test modes.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;None&lt;/i&gt; - Loopback disabled&lt;br /&gt;&lt;i&gt;Local&lt;/i&gt; - Emulate a local server.&lt;br /&gt;&lt;i&gt;Server&lt;/i&gt; - Request loopback from server.&lt;br /&gt;Please note than when loopback is enabled, no other users will hear your voice. This setting is not saved on application exit.</source>
-        <translation>&lt;b&gt;启用回放测试模式&lt;/b&gt;&lt;br /&gt;&lt;i&gt;无&lt;/i&gt; - 禁用回放&lt;br /&gt;&lt;i&gt;本地&lt;/i&gt; - 模拟一个本地服务器&lt;br /&gt;&lt;i&gt;服务器&lt;/i&gt; - 向服务器请求回放&lt;br /&gt;请注意，启用回放时，其他用户将无法听到您的声音。此设置在退出程序后不会被保存。</translation>
+      <source>&lt;b&gt;This enables one of the loopback test modes.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;None&lt;/i&gt; - Loopback disabled&lt;br /&gt;&lt;i&gt;Local&lt;/i&gt; - Emulate a local server.&lt;br /&gt;&lt;i&gt;Server&lt;/i&gt; - Request loopback from server.&lt;br /&gt;Please note than when loopback is enabled, no other users will hear your voice. This setting is not saved on application exit.</source>
+      <translation type="unfinished">&lt;b&gt;This enables one of the loopback test modes.&lt;/b&gt;&lt;br /&gt;&lt;i&gt;None&lt;/i&gt; - Loopback disabled&lt;br /&gt;&lt;i&gt;Local&lt;/i&gt; - Emulate a local server.&lt;br /&gt;&lt;i&gt;Server&lt;/i&gt; - Request loopback from server.&lt;br /&gt;Please note than when loopback is enabled, no other users will hear your voice. This setting is not saved on application exit.</translation>
     </message>
     <message>
-        <source>Volume</source>
-        <translation>音量</translation>
+      <source>Volume</source>
+      <translation type="unfinished">Volume</translation>
     </message>
     <message>
-        <source>Volume of incoming speech</source>
-        <translation>传入语音音量</translation>
+      <source>Volume of incoming speech</source>
+      <translation type="unfinished">Volume of incoming speech</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This adjusts the volume of incoming speech.&lt;/b&gt;&lt;br /&gt;Note that if you increase this beyond 100%, audio will be distorted.</source>
-        <translation>&lt;/b&gt;调整传入的语音音量&lt;/b&gt;&lt;br /&gt;注意，如果您将这个值增大到超过 100%，音频将会失真。</translation>
+      <source>&lt;b&gt;This adjusts the volume of incoming speech.&lt;/b&gt;&lt;br /&gt;Note that if you increase this beyond 100%, audio will be distorted.</source>
+      <translation type="unfinished">&lt;b&gt;This adjusts the volume of incoming speech.&lt;/b&gt;&lt;br /&gt;Note that if you increase this beyond 100%, audio will be distorted.</translation>
     </message>
     <message>
-        <source>Output Delay</source>
-        <translation>输出延迟</translation>
+      <source>Output Delay</source>
+      <translation type="unfinished">Output Delay</translation>
     </message>
     <message>
-        <source>Amount of data to buffer</source>
-        <translation>缓冲的数据总量</translation>
+      <source>Amount of data to buffer</source>
+      <translation type="unfinished">Amount of data to buffer</translation>
     </message>
     <message>
-        <source>The connected &quot;speakers&quot; are actually headphones</source>
-        <oldsource>The connected &quot;speakers&quot; are actually headphones.</oldsource>
-        <translation>已连接的“扬声器”实际上是耳机</translation>
+      <source>The connected &quot;speakers&quot; are actually headphones</source>
+      <oldsource>The connected &quot;speakers&quot; are actually headphones.</oldsource>
+      <translation type="unfinished">The connected &quot;speakers&quot; are actually headphones</translation>
     </message>
     <message>
-        <source>Factor for sound volume decrease</source>
-        <translation>音量减小因子</translation>
+      <source>Factor for sound volume decrease</source>
+      <translation type="unfinished">Factor for sound volume decrease</translation>
     </message>
     <message>
-        <source>Bloom</source>
-        <translation>增幅</translation>
+      <source>Bloom</source>
+      <translation type="unfinished">Bloom</translation>
     </message>
     <message>
-        <source>Factor for sound volume increase</source>
-        <translation>音量增大因子</translation>
+      <source>Factor for sound volume increase</source>
+      <translation type="unfinished">Factor for sound volume increase</translation>
     </message>
     <message>
-        <source>How much should sound volume increase for sources that are really close?</source>
-        <translation>对于非常接近的音源，音量应该增大多少？</translation>
+      <source>How much should sound volume increase for sources that are really close?</source>
+      <translation type="unfinished">How much should sound volume increase for sources that are really close?</translation>
     </message>
     <message>
-        <source>Checking this indicates that you don&apos;t have speakers connected, just headphones. This is important, as speakers are usually in front of you, while headphones are directly to your left/right.</source>
-        <translation>如果您仅使用耳机，而未连接任何扬声器，请选中此选项。这非常重要，因为扬声器通常在您面前，而耳机则直接将声音传输到您的左右耳。</translation>
+      <source>Checking this indicates that you don&apos;t have speakers connected, just headphones. This is important, as speakers are usually in front of you, while headphones are directly to your left/right.</source>
+      <translation type="unfinished">Checking this indicates that you don&apos;t have speakers connected, just headphones. This is important, as speakers are usually in front of you, while headphones are directly to your left/right.</translation>
     </message>
     <message>
-        <source>This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn&apos;t cause rapid jitter in the sound.</source>
-        <translation>设置输出缓冲区中需要预缓冲的数据量。尝试不同的值并将其设置为最低值，可以避免声音中的快速抖动。</translation>
+      <source>This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn&apos;t cause rapid jitter in the sound.</source>
+      <translation type="unfinished">This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn&apos;t cause rapid jitter in the sound.</translation>
     </message>
     <message>
-        <source>Headphones</source>
-        <translation>耳机</translation>
+      <source>Headphones</source>
+      <translation type="unfinished">Headphones</translation>
     </message>
     <message>
-        <source>Minimum Distance</source>
-        <translation>最小距离</translation>
+      <source>Minimum Distance</source>
+      <translation type="unfinished">Minimum Distance</translation>
     </message>
     <message>
-        <source>Maximum Distance</source>
-        <translation>最大距离</translation>
+      <source>Maximum Distance</source>
+      <translation type="unfinished">Maximum Distance</translation>
     </message>
     <message>
-        <source>Maximum distance, beyond which speech volume won&apos;t decrease</source>
-        <translation>语音音量不再减小的最大用户距离</translation>
+      <source>Maximum distance, beyond which speech volume won&apos;t decrease</source>
+      <translation type="unfinished">Maximum distance, beyond which speech volume won&apos;t decrease</translation>
     </message>
     <message>
-        <source>Minimum Volume</source>
-        <translation>最小音量</translation>
+      <source>Minimum Volume</source>
+      <translation type="unfinished">Minimum Volume</translation>
     </message>
     <message>
-        <source>What should the volume be at the maximum distance?</source>
-        <translation>在最大距离时的音量应有多大？</translation>
+      <source>What should the volume be at the maximum distance?</source>
+      <translation type="unfinished">What should the volume be at the maximum distance?</translation>
     </message>
     <message>
-        <source>Loopback Test</source>
-        <translation>回放测试</translation>
+      <source>Loopback Test</source>
+      <translation type="unfinished">Loopback Test</translation>
     </message>
     <message>
-        <source>Delay Variance</source>
-        <translation>延迟差异</translation>
+      <source>Delay Variance</source>
+      <translation type="unfinished">Delay Variance</translation>
     </message>
     <message>
-        <source>Variance in packet latency</source>
-        <translation>数据包延迟的差异</translation>
+      <source>Variance in packet latency</source>
+      <translation type="unfinished">Variance in packet latency</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets the packet latency variance for loopback testing.&lt;/b&gt;&lt;br /&gt;Most audio paths contain some variable latency. This allows you to set that variance for loopback mode testing. For example, if you set this to 15ms, this will emulate a network with 20-35ms ping latency or one with 80-95ms latency. Most domestic net connections have a variance of about 5ms.</source>
-        <oldsource>&lt;b&gt;This sets the packet latency variance for loopback testing.&lt;/b&gt;&lt;br /&gt;Most audio paths contain some variable latency. This allows you set that variance for loopback mode testing. For example, if you set this to 15ms, this will emulate a network with 20-35ms ping latency or one with 80-95ms latency. Most domestic net connections have a variance of about 5ms.</oldsource>
-        <translation>&lt;b&gt;设置回放测试的数据包延迟差异。&lt;/b&gt;&lt;br /&gt;大多数音频路径包含一些可变延迟。这使您可以为回放模式测试设置该差异。例如，如果将此值设置为 15 毫秒，则会模拟具有 20-35 毫秒 Ping 延迟的网络或具有 80-95 毫秒延迟的网络。大多数区域的网络连接的差异约为 5 毫秒。</translation>
+      <source>&lt;b&gt;This sets the packet latency variance for loopback testing.&lt;/b&gt;&lt;br /&gt;Most audio paths contain some variable latency. This allows you to set that variance for loopback mode testing. For example, if you set this to 15ms, this will emulate a network with 20-35ms ping latency or one with 80-95ms latency. Most domestic net connections have a variance of about 5ms.</source>
+      <oldsource>&lt;b&gt;This sets the packet latency variance for loopback testing.&lt;/b&gt;&lt;br /&gt;Most audio paths contain some variable latency. This allows you set that variance for loopback mode testing. For example, if you set this to 15ms, this will emulate a network with 20-35ms ping latency or one with 80-95ms latency. Most domestic net connections have a variance of about 5ms.</oldsource>
+      <translation type="unfinished">&lt;b&gt;This sets the packet latency variance for loopback testing.&lt;/b&gt;&lt;br /&gt;Most audio paths contain some variable latency. This allows you to set that variance for loopback mode testing. For example, if you set this to 15ms, this will emulate a network with 20-35ms ping latency or one with 80-95ms latency. Most domestic net connections have a variance of about 5ms.</translation>
     </message>
     <message>
-        <source>Packet Loss</source>
-        <translation>丢包</translation>
+      <source>Packet Loss</source>
+      <translation type="unfinished">Packet Loss</translation>
     </message>
     <message>
-        <source>Packet loss for loopback mode</source>
-        <translation>回放模式丢包</translation>
+      <source>Packet loss for loopback mode</source>
+      <translation type="unfinished">Packet loss for loopback mode</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets the packet loss for loopback mode.&lt;/b&gt;&lt;br /&gt;This will be the ratio of packets lost. Unless your outgoing bandwidth is peaked or there&apos;s something wrong with your network connection, this will be 0%</source>
-        <translation>&lt;b&gt;设置回放模式的丢包。&lt;/b&gt;&lt;br /&gt;设置丢包率。除非您的带宽太小或者网络出现问题，否则应该为 0%</translation>
+      <source>&lt;b&gt;This sets the packet loss for loopback mode.&lt;/b&gt;&lt;br /&gt;This will be the ratio of packets lost. Unless your outgoing bandwidth is peaked or there&apos;s something wrong with your network connection, this will be 0%</source>
+      <translation type="unfinished">&lt;b&gt;This sets the packet loss for loopback mode.&lt;/b&gt;&lt;br /&gt;This will be the ratio of packets lost. Unless your outgoing bandwidth is peaked or there&apos;s something wrong with your network connection, this will be 0%</translation>
     </message>
     <message>
-        <source>&amp;Loopback</source>
-        <translation>回放(&amp;L)</translation>
+      <source>&amp;Loopback</source>
+      <translation type="unfinished">&amp;Loopback</translation>
     </message>
     <message>
-        <source>Desired loopback mode</source>
-        <translation>预期回放模式</translation>
+      <source>Desired loopback mode</source>
+      <translation type="unfinished">Desired loopback mode</translation>
     </message>
     <message>
-        <source>Attenuate applications by...</source>
-        <translation>减小其他应用音量</translation>
+      <source>Attenuate applications by...</source>
+      <translation type="unfinished">Attenuate applications by...</translation>
     </message>
     <message>
-        <source>Attenuation of other applications during speech</source>
-        <translation>说话时减小其他应用程序的音量</translation>
+      <source>Attenuation of other applications during speech</source>
+      <translation type="unfinished">Attenuation of other applications during speech</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Attenuate volume of other applications during speech&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This sets the attenuation of other applications if the feature is enabled.</source>
-        <translation>&lt;b&gt;在有人说话时减小其他应用程序的音量&lt;/b&gt;&lt;br /&gt;Mumble 支持在传入和/或传出语音期间减小其他应用程序的音量。如果启用此功能，则会设置其他应用程序的音量衰减。</translation>
+      <source>&lt;b&gt;Attenuate volume of other applications during speech&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This sets the attenuation of other applications if the feature is enabled.</source>
+      <translation type="unfinished">&lt;b&gt;Attenuate volume of other applications during speech&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This sets the attenuation of other applications if the feature is enabled.</translation>
     </message>
     <message>
-        <source>If checked Mumble lowers the volume of other applications while other users talk</source>
-        <translation>选中时，Mumble 会在其他用户说话时减小其他应用程序的音量</translation>
+      <source>If checked Mumble lowers the volume of other applications while other users talk</source>
+      <translation type="unfinished">If checked Mumble lowers the volume of other applications while other users talk</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Attenuate applications while other users talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while other users talk to you.</source>
-        <translation>&lt;b&gt;在其他用户说话时减小其他应用程序的音量&lt;/b&gt;&lt;br /&gt;Mumble 支持在传入和/或传出语音期间减小其他应用程序的音量。该选项使 Mumble 在其他用户与您交谈时激活该功能。</translation>
+      <source>&lt;b&gt;Attenuate applications while other users talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while other users talk to you.</source>
+      <translation type="unfinished">&lt;b&gt;Attenuate applications while other users talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while other users talk to you.</translation>
     </message>
     <message>
-        <source>while other users talk</source>
-        <translation>当其他人说话时</translation>
+      <source>while other users talk</source>
+      <translation type="unfinished">while other users talk</translation>
     </message>
     <message>
-        <source>If checked Mumble lowers the volume of other applications while you talk</source>
-        <translation>选中时，Mumble 会在您说话时减小其他应用程序的音量</translation>
+      <source>If checked Mumble lowers the volume of other applications while you talk</source>
+      <translation type="unfinished">If checked Mumble lowers the volume of other applications while you talk</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Attenuate applications while you talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while you talk.</source>
-        <translation>&lt;b&gt;在您说话时减小其他应用程序的音量&lt;/b&gt;&lt;br /&gt;Mumble 支持在传入和/或传出语音期间减小其他应用程序的音量。该选项使 Mumble 在您说话时激活该功能。</translation>
+      <source>&lt;b&gt;Attenuate applications while you talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while you talk.</source>
+      <translation type="unfinished">&lt;b&gt;Attenuate applications while you talk&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other applications during incoming and/or outgoing speech. This makes mumble activate the feature while you talk.</translation>
     </message>
     <message>
-        <source>while you talk</source>
-        <translation>当您说话时</translation>
+      <source>while you talk</source>
+      <translation type="unfinished">while you talk</translation>
     </message>
     <message>
-        <source>Exclusive mode, not recommended.</source>
-        <translation>独占模式（不推荐）。</translation>
+      <source>Exclusive mode, not recommended.</source>
+      <translation type="unfinished">Exclusive mode, not recommended.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</source>
-        <translation>&lt;b&gt;以独占模式开启设备。&lt;/b&gt;&lt;br /&gt;其他应用程序将无法使用该设备。</translation>
+      <source>&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</source>
+      <translation type="unfinished">&lt;b&gt;This opens the device in exclusive mode.&lt;/b&gt;&lt;br /&gt;No other application will be able to use the device.</translation>
     </message>
     <message>
-        <source>Exclusive</source>
-        <translation>独占</translation>
+      <source>Exclusive</source>
+      <translation type="unfinished">Exclusive</translation>
     </message>
     <message>
-        <source>If checked Mumble lowers the volume of other users while you talk if you have the &quot;Priority Speaker&quot; status.</source>
-        <translation>选中时，如果您具有“优先发言人”状态，Mumble 会在您说话时减小其他用户的音量。</translation>
+      <source>If checked Mumble lowers the volume of other users while you talk if you have the &quot;Priority Speaker&quot; status.</source>
+      <translation type="unfinished">If checked Mumble lowers the volume of other users while you talk if you have the &quot;Priority Speaker&quot; status.</translation>
     </message>
     <message>
-        <source>If checked, Mumble will only attenuate applications that are using the same output source as Mumble</source>
-        <translation>如果选中，Mumble 将仅减小音频输出源与 Mumble 相同的应用程序的音量</translation>
+      <source>If checked, Mumble will only attenuate applications that are using the same output source as Mumble</source>
+      <translation type="unfinished">If checked, Mumble will only attenuate applications that are using the same output source as Mumble</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Attenuate only applications using the same output as Mumble&lt;/b&gt;&lt;br /&gt;If checked, applications that use a different output than Mumble will not be attenuated.</source>
-        <translation>&lt;b&gt;仅减小音频输出源与 Mumble 相同的应用程序的音量&lt;/b&gt;&lt;br /&gt;如果选中，则输出源与 Mumble 不同的应用程序将不会被减小音量。</translation>
+      <source>&lt;b&gt;Attenuate only applications using the same output as Mumble&lt;/b&gt;&lt;br /&gt;If checked, applications that use a different output than Mumble will not be attenuated.</source>
+      <translation type="unfinished">&lt;b&gt;Attenuate only applications using the same output as Mumble&lt;/b&gt;&lt;br /&gt;If checked, applications that use a different output than Mumble will not be attenuated.</translation>
     </message>
     <message>
-        <source>Only attenuate applications using the same output device</source>
-        <translation>仅衰减音频输出设备与 Mumble 相同的应用程序</translation>
+      <source>Only attenuate applications using the same output device</source>
+      <translation type="unfinished">Only attenuate applications using the same output device</translation>
     </message>
     <message>
-        <source>If checked, PulseAudio loopback modules will be attenuated</source>
-        <translation>如果选中，将减小 PulseAudio 回放模块的音量</translation>
+      <source>If checked, PulseAudio loopback modules will be attenuated</source>
+      <translation type="unfinished">If checked, PulseAudio loopback modules will be attenuated</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Attenuate PulseAudio loopback modules&lt;/b&gt;&lt;br /&gt;If loopback modules are linked to Mumble&apos;s output device/sink, they will also be attenuated.</source>
-        <translation>&lt;b&gt;减小 PulseAudio 回放模块的音量&lt;/b&gt;&lt;br /&gt;如果回放模块被链接到 Mumble 的输出设备/接收器，它们也将被衰减。</translation>
+      <source>&lt;b&gt;Attenuate PulseAudio loopback modules&lt;/b&gt;&lt;br /&gt;If loopback modules are linked to Mumble&apos;s output device/sink, they will also be attenuated.</source>
+      <translation type="unfinished">&lt;b&gt;Attenuate PulseAudio loopback modules&lt;/b&gt;&lt;br /&gt;If loopback modules are linked to Mumble&apos;s output device/sink, they will also be attenuated.</translation>
     </message>
     <message>
-        <source>Attenuate PulseAudio loopback modules</source>
-        <translation>衰减 PulseAudio 回放模块</translation>
+      <source>Attenuate PulseAudio loopback modules</source>
+      <translation type="unfinished">Attenuate PulseAudio loopback modules</translation>
     </message>
     <message>
-        <source>Audio output</source>
-        <translation>音频输出</translation>
+      <source>Audio output</source>
+      <translation type="unfinished">Audio output</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the output method to use for audio.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;音频采用的输出方式。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;This is the output method to use for audio.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This is the output method to use for audio.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Attenuate other users while talking as Priority Speaker&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other users while you talk as the &lt;i&gt;Priority Speaker&lt;/i&gt; to avoid getting disturbed. Checking this checkbox will enable this feature.</source>
-        <translation>&lt;b&gt;在作为优先发言人说话时减小其他用户的音量&lt;/b&gt;&lt;br /&gt;Mumble 支持您在作为&lt;i&gt;优先发言人&lt;/i&gt;说话时减小其他用户的音量以避免受到干扰。选中此选项将启用此功能。</translation>
+      <source>&lt;b&gt;Attenuate other users while talking as Priority Speaker&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other users while you talk as the &lt;i&gt;Priority Speaker&lt;/i&gt; to avoid getting disturbed. Checking this checkbox will enable this feature.</source>
+      <translation type="unfinished">&lt;b&gt;Attenuate other users while talking as Priority Speaker&lt;/b&gt;&lt;br /&gt;Mumble supports decreasing the volume of other users while you talk as the &lt;i&gt;Priority Speaker&lt;/i&gt; to avoid getting disturbed. Checking this checkbox will enable this feature.</translation>
     </message>
     <message>
-        <source>Attenuate other users while talking as Priority Speaker</source>
-        <translation>在以优先发言人身份说话时减小其他用户的音量</translation>
+      <source>Attenuate other users while talking as Priority Speaker</source>
+      <translation type="unfinished">Attenuate other users while talking as Priority Speaker</translation>
     </message>
     <message>
-        <source>Enable</source>
-        <translation>启用</translation>
+      <source>Enable</source>
+      <translation type="unfinished">Enable</translation>
     </message>
     <message>
-        <source>Attenuation</source>
-        <translation>衰减</translation>
+      <source>Attenuation</source>
+      <translation type="unfinished">Attenuation</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AudioOutputDialog</name>
     <message>
-        <source>None</source>
-        <translation>无</translation>
+      <source>None</source>
+      <translation type="unfinished">None</translation>
     </message>
     <message>
-        <source>Local</source>
-        <translation>本地</translation>
+      <source>Local</source>
+      <translation type="unfinished">Local</translation>
     </message>
     <message>
-        <source>Server</source>
-        <translation>服务器</translation>
+      <source>Server</source>
+      <translation type="unfinished">Server</translation>
     </message>
     <message>
-        <source>Audio Output</source>
-        <translation>音频输出</translation>
+      <source>Audio Output</source>
+      <translation type="unfinished">Audio Output</translation>
     </message>
     <message>
-        <source>%1 ms</source>
-        <translation>%1 毫秒</translation>
+      <source>%1 ms</source>
+      <translation type="unfinished">%1 ms</translation>
     </message>
     <message>
-        <source>%1 %</source>
-        <translation>%1 %</translation>
+      <source>%1 %</source>
+      <translation type="unfinished">%1 %</translation>
     </message>
     <message>
-        <source>%1 m</source>
-        <translation>%1 米</translation>
+      <source>%1 m</source>
+      <translation type="unfinished">%1 m</translation>
     </message>
     <message>
-        <source>Output system</source>
-        <translation>输出系统</translation>
+      <source>Output system</source>
+      <translation type="unfinished">Output system</translation>
     </message>
     <message>
-        <source>Output device</source>
-        <translation>输出设备</translation>
+      <source>Output device</source>
+      <translation type="unfinished">Output device</translation>
     </message>
     <message>
-        <source>Default jitter buffer</source>
-        <translation>默认抖动缓冲区</translation>
+      <source>Default jitter buffer</source>
+      <translation type="unfinished">Default jitter buffer</translation>
     </message>
     <message>
-        <source>Volume of incoming speech</source>
-        <translation>传入语音音量</translation>
+      <source>Volume of incoming speech</source>
+      <translation type="unfinished">Volume of incoming speech</translation>
     </message>
     <message>
-        <source>Output delay</source>
-        <translation>输出延迟</translation>
+      <source>Output delay</source>
+      <translation type="unfinished">Output delay</translation>
     </message>
     <message>
-        <source>Attenuation of other applications during speech</source>
-        <translation>说话时减小其他应用程序的音量</translation>
+      <source>Attenuation of other applications during speech</source>
+      <translation type="unfinished">Attenuation of other applications during speech</translation>
     </message>
     <message>
-        <source>Minimum distance</source>
-        <translation>最小距离</translation>
+      <source>Minimum distance</source>
+      <translation type="unfinished">Minimum distance</translation>
     </message>
     <message>
-        <source>Maximum distance</source>
-        <translation>最大距离</translation>
+      <source>Maximum distance</source>
+      <translation type="unfinished">Maximum distance</translation>
     </message>
     <message>
-        <source>Minimum volume</source>
-        <translation>最小音量</translation>
+      <source>Minimum volume</source>
+      <translation type="unfinished">Minimum volume</translation>
     </message>
     <message>
-        <source>Bloom</source>
-        <translation>增幅</translation>
+      <source>Bloom</source>
+      <translation type="unfinished">Bloom</translation>
     </message>
     <message>
-        <source>Delay variance</source>
-        <translation>延迟差异</translation>
+      <source>Delay variance</source>
+      <translation type="unfinished">Delay variance</translation>
     </message>
     <message>
-        <source>Packet loss</source>
-        <translation>丢包</translation>
+      <source>Packet loss</source>
+      <translation type="unfinished">Packet loss</translation>
     </message>
     <message>
-        <source>Loopback</source>
-        <translation>回放</translation>
+      <source>Loopback</source>
+      <translation type="unfinished">Loopback</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AudioOutputSample</name>
     <message>
-        <source>Choose sound file</source>
-        <translation>选择声音文件</translation>
+      <source>Choose sound file</source>
+      <translation type="unfinished">Choose sound file</translation>
     </message>
     <message>
-        <source>Invalid sound file</source>
-        <translation>无效的声音文件</translation>
+      <source>Invalid sound file</source>
+      <translation type="unfinished">Invalid sound file</translation>
     </message>
     <message>
-        <source>The file &apos;%1&apos; cannot be used by Mumble. Please select a file with a compatible format and encoding.</source>
-        <translation>Mumble 无法使用文件“%1”。请选择格式与编码兼容的文件。</translation>
+      <source>The file &apos;%1&apos; cannot be used by Mumble. Please select a file with a compatible format and encoding.</source>
+      <translation type="unfinished">The file &apos;%1&apos; cannot be used by Mumble. Please select a file with a compatible format and encoding.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AudioStats</name>
     <message>
-        <source>&gt;1000 ms</source>
-        <oldsource>&gt;1000ms</oldsource>
-        <translation>&gt;1000 毫秒</translation>
+      <source>&gt;1000 ms</source>
+      <oldsource>&gt;1000ms</oldsource>
+      <translation type="unfinished">&gt;1000 ms</translation>
     </message>
     <message>
-        <source>Audio Statistics</source>
-        <translation>音频统计</translation>
+      <source>Audio Statistics</source>
+      <translation type="unfinished">Audio Statistics</translation>
     </message>
     <message>
-        <source>Input Levels</source>
-        <translation>输入电平</translation>
+      <source>Input Levels</source>
+      <translation type="unfinished">Input Levels</translation>
     </message>
     <message>
-        <source>Peak microphone level</source>
-        <translation>麦克风峰值电平</translation>
+      <source>Peak microphone level</source>
+      <translation type="unfinished">Peak microphone level</translation>
     </message>
     <message>
-        <source>Peak power in last frame</source>
-        <translation>最后一帧的峰值功率</translation>
+      <source>Peak power in last frame</source>
+      <translation type="unfinished">Peak power in last frame</translation>
     </message>
     <message>
-        <source>This shows the peak power in the last frame (20 ms), and is the same measurement as you would usually find displayed as &quot;input power&quot;. Please disregard this and look at &lt;b&gt;Microphone power&lt;/b&gt; instead, which is much more steady and disregards outliers.</source>
-        <translation>显示最后一帧（20 毫秒）的峰值功率，与常见的显示为“输入功率”的测量值相同。请忽略此值，然后查看&lt;b&gt;麦克风功率&lt;/b&gt;，这样更加稳定并且会忽略异常值。</translation>
+      <source>This shows the peak power in the last frame (20 ms), and is the same measurement as you would usually find displayed as &quot;input power&quot;. Please disregard this and look at &lt;b&gt;Microphone power&lt;/b&gt; instead, which is much more steady and disregards outliers.</source>
+      <translation type="unfinished">This shows the peak power in the last frame (20 ms), and is the same measurement as you would usually find displayed as &quot;input power&quot;. Please disregard this and look at &lt;b&gt;Microphone power&lt;/b&gt; instead, which is much more steady and disregards outliers.</translation>
     </message>
     <message>
-        <source>Peak speaker level</source>
-        <translation>扬声器峰值电平</translation>
+      <source>Peak speaker level</source>
+      <translation type="unfinished">Peak speaker level</translation>
     </message>
     <message>
-        <source>This shows the peak power of the speakers in the last frame (20 ms). Unless you are using a multi-channel sampling method (such as ASIO) with speaker channels configured, this will be 0. If you have such a setup configured, and this still shows 0 while you&apos;re playing audio from other programs, your setup is not working.</source>
-        <oldsource>This shows the peak power in the last frame (20 ms) of the speakers. Unless you are using a multi-channel sampling method (such as ASIO) with speaker channels configured, this will be 0. If you have such a setup configured, and this still shows 0 while you're playing audio from other programs, your setup is not working.</oldsource>
-        <translation>显示最后一帧（20 毫秒）扬声器的峰值功率。除非您配置了扬声器通道的多通道采样方法（例如 ASIO），否则将为 0。如果您进行了这样的配置，并且当您用其他应用程序播放音频时仍然显示 0，则说明您的设置无效。</translation>
+      <source>This shows the peak power of the speakers in the last frame (20 ms). Unless you are using a multi-channel sampling method (such as ASIO) with speaker channels configured, this will be 0. If you have such a setup configured, and this still shows 0 while you&apos;re playing audio from other programs, your setup is not working.</source>
+      <oldsource>This shows the peak power in the last frame (20 ms) of the speakers. Unless you are using a multi-channel sampling method (such as ASIO) with speaker channels configured, this will be 0. If you have such a setup configured, and this still shows 0 while you&apos;re playing audio from other programs, your setup is not working.</oldsource>
+      <translation type="unfinished">This shows the peak power of the speakers in the last frame (20 ms). Unless you are using a multi-channel sampling method (such as ASIO) with speaker channels configured, this will be 0. If you have such a setup configured, and this still shows 0 while you&apos;re playing audio from other programs, your setup is not working.</translation>
     </message>
     <message>
-        <source>Peak clean level</source>
-        <translation>清洁峰值电平</translation>
+      <source>Peak clean level</source>
+      <translation type="unfinished">Peak clean level</translation>
     </message>
     <message>
-        <source>This shows the peak power in the last frame (20 ms) after all processing. Ideally, this should be -96 dB when you&apos;re not talking. In reality, a sound studio should see -60 dB, and you should hopefully see somewhere around -20 dB. When you are talking, this should rise to somewhere between -5 and -10 dB.&lt;br /&gt;If you are using echo cancellation, and this rises to more than -15 dB when you&apos;re not talking, your setup is not working, and you&apos;ll annoy other users with echoes.</source>
-        <translation>显示经过处理后的最后一帧（20 毫秒）的峰值功率。理想情况下，在您未说话时，它应该是 -96 分贝。实际上，音频工作室应该看到 -60 分贝，有时可能会达到 -20 分贝左右。在您说话时，它应该上升到介于 -5 到 -10 分贝之间。&lt;br /&gt;如果您正在使用回声消除，并且这个值在您未说话时上升到超过 -15 分贝，则表示您的设置不起作用，您的回声会干扰到其他用户。</translation>
+      <source>This shows the peak power in the last frame (20 ms) after all processing. Ideally, this should be -96 dB when you&apos;re not talking. In reality, a sound studio should see -60 dB, and you should hopefully see somewhere around -20 dB. When you are talking, this should rise to somewhere between -5 and -10 dB.&lt;br /&gt;If you are using echo cancellation, and this rises to more than -15 dB when you&apos;re not talking, your setup is not working, and you&apos;ll annoy other users with echoes.</source>
+      <translation type="unfinished">This shows the peak power in the last frame (20 ms) after all processing. Ideally, this should be -96 dB when you&apos;re not talking. In reality, a sound studio should see -60 dB, and you should hopefully see somewhere around -20 dB. When you are talking, this should rise to somewhere between -5 and -10 dB.&lt;br /&gt;If you are using echo cancellation, and this rises to more than -15 dB when you&apos;re not talking, your setup is not working, and you&apos;ll annoy other users with echoes.</translation>
     </message>
     <message>
-        <source>Signal Analysis</source>
-        <translation>信号分析</translation>
+      <source>Signal Analysis</source>
+      <translation type="unfinished">Signal Analysis</translation>
     </message>
     <message>
-        <source>Microphone power</source>
-        <translation>麦克风功率</translation>
+      <source>Microphone power</source>
+      <translation type="unfinished">Microphone power</translation>
     </message>
     <message>
-        <source>How close the current input level is to ideal</source>
-        <translation>当前输入电平与理想电平的接近程度</translation>
+      <source>How close the current input level is to ideal</source>
+      <translation type="unfinished">How close the current input level is to ideal</translation>
     </message>
     <message>
-        <source>This shows how close your current input volume is to the ideal. To adjust your microphone level, open whatever program you use to adjust the recording volume, and look at the value here while talking.&lt;br /&gt;&lt;b&gt;Talk loud, as you would when you&apos;re upset over getting fragged by a noob.&lt;/b&gt;&lt;br /&gt;Adjust the volume until this value is close to 100%, but make sure it doesn&apos;t go above. If it does go above, you are likely to get clipping in parts of your speech, which will degrade sound quality.</source>
-        <translation>这表明您当前的输入音量与理想值的接近程度。要调整麦克风音量，请打开用于调节录音音量的任何程序，并在说话时查看此处的值。&lt;br /&gt;&lt;b&gt;然后像您被菜鸟击杀时那样暴躁地大声说话。&lt;/b&gt;&lt;br /&gt;调整音量直到此值接近 100%，但请确保它不要更高。如果更高，您的部分语音可能会出现裁切，这会降低音质。</translation>
+      <source>This shows how close your current input volume is to the ideal. To adjust your microphone level, open whatever program you use to adjust the recording volume, and look at the value here while talking.&lt;br /&gt;&lt;b&gt;Talk loud, as you would when you&apos;re upset over getting fragged by a noob.&lt;/b&gt;&lt;br /&gt;Adjust the volume until this value is close to 100%, but make sure it doesn&apos;t go above. If it does go above, you are likely to get clipping in parts of your speech, which will degrade sound quality.</source>
+      <translation type="unfinished">This shows how close your current input volume is to the ideal. To adjust your microphone level, open whatever program you use to adjust the recording volume, and look at the value here while talking.&lt;br /&gt;&lt;b&gt;Talk loud, as you would when you&apos;re upset over getting fragged by a noob.&lt;/b&gt;&lt;br /&gt;Adjust the volume until this value is close to 100%, but make sure it doesn&apos;t go above. If it does go above, you are likely to get clipping in parts of your speech, which will degrade sound quality.</translation>
     </message>
     <message>
-        <source>Signal-To-Noise ratio</source>
-        <translation>信噪比</translation>
+      <source>Signal-To-Noise ratio</source>
+      <translation type="unfinished">Signal-To-Noise ratio</translation>
     </message>
     <message>
-        <source>Signal-To-Noise ratio from the microphone</source>
-        <translation>麦克风的信噪比</translation>
+      <source>Signal-To-Noise ratio from the microphone</source>
+      <translation type="unfinished">Signal-To-Noise ratio from the microphone</translation>
     </message>
     <message>
-        <source>This is the Signal-To-Noise Ratio (SNR) of the microphone in the last frame (20 ms). It shows how much clearer the voice is compared to the noise.&lt;br /&gt;If this value is below 1.0, there&apos;s more noise than voice in the signal, and so quality is reduced.&lt;br /&gt;There is no upper limit to this value, but don&apos;t expect to see much above 40-50 without a sound studio.</source>
-        <translation>这是最后一帧（20 毫秒）麦克风的信噪比（SNR）。它表示声音与噪声的清晰程度的对比。&lt;br /&gt;如果此值低于 1.0，则信号中的噪声比声音更多，因此质量会降低。&lt;br /&gt;这个值没有上限，但是如果您没有一个专业级的音频工作室，就不要期望能够达到 40-50 以上。</translation>
+      <source>This is the Signal-To-Noise Ratio (SNR) of the microphone in the last frame (20 ms). It shows how much clearer the voice is compared to the noise.&lt;br /&gt;If this value is below 1.0, there&apos;s more noise than voice in the signal, and so quality is reduced.&lt;br /&gt;There is no upper limit to this value, but don&apos;t expect to see much above 40-50 without a sound studio.</source>
+      <translation type="unfinished">This is the Signal-To-Noise Ratio (SNR) of the microphone in the last frame (20 ms). It shows how much clearer the voice is compared to the noise.&lt;br /&gt;If this value is below 1.0, there&apos;s more noise than voice in the signal, and so quality is reduced.&lt;br /&gt;There is no upper limit to this value, but don&apos;t expect to see much above 40-50 without a sound studio.</translation>
     </message>
     <message>
-        <source>Speech Probability</source>
-        <translation>语音概率</translation>
+      <source>Speech Probability</source>
+      <translation type="unfinished">Speech Probability</translation>
     </message>
     <message>
-        <source>Probability of speech</source>
-        <translation>声音是语音的概率</translation>
+      <source>Probability of speech</source>
+      <translation type="unfinished">Probability of speech</translation>
     </message>
     <message>
-        <source>This is the probability that the last frame (20 ms) was speech and not environment noise.&lt;br /&gt;Voice activity transmission depends on this being right. The trick with this is that the middle of a sentence is always detected as speech; the problem is the pauses between words and the start of speech. It&apos;s hard to distinguish a sigh from a word starting with &apos;h&apos;.&lt;br /&gt;If this is in bold font, it means Mumble is currently transmitting (if you&apos;re connected).</source>
-        <translation>这是最后一帧（20 毫秒）是语音而非环境噪声的概率。&lt;br /&gt;语音激活的传输取决于此概率。其策略是句子的中间部分总是被检测为语音；问题在于词语之间和语句开始的停顿。很难区分叹气与以“h”开头的单词。&lt;br /&gt;如果此值为粗体字，则表示 Mumble 当前正在传输（如果您已连接）。</translation>
+      <source>This is the probability that the last frame (20 ms) was speech and not environment noise.&lt;br /&gt;Voice activity transmission depends on this being right. The trick with this is that the middle of a sentence is always detected as speech; the problem is the pauses between words and the start of speech. It&apos;s hard to distinguish a sigh from a word starting with &apos;h&apos;.&lt;br /&gt;If this is in bold font, it means Mumble is currently transmitting (if you&apos;re connected).</source>
+      <translation type="unfinished">This is the probability that the last frame (20 ms) was speech and not environment noise.&lt;br /&gt;Voice activity transmission depends on this being right. The trick with this is that the middle of a sentence is always detected as speech; the problem is the pauses between words and the start of speech. It&apos;s hard to distinguish a sigh from a word starting with &apos;h&apos;.&lt;br /&gt;If this is in bold font, it means Mumble is currently transmitting (if you&apos;re connected).</translation>
     </message>
     <message>
-        <source>Configuration feedback</source>
-        <translation>配置反馈</translation>
+      <source>Configuration feedback</source>
+      <translation type="unfinished">Configuration feedback</translation>
     </message>
     <message>
-        <source>Current audio bitrate</source>
-        <translation>当前音频比特率</translation>
+      <source>Current audio bitrate</source>
+      <translation type="unfinished">Current audio bitrate</translation>
     </message>
     <message>
-        <source>Bitrate of last frame</source>
-        <translation>最后一帧比特率</translation>
+      <source>Bitrate of last frame</source>
+      <translation type="unfinished">Bitrate of last frame</translation>
     </message>
     <message>
-        <source>DoublePush interval</source>
-        <translation>双击间隔</translation>
+      <source>DoublePush interval</source>
+      <translation type="unfinished">DoublePush interval</translation>
     </message>
     <message>
-        <source>Time between last two Push-To-Talk presses</source>
-        <translation>最后两次按下按键发言键的间隔时间</translation>
+      <source>Time between last two Push-To-Talk presses</source>
+      <translation type="unfinished">Time between last two Push-To-Talk presses</translation>
     </message>
     <message>
-        <source>Speech Detection</source>
-        <translation>语音检测</translation>
+      <source>Speech Detection</source>
+      <translation type="unfinished">Speech Detection</translation>
     </message>
     <message>
-        <source>Current speech detection chance</source>
-        <translation>当前语音检测状态</translation>
+      <source>Current speech detection chance</source>
+      <translation type="unfinished">Current speech detection chance</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</source>
-        <translation>&lt;b&gt;显示当前的语音检测设置。&lt;/b&gt;&lt;br /&gt;您可以在设置对话框或者音频向导中改变设置。</translation>
+      <source>&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</source>
+      <translation type="unfinished">&lt;b&gt;This shows the current speech detection settings.&lt;/b&gt;&lt;br /&gt;You can change the settings from the Settings dialog or from the Audio Wizard.</translation>
     </message>
     <message>
-        <source>Signal and noise power spectrum</source>
-        <translation>信噪功率谱</translation>
+      <source>Signal and noise power spectrum</source>
+      <translation type="unfinished">Signal and noise power spectrum</translation>
     </message>
     <message>
-        <source>Power spectrum of input signal and noise estimate</source>
-        <translation>输入信号和噪声估值的功率谱</translation>
+      <source>Power spectrum of input signal and noise estimate</source>
+      <translation type="unfinished">Power spectrum of input signal and noise estimate</translation>
     </message>
     <message>
-        <source>This shows the power spectrum of the current input signal (red line) and the current noise estimate (filled blue).&lt;br /&gt;All amplitudes are multiplied by 30 to show the interesting parts (how much more signal than noise is present in each waveband).&lt;br /&gt;This is probably only of interest if you&apos;re trying to fine-tune noise conditions on your microphone. Under good conditions, there should be just a tiny flutter of blue at the bottom. If the blue is more than halfway up on the graph, you have a seriously noisy environment.</source>
-        <translation>显示当前输入信号（红线）和噪声估值（蓝色区域）的功率谱。&lt;br /&gt;所有幅度都被乘以 30 以显示有趣的部分（每个波段中信号比噪声多出多少）。&lt;br /&gt;这可能只在您尝试微调麦克风上的噪声条件时有意义。在良好的条件下，底部应该只有一点点蓝色的颤动。如果图表上的蓝色超过一半，则您的环境非常嘈杂。</translation>
+      <source>This shows the power spectrum of the current input signal (red line) and the current noise estimate (filled blue).&lt;br /&gt;All amplitudes are multiplied by 30 to show the interesting parts (how much more signal than noise is present in each waveband).&lt;br /&gt;This is probably only of interest if you&apos;re trying to fine-tune noise conditions on your microphone. Under good conditions, there should be just a tiny flutter of blue at the bottom. If the blue is more than halfway up on the graph, you have a seriously noisy environment.</source>
+      <translation type="unfinished">This shows the power spectrum of the current input signal (red line) and the current noise estimate (filled blue).&lt;br /&gt;All amplitudes are multiplied by 30 to show the interesting parts (how much more signal than noise is present in each waveband).&lt;br /&gt;This is probably only of interest if you&apos;re trying to fine-tune noise conditions on your microphone. Under good conditions, there should be just a tiny flutter of blue at the bottom. If the blue is more than halfway up on the graph, you have a seriously noisy environment.</translation>
     </message>
     <message>
-        <source>Echo Analysis</source>
-        <translation>回声分析</translation>
+      <source>Echo Analysis</source>
+      <translation type="unfinished">Echo Analysis</translation>
     </message>
     <message>
-        <source>Weights of the echo canceller</source>
-        <translation>回声消除器权重</translation>
+      <source>Weights of the echo canceller</source>
+      <translation type="unfinished">Weights of the echo canceller</translation>
     </message>
     <message>
-        <source>This shows the weights of the echo canceller, with time increasing downwards and frequency increasing to the right.&lt;br /&gt;Ideally, this should be black, indicating no echo exists at all. More commonly, you&apos;ll have one or more horizontal stripes of bluish color representing time delayed echo. You should be able to see the weights updated in real time.&lt;br /&gt;Please note that as long as you have nothing to echo off, you won&apos;t see much useful data here. Play some music and things should stabilize. &lt;br /&gt;You can choose to view the real or imaginary parts of the frequency-domain weights, or alternately the computed modulus and phase. The most useful of these will likely be modulus, which is the amplitude of the echo, and shows you how much of the outgoing signal is being removed at that time step. The other viewing modes are mostly useful to people who want to tune the echo cancellation algorithms.&lt;br /&gt;Please note: If the entire image fluctuates massively while in modulus mode, the echo canceller fails to find any correlation whatsoever between the two input sources (speakers and microphone). Either you have a very long delay on the echo, or one of the input sources is configured wrong.</source>
-        <translation>显示回声消除器的权重，时间向下增加，频率向右增加。&lt;br /&gt;理想情况下，图表应该是黑色，表示根本不存在回声。更常见的是，您会看见一个或多个蓝色水平条纹代表延时回声。您应该能够看到实时更新的权重。&lt;br /&gt;请注意，只要您没有任何回声，您就不会在这里看到太多有用的数据。播放一些音乐，它就应该会稳定下来。&lt;br /&gt;您可以选择查看频域权重的实部或虚部，或者经计算的模数和相位。其中最有用的可能是模数，它是回声的幅度，并显示在该时间步内消除了多少输出信号。其他查看模式对于想要调整回声消除算法的人来说非常有用。&lt;br /&gt;请注意：如果整个图像在模数模式下大幅波动，则回声消除器无法在两个输入源（扬声器与麦克风）之间找到任何相关性。您或者在回声上有很长的延迟，或者其中一个输入源配置错误。</translation>
+      <source>This shows the weights of the echo canceller, with time increasing downwards and frequency increasing to the right.&lt;br /&gt;Ideally, this should be black, indicating no echo exists at all. More commonly, you&apos;ll have one or more horizontal stripes of bluish color representing time delayed echo. You should be able to see the weights updated in real time.&lt;br /&gt;Please note that as long as you have nothing to echo off, you won&apos;t see much useful data here. Play some music and things should stabilize. &lt;br /&gt;You can choose to view the real or imaginary parts of the frequency-domain weights, or alternately the computed modulus and phase. The most useful of these will likely be modulus, which is the amplitude of the echo, and shows you how much of the outgoing signal is being removed at that time step. The other viewing modes are mostly useful to people who want to tune the echo cancellation algorithms.&lt;br /&gt;Please note: If the entire image fluctuates massively while in modulus mode, the echo canceller fails to find any correlation whatsoever between the two input sources (speakers and microphone). Either you have a very long delay on the echo, or one of the input sources is configured wrong.</source>
+      <translation type="unfinished">This shows the weights of the echo canceller, with time increasing downwards and frequency increasing to the right.&lt;br /&gt;Ideally, this should be black, indicating no echo exists at all. More commonly, you&apos;ll have one or more horizontal stripes of bluish color representing time delayed echo. You should be able to see the weights updated in real time.&lt;br /&gt;Please note that as long as you have nothing to echo off, you won&apos;t see much useful data here. Play some music and things should stabilize. &lt;br /&gt;You can choose to view the real or imaginary parts of the frequency-domain weights, or alternately the computed modulus and phase. The most useful of these will likely be modulus, which is the amplitude of the echo, and shows you how much of the outgoing signal is being removed at that time step. The other viewing modes are mostly useful to people who want to tune the echo cancellation algorithms.&lt;br /&gt;Please note: If the entire image fluctuates massively while in modulus mode, the echo canceller fails to find any correlation whatsoever between the two input sources (speakers and microphone). Either you have a very long delay on the echo, or one of the input sources is configured wrong.</translation>
     </message>
     <message>
-        <source>This is the audio bitrate of the last compressed frame (20 ms), and as such will jump up and down as the VBR adjusts the quality. The peak bitrate can be adjusted in the Settings dialog.</source>
-        <translation>这是最后一个压缩帧（20 毫秒）的音频比特率，因此当 VBR 调整质量时，它会上下跳转。可以在“设置”对话框中调整峰值比特率。</translation>
+      <source>This is the audio bitrate of the last compressed frame (20 ms), and as such will jump up and down as the VBR adjusts the quality. The peak bitrate can be adjusted in the Settings dialog.</source>
+      <translation type="unfinished">This is the audio bitrate of the last compressed frame (20 ms), and as such will jump up and down as the VBR adjusts the quality. The peak bitrate can be adjusted in the Settings dialog.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>AudioWizard</name>
     <message>
-        <source>Audio Tuning Wizard</source>
-        <translation>音频设置向导</translation>
+      <source>Audio Tuning Wizard</source>
+      <translation type="unfinished">Audio Tuning Wizard</translation>
     </message>
     <message>
-        <source>Introduction</source>
-        <translation>简介</translation>
+      <source>Introduction</source>
+      <translation type="unfinished">Introduction</translation>
     </message>
     <message>
-        <source>Welcome to the Mumble Audio Wizard</source>
-        <translation>欢迎来到 Mumble 音频设置向导</translation>
+      <source>Welcome to the Mumble Audio Wizard</source>
+      <translation type="unfinished">Welcome to the Mumble Audio Wizard</translation>
     </message>
     <message>
-        <source>Finished</source>
-        <translation>完成</translation>
+      <source>Finished</source>
+      <translation type="unfinished">Finished</translation>
     </message>
     <message>
-        <source>Enjoy using Mumble</source>
-        <translation>祝您使用 Mumble 愉快</translation>
+      <source>Enjoy using Mumble</source>
+      <translation type="unfinished">Enjoy using Mumble</translation>
     </message>
     <message>
-        <source>Device selection</source>
-        <translation>设备选择</translation>
+      <source>Device selection</source>
+      <translation type="unfinished">Device selection</translation>
     </message>
     <message>
-        <source>Selecting the input and output device to use with Mumble.</source>
-        <translation>选择 Mumble 使用的输入和输出设备。</translation>
+      <source>Selecting the input and output device to use with Mumble.</source>
+      <translation type="unfinished">Selecting the input and output device to use with Mumble.</translation>
     </message>
     <message>
-        <source>This is the device your microphone is connected to.</source>
-        <translation>这是您的麦克风连接的设备。</translation>
+      <source>This is the device your microphone is connected to.</source>
+      <translation type="unfinished">This is the device your microphone is connected to.</translation>
     </message>
     <message>
-        <source>System</source>
-        <translation>系统</translation>
+      <source>System</source>
+      <translation type="unfinished">System</translation>
     </message>
     <message>
-        <source>Input method for audio</source>
-        <translation>音频输入方式</translation>
+      <source>Input method for audio</source>
+      <translation type="unfinished">Input method for audio</translation>
     </message>
     <message>
-        <source>Device</source>
-        <translation>设备</translation>
+      <source>Device</source>
+      <translation type="unfinished">Device</translation>
     </message>
     <message>
-        <source>Input device to use</source>
-        <translation>要使用的输入设备</translation>
+      <source>Input device to use</source>
+      <translation type="unfinished">Input device to use</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Selects which sound card to use for audio input.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;选择您用于音频输入的声卡。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;Selects which sound card to use for audio input.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;Selects which sound card to use for audio input.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Cancel echo from headset or speakers</source>
-        <translation>消除耳机或扬声器的回声</translation>
+      <source>Cancel echo from headset or speakers</source>
+      <translation type="unfinished">Cancel echo from headset or speakers</translation>
     </message>
     <message>
-        <source>Use echo cancellation</source>
-        <translation>使用回声消除</translation>
+      <source>Use echo cancellation</source>
+      <translation type="unfinished">Use echo cancellation</translation>
     </message>
     <message>
-        <source>This enables echo cancellation of outgoing audio, which helps both on speakers and on headsets.</source>
-        <translation>这将启用输出音频的回声消除，这对耳机和扬声器都很有帮助。</translation>
+      <source>This enables echo cancellation of outgoing audio, which helps both on speakers and on headsets.</source>
+      <translation type="unfinished">This enables echo cancellation of outgoing audio, which helps both on speakers and on headsets.</translation>
     </message>
     <message>
-        <source>This is the device your speakers or headphones are connected to.</source>
-        <translation>连接到您的扬声器或者耳机的设备。</translation>
+      <source>This is the device your speakers or headphones are connected to.</source>
+      <translation type="unfinished">This is the device your speakers or headphones are connected to.</translation>
     </message>
     <message>
-        <source>Output method for audio</source>
-        <translation>音频输出方式</translation>
+      <source>Output method for audio</source>
+      <translation type="unfinished">Output method for audio</translation>
     </message>
     <message>
-        <source>Output device to use</source>
-        <translation>要使用的输出设备</translation>
+      <source>Output device to use</source>
+      <translation type="unfinished">Output device to use</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Selects which sound card to use for audio Output.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;选择您用于音频输出的声卡。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;Selects which sound card to use for audio Output.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;Selects which sound card to use for audio Output.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Enable positional audio</source>
-        <translation>启用位置音频</translation>
+      <source>Enable positional audio</source>
+      <translation type="unfinished">Enable positional audio</translation>
     </message>
     <message>
-        <source>Allows positioning of sound</source>
-        <oldsource>Allows positioning of sound.</oldsource>
-        <translation>允许声音包含位置信息</translation>
+      <source>Allows positioning of sound</source>
+      <oldsource>Allows positioning of sound.</oldsource>
+      <translation type="unfinished">Allows positioning of sound</translation>
     </message>
     <message>
-        <source>Input Device</source>
-        <translation>输入设备</translation>
+      <source>Input Device</source>
+      <translation type="unfinished">Input Device</translation>
     </message>
     <message>
-        <source>Output Device</source>
-        <translation>输出设备</translation>
+      <source>Output Device</source>
+      <translation type="unfinished">Output Device</translation>
     </message>
     <message>
-        <source>This allows Mumble to use positional audio to place voices.</source>
-        <translation>允许 Mumble 根据位置的不同播放位置音频。</translation>
+      <source>This allows Mumble to use positional audio to place voices.</source>
+      <translation type="unfinished">This allows Mumble to use positional audio to place voices.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;
-To keep latency to an absolute minimum, it's important to buffer as little audio as possible on the soundcard. However, many soundcards report that they require a much smaller buffer than what they can actually work with, so the only way to set this value is to try and fail.
+      <source>&lt;p&gt;
+To keep latency to an absolute minimum, it&apos;s important to buffer as little audio as possible on the soundcard. However, many soundcards report that they require a much smaller buffer than what they can actually work with, so the only way to set this value is to try and fail.
 &lt;/p&gt;
 &lt;p&gt;
 You should hear a voice sample. Change the slider below to the lowest value which gives &lt;b&gt;no&lt;/b&gt; interruptions or jitter in the sound. Please note that local echo is disabled during this test.
 &lt;/p&gt;
 </source>
-        <translation>&lt;p&gt;
-要想降低音频延迟，尽量减少声卡缓冲区缓冲的音频是非常重要的。但是，很多声卡声称所需的缓冲区大小都小于正常工作所需的大小，所以唯一的办法就是调整和尝试。
+      <translation type="unfinished">&lt;p&gt;
+To keep latency to an absolute minimum, it&apos;s important to buffer as little audio as possible on the soundcard. However, many soundcards report that they require a much smaller buffer than what they can actually work with, so the only way to set this value is to try and fail.
 &lt;/p&gt;
 &lt;p&gt;
-您应该听到一段语音示例。调整下面的滑块，在&lt;b&gt;不&lt;/b&gt;造成声音卡顿和抖动的前提下，尽可能调低。请注意，在此测试期间，本地回放暂时关闭。
+You should hear a voice sample. Change the slider below to the lowest value which gives &lt;b&gt;no&lt;/b&gt; interruptions or jitter in the sound. Please note that local echo is disabled during this test.
 &lt;/p&gt;
 </translation>
     </message>
     <message>
-        <source>Amount of data to buffer</source>
-        <translation>要缓冲的数据量</translation>
+      <source>Amount of data to buffer</source>
+      <translation type="unfinished">Amount of data to buffer</translation>
     </message>
     <message>
-        <source>This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn&apos;t cause rapid jitter in the sound.</source>
-        <translation>设置输出缓冲区中需要预缓冲的数据量。尝试不同的值并将其设置为最低值，可以避免声音中的快速抖动。</translation>
+      <source>This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn&apos;t cause rapid jitter in the sound.</source>
+      <translation type="unfinished">This sets the amount of data to pre-buffer in the output buffer. Experiment with different values and set it to the lowest which doesn&apos;t cause rapid jitter in the sound.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;
-Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there's an option to enable a &quot;Microphone boost&quot; make sure it's checked.
+      <source>&lt;p&gt;
+Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there&apos;s an option to enable a &quot;Microphone boost&quot; make sure it&apos;s checked.
 &lt;/p&gt;
 &lt;p&gt;
 Speak loudly, as when you are annoyed or excited. Decrease the volume in the sound control panel until the bar below stays as high as possible in the blue and green but &lt;b&gt;not&lt;/b&gt; the red zone while you speak.
 &lt;/p&gt;
 </source>
-        <translation>&lt;p&gt;
-打开操作系统的声音控制面板，前往“录制”设置。确保“麦克风”是当前激活的输入，并且录制音量为最大，如果有“麦克风加强”选项，那么也请启用。
+      <translation type="unfinished">&lt;p&gt;
+Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there&apos;s an option to enable a &quot;Microphone boost&quot; make sure it&apos;s checked.
 &lt;/p&gt;
-&lt;p&gt;现在对着麦克风大声说话，并同时逐渐降低“麦克风”面板中的音量，直到下方的指示条在您说话时始终处于蓝色和绿色区域，而&lt;b&gt;不会&lt;/b&gt;到达红色区域。
+&lt;p&gt;
+Speak loudly, as when you are annoyed or excited. Decrease the volume in the sound control panel until the bar below stays as high as possible in the blue and green but &lt;b&gt;not&lt;/b&gt; the red zone while you speak.
 &lt;/p&gt;
 </translation>
     </message>
     <message>
-        <source>Positional Audio</source>
-        <translation>位置音频</translation>
+      <source>Positional Audio</source>
+      <translation type="unfinished">Positional Audio</translation>
     </message>
     <message>
-        <source>Adjusting attenuation of positional audio.</source>
-        <translation>调整位置音频的衰减。</translation>
+      <source>Adjusting attenuation of positional audio.</source>
+      <translation type="unfinished">Adjusting attenuation of positional audio.</translation>
     </message>
     <message>
-        <source>Use headphones instead of speakers</source>
-        <translation>使用耳机代替扬声器</translation>
+      <source>Use headphones instead of speakers</source>
+      <translation type="unfinished">Use headphones instead of speakers</translation>
     </message>
     <message>
-        <source>&lt;p&gt;
+      <source>&lt;p&gt;
 Congratulations. You should now be ready to enjoy a richer sound experience with Mumble.
 &lt;/p&gt;
 &lt;p&gt;
-Mumble is under continuous development, and the development team wants to focus on the features that benefit the most users. To this end, Mumble supports submitting anonymous statistics about your configuration to the developers. These statistics are essential for future development, and also make sure the features you use aren't deprecated.
+Mumble is under continuous development, and the development team wants to focus on the features that benefit the most users. To this end, Mumble supports submitting anonymous statistics about your configuration to the developers. These statistics are essential for future development, and also make sure the features you use aren&apos;t deprecated.
 &lt;/p&gt;
 </source>
-        <translation>&lt;p&gt;
-祝贺，您现在可以开始体验 Mumble 的丰富音频功能。
+      <translation type="unfinished">&lt;p&gt;
+Congratulations. You should now be ready to enjoy a richer sound experience with Mumble.
 &lt;/p&gt;
 &lt;p&gt;
-Mumble 仍在持续开发中，开发团队希望能专注于大多数用户需要的功能。所以这个选项使 Mumble 支持向开发者提交关于设置的匿名统计数据。这些数据会帮助我们未来的开发进程，也保证您需要的功能不会被废弃。
+Mumble is under continuous development, and the development team wants to focus on the features that benefit the most users. To this end, Mumble supports submitting anonymous statistics about your configuration to the developers. These statistics are essential for future development, and also make sure the features you use aren&apos;t deprecated.
 &lt;/p&gt;
 </translation>
     </message>
     <message>
-        <source>Use headphones</source>
-        <translation>使用耳机</translation>
+      <source>Use headphones</source>
+      <translation type="unfinished">Use headphones</translation>
     </message>
     <message>
-        <source>This ignores the OS speaker configuration and configures the positioning for headphones instead.</source>
-        <translation>忽略系统扬声器配置，并改为耳机配置位置音频。</translation>
+      <source>This ignores the OS speaker configuration and configures the positioning for headphones instead.</source>
+      <translation type="unfinished">This ignores the OS speaker configuration and configures the positioning for headphones instead.</translation>
     </message>
     <message>
-        <source>Volume tuning</source>
-        <translation>音量调节</translation>
+      <source>Volume tuning</source>
+      <translation type="unfinished">Volume tuning</translation>
     </message>
     <message>
-        <source>Tuning microphone hardware volume to optimal settings.</source>
-        <translation>调节麦克风硬件音量来优化设置。</translation>
+      <source>Tuning microphone hardware volume to optimal settings.</source>
+      <translation type="unfinished">Tuning microphone hardware volume to optimal settings.</translation>
     </message>
     <message>
-        <source>Now talk softly, as you would when talking late at night and you don&apos;t want to disturb anyone. Adjust the slider below so that the bar moves into green when you talk, but stays blue while you&apos;re silent.</source>
-        <translation>现在请轻声说话，像夜间的悄悄话一样。调节下方的滑块，使指示条能够在您说话时处于绿色区域，但在不说话时保持在蓝色区域。</translation>
+      <source>Now talk softly, as you would when talking late at night and you don&apos;t want to disturb anyone. Adjust the slider below so that the bar moves into green when you talk, but stays blue while you&apos;re silent.</source>
+      <translation type="unfinished">Now talk softly, as you would when talking late at night and you don&apos;t want to disturb anyone. Adjust the slider below so that the bar moves into green when you talk, but stays blue while you&apos;re silent.</translation>
     </message>
     <message>
-        <source>Voice Activity Detection</source>
-        <translation>语音激活检测</translation>
+      <source>Voice Activity Detection</source>
+      <translation type="unfinished">Voice Activity Detection</translation>
     </message>
     <message>
-        <source>Letting Mumble figure out when you&apos;re talking and when you&apos;re silent.</source>
-        <translation>让 Mumble 能够判断您是否正在说话。</translation>
+      <source>Letting Mumble figure out when you&apos;re talking and when you&apos;re silent.</source>
+      <translation type="unfinished">Letting Mumble figure out when you&apos;re talking and when you&apos;re silent.</translation>
     </message>
     <message>
-        <source>This will help Mumble figure out when you are talking. The first step is selecting which data value to use.</source>
-        <translation>这些设置能让 Mumble 判断您是否正在说话。首先选择使用哪种数据来判断发言状态。</translation>
+      <source>This will help Mumble figure out when you are talking. The first step is selecting which data value to use.</source>
+      <translation type="unfinished">This will help Mumble figure out when you are talking. The first step is selecting which data value to use.</translation>
     </message>
     <message>
-        <source>Raw amplitude from input</source>
-        <translation>原始输入振幅</translation>
+      <source>Raw amplitude from input</source>
+      <translation type="unfinished">Raw amplitude from input</translation>
     </message>
     <message>
-        <source>Signal-To-Noise ratio</source>
-        <translation>信噪比</translation>
+      <source>Signal-To-Noise ratio</source>
+      <translation type="unfinished">Signal-To-Noise ratio</translation>
     </message>
     <message>
-        <source>Next you need to adjust the following slider. The first few utterances you say should end up in the green area (definitive speech). While talking, you should stay inside the yellow (might be speech) and when you&apos;re not talking, everything should be in the red (definitively not speech).</source>
-        <oldsource>Next you need to adjust the following two sliders. The first few utterances you say should end up in the green area (definitive speech). While talking, you should stay inside the yellow (might be speech) and when you're not talking, everything should be in the red (definitively not speech).</oldsource>
-        <translation>然后我们来调节下方的滑块，使您说的前几个音节能让上方的指示条达到绿色区域（明确发言）；当您正在说话时，指示条应该在黄色区域（疑似发言）；当您不说话时，指示条应该处于红色区域（明确不发言）。</translation>
+      <source>Next you need to adjust the following slider. The first few utterances you say should end up in the green area (definitive speech). While talking, you should stay inside the yellow (might be speech) and when you&apos;re not talking, everything should be in the red (definitively not speech).</source>
+      <oldsource>Next you need to adjust the following two sliders. The first few utterances you say should end up in the green area (definitive speech). While talking, you should stay inside the yellow (might be speech) and when you&apos;re not talking, everything should be in the red (definitively not speech).</oldsource>
+      <translation type="unfinished">Next you need to adjust the following slider. The first few utterances you say should end up in the green area (definitive speech). While talking, you should stay inside the yellow (might be speech) and when you&apos;re not talking, everything should be in the red (definitively not speech).</translation>
     </message>
     <message>
-        <source>Device tuning</source>
-        <translation>设备调整</translation>
+      <source>Device tuning</source>
+      <translation type="unfinished">Device tuning</translation>
     </message>
     <message>
-        <source>Changing hardware output delays to their minimum value.</source>
-        <translation>尽量调节硬件输出延迟到最小。</translation>
+      <source>Changing hardware output delays to their minimum value.</source>
+      <translation type="unfinished">Changing hardware output delays to their minimum value.</translation>
     </message>
     <message>
-        <source>Submit anonymous statistics to the Mumble project</source>
-        <translation>向 Mumble 发送匿名统计数据</translation>
+      <source>Submit anonymous statistics to the Mumble project</source>
+      <translation type="unfinished">Submit anonymous statistics to the Mumble project</translation>
     </message>
     <message>
-        <source>Push To Talk:</source>
-        <translation>按键发言：</translation>
+      <source>Push To Talk:</source>
+      <translation type="unfinished">Push To Talk:</translation>
     </message>
     <message>
-        <source>Quality &amp; Notifications</source>
-        <translation>音频质量与通知</translation>
+      <source>Quality &amp; Notifications</source>
+      <translation type="unfinished">Quality &amp; Notifications</translation>
     </message>
     <message>
-        <source>Adjust quality and notification settings.</source>
-        <translation>调节音频质量与通知设置。</translation>
+      <source>Adjust quality and notification settings.</source>
+      <translation type="unfinished">Adjust quality and notification settings.</translation>
     </message>
     <message>
-        <source>Quality settings</source>
-        <translation>质量设置</translation>
+      <source>Quality settings</source>
+      <translation type="unfinished">Quality settings</translation>
     </message>
     <message>
-        <source>Low</source>
-        <translation>低</translation>
+      <source>Low</source>
+      <translation type="unfinished">Low</translation>
     </message>
     <message>
-        <source>Balanced</source>
-        <translation>均衡</translation>
+      <source>Balanced</source>
+      <translation type="unfinished">Balanced</translation>
     </message>
     <message>
-        <source>Notification settings</source>
-        <translation>通知设置</translation>
+      <source>Notification settings</source>
+      <translation type="unfinished">Notification settings</translation>
     </message>
     <message>
-        <source>Use Text-To-Speech to read notifications and messages to you.</source>
-        <translation>启用语音播报来朗读通知和其他人的消息。</translation>
+      <source>Use Text-To-Speech to read notifications and messages to you.</source>
+      <translation type="unfinished">Use Text-To-Speech to read notifications and messages to you.</translation>
     </message>
     <message>
-        <source>Disable Text-To-Speech and use sounds instead.</source>
-        <translation>禁用语音播报，改用提示音。</translation>
+      <source>Disable Text-To-Speech and use sounds instead.</source>
+      <translation type="unfinished">Disable Text-To-Speech and use sounds instead.</translation>
     </message>
     <message>
-        <source>%1 ms</source>
-        <translation>%1 毫秒</translation>
+      <source>%1 ms</source>
+      <translation type="unfinished">%1 ms</translation>
     </message>
     <message>
-        <source>Enables attenuation of other applications while users talk to you</source>
-        <translation>允许在其他用户说话时减小其他应用程序的音量</translation>
+      <source>Enables attenuation of other applications while users talk to you</source>
+      <translation type="unfinished">Enables attenuation of other applications while users talk to you</translation>
     </message>
     <message>
-        <source>Attenuate applications while other users talk</source>
-        <translation>其他用户说话时减小应用程序音量</translation>
+      <source>Attenuate applications while other users talk</source>
+      <translation type="unfinished">Attenuate applications while other users talk</translation>
     </message>
     <message>
-        <source>High</source>
-        <translation>高</translation>
+      <source>High</source>
+      <translation type="unfinished">High</translation>
     </message>
     <message>
-        <source>Custom</source>
-        <translation>自定义</translation>
+      <source>Custom</source>
+      <translation type="unfinished">Custom</translation>
     </message>
     <message>
-        <source>You already set a customized quality configuration in Mumble. Select this setting to keep it.</source>
-        <translation>您已在 Mumble 中设置了自定义质量。选择此设置以保留它。</translation>
+      <source>You already set a customized quality configuration in Mumble. Select this setting to keep it.</source>
+      <translation type="unfinished">You already set a customized quality configuration in Mumble. Select this setting to keep it.</translation>
     </message>
     <message>
-        <source>Enables attenuation of other applications while users talk to you. This means that as soon someone starts to speak to you in Mumble, the sound of all other applications (like audio players) will get attenuated so you can hear them more clearly.</source>
-        <translation>在其他用户与您交谈时衰减其他应用程序的音量。这意味着一旦有人开始在 Mumble 中与您交谈，所有其他应用程序（如音频播放器）的声音音量将会被减小，以便您可以更清楚地听到其他人的声音。</translation>
+      <source>Enables attenuation of other applications while users talk to you. This means that as soon someone starts to speak to you in Mumble, the sound of all other applications (like audio players) will get attenuated so you can hear them more clearly.</source>
+      <translation type="unfinished">Enables attenuation of other applications while users talk to you. This means that as soon someone starts to speak to you in Mumble, the sound of all other applications (like audio players) will get attenuated so you can hear them more clearly.</translation>
     </message>
     <message>
-        <source>Apply some high contrast optimizations for visually impaired users</source>
-        <translation>为视障用户应用一些高对比度优化</translation>
+      <source>Apply some high contrast optimizations for visually impaired users</source>
+      <translation type="unfinished">Apply some high contrast optimizations for visually impaired users</translation>
     </message>
     <message>
-        <source>Use high contrast graphics</source>
-        <translation>使用高对比度图像</translation>
+      <source>Use high contrast graphics</source>
+      <translation type="unfinished">Use high contrast graphics</translation>
     </message>
     <message>
-        <source>Keep custom Text-To-Speech settings.</source>
-        <translation>保留自定义的语音播报设置。</translation>
+      <source>Keep custom Text-To-Speech settings.</source>
+      <translation type="unfinished">Keep custom Text-To-Speech settings.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;
-Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there's an option to enable a &quot;Microphone boost&quot; make sure it's checked.
+      <source>&lt;p&gt;
+Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there&apos;s an option to enable a &quot;Microphone boost&quot; make sure it&apos;s checked.
 &lt;/p&gt;
 &lt;p&gt;
 Speak loudly, as when you are annoyed or excited. Decrease the volume in the sound control panel until the bar below stays as high as possible in the striped and the empty but &lt;b&gt;not&lt;/b&gt; the crisscrossed zone while you speak.
 &lt;/p&gt;
 </source>
-        <oldsource>&lt;p&gt;
-Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there's an option to enable a &quot;Microphone boost&quot; make sure it's checked.
+      <oldsource>&lt;p&gt;
+Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there&apos;s an option to enable a &quot;Microphone boost&quot; make sure it&apos;s checked.
 &lt;/p&gt;
 &lt;p&gt;
 Speak loudly, as when you are annoyed or excited. Decrease the volume in the sound control panel until the bar below stays as high as possible in the striped and the empty but &lt;b&gt;not&lt;/b&gt; the criss-crossed zone while you speak.
 &lt;/p&gt;
 </oldsource>
-        <comment>For high contrast mode</comment>
-        <translation>&lt;p&gt;
-打开操作系统的声音控制面板，前往“录制”设置。确保“麦克风”是当前激活的输入，并且录制音量为最大，如果有“麦克风加强”选项，那么也请启用。
+      <comment>For high contrast mode</comment>
+      <translation type="unfinished">&lt;p&gt;
+Open your sound control panel and go to the recording settings. Make sure the microphone is selected as active input with maximum recording volume. If there&apos;s an option to enable a &quot;Microphone boost&quot; make sure it&apos;s checked.
 &lt;/p&gt;
-&lt;p&gt;现在对着麦克风大声说话，并同时逐渐降低“麦克风”面板中的音量，直到下方的指示条在您说话时始终处于条纹和空白区域，而&lt;b&gt;不会&lt;/b&gt;到达网格区域。
+&lt;p&gt;
+Speak loudly, as when you are annoyed or excited. Decrease the volume in the sound control panel until the bar below stays as high as possible in the striped and the empty but &lt;b&gt;not&lt;/b&gt; the crisscrossed zone while you speak.
 &lt;/p&gt;
 </translation>
     </message>
     <message>
-        <source>Now talk softly, as you would when talking late at night and you don&apos;t want to disturb anyone. Adjust the slider below so that the bar moves into empty zone when you talk, but stays in the striped one while you&apos;re silent.</source>
-        <comment>For high contrast mode</comment>
-        <translation>现在请轻声说话，像夜间的悄悄话一样。调节下方的滑块，使指示条能够在您说话时处于空白区域，但在不说话时保持在条纹区域。</translation>
+      <source>Now talk softly, as you would when talking late at night and you don&apos;t want to disturb anyone. Adjust the slider below so that the bar moves into empty zone when you talk, but stays in the striped one while you&apos;re silent.</source>
+      <comment>For high contrast mode</comment>
+      <translation type="unfinished">Now talk softly, as you would when talking late at night and you don&apos;t want to disturb anyone. Adjust the slider below so that the bar moves into empty zone when you talk, but stays in the striped one while you&apos;re silent.</translation>
     </message>
     <message>
-        <source>Next you need to adjust the following slider. The first few utterances you say should end up in the empty area (definitive speech). While talking, you should stay inside the striped (might be speech) and when you&apos;re not talking, everything should be in the crisscrossed (definitively not speech).</source>
-        <comment>For high contrast mode</comment>
-        <translation>然后我们来调节下方的滑块，使您说的前几个音节能让上方的指示条达到空白区域（明确发言）；当您正在说话时，指示条应该在条纹区域（疑似发言）；当您不说话时，指示条应该处于网格区域（明确不发言）。</translation>
+      <source>Next you need to adjust the following slider. The first few utterances you say should end up in the empty area (definitive speech). While talking, you should stay inside the striped (might be speech) and when you&apos;re not talking, everything should be in the crisscrossed (definitively not speech).</source>
+      <comment>For high contrast mode</comment>
+      <translation type="unfinished">Next you need to adjust the following slider. The first few utterances you say should end up in the empty area (definitive speech). While talking, you should stay inside the striped (might be speech) and when you&apos;re not talking, everything should be in the crisscrossed (definitively not speech).</translation>
     </message>
     <message>
-        <source>In this configuration Mumble will use a &lt;b&gt;low amount of bandwidth&lt;/b&gt;. This will inevitably result in high latency and poor quality. Choose this only if your connection cannot handle the other settings. (16kbit/s, 60ms per packet)</source>
-        <translation>在此配置下，Mumble 会使用&lt;b&gt;较小的带宽&lt;/b&gt;，但不可避免地会导致较高的延迟和较低的音质。仅在网络连接无法支持其他配置时使用。（16 千比特/秒，每个数据包 60 毫秒）</translation>
+      <source>In this configuration Mumble will use a &lt;b&gt;low amount of bandwidth&lt;/b&gt;. This will inevitably result in high latency and poor quality. Choose this only if your connection cannot handle the other settings. (16kbit/s, 60ms per packet)</source>
+      <translation type="unfinished">In this configuration Mumble will use a &lt;b&gt;low amount of bandwidth&lt;/b&gt;. This will inevitably result in high latency and poor quality. Choose this only if your connection cannot handle the other settings. (16kbit/s, 60ms per packet)</translation>
     </message>
     <message>
-        <source>This is the &lt;b&gt;recommended default&lt;/b&gt; configuration. It provides a good balance between quality, latency, and bandwidth usage. (40kbit/s, 20ms per packet)</source>
-        <translation>这是&lt;b&gt;推荐的默认设置&lt;/b&gt;。在音质、延迟和带宽上有良好的平衡。（40 千比特/秒，每个数据包 20 毫秒）</translation>
+      <source>This is the &lt;b&gt;recommended default&lt;/b&gt; configuration. It provides a good balance between quality, latency, and bandwidth usage. (40kbit/s, 20ms per packet)</source>
+      <translation type="unfinished">This is the &lt;b&gt;recommended default&lt;/b&gt; configuration. It provides a good balance between quality, latency, and bandwidth usage. (40kbit/s, 20ms per packet)</translation>
     </message>
     <message>
-        <source>This configuration is only recommended for use in setups where bandwidth is not an issue, like a LAN. It provides the lowest latency supported by Mumble and &lt;b&gt;high quality&lt;/b&gt;. (72kbit/s, 10ms per packet)</source>
-        <translation>仅在带宽完全不是问题的情况下使用，例如局域网中。使 Mumble 启用所支持的最低延迟和&lt;b&gt;最高音质&lt;/b&gt;。（72 千比特/秒，每个数据包 10 毫秒）</translation>
+      <source>This configuration is only recommended for use in setups where bandwidth is not an issue, like a LAN. It provides the lowest latency supported by Mumble and &lt;b&gt;high quality&lt;/b&gt;. (72kbit/s, 10ms per packet)</source>
+      <translation type="unfinished">This configuration is only recommended for use in setups where bandwidth is not an issue, like a LAN. It provides the lowest latency supported by Mumble and &lt;b&gt;high quality&lt;/b&gt;. (72kbit/s, 10ms per packet)</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;音频采用的输入方式。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This is the input method to use for audio.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the Output method to use for audio.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;音频采用的输出方式。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;This is the Output method to use for audio.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This is the Output method to use for audio.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This is the audio tuning wizard for Mumble. This will help you correctly set the input levels of your sound card, and also set the correct parameters for sound processing in Mumble. &lt;/p&gt;&lt;p&gt;Please be aware that as long as this wizard is active, audio will be looped locally to allow you to listen to it, and no audio will be sent to the server. &lt;/p&gt;&lt;p&gt;Note that you can cancel this wizard at any time without it having an effect on your current audio systems. The settings are only once this wizard has been completed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;这是 Mumble 的音频设置向导。它将帮助您正确地设置您的声卡的输入电平，以及正确的 Mumble 声音处理参数。&lt;/p&gt;&lt;p&gt;请注意，在整个设置过程中，音频将采用本地回放的方式使您能听到，而且没有任何音频会被发送到服务器。&lt;/p&gt;&lt;p&gt;您可以随时退出此向导，而不会影响您的音频设置。设置只会在向导完成时被保存。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+      <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This is the audio tuning wizard for Mumble. This will help you correctly set the input levels of your sound card, and also set the correct parameters for sound processing in Mumble. &lt;/p&gt;&lt;p&gt;Please be aware that as long as this wizard is active, audio will be looped locally to allow you to listen to it, and no audio will be sent to the server. &lt;/p&gt;&lt;p&gt;Note that you can cancel this wizard at any time without it having an effect on your current audio systems. The settings are only once this wizard has been completed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+      <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This is the audio tuning wizard for Mumble. This will help you correctly set the input levels of your sound card, and also set the correct parameters for sound processing in Mumble. &lt;/p&gt;&lt;p&gt;Please be aware that as long as this wizard is active, audio will be looped locally to allow you to listen to it, and no audio will be sent to the server. &lt;/p&gt;&lt;p&gt;Note that you can cancel this wizard at any time without it having an effect on your current audio systems. The settings are only once this wizard has been completed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble supports positional audio for some games, and will position the voice of other users relative to their position in game. Depending on their position, the volume of the voice will be changed between the speakers to simulate the direction and distance the other user is at. Such positioning depends on your speaker configuration being correct in your operating system, so a test is done here. &lt;/p&gt;&lt;p&gt;The graph below shows the position of &lt;span style=&quot; color:#56b4e9;&quot;&gt;you&lt;/span&gt;, the &lt;span style=&quot; color:#d55e00;&quot;&gt;speakers&lt;/span&gt; and a &lt;span style=&quot; color:#009e73;&quot;&gt;moving sound source&lt;/span&gt; as if seen from above. You should hear the audio move between the channels. &lt;/p&gt;&lt;p&gt;You can also use your mouse to position the &lt;span style=&quot; color:#009e73;&quot;&gt;sound source&lt;/span&gt; manually.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble 支持在一些游戏中使用位置音频功能，能够根据玩家在游戏中的相对位置来将用户的语音方位化。根据他们的位置，用户之间语音的音量会随着距离和方向而模拟变化。这需要您在操作系统中正确配置扬声器的立体声，此测试就是为了保证这一点。&lt;/p&gt;&lt;p&gt;下方的图像显示了&lt;span style=&quot; color:#56b4e9;&quot;&gt;您&lt;/span&gt;、&lt;span style=&quot; color:#d55e00;&quot;&gt;扬声器&lt;/span&gt;和&lt;span style=&quot; color:#009e73;&quot;&gt;移动的音源&lt;/span&gt;的俯视图。您应该能够听到音频在声道中的移动。&lt;/p&gt;&lt;p&gt;您也可以使用鼠标手动移动&lt;span style=&quot; color:#009e73;&quot;&gt;音源&lt;/span&gt;。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+      <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble supports positional audio for some games, and will position the voice of other users relative to their position in game. Depending on their position, the volume of the voice will be changed between the speakers to simulate the direction and distance the other user is at. Such positioning depends on your speaker configuration being correct in your operating system, so a test is done here. &lt;/p&gt;&lt;p&gt;The graph below shows the position of &lt;span style=&quot; color:#56b4e9;&quot;&gt;you&lt;/span&gt;, the &lt;span style=&quot; color:#d55e00;&quot;&gt;speakers&lt;/span&gt; and a &lt;span style=&quot; color:#009e73;&quot;&gt;moving sound source&lt;/span&gt; as if seen from above. You should hear the audio move between the channels. &lt;/p&gt;&lt;p&gt;You can also use your mouse to position the &lt;span style=&quot; color:#009e73;&quot;&gt;sound source&lt;/span&gt; manually.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+      <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble supports positional audio for some games, and will position the voice of other users relative to their position in game. Depending on their position, the volume of the voice will be changed between the speakers to simulate the direction and distance the other user is at. Such positioning depends on your speaker configuration being correct in your operating system, so a test is done here. &lt;/p&gt;&lt;p&gt;The graph below shows the position of &lt;span style=&quot; color:#56b4e9;&quot;&gt;you&lt;/span&gt;, the &lt;span style=&quot; color:#d55e00;&quot;&gt;speakers&lt;/span&gt; and a &lt;span style=&quot; color:#009e73;&quot;&gt;moving sound source&lt;/span&gt; as if seen from above. You should hear the audio move between the channels. &lt;/p&gt;&lt;p&gt;You can also use your mouse to position the &lt;span style=&quot; color:#009e73;&quot;&gt;sound source&lt;/span&gt; manually.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <source>Input system</source>
-        <translation>输入系统</translation>
+      <source>Input system</source>
+      <translation type="unfinished">Input system</translation>
     </message>
     <message>
-        <source>Input device</source>
-        <translation>输入设备</translation>
+      <source>Input device</source>
+      <translation type="unfinished">Input device</translation>
     </message>
     <message>
-        <source>Output system</source>
-        <translation>输出系统</translation>
+      <source>Output system</source>
+      <translation type="unfinished">Output system</translation>
     </message>
     <message>
-        <source>Output device</source>
-        <translation>输出设备</translation>
+      <source>Output device</source>
+      <translation type="unfinished">Output device</translation>
     </message>
     <message>
-        <source>Output delay</source>
-        <translation>输出延迟</translation>
+      <source>Output delay</source>
+      <translation type="unfinished">Output delay</translation>
     </message>
     <message>
-        <source>Maximum amplification</source>
-        <translation>最大放大倍数</translation>
+      <source>Maximum amplification</source>
+      <translation type="unfinished">Maximum amplification</translation>
     </message>
     <message>
-        <source>PTT key</source>
-        <translation>按键发言键</translation>
+      <source>PTT key</source>
+      <translation type="unfinished">PTT key</translation>
     </message>
     <message>
-        <source>VAD level</source>
-        <translation>VAD 级别</translation>
+      <source>VAD level</source>
+      <translation type="unfinished">VAD level</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>BanEditor</name>
     <message>
-        <source>Mumble - Edit Bans</source>
-        <translation>Mumble - 编辑封禁</translation>
+      <source>Mumble - Edit Bans</source>
+      <translation type="unfinished">Mumble - Edit Bans</translation>
     </message>
     <message>
-        <source>&amp;Address</source>
-        <translation>地址(&amp;A)</translation>
+      <source>&amp;Address</source>
+      <translation type="unfinished">&amp;Address</translation>
     </message>
     <message>
-        <source>&amp;Mask</source>
-        <translation>掩码(&amp;M)</translation>
+      <source>&amp;Mask</source>
+      <translation type="unfinished">&amp;Mask</translation>
     </message>
     <message>
-        <source>Reason</source>
-        <translation>原因</translation>
+      <source>Reason</source>
+      <translation type="unfinished">Reason</translation>
     </message>
     <message>
-        <source>Start</source>
-        <translation>开始</translation>
+      <source>Start</source>
+      <translation type="unfinished">Start</translation>
     </message>
     <message>
-        <source>End</source>
-        <translation>结束</translation>
+      <source>End</source>
+      <translation type="unfinished">End</translation>
     </message>
     <message>
-        <source>User</source>
-        <translation>用户</translation>
+      <source>User</source>
+      <translation type="unfinished">User</translation>
     </message>
     <message>
-        <source>Hash</source>
-        <translation>哈希</translation>
+      <source>Hash</source>
+      <translation type="unfinished">Hash</translation>
     </message>
     <message>
-        <source>&amp;Add</source>
-        <translation>添加(&amp;A)</translation>
+      <source>&amp;Add</source>
+      <translation type="unfinished">&amp;Add</translation>
     </message>
     <message>
-        <source>&amp;Update</source>
-        <translation>更新(&amp;U)</translation>
+      <source>&amp;Update</source>
+      <translation type="unfinished">&amp;Update</translation>
     </message>
     <message>
-        <source>&amp;Remove</source>
-        <translation>删除(&amp;R)</translation>
+      <source>&amp;Remove</source>
+      <translation type="unfinished">&amp;Remove</translation>
     </message>
     <message>
-        <source>Ban List</source>
-        <translation>封禁名单</translation>
+      <source>Ban List</source>
+      <translation type="unfinished">Ban List</translation>
     </message>
     <message>
-        <source>Search field</source>
-        <translation>搜索框</translation>
+      <source>Search field</source>
+      <translation type="unfinished">Search field</translation>
     </message>
     <message>
-        <source>This is the search field. Use it to find bans that have this username set in the username field.</source>
-        <translation>这是搜索框。使用它来查找用户名字段包含此用户名的封禁。</translation>
+      <source>This is the search field. Use it to find bans that have this username set in the username field.</source>
+      <translation type="unfinished">This is the search field. Use it to find bans that have this username set in the username field.</translation>
     </message>
     <message>
-        <source>Who are you looking for?</source>
-        <translation>您在找谁？</translation>
+      <source>Who are you looking for?</source>
+      <translation type="unfinished">Who are you looking for?</translation>
     </message>
     <message>
-        <source>No nickname</source>
-        <translation>无昵称</translation>
+      <source>No nickname</source>
+      <translation type="unfinished">No nickname</translation>
     </message>
     <message>
-        <source>IP address</source>
-        <translation>IP 地址</translation>
+      <source>IP address</source>
+      <translation type="unfinished">IP address</translation>
     </message>
     <message>
-        <source>No IP address</source>
-        <translation>无 IP 地址</translation>
+      <source>No IP address</source>
+      <translation type="unfinished">No IP address</translation>
     </message>
     <message>
-        <source>Reason for the ban</source>
-        <translation>封禁原因</translation>
+      <source>Reason for the ban</source>
+      <translation type="unfinished">Reason for the ban</translation>
     </message>
     <message>
-        <source>No reason</source>
-        <translation>无原因</translation>
+      <source>No reason</source>
+      <translation type="unfinished">No reason</translation>
     </message>
     <message>
-        <source>Ban end date</source>
-        <translation>封禁结束时间</translation>
+      <source>Ban end date</source>
+      <translation type="unfinished">Ban end date</translation>
     </message>
     <message>
-        <source>Ban end date. If you set the same date for start and end, the ban will be permanent (it will not expire).</source>
-        <translation>封禁结束时间。如果您设置的开始与结束时间相同，此封禁将会是永久的（永不过期）。</translation>
+      <source>Ban end date. If you set the same date for start and end, the ban will be permanent (it will not expire).</source>
+      <translation type="unfinished">Ban end date. If you set the same date for start and end, the ban will be permanent (it will not expire).</translation>
     </message>
     <message>
-        <source>Certificate hash</source>
-        <translation>证书哈希</translation>
+      <source>Certificate hash</source>
+      <translation type="unfinished">Certificate hash</translation>
     </message>
     <message>
-        <source>No certificate hash</source>
-        <translation>无证书哈希</translation>
+      <source>No certificate hash</source>
+      <translation type="unfinished">No certificate hash</translation>
     </message>
     <message>
-        <source>Banned users</source>
-        <translation>封禁用户</translation>
+      <source>Banned users</source>
+      <translation type="unfinished">Banned users</translation>
     </message>
     <message>
-        <source>This is a list with banned users.</source>
-        <translation>显示被封禁用户的列表。</translation>
+      <source>This is a list with banned users.</source>
+      <translation type="unfinished">This is a list with banned users.</translation>
     </message>
     <message>
-        <source>Use this button if you want to add a new ban.</source>
-        <translation>使用此按钮添加一个新的封禁。</translation>
+      <source>Use this button if you want to add a new ban.</source>
+      <translation type="unfinished">Use this button if you want to add a new ban.</translation>
     </message>
     <message>
-        <source>Use this button if you want to update ban information.</source>
-        <translation>使用此按钮更新一个封禁的信息。</translation>
+      <source>Use this button if you want to update ban information.</source>
+      <translation type="unfinished">Use this button if you want to update ban information.</translation>
     </message>
     <message>
-        <source>Use this button if you want to remove user from the ban list.</source>
-        <translation>使用此按钮从封禁列表中删除一名用户。</translation>
+      <source>Use this button if you want to remove user from the ban list.</source>
+      <translation type="unfinished">Use this button if you want to remove user from the ban list.</translation>
     </message>
     <message>
-        <source>Clear all fields</source>
-        <translation>清除所有输入</translation>
+      <source>Clear all fields</source>
+      <translation type="unfinished">Clear all fields</translation>
     </message>
     <message>
-        <source>This button clears all fields. Use it if you want to add a new ban.</source>
-        <translation>此按钮可以清除全部输入内容。在您需要添加新封禁时使用。</translation>
+      <source>This button clears all fields. Use it if you want to add a new ban.</source>
+      <translation type="unfinished">This button clears all fields. Use it if you want to add a new ban.</translation>
     </message>
     <message>
-        <source>Clear</source>
-        <translation>清空</translation>
+      <source>Clear</source>
+      <translation type="unfinished">Clear</translation>
     </message>
     <message numerus="yes">
-        <source>Ban List - %n Ban(s)</source>
-        <translation><numerusform>封禁列表 - %n 个封禁</numerusform></translation>
+      <source>Ban List - %n Ban(s)</source>
+      <translation type="unfinished">
+        <numerusform>Ban List - %n Ban(s)</numerusform>
+      </translation>
     </message>
     <message>
-        <source>Search</source>
-        <translation>搜索</translation>
+      <source>Search</source>
+      <translation type="unfinished">Search</translation>
     </message>
     <message>
-        <source>IP Address</source>
-        <translation>IP 地址</translation>
+      <source>IP Address</source>
+      <translation type="unfinished">IP Address</translation>
     </message>
     <message>
-        <source>Mask</source>
-        <translation>掩码</translation>
+      <source>Mask</source>
+      <translation type="unfinished">Mask</translation>
     </message>
     <message>
-        <source>Start date/time</source>
-        <translation>起始日期/时间</translation>
+      <source>Start date/time</source>
+      <translation type="unfinished">Start date/time</translation>
     </message>
     <message>
-        <source>End date/time</source>
-        <translation>结束日期/时间</translation>
+      <source>End date/time</source>
+      <translation type="unfinished">End date/time</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>CertView</name>
     <message>
-        <source>Name</source>
-        <translation>名称</translation>
+      <source>Name</source>
+      <translation type="unfinished">Name</translation>
     </message>
     <message>
-        <source>Email</source>
-        <translation>电子邮件</translation>
+      <source>Email</source>
+      <translation type="unfinished">Email</translation>
     </message>
     <message>
-        <source>Issuer</source>
-        <translation>颁发者</translation>
+      <source>Issuer</source>
+      <translation type="unfinished">Issuer</translation>
     </message>
     <message>
-        <source>Expiry Date</source>
-        <translation>过期时间</translation>
+      <source>Expiry Date</source>
+      <translation type="unfinished">Expiry Date</translation>
     </message>
     <message>
-        <source>(none)</source>
-        <translation>（无）</translation>
+      <source>(none)</source>
+      <translation type="unfinished">(none)</translation>
     </message>
     <message>
-        <source>Self-signed</source>
-        <translation>自签名</translation>
+      <source>Self-signed</source>
+      <translation type="unfinished">Self-signed</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>CertWizard</name>
     <message>
-        <source>Unable to validate email.&lt;br /&gt;Enter a valid (or blank) email to continue.</source>
-        <translation>无法验证电子邮件。&lt;br /&gt;输入一个有效的电子邮件地址或留空以继续。</translation>
+      <source>Unable to validate email.&lt;br /&gt;Enter a valid (or blank) email to continue.</source>
+      <translation type="unfinished">Unable to validate email.&lt;br /&gt;Enter a valid (or blank) email to continue.</translation>
     </message>
     <message>
-        <source>There was an error generating your certificate.&lt;br /&gt;Please try again.</source>
-        <translation>生成证书时发生错误。&lt;br /&gt;请重试。</translation>
+      <source>There was an error generating your certificate.&lt;br /&gt;Please try again.</source>
+      <translation type="unfinished">There was an error generating your certificate.&lt;br /&gt;Please try again.</translation>
     </message>
     <message>
-        <source>Your certificate and key could not be exported to PKCS#12 format. There might be an error in your certificate.</source>
-        <translation>您的证书和密钥无法导出为 PKCS#12 格式。您的证书可能存在错误。</translation>
+      <source>Your certificate and key could not be exported to PKCS#12 format. There might be an error in your certificate.</source>
+      <translation type="unfinished">Your certificate and key could not be exported to PKCS#12 format. There might be an error in your certificate.</translation>
     </message>
     <message>
-        <source>The file could not be opened for writing. Please use another file.</source>
-        <translation>无法打开并写入文件。请选择其他文件。</translation>
+      <source>The file could not be opened for writing. Please use another file.</source>
+      <translation type="unfinished">The file could not be opened for writing. Please use another file.</translation>
     </message>
     <message>
-        <source>The file&apos;s permissions could not be set. No certificate and key has been written. Please use another file.</source>
-        <translation>无法设置文件权限。证书和密钥未被写入。请选择其他文件。</translation>
+      <source>The file&apos;s permissions could not be set. No certificate and key has been written. Please use another file.</source>
+      <translation type="unfinished">The file&apos;s permissions could not be set. No certificate and key has been written. Please use another file.</translation>
     </message>
     <message>
-        <source>The file could not be written successfully. Please use another file.</source>
-        <translation>无法成功写入文件。请选择其他文件。</translation>
+      <source>The file could not be written successfully. Please use another file.</source>
+      <translation type="unfinished">The file could not be written successfully. Please use another file.</translation>
     </message>
     <message>
-        <source>The file could not be opened for reading. Please use another file.</source>
-        <translation>无法打开并读取文件。请选择其他文件。</translation>
+      <source>The file could not be opened for reading. Please use another file.</source>
+      <translation type="unfinished">The file could not be opened for reading. Please use another file.</translation>
     </message>
     <message>
-        <source>The file is empty or could not be read. Please use another file.</source>
-        <translation>文件为空或不可读。请选择其他文件。</translation>
+      <source>The file is empty or could not be read. Please use another file.</source>
+      <translation type="unfinished">The file is empty or could not be read. Please use another file.</translation>
     </message>
     <message>
-        <source>The file did not contain a valid certificate and key. Please use another file.</source>
-        <translation>文件不包含有效的证书和密钥。请选择其他文件。</translation>
+      <source>The file did not contain a valid certificate and key. Please use another file.</source>
+      <translation type="unfinished">The file did not contain a valid certificate and key. Please use another file.</translation>
     </message>
     <message>
-        <source>Select file to export certificate to</source>
-        <translation>选择证书要导出到的文件</translation>
+      <source>Select file to export certificate to</source>
+      <translation type="unfinished">Select file to export certificate to</translation>
     </message>
     <message>
-        <source>Select file to import certificate from</source>
-        <translation>选择要导入的证书文件</translation>
+      <source>Select file to import certificate from</source>
+      <translation type="unfinished">Select file to import certificate from</translation>
     </message>
     <message>
-        <source>Unable to import. Missing password or incompatible file type.</source>
-        <translation>无法导入。密码错误或文件类型不受支持。</translation>
+      <source>Unable to import. Missing password or incompatible file type.</source>
+      <translation type="unfinished">Unable to import. Missing password or incompatible file type.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Certificate Expiry:&lt;/b&gt; Your certificate is about to expire. You need to renew it, or you will no longer be able to connect to servers you are registered on.</source>
-        <translation>&lt;b&gt;证书过期：&lt;/b&gt;您的证书已过期。您需要重新生成一个新的证书，否则将无法连接到注册过的服务器。</translation>
+      <source>&lt;b&gt;Certificate Expiry:&lt;/b&gt; Your certificate is about to expire. You need to renew it, or you will no longer be able to connect to servers you are registered on.</source>
+      <translation type="unfinished">&lt;b&gt;Certificate Expiry:&lt;/b&gt; Your certificate is about to expire. You need to renew it, or you will no longer be able to connect to servers you are registered on.</translation>
     </message>
     <message>
-        <source>Current certificate</source>
-        <translation>当前证书</translation>
+      <source>Current certificate</source>
+      <translation type="unfinished">Current certificate</translation>
     </message>
     <message>
-        <source>Certificate file to import</source>
-        <translation>要导入的证书文件</translation>
+      <source>Certificate file to import</source>
+      <translation type="unfinished">Certificate file to import</translation>
     </message>
     <message>
-        <source>Certificate password</source>
-        <translation>证书密码</translation>
+      <source>Certificate password</source>
+      <translation type="unfinished">Certificate password</translation>
     </message>
     <message>
-        <source>Certificate to import</source>
-        <translation>要导入的证书</translation>
+      <source>Certificate to import</source>
+      <translation type="unfinished">Certificate to import</translation>
     </message>
     <message>
-        <source>New certificate</source>
-        <translation>新证书</translation>
+      <source>New certificate</source>
+      <translation type="unfinished">New certificate</translation>
     </message>
     <message>
-        <source>File to export certificate to</source>
-        <translation>将证书导出至文件</translation>
+      <source>File to export certificate to</source>
+      <translation type="unfinished">File to export certificate to</translation>
     </message>
     <message>
-        <source>Email address</source>
-        <translation>电子邮件地址</translation>
+      <source>Email address</source>
+      <translation type="unfinished">Email address</translation>
     </message>
     <message>
-        <source>Your name</source>
-        <translation>您的姓名</translation>
+      <source>Your name</source>
+      <translation type="unfinished">Your name</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>Certificates</name>
     <message>
-        <source>Certificate Management</source>
-        <translation>证书管理</translation>
+      <source>Certificate Management</source>
+      <translation type="unfinished">Certificate Management</translation>
     </message>
     <message>
-        <source>Certificate Authentication</source>
-        <translation>证书认证</translation>
+      <source>Certificate Authentication</source>
+      <translation type="unfinished">Certificate Authentication</translation>
     </message>
     <message>
-        <source>Authenticating to servers without using passwords</source>
-        <translation>免密码登录服务器</translation>
+      <source>Authenticating to servers without using passwords</source>
+      <translation type="unfinished">Authenticating to servers without using passwords</translation>
     </message>
     <message>
-        <source>Current certificate</source>
-        <translation>当前证书</translation>
+      <source>Current certificate</source>
+      <translation type="unfinished">Current certificate</translation>
     </message>
     <message>
-        <source>This is the certificate Mumble currently uses.</source>
-        <translation>Mumble 当前正在使用的证书。</translation>
+      <source>This is the certificate Mumble currently uses.</source>
+      <translation type="unfinished">This is the certificate Mumble currently uses.</translation>
     </message>
     <message>
-        <source>Current Certificate</source>
-        <translation>当前证书</translation>
+      <source>Current Certificate</source>
+      <translation type="unfinished">Current Certificate</translation>
     </message>
     <message>
-        <source>Create a new certificate</source>
-        <translation>创建新证书</translation>
+      <source>Create a new certificate</source>
+      <translation type="unfinished">Create a new certificate</translation>
     </message>
     <message>
-        <source>This will create a new certificate.</source>
-        <translation>创建一个新的证书。</translation>
+      <source>This will create a new certificate.</source>
+      <translation type="unfinished">This will create a new certificate.</translation>
     </message>
     <message>
-        <source>Import certificate from file</source>
-        <translation>从文件导入证书</translation>
+      <source>Import certificate from file</source>
+      <translation type="unfinished">Import certificate from file</translation>
     </message>
     <message>
-        <source>This will import a certificate from file.</source>
-        <translation>从文件导入一个证书。</translation>
+      <source>This will import a certificate from file.</source>
+      <translation type="unfinished">This will import a certificate from file.</translation>
     </message>
     <message>
-        <source>Import a certificate</source>
-        <translation>导入证书</translation>
+      <source>Import a certificate</source>
+      <translation type="unfinished">Import a certificate</translation>
     </message>
     <message>
-        <source>Export Certificate</source>
-        <translation>导出证书</translation>
+      <source>Export Certificate</source>
+      <translation type="unfinished">Export Certificate</translation>
     </message>
     <message>
-        <source>This will export a certificate to file.</source>
-        <translation>导出一个证书到文件。</translation>
+      <source>This will export a certificate to file.</source>
+      <translation type="unfinished">This will export a certificate to file.</translation>
     </message>
     <message>
-        <source>Export current certificate</source>
-        <translation>导出当前证书</translation>
+      <source>Export current certificate</source>
+      <translation type="unfinished">Export current certificate</translation>
     </message>
     <message>
-        <source>Import Certificate</source>
-        <translation>导入证书</translation>
+      <source>Import Certificate</source>
+      <translation type="unfinished">Import Certificate</translation>
     </message>
     <message>
-        <source>PKCS #12 Certificate import</source>
-        <translation>导入 PKS #12 证书</translation>
+      <source>PKCS #12 Certificate import</source>
+      <translation type="unfinished">PKCS #12 Certificate import</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Mumble can import certificates stored in PKCS #12 format. This is the format used when exporting a key from Mumble, and also when exporting keys from Firefox, Internet Explorer, Opera etc.&lt;/p&gt;&lt;p&gt;If the file is password protected, you will need the password to import the certificate.&lt;/p&gt;</source>
-        <oldsource>&lt;p&gt;Mumble can import certificates stored in PKCS #12 format. This is the format used when exporting a key from Mumble, and also when exporting keys from FireFox, Internet Explorer, Opera etc.&lt;/p&gt;&lt;p&gt;If the file is password protected, you will need the password to import the certificate.&lt;/p&gt;</oldsource>
-        <translation>&lt;p&gt;Mumble 可以导入一个 PKCS #12 格式的证书。这种格式的证书不仅可以被 Mumble 导入，还可以由 Firefox、Internet Explorer、Opera 等浏览器导出。&lt;/p&gt;&lt;p&gt;如果文件是被密码保护的，您需要输入密码才能导入证书。&lt;/p&gt;</translation>
+      <source>&lt;p&gt;Mumble can import certificates stored in PKCS #12 format. This is the format used when exporting a key from Mumble, and also when exporting keys from Firefox, Internet Explorer, Opera etc.&lt;/p&gt;&lt;p&gt;If the file is password protected, you will need the password to import the certificate.&lt;/p&gt;</source>
+      <oldsource>&lt;p&gt;Mumble can import certificates stored in PKCS #12 format. This is the format used when exporting a key from Mumble, and also when exporting keys from FireFox, Internet Explorer, Opera etc.&lt;/p&gt;&lt;p&gt;If the file is password protected, you will need the password to import the certificate.&lt;/p&gt;</oldsource>
+      <translation type="unfinished">&lt;p&gt;Mumble can import certificates stored in PKCS #12 format. This is the format used when exporting a key from Mumble, and also when exporting keys from Firefox, Internet Explorer, Opera etc.&lt;/p&gt;&lt;p&gt;If the file is password protected, you will need the password to import the certificate.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Import from</source>
-        <translation>导入自</translation>
+      <source>Import from</source>
+      <translation type="unfinished">Import from</translation>
     </message>
     <message>
-        <source>Filename to import from</source>
-        <translation>导入证书的文件名</translation>
+      <source>Filename to import from</source>
+      <translation type="unfinished">Filename to import from</translation>
     </message>
     <message>
-        <source>This is the filename you wish to import a certificate from.</source>
-        <translation>您需要导入的证书文件名。</translation>
+      <source>This is the filename you wish to import a certificate from.</source>
+      <translation type="unfinished">This is the filename you wish to import a certificate from.</translation>
     </message>
     <message>
-        <source>Select file to import from</source>
-        <translation>选择需要导入的文件</translation>
+      <source>Select file to import from</source>
+      <translation type="unfinished">Select file to import from</translation>
     </message>
     <message>
-        <source>This opens a file selection dialog to choose a file to import a certificate from.</source>
-        <translation>打开一个对话框以选择需要导入的证书。</translation>
+      <source>This opens a file selection dialog to choose a file to import a certificate from.</source>
+      <translation type="unfinished">This opens a file selection dialog to choose a file to import a certificate from.</translation>
     </message>
     <message>
-        <source>Open...</source>
-        <translation>打开...</translation>
+      <source>Open...</source>
+      <translation type="unfinished">Open...</translation>
     </message>
     <message>
-        <source>Password</source>
-        <translation>密码</translation>
+      <source>Password</source>
+      <translation type="unfinished">Password</translation>
     </message>
     <message>
-        <source>Password for PKCS#12 file</source>
-        <translation>PKCS#12 证书文件的密码</translation>
+      <source>Password for PKCS#12 file</source>
+      <translation type="unfinished">Password for PKCS#12 file</translation>
     </message>
     <message>
-        <source>This is the password for the PKCS#12 file containing your certificate.</source>
-        <translation>包含证书的 PKCS#12 文件的密码。</translation>
+      <source>This is the password for the PKCS#12 file containing your certificate.</source>
+      <translation type="unfinished">This is the password for the PKCS#12 file containing your certificate.</translation>
     </message>
     <message>
-        <source>Certificate to import</source>
-        <translation>导入的证书</translation>
+      <source>Certificate to import</source>
+      <translation type="unfinished">Certificate to import</translation>
     </message>
     <message>
-        <source>This is the certificate you are importing.</source>
-        <translation>您要导入的证书。</translation>
+      <source>This is the certificate you are importing.</source>
+      <translation type="unfinished">This is the certificate you are importing.</translation>
     </message>
     <message>
-        <source>Certificate Details</source>
-        <translation>证书详情</translation>
+      <source>Certificate Details</source>
+      <translation type="unfinished">Certificate Details</translation>
     </message>
     <message>
-        <source>Replace Certificate</source>
-        <translation>替换证书</translation>
+      <source>Replace Certificate</source>
+      <translation type="unfinished">Replace Certificate</translation>
     </message>
     <message>
-        <source>Replace existing certificate with new certificate?</source>
-        <translation>用新证书替换已存在的证书？</translation>
+      <source>Replace existing certificate with new certificate?</source>
+      <translation type="unfinished">Replace existing certificate with new certificate?</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You already have a certificate stored in Mumble, and you are about to replace it.&lt;/p&gt;
+      <source>&lt;p&gt;You already have a certificate stored in Mumble, and you are about to replace it.&lt;/p&gt;
 &lt;p&gt;If you are upgrading to a certificate issued to you by a trusted CA and the email addresses match your current certificate, this is completely safe, and servers you connect to will automatically recognize the strong certificate for your email address.
 &lt;/p&gt;
-&lt;p&gt;If this is not the case, you will no longer be recognized by any server you previously have authenticated with. If you haven't been registered on any server yet, this is nothing to worry about.
+&lt;p&gt;If this is not the case, you will no longer be recognized by any server you previously have authenticated with. If you haven&apos;t been registered on any server yet, this is nothing to worry about.
 &lt;/p&gt;
 &lt;p&gt;
 Are you sure you wish to replace your certificate?
 &lt;/p&gt;
 </source>
-        <translation>&lt;p&gt;您已经在 Mumble 中保存了一个证书，并且您现在将要替换它。&lt;/p&gt;
-&lt;p&gt;如果您升级到一个由可信证书机构签发的证书，并且证书的使用的电子邮件符合您的当前证书，这是完全安全的，而且您连接到的服务器会根据您的电子邮件地址自动识别这个强证书。
+      <translation type="unfinished">&lt;p&gt;You already have a certificate stored in Mumble, and you are about to replace it.&lt;/p&gt;
+&lt;p&gt;If you are upgrading to a certificate issued to you by a trusted CA and the email addresses match your current certificate, this is completely safe, and servers you connect to will automatically recognize the strong certificate for your email address.
 &lt;/p&gt;
-&lt;p&gt;如果情况不是这样，您将不会被任何注册过的服务器认可。如果您尚未在任何服务器注册过，则没有任何影响。
+&lt;p&gt;If this is not the case, you will no longer be recognized by any server you previously have authenticated with. If you haven&apos;t been registered on any server yet, this is nothing to worry about.
 &lt;/p&gt;
 &lt;p&gt;
-确定要替换证书？
+Are you sure you wish to replace your certificate?
 &lt;/p&gt;
 </translation>
     </message>
     <message>
-        <source>This is the certificate Mumble currently uses. It will be replaced.</source>
-        <translation>Mumble 当前正在使用的证书。它将会被替换。</translation>
+      <source>This is the certificate Mumble currently uses. It will be replaced.</source>
+      <translation type="unfinished">This is the certificate Mumble currently uses. It will be replaced.</translation>
     </message>
     <message>
-        <source>New certificate</source>
-        <translation>新证书</translation>
+      <source>New certificate</source>
+      <translation type="unfinished">New certificate</translation>
     </message>
     <message>
-        <source>This is the new certificate that will replace the old one.</source>
-        <translation>用于替换当前证书的新证书。</translation>
+      <source>This is the new certificate that will replace the old one.</source>
+      <translation type="unfinished">This is the new certificate that will replace the old one.</translation>
     </message>
     <message>
-        <source>New Certificate</source>
-        <translation>新证书</translation>
+      <source>New Certificate</source>
+      <translation type="unfinished">New Certificate</translation>
     </message>
     <message>
-        <source>Make a backup of your certificate</source>
-        <translation>创建证书的备份</translation>
+      <source>Make a backup of your certificate</source>
+      <translation type="unfinished">Make a backup of your certificate</translation>
     </message>
     <message>
-        <source>Export to</source>
-        <translation>导出至</translation>
+      <source>Export to</source>
+      <translation type="unfinished">Export to</translation>
     </message>
     <message>
-        <source>Filename to export to</source>
-        <translation>导出证书的文件名</translation>
+      <source>Filename to export to</source>
+      <translation type="unfinished">Filename to export to</translation>
     </message>
     <message>
-        <source>This is the filename you wish to export a certificate to.</source>
-        <translation>您需要导出的证书文件名。</translation>
+      <source>This is the filename you wish to export a certificate to.</source>
+      <translation type="unfinished">This is the filename you wish to export a certificate to.</translation>
     </message>
     <message>
-        <source>Save As...</source>
-        <translation>保存为...</translation>
+      <source>Save As...</source>
+      <translation type="unfinished">Save As...</translation>
     </message>
     <message>
-        <source>This is the certificate Mumble currently uses. It will be exported.</source>
-        <translation>Mumble 当前正在使用的证书。它将会被导出。</translation>
+      <source>This is the certificate Mumble currently uses. It will be exported.</source>
+      <translation type="unfinished">This is the certificate Mumble currently uses. It will be exported.</translation>
     </message>
     <message>
-        <source>Generate a new certificate for strong authentication</source>
-        <translation>生成一个用于强认证的证书</translation>
+      <source>Generate a new certificate for strong authentication</source>
+      <translation type="unfinished">Generate a new certificate for strong authentication</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Mumble will now generate a strong certificate for authentication to servers.&lt;/p&gt;&lt;p&gt;If you wish, you may provide some additional information to be stored in the certificate, which will be presented to servers when you connect. If you provide a valid email address, you can upgrade to a CA issued email certificate later on, which provides strong identification.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Mumble 将会生成一个强证书用于服务器认证。&lt;/p&gt;&lt;p&gt;您可以提供一些额外的信息，这些信息将写在证书内，并向您连接的服务器呈现。如果您提供了一个有效的电子邮件地址，就可以随时升级到由证书机构签发的电子邮件证书，可以提供更强的身份认证。&lt;/p&gt;</translation>
+      <source>&lt;p&gt;Mumble will now generate a strong certificate for authentication to servers.&lt;/p&gt;&lt;p&gt;If you wish, you may provide some additional information to be stored in the certificate, which will be presented to servers when you connect. If you provide a valid email address, you can upgrade to a CA issued email certificate later on, which provides strong identification.&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;Mumble will now generate a strong certificate for authentication to servers.&lt;/p&gt;&lt;p&gt;If you wish, you may provide some additional information to be stored in the certificate, which will be presented to servers when you connect. If you provide a valid email address, you can upgrade to a CA issued email certificate later on, which provides strong identification.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Name</source>
-        <translation>姓名</translation>
+      <source>Name</source>
+      <translation type="unfinished">Name</translation>
     </message>
     <message>
-        <source>Email</source>
-        <translation>电子邮件</translation>
+      <source>Email</source>
+      <translation type="unfinished">Email</translation>
     </message>
     <message>
-        <source>Your email address (e.g. johndoe@mumble.info)</source>
-        <translation>您的电子邮件地址（例如 johndoe@mumble.info）</translation>
+      <source>Your email address (e.g. johndoe@mumble.info)</source>
+      <translation type="unfinished">Your email address (e.g. johndoe@mumble.info)</translation>
     </message>
     <message>
-        <source>This is your email address. It is strongly recommended to provide a valid email address, as this will allow you to upgrade to a strong certificate without authentication problems.</source>
-        <translation>您的电子邮件地址。强烈推荐使用有效的邮件地址，否则可能会在升级强认证的时候遇到问题。</translation>
+      <source>This is your email address. It is strongly recommended to provide a valid email address, as this will allow you to upgrade to a strong certificate without authentication problems.</source>
+      <translation type="unfinished">This is your email address. It is strongly recommended to provide a valid email address, as this will allow you to upgrade to a strong certificate without authentication problems.</translation>
     </message>
     <message>
-        <source>Your name (e.g. John Doe)</source>
-        <translation>您的姓名（例如 John Doe）</translation>
+      <source>Your name (e.g. John Doe)</source>
+      <translation type="unfinished">Your name (e.g. John Doe)</translation>
     </message>
     <message>
-        <source>This is your name, and will be filled out in the certificate. This field is entirely optional.</source>
-        <translation>您希望填写到证书里的名称。这完全是可选的。</translation>
+      <source>This is your name, and will be filled out in the certificate. This field is entirely optional.</source>
+      <translation type="unfinished">This is your name, and will be filled out in the certificate. This field is entirely optional.</translation>
     </message>
     <message>
-        <source>Finish</source>
-        <translation>完成</translation>
+      <source>Finish</source>
+      <translation type="unfinished">Finish</translation>
     </message>
     <message>
-        <source>Certificate-based authentication is ready for use</source>
-        <translation>证书认证已可用</translation>
+      <source>Certificate-based authentication is ready for use</source>
+      <translation type="unfinished">Certificate-based authentication is ready for use</translation>
     </message>
     <message>
-        <source>Enjoy using Mumble with strong authentication.</source>
-        <translation>享受 Mumble 的强认证功能。</translation>
+      <source>Enjoy using Mumble with strong authentication.</source>
+      <translation type="unfinished">Enjoy using Mumble with strong authentication.</translation>
     </message>
     <message>
-        <source>Automatic certificate creation</source>
-        <translation>自动证书创建</translation>
+      <source>Automatic certificate creation</source>
+      <translation type="unfinished">Automatic certificate creation</translation>
     </message>
     <message>
-        <source>&lt;p&gt;If you ever lose your current certificate, which will happen if your computer suffers a hardware failure or you reinstall your machine, you will no longer be able to authenticate to any server you are registered on. It is therefore &lt;b&gt;mandatory&lt;/b&gt; that you make a backup of your certificate. We strongly recommend you store this backup on removable storage, such as a USB flash drive.&lt;/p&gt;
+      <source>&lt;p&gt;If you ever lose your current certificate, which will happen if your computer suffers a hardware failure or you reinstall your machine, you will no longer be able to authenticate to any server you are registered on. It is therefore &lt;b&gt;mandatory&lt;/b&gt; that you make a backup of your certificate. We strongly recommend you store this backup on removable storage, such as a USB flash drive.&lt;/p&gt;
 &lt;p&gt;Note that this file will not be encrypted, and if anyone gains access to it, they will be able to impersonate you, so take good care of it.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;如果您丢失了当前证书，例如计算机硬件发送故障或者重新安装了操作系统，您将无法通过已注册服务器的身份认证。因此需要&lt;b&gt;强制&lt;/b&gt;备份证书文件。我们强烈建议您将此备份存储到可移动设备中，例如 U 盘。&lt;/p&gt;
-&lt;p&gt;注意：这个文件是未加密的，如果其他人获得此文件，他们将可以冒充您，所以请小心保管。&lt;/p&gt;</translation>
+      <translation type="unfinished">&lt;p&gt;If you ever lose your current certificate, which will happen if your computer suffers a hardware failure or you reinstall your machine, you will no longer be able to authenticate to any server you are registered on. It is therefore &lt;b&gt;mandatory&lt;/b&gt; that you make a backup of your certificate. We strongly recommend you store this backup on removable storage, such as a USB flash drive.&lt;/p&gt;
+&lt;p&gt;Note that this file will not be encrypted, and if anyone gains access to it, they will be able to impersonate you, so take good care of it.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Mumble can use certificates to authenticate with servers. Using certificates avoids passwords, meaning you don&apos;t need to disclose any password to the remote site. It also enables very easy user registration and a client side friends list independent of servers.&lt;/p&gt;&lt;p&gt;While Mumble can work without certificates, the majority of servers will expect you to have one.&lt;/p&gt;&lt;p&gt;Creating a new certificate automatically is sufficient for most use cases. But Mumble also supports certificates representing trust in the users ownership of an email address. These certificates are issued by third parties. For more information see our &lt;a href=&quot;http://mumble.info/certificate.php&quot;&gt;user certificate documentation&lt;/a&gt;. &lt;/p&gt;</source>
-        <translation>&lt;p&gt;Mumble 可以使用证书来登录服务器。使用证书代替密码来登陆，意味着您无需向远程站点透露密码。这让注册过程更加简单，并且您可以在客户端管理独立于服务端的好友列表。&lt;/p&gt;&lt;p&gt;尽管证书对于 Mumble 不是必须的，但大部分服务器仍然希望您拥有一个证书。&lt;/p&gt;&lt;p&gt;一般来说，直接创建一个新证书即可，但 Mumble 也支持认证由第三方签发的、证明用户电子邮件地址所有权的证书。要获取更多信息，可以查看我们的&lt;a href=&quot;http://mumble.info/certificate.php&quot;&gt;用户证书文档&lt;/a&gt;。&lt;/p&gt;</translation>
+      <source>&lt;p&gt;Mumble can use certificates to authenticate with servers. Using certificates avoids passwords, meaning you don&apos;t need to disclose any password to the remote site. It also enables very easy user registration and a client side friends list independent of servers.&lt;/p&gt;&lt;p&gt;While Mumble can work without certificates, the majority of servers will expect you to have one.&lt;/p&gt;&lt;p&gt;Creating a new certificate automatically is sufficient for most use cases. But Mumble also supports certificates representing trust in the users ownership of an email address. These certificates are issued by third parties. For more information see our &lt;a href=&quot;http://mumble.info/certificate.php&quot;&gt;user certificate documentation&lt;/a&gt;. &lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;Mumble can use certificates to authenticate with servers. Using certificates avoids passwords, meaning you don&apos;t need to disclose any password to the remote site. It also enables very easy user registration and a client side friends list independent of servers.&lt;/p&gt;&lt;p&gt;While Mumble can work without certificates, the majority of servers will expect you to have one.&lt;/p&gt;&lt;p&gt;Creating a new certificate automatically is sufficient for most use cases. But Mumble also supports certificates representing trust in the users ownership of an email address. These certificates are issued by third parties. For more information see our &lt;a href=&quot;http://mumble.info/certificate.php&quot;&gt;user certificate documentation&lt;/a&gt;. &lt;/p&gt;</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ChanACL</name>
     <message>
-        <source>None</source>
-        <translation>无</translation>
+      <source>None</source>
+      <translation type="unfinished">None</translation>
     </message>
     <message>
-        <source>Traverse</source>
-        <translation>通过</translation>
+      <source>Traverse</source>
+      <translation type="unfinished">Traverse</translation>
     </message>
     <message>
-        <source>Enter</source>
-        <translation>进入</translation>
+      <source>Enter</source>
+      <translation type="unfinished">Enter</translation>
     </message>
     <message>
-        <source>Speak</source>
-        <translation>说话</translation>
+      <source>Speak</source>
+      <translation type="unfinished">Speak</translation>
     </message>
     <message>
-        <source>Mute/Deafen</source>
-        <translation>禁言/禁听</translation>
+      <source>Mute/Deafen</source>
+      <translation type="unfinished">Mute/Deafen</translation>
     </message>
     <message>
-        <source>Make channel</source>
-        <translation>创建频道</translation>
+      <source>Make channel</source>
+      <translation type="unfinished">Make channel</translation>
     </message>
     <message>
-        <source>Make temporary</source>
-        <translation>创建临时频道</translation>
+      <source>Make temporary</source>
+      <translation type="unfinished">Make temporary</translation>
     </message>
     <message>
-        <source>Link channel</source>
-        <translation>链接频道</translation>
+      <source>Link channel</source>
+      <translation type="unfinished">Link channel</translation>
     </message>
     <message>
-        <source>This represents no privileges.</source>
-        <translation>表示没有任何权限。</translation>
+      <source>This represents no privileges.</source>
+      <translation type="unfinished">This represents no privileges.</translation>
     </message>
     <message>
-        <source>This represents total access to the channel, including the ability to change group and ACL information. This privilege implies all other privileges.</source>
-        <translation>允许完全控制频道，包括改变分组和 ACL 信息。此权限包含了所有其他权限。</translation>
+      <source>This represents total access to the channel, including the ability to change group and ACL information. This privilege implies all other privileges.</source>
+      <translation type="unfinished">This represents total access to the channel, including the ability to change group and ACL information. This privilege implies all other privileges.</translation>
     </message>
     <message>
-        <source>This represents the permission to traverse the channel. If a user is denied this privilege, he will be unable to access this channel and any sub-channels in any way, regardless of other permissions in the sub-channels.</source>
-        <translation>允许通过频道。如果用户不具有此权限，他将无法进入此频道和所有子频道，即使他拥有子频道的其他权限。</translation>
+      <source>This represents the permission to traverse the channel. If a user is denied this privilege, he will be unable to access this channel and any sub-channels in any way, regardless of other permissions in the sub-channels.</source>
+      <translation type="unfinished">This represents the permission to traverse the channel. If a user is denied this privilege, he will be unable to access this channel and any sub-channels in any way, regardless of other permissions in the sub-channels.</translation>
     </message>
     <message>
-        <source>This represents the permission to join the channel. If you have a hierarchical channel structure, you might want to give everyone Traverse, but restrict Enter in the root of your hierarchy.</source>
-        <translation>允许进入频道。如果您设定了分级频道结构，则可能需要授予所有人通过权限，但限制根频道的进入权限。</translation>
+      <source>This represents the permission to join the channel. If you have a hierarchical channel structure, you might want to give everyone Traverse, but restrict Enter in the root of your hierarchy.</source>
+      <translation type="unfinished">This represents the permission to join the channel. If you have a hierarchical channel structure, you might want to give everyone Traverse, but restrict Enter in the root of your hierarchy.</translation>
     </message>
     <message>
-        <source>This represents the permission to speak in a channel. Users without this privilege will be suppressed by the server (seen as muted), and will be unable to speak until they are unmuted by someone with the appropriate privileges.</source>
-        <translation>允许在频道内说话。用户如果没有此权限，将会在此频道内被服务器禁言（关闭麦克风），直到被具有相关权限的人解除禁言。</translation>
+      <source>This represents the permission to speak in a channel. Users without this privilege will be suppressed by the server (seen as muted), and will be unable to speak until they are unmuted by someone with the appropriate privileges.</source>
+      <translation type="unfinished">This represents the permission to speak in a channel. Users without this privilege will be suppressed by the server (seen as muted), and will be unable to speak until they are unmuted by someone with the appropriate privileges.</translation>
     </message>
     <message>
-        <source>This represents the permission to whisper to this channel from the outside. This works exactly like the &lt;i&gt;speak&lt;/i&gt; privilege, but applies to packets spoken with the Whisper key held down. This may be used to broadcast to a hierarchy of channels without linking.</source>
-        <translation>允许在频道外时对此频道发送密语。与&lt;i&gt;说话&lt;/i&gt;权限类似。但仅当用户按下密语键时才有效。此功能可以在不链接频道的情况下向多级频道广播内容。</translation>
+      <source>This represents the permission to whisper to this channel from the outside. This works exactly like the &lt;i&gt;speak&lt;/i&gt; privilege, but applies to packets spoken with the Whisper key held down. This may be used to broadcast to a hierarchy of channels without linking.</source>
+      <translation type="unfinished">This represents the permission to whisper to this channel from the outside. This works exactly like the &lt;i&gt;speak&lt;/i&gt; privilege, but applies to packets spoken with the Whisper key held down. This may be used to broadcast to a hierarchy of channels without linking.</translation>
     </message>
     <message>
-        <source>This represents the permission to mute and deafen other users. Once muted, a user will stay muted until he is unmuted by another privileged user or reconnects to the server.</source>
-        <translation>允许关闭其他用户的麦克风（禁言）和扬声器（禁听）。一旦被禁言，用户将一直处于麦克风关闭状态，直到被其他拥有权限的用户解除或者重新连接服务器。</translation>
+      <source>This represents the permission to mute and deafen other users. Once muted, a user will stay muted until he is unmuted by another privileged user or reconnects to the server.</source>
+      <translation type="unfinished">This represents the permission to mute and deafen other users. Once muted, a user will stay muted until he is unmuted by another privileged user or reconnects to the server.</translation>
     </message>
     <message>
-        <source>This represents the permission to move a user to another channel or kick him from the server. To actually move the user, either the moving user must have Move privileges in the destination channel, or the user must normally be allowed to enter the channel. Users with this privilege can move users into channels the target user normally wouldn&apos;t have permission to enter.</source>
-        <translation>允许将用户移动到另一个频道或者将其踢出服务器。对于移动操作，需要移动者拥有目标频道的移动权限，或者被移动者拥有进入目标频道的权限。拥有此权限的用户可以将没有进入某个频道权限的用户移动到该频道。</translation>
+      <source>This represents the permission to move a user to another channel or kick him from the server. To actually move the user, either the moving user must have Move privileges in the destination channel, or the user must normally be allowed to enter the channel. Users with this privilege can move users into channels the target user normally wouldn&apos;t have permission to enter.</source>
+      <translation type="unfinished">This represents the permission to move a user to another channel or kick him from the server. To actually move the user, either the moving user must have Move privileges in the destination channel, or the user must normally be allowed to enter the channel. Users with this privilege can move users into channels the target user normally wouldn&apos;t have permission to enter.</translation>
     </message>
     <message>
-        <source>This represents the permission to make sub-channels. The user making the sub-channel will be added to the admin group of the sub-channel.</source>
-        <translation>允许创建子频道。用户可以创建一个子频道并被加入子频道的 admin（管理员）组。</translation>
+      <source>This represents the permission to make sub-channels. The user making the sub-channel will be added to the admin group of the sub-channel.</source>
+      <translation type="unfinished">This represents the permission to make sub-channels. The user making the sub-channel will be added to the admin group of the sub-channel.</translation>
     </message>
     <message>
-        <source>This represents the permission to make a temporary subchannel. The user making the sub-channel will be added to the admin group of the sub-channel. Temporary channels are not stored and disappear when the last user leaves.</source>
-        <translation>允许创建临时子频道。用户可以创建一个临时子频道并被加入其 admin（管理员）组。临时频道不会一直存在，在最后一名用户离开后，临时频道就会消失。</translation>
+      <source>This represents the permission to make a temporary subchannel. The user making the sub-channel will be added to the admin group of the sub-channel. Temporary channels are not stored and disappear when the last user leaves.</source>
+      <translation type="unfinished">This represents the permission to make a temporary subchannel. The user making the sub-channel will be added to the admin group of the sub-channel. Temporary channels are not stored and disappear when the last user leaves.</translation>
     </message>
     <message>
-        <source>This represents the permission to link channels. Users in linked channels hear each other, as long as the speaking user has the &lt;i&gt;speak&lt;/i&gt; privilege in the channel of the listener. You need the link privilege in both channels to create a link, but just in either channel to remove it.</source>
-        <translation>允许链接频道。只要说话的用户拥有对应频道的说话权限，被链接的频道内的用户就可以听到彼此的说话。您需要同时拥有两个频道的链接权限才能创建频道链接，但是只要拥有其中一个频道的链接权限就能删除此链接。</translation>
+      <source>This represents the permission to link channels. Users in linked channels hear each other, as long as the speaking user has the &lt;i&gt;speak&lt;/i&gt; privilege in the channel of the listener. You need the link privilege in both channels to create a link, but just in either channel to remove it.</source>
+      <translation type="unfinished">This represents the permission to link channels. Users in linked channels hear each other, as long as the speaking user has the &lt;i&gt;speak&lt;/i&gt; privilege in the channel of the listener. You need the link privilege in both channels to create a link, but just in either channel to remove it.</translation>
     </message>
     <message>
-        <source>This represents the permission to write text messages to other users in this channel.</source>
-        <translation>允许在频道内发送文字消息给其他用户。</translation>
+      <source>This represents the permission to write text messages to other users in this channel.</source>
+      <translation type="unfinished">This represents the permission to write text messages to other users in this channel.</translation>
     </message>
     <message>
-        <source>This represents the permission to forcibly remove users from the server.</source>
-        <translation>允许强制用户离开服务器。</translation>
+      <source>This represents the permission to forcibly remove users from the server.</source>
+      <translation type="unfinished">This represents the permission to forcibly remove users from the server.</translation>
     </message>
     <message>
-        <source>This represents the permission to permanently remove users from the server.</source>
-        <translation>允许永久阻止用户进入服务器。</translation>
+      <source>This represents the permission to permanently remove users from the server.</source>
+      <translation type="unfinished">This represents the permission to permanently remove users from the server.</translation>
     </message>
     <message>
-        <source>This represents the permission to register and unregister users on the server.</source>
-        <translation>允许在服务器上为其他用户注册和取消注册。</translation>
+      <source>This represents the permission to register and unregister users on the server.</source>
+      <translation type="unfinished">This represents the permission to register and unregister users on the server.</translation>
     </message>
     <message>
-        <source>This represents the permission to register oneself on the server.</source>
-        <translation>允许用户在服务器上注册自己。</translation>
+      <source>This represents the permission to register oneself on the server.</source>
+      <translation type="unfinished">This represents the permission to register oneself on the server.</translation>
     </message>
     <message>
-        <source>Whisper</source>
-        <translation>密语</translation>
+      <source>Whisper</source>
+      <translation type="unfinished">Whisper</translation>
     </message>
     <message>
-        <source>Move</source>
-        <translation>移动用户</translation>
+      <source>Move</source>
+      <translation type="unfinished">Move</translation>
     </message>
     <message>
-        <source>Text message</source>
-        <translation>文字消息</translation>
+      <source>Text message</source>
+      <translation type="unfinished">Text message</translation>
     </message>
     <message>
-        <source>Kick</source>
-        <translation>踢出用户</translation>
+      <source>Kick</source>
+      <translation type="unfinished">Kick</translation>
     </message>
     <message>
-        <source>Ban</source>
-        <translation>封禁用户</translation>
+      <source>Ban</source>
+      <translation type="unfinished">Ban</translation>
     </message>
     <message>
-        <source>Register User</source>
-        <translation>注册用户</translation>
+      <source>Register User</source>
+      <translation type="unfinished">Register User</translation>
     </message>
     <message>
-        <source>Register Self</source>
-        <translation>注册自己</translation>
+      <source>Register Self</source>
+      <translation type="unfinished">Register Self</translation>
     </message>
     <message>
-        <source>Write ACL</source>
-        <translation>编辑 ACL</translation>
+      <source>Write ACL</source>
+      <translation type="unfinished">Write ACL</translation>
     </message>
     <message>
-        <source>This represents the permission to use the listen-feature allowing to listen to a channel without being in it.</source>
-        <translation>允许用户在频道之外监听此频道。</translation>
+      <source>This represents the permission to use the listen-feature allowing to listen to a channel without being in it.</source>
+      <translation type="unfinished">This represents the permission to use the listen-feature allowing to listen to a channel without being in it.</translation>
     </message>
     <message>
-        <source>Listen</source>
-        <translation>监听</translation>
+      <source>Listen</source>
+      <translation type="unfinished">Listen</translation>
     </message>
     <message>
-        <source>This represents the permission to reset the comment or avatar of a user.</source>
-        <translation>允许用户重置其他用户的简介或头像。</translation>
+      <source>This represents the permission to reset the comment or avatar of a user.</source>
+      <translation type="unfinished">This represents the permission to reset the comment or avatar of a user.</translation>
     </message>
     <message>
-        <source>Reset User Content</source>
-        <translation>重置用户信息</translation>
+      <source>Reset User Content</source>
+      <translation type="unfinished">Reset User Content</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ChatbarTextEdit</name>
     <message>
-        <source>Paste and &amp;Send</source>
-        <oldsource>Paste and send</oldsource>
-        <translation>粘贴并发送(&amp;S)</translation>
+      <source>Paste and &amp;Send</source>
+      <oldsource>Paste and send</oldsource>
+      <translation type="unfinished">Paste and &amp;Send</translation>
     </message>
     <message>
-        <source>&lt;center&gt;Type chat message here&lt;/center&gt;</source>
-        <translation>&lt;center&gt;在这里输入聊天消息&lt;/center&gt;</translation>
+      <source>&lt;center&gt;Type chat message here&lt;/center&gt;</source>
+      <translation type="unfinished">&lt;center&gt;Type chat message here&lt;/center&gt;</translation>
     </message>
     <message>
-        <source>Unable to send image: too large.</source>
-        <translation>无法发送图片：图片过大。</translation>
+      <source>Unable to send image: too large.</source>
+      <translation type="unfinished">Unable to send image: too large.</translation>
     </message>
     <message>
-        <source>Unable to send image %1: too large.</source>
-        <translation>无法发送图片 %1：图片过大。</translation>
+      <source>Unable to send image %1: too large.</source>
+      <translation type="unfinished">Unable to send image %1: too large.</translation>
     </message>
-</context>
-<context>
+    <message>
+      <source>This server does not allow sending images.</source>
+      <translation type="unfinished">This server does not allow sending images.</translation>
+    </message>
+  </context>
+  <context>
     <name>ClientUser</name>
     <message>
-        <source>Friend</source>
-        <translation>好友</translation>
+      <source>Friend</source>
+      <translation type="unfinished">Friend</translation>
     </message>
     <message>
-        <source>Authenticated</source>
-        <translation>已认证</translation>
+      <source>Authenticated</source>
+      <translation type="unfinished">Authenticated</translation>
     </message>
     <message>
-        <source>Priority speaker</source>
-        <translation>优先发言人</translation>
+      <source>Priority speaker</source>
+      <translation type="unfinished">Priority speaker</translation>
     </message>
     <message>
-        <source>Recording</source>
-        <translation>正在录音</translation>
+      <source>Recording</source>
+      <translation type="unfinished">Recording</translation>
     </message>
     <message>
-        <source>Muted (server)</source>
-        <translation>麦克风关闭（禁言）</translation>
+      <source>Muted (server)</source>
+      <translation type="unfinished">Muted (server)</translation>
     </message>
     <message>
-        <source>Deafened (server)</source>
-        <translation>扬声器关闭（禁听）</translation>
+      <source>Deafened (server)</source>
+      <translation type="unfinished">Deafened (server)</translation>
     </message>
     <message>
-        <source>Local Ignore (Text messages)</source>
-        <translation>本地屏蔽（文字消息）</translation>
+      <source>Local Ignore (Text messages)</source>
+      <translation type="unfinished">Local Ignore (Text messages)</translation>
     </message>
     <message>
-        <source>Local Mute</source>
-        <translation>本地屏蔽（语音）</translation>
+      <source>Local Mute</source>
+      <translation type="unfinished">Local Mute</translation>
     </message>
     <message>
-        <source>Muted (self)</source>
-        <translation>麦克风关闭（自己）</translation>
+      <source>Muted (self)</source>
+      <translation type="unfinished">Muted (self)</translation>
     </message>
     <message>
-        <source>Deafened (self)</source>
-        <translation>扬声器关闭（自己）</translation>
+      <source>Deafened (self)</source>
+      <translation type="unfinished">Deafened (self)</translation>
     </message>
     <message>
-        <source>Local Ignore (Text-To-Speech)</source>
-        <translation>本地屏蔽（语音播报）</translation>
+      <source>Local Ignore (Text-To-Speech)</source>
+      <translation type="unfinished">Local Ignore (Text-To-Speech)</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ConfigDialog</name>
     <message>
-        <source>Accept changes</source>
-        <translation>接受修改</translation>
+      <source>Accept changes</source>
+      <translation type="unfinished">Accept changes</translation>
     </message>
     <message>
-        <source>This button will accept current settings and return to the application.&lt;br /&gt;The settings will be stored to disk when you leave the application.</source>
-        <translation>接受当前的设置并返回应用程序。&lt;br /&gt;在您退出应用时，这些设置将被保存到硬盘。</translation>
+      <source>This button will accept current settings and return to the application.&lt;br /&gt;The settings will be stored to disk when you leave the application.</source>
+      <translation type="unfinished">This button will accept current settings and return to the application.&lt;br /&gt;The settings will be stored to disk when you leave the application.</translation>
     </message>
     <message>
-        <source>Reject changes</source>
-        <translation>拒绝修改</translation>
+      <source>Reject changes</source>
+      <translation type="unfinished">Reject changes</translation>
     </message>
     <message>
-        <source>This button will reject all changes and return to the application.&lt;br /&gt;The settings will be reset to the previous positions.</source>
-        <translation>拒绝所有的修改并返回应用程序。&lt;br /&gt;设置将被重置为上一个状态。</translation>
+      <source>This button will reject all changes and return to the application.&lt;br /&gt;The settings will be reset to the previous positions.</source>
+      <translation type="unfinished">This button will reject all changes and return to the application.&lt;br /&gt;The settings will be reset to the previous positions.</translation>
     </message>
     <message>
-        <source>Apply changes</source>
-        <translation>应用修改</translation>
+      <source>Apply changes</source>
+      <translation type="unfinished">Apply changes</translation>
     </message>
     <message>
-        <source>This button will immediately apply all changes.</source>
-        <translation>立即应用所有的修改。</translation>
+      <source>This button will immediately apply all changes.</source>
+      <translation type="unfinished">This button will immediately apply all changes.</translation>
     </message>
     <message>
-        <source>Undo changes for current page</source>
-        <translation>撤销此页面的修改</translation>
+      <source>Undo changes for current page</source>
+      <translation type="unfinished">Undo changes for current page</translation>
     </message>
     <message>
-        <source>This button will revert any changes done on the current page to the most recent applied settings.</source>
-        <translation>撤销您在此页面上的所有修改。</translation>
+      <source>This button will revert any changes done on the current page to the most recent applied settings.</source>
+      <translation type="unfinished">This button will revert any changes done on the current page to the most recent applied settings.</translation>
     </message>
     <message>
-        <source>Restore defaults for current page</source>
-        <translation>恢复此页面为默认值</translation>
+      <source>Restore defaults for current page</source>
+      <translation type="unfinished">Restore defaults for current page</translation>
     </message>
     <message>
-        <source>Mumble Configuration</source>
-        <translation>Mumble 配置</translation>
+      <source>Mumble Configuration</source>
+      <translation type="unfinished">Mumble Configuration</translation>
     </message>
     <message>
-        <source>Configuration categories</source>
-        <translation>配置分类</translation>
+      <source>Configuration categories</source>
+      <translation type="unfinished">Configuration categories</translation>
     </message>
     <message>
-        <source>This button will restore the defaults for the settings on the current page. Other pages will not be changed.&lt;br /&gt;To restore all settings to their defaults, you can press the &quot;Defaults (All)&quot; button.</source>
-        <translation>恢复此页面上的所有设置为默认值。其他页面不会被修改。&lt;br /&gt;要将所有设置恢复为默认，您可以点击“恢复所有为默认值”按钮。</translation>
+      <source>This button will restore the defaults for the settings on the current page. Other pages will not be changed.&lt;br /&gt;To restore all settings to their defaults, you can press the &quot;Defaults (All)&quot; button.</source>
+      <translation type="unfinished">This button will restore the defaults for the settings on the current page. Other pages will not be changed.&lt;br /&gt;To restore all settings to their defaults, you can press the &quot;Defaults (All)&quot; button.</translation>
     </message>
     <message>
-        <source>Restore all defaults</source>
-        <translation>恢复所有为默认值</translation>
+      <source>Restore all defaults</source>
+      <translation type="unfinished">Restore all defaults</translation>
     </message>
     <message>
-        <source>This button will restore the defaults for all settings.</source>
-        <translation>将所有设置恢复为默认值。</translation>
+      <source>This button will restore the defaults for all settings.</source>
+      <translation type="unfinished">This button will restore the defaults for all settings.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ConnectDialog</name>
     <message>
-        <source>Connecting to %1</source>
-        <translation>正在连接 %1</translation>
+      <source>Connecting to %1</source>
+      <translation type="unfinished">Connecting to %1</translation>
     </message>
     <message>
-        <source>Enter username</source>
-        <translation>输入用户名</translation>
+      <source>Enter username</source>
+      <translation type="unfinished">Enter username</translation>
     </message>
     <message>
-        <source>Adding host %1</source>
-        <translation>添加主机 %1</translation>
+      <source>Adding host %1</source>
+      <translation type="unfinished">Adding host %1</translation>
     </message>
     <message>
-        <source>Servername</source>
-        <translation>服务器名</translation>
+      <source>Servername</source>
+      <translation type="unfinished">Servername</translation>
     </message>
     <message>
-        <source>Hostname</source>
-        <translation>主机名</translation>
+      <source>Hostname</source>
+      <translation type="unfinished">Hostname</translation>
     </message>
     <message>
-        <source>Bonjour name</source>
-        <translation>Bonjour 名称</translation>
+      <source>Bonjour name</source>
+      <translation type="unfinished">Bonjour name</translation>
     </message>
     <message>
-        <source>Port</source>
-        <translation>端口</translation>
+      <source>Port</source>
+      <translation type="unfinished">Port</translation>
     </message>
     <message>
-        <source>Addresses</source>
-        <translation>地址</translation>
+      <source>Addresses</source>
+      <translation type="unfinished">Addresses</translation>
     </message>
     <message>
-        <source>Website</source>
-        <translation>网页</translation>
+      <source>Website</source>
+      <translation type="unfinished">Website</translation>
     </message>
     <message>
-        <source>Packet loss</source>
-        <translation>丢包</translation>
+      <source>Packet loss</source>
+      <translation type="unfinished">Packet loss</translation>
     </message>
     <message>
-        <source>Ping (80%)</source>
-        <translation>Ping（80%）</translation>
+      <source>Ping (80%)</source>
+      <translation type="unfinished">Ping (80%)</translation>
     </message>
     <message>
-        <source>%1 ms</source>
-        <translation>%1 毫秒</translation>
+      <source>%1 ms</source>
+      <translation type="unfinished">%1 ms</translation>
     </message>
     <message>
-        <source>Ping (95%)</source>
-        <translation>Ping（95%）</translation>
+      <source>Ping (95%)</source>
+      <translation type="unfinished">Ping (95%)</translation>
     </message>
     <message>
-        <source>Bandwidth</source>
-        <translation>带宽</translation>
+      <source>Bandwidth</source>
+      <translation type="unfinished">Bandwidth</translation>
     </message>
     <message>
-        <source>%1 kbit/s</source>
-        <translation>%1 千比特/秒</translation>
+      <source>%1 kbit/s</source>
+      <translation type="unfinished">%1 kbit/s</translation>
     </message>
     <message>
-        <source>&amp;Connect</source>
-        <translation>连接(&amp;C)</translation>
+      <source>&amp;Connect</source>
+      <translation type="unfinished">&amp;Connect</translation>
     </message>
     <message>
-        <source>Unknown</source>
-        <translation>未知</translation>
+      <source>Unknown</source>
+      <translation type="unfinished">Unknown</translation>
     </message>
     <message>
-        <source>Users</source>
-        <translation>用户数</translation>
+      <source>Users</source>
+      <translation type="unfinished">Users</translation>
     </message>
     <message>
-        <source>Version</source>
-        <translation>版本</translation>
+      <source>Version</source>
+      <translation type="unfinished">Version</translation>
     </message>
     <message>
-        <source>Failed to fetch server list</source>
-        <translation>获取服务器列表失败</translation>
+      <source>Failed to fetch server list</source>
+      <translation type="unfinished">Failed to fetch server list</translation>
     </message>
     <message>
-        <source>Mumble Server Connect</source>
-        <translation>Mumble 服务器连接</translation>
+      <source>Mumble Server Connect</source>
+      <translation type="unfinished">Mumble Server Connect</translation>
     </message>
     <message>
-        <source>Ping</source>
-        <translation>延迟</translation>
+      <source>Ping</source>
+      <translation type="unfinished">Ping</translation>
     </message>
     <message>
-        <source>Remove from Favorites</source>
-        <translation>从收藏夹中删除</translation>
+      <source>Remove from Favorites</source>
+      <translation type="unfinished">Remove from Favorites</translation>
     </message>
     <message>
-        <source>Add custom server</source>
-        <translation>添加自定义服务器</translation>
+      <source>Add custom server</source>
+      <translation type="unfinished">Add custom server</translation>
     </message>
     <message>
-        <source>&amp;Copy</source>
-        <translation>复制(&amp;C)</translation>
+      <source>&amp;Copy</source>
+      <translation type="unfinished">&amp;Copy</translation>
     </message>
     <message>
-        <source>Copy favorite link to clipboard</source>
-        <translation>复制收藏夹链接到剪贴板</translation>
+      <source>Copy favorite link to clipboard</source>
+      <translation type="unfinished">Copy favorite link to clipboard</translation>
     </message>
     <message>
-        <source>&amp;Paste</source>
-        <translation>粘贴(&amp;P)</translation>
+      <source>&amp;Paste</source>
+      <translation type="unfinished">&amp;Paste</translation>
     </message>
     <message>
-        <source>Paste favorite from clipboard</source>
-        <translation>从剪贴板粘贴到收藏夹</translation>
+      <source>Paste favorite from clipboard</source>
+      <translation type="unfinished">Paste favorite from clipboard</translation>
     </message>
     <message>
-        <source>&amp;Edit...</source>
-        <translation>编辑(&amp;E)...</translation>
+      <source>&amp;Edit...</source>
+      <translation type="unfinished">&amp;Edit...</translation>
     </message>
     <message>
-        <source>&amp;Add New...</source>
-        <translation>添加(&amp;A)...</translation>
+      <source>&amp;Add New...</source>
+      <translation type="unfinished">&amp;Add New...</translation>
     </message>
     <message>
-        <source>Add to &amp;Favorites</source>
-        <translation>添加到收藏夹(&amp;F)</translation>
+      <source>Add to &amp;Favorites</source>
+      <translation type="unfinished">Add to &amp;Favorites</translation>
     </message>
     <message>
-        <source>Open &amp;Webpage</source>
-        <translation>打开网页(&amp;W)</translation>
+      <source>Open &amp;Webpage</source>
+      <translation type="unfinished">Open &amp;Webpage</translation>
     </message>
     <message>
-        <source>Server list</source>
-        <translation>服务器列表</translation>
+      <source>Server list</source>
+      <translation type="unfinished">Server list</translation>
     </message>
     <message>
-        <source>Search</source>
-        <translation>搜索</translation>
+      <source>Search</source>
+      <translation type="unfinished">Search</translation>
     </message>
     <message>
-        <source>Location</source>
-        <translation>位置</translation>
+      <source>Location</source>
+      <translation type="unfinished">Location</translation>
     </message>
     <message>
-        <source>Filter</source>
-        <translation>筛选</translation>
+      <source>Filter</source>
+      <translation type="unfinished">Filter</translation>
     </message>
     <message>
-        <source>Show All</source>
-        <translation>显示所有</translation>
+      <source>Show All</source>
+      <translation type="unfinished">Show All</translation>
     </message>
     <message>
-        <source>Show Populated</source>
-        <translation>显示有人</translation>
+      <source>Show Populated</source>
+      <translation type="unfinished">Show Populated</translation>
     </message>
     <message>
-        <source>Show Reachable</source>
-        <translation>显示可连接</translation>
+      <source>Show Reachable</source>
+      <translation type="unfinished">Show Reachable</translation>
     </message>
     <message>
-        <source>All</source>
-        <translation>所有</translation>
+      <source>All</source>
+      <translation type="unfinished">All</translation>
     </message>
     <message>
-        <source>Africa</source>
-        <translation>非洲</translation>
+      <source>Africa</source>
+      <translation type="unfinished">Africa</translation>
     </message>
     <message>
-        <source>Asia</source>
-        <translation>亚洲</translation>
+      <source>Asia</source>
+      <translation type="unfinished">Asia</translation>
     </message>
     <message>
-        <source>Europe</source>
-        <translation>欧洲</translation>
+      <source>Europe</source>
+      <translation type="unfinished">Europe</translation>
     </message>
     <message>
-        <source>North America</source>
-        <translation>北美洲</translation>
+      <source>North America</source>
+      <translation type="unfinished">North America</translation>
     </message>
     <message>
-        <source>Oceania</source>
-        <translation>大洋洲</translation>
+      <source>Oceania</source>
+      <translation type="unfinished">Oceania</translation>
     </message>
     <message>
-        <source>South America</source>
-        <translation>南美洲</translation>
+      <source>South America</source>
+      <translation type="unfinished">South America</translation>
     </message>
     <message>
-        <source>Consent to the transmission of private data</source>
-        <translation>同意传输私有数据</translation>
+      <source>Consent to the transmission of private data</source>
+      <translation type="unfinished">Consent to the transmission of private data</translation>
     </message>
     <message>
-        <source>&lt;p&gt;To measure the latency (ping) of public servers and determine the number of active users, your IP address must be transmitted to each public server.&lt;/p&gt;&lt;p&gt;Do you consent to the transmission of your IP address? If you answer no, the public server list will be deactivated. However, you can reactivate it at any time in the network settings.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;为了获取公共服务器的延迟（Ping）和在线用户数，您的 IP 地址必须被发送到所有公共服务器。&lt;/p&gt;&lt;p&gt;您同意传输您的 IP 地址吗？如果您不同意，公共服务器列表会被禁用。但您随时可以在网络设置内重新启用它。&lt;/p&gt;</translation>
+      <source>&lt;p&gt;To measure the latency (ping) of public servers and determine the number of active users, your IP address must be transmitted to each public server.&lt;/p&gt;&lt;p&gt;Do you consent to the transmission of your IP address? If you answer no, the public server list will be deactivated. However, you can reactivate it at any time in the network settings.&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;To measure the latency (ping) of public servers and determine the number of active users, your IP address must be transmitted to each public server.&lt;/p&gt;&lt;p&gt;Do you consent to the transmission of your IP address? If you answer no, the public server list will be deactivated. However, you can reactivate it at any time in the network settings.&lt;/p&gt;</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ConnectDialogEdit</name>
     <message>
-        <source>Edit Server</source>
-        <translation>编辑服务器</translation>
+      <source>Edit Server</source>
+      <translation type="unfinished">Edit Server</translation>
     </message>
     <message>
-        <source>Name of the server</source>
-        <translation>服务器名称</translation>
+      <source>Name of the server</source>
+      <translation type="unfinished">Name of the server</translation>
     </message>
     <message>
-        <source>A&amp;ddress</source>
-        <translation>地址(&amp;D)</translation>
+      <source>A&amp;ddress</source>
+      <translation type="unfinished">A&amp;ddress</translation>
     </message>
     <message>
-        <source>Internet address of the server.</source>
-        <oldsource>Internet address of the server. </oldsource>
-        <translation>服务器的 Internet 地址。</translation>
+      <source>Internet address of the server.</source>
+      <oldsource>Internet address of the server. </oldsource>
+      <translation type="unfinished">Internet address of the server.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Address&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Address&lt;/b&gt;&lt;br/&gt;
 Internet address of the server. This can be a normal hostname, an IPv4/IPv6 address or a Bonjour service identifier. Bonjour service identifiers have to be prefixed with a &apos;@&apos; to be recognized by Mumble.</source>
-        <oldsource>&lt;b&gt;Address&lt;/b&gt;&lt;/br&gt;
-Internet address of the server. This can be a normal hostname, an ipv4/6 address or a bonjour service identifier. Bonjour service identifiers have to be prefixed with a '@' to be recognized by Mumble.</oldsource>
-        <translation>&lt;b&gt;地址&lt;/b&gt;&lt;br/&gt;
-服务器的 Internet 地址，可以是普通的主机名、IPv4/IPv6 地址或者一个 Bonjour 服务 ID。Bonjour 服务 ID 必须以“@”为前缀，Mumble 才能识别。</translation>
+      <oldsource>&lt;b&gt;Address&lt;/b&gt;&lt;/br&gt;
+Internet address of the server. This can be a normal hostname, an ipv4/6 address or a bonjour service identifier. Bonjour service identifiers have to be prefixed with a &apos;@&apos; to be recognized by Mumble.</oldsource>
+      <translation type="unfinished">&lt;b&gt;Address&lt;/b&gt;&lt;br/&gt;
+Internet address of the server. This can be a normal hostname, an IPv4/IPv6 address or a Bonjour service identifier. Bonjour service identifiers have to be prefixed with a &apos;@&apos; to be recognized by Mumble.</translation>
     </message>
     <message>
-        <source>&amp;Port</source>
-        <translation>端口(&amp;P)</translation>
+      <source>&amp;Port</source>
+      <translation type="unfinished">&amp;Port</translation>
     </message>
     <message>
-        <source>Port on which the server is listening</source>
-        <translation>服务器所监听的端口</translation>
+      <source>Port on which the server is listening</source>
+      <translation type="unfinished">Port on which the server is listening</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Port&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Port&lt;/b&gt;&lt;br/&gt;
 Port on which the server is listening. If the server is identified by a Bonjour service identifier this field will be ignored.</source>
-        <translation>&lt;b&gt;端口&lt;/b&gt;&lt;br/&gt;
-服务器所使用的监听端口。如果服务器由 Bonjour 服务 ID 标识，此值会被忽略。</translation>
+      <translation type="unfinished">&lt;b&gt;Port&lt;/b&gt;&lt;br/&gt;
+Port on which the server is listening. If the server is identified by a Bonjour service identifier this field will be ignored.</translation>
     </message>
     <message>
-        <source>&amp;Username</source>
-        <translation>用户名(&amp;U)</translation>
+      <source>&amp;Username</source>
+      <translation type="unfinished">&amp;Username</translation>
     </message>
     <message>
-        <source>Username to send to the server</source>
-        <translation>发送到服务器的用户名</translation>
+      <source>Username to send to the server</source>
+      <translation type="unfinished">Username to send to the server</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Username&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Username&lt;/b&gt;&lt;br/&gt;
 Username to send to the server. Be aware that the server can impose restrictions on how a username might look like. Also your username could already be taken by another user.</source>
-        <translation>&lt;b&gt;用户名&lt;/b&gt;&lt;br/&gt;
-发送到服务器的用户名。请注意，服务器可以限制用户名的格式。您的用户名也可能已被其他用户使用。</translation>
+      <translation type="unfinished">&lt;b&gt;Username&lt;/b&gt;&lt;br/&gt;
+Username to send to the server. Be aware that the server can impose restrictions on how a username might look like. Also your username could already be taken by another user.</translation>
     </message>
     <message>
-        <source>Label</source>
-        <translation>别名</translation>
+      <source>Label</source>
+      <translation type="unfinished">Label</translation>
     </message>
     <message>
-        <source>Add Server</source>
-        <translation>添加服务器</translation>
+      <source>Add Server</source>
+      <translation type="unfinished">Add Server</translation>
     </message>
     <message>
-        <source>You are currently connected to a server.
+      <source>You are currently connected to a server.
 Do you want to fill the dialog with the connection data of this server?
 Host: %1 Port: %2</source>
-        <translation>您当前已连接到一个服务器。
-您想要将当前连接服务器的数据填写到此对话框吗？
-主机：%1 端口：%2</translation>
+      <translation type="unfinished">You are currently connected to a server.
+Do you want to fill the dialog with the connection data of this server?
+Host: %1 Port: %2</translation>
     </message>
     <message>
-        <source>You have an URL in your clipboard.
+      <source>You have an URL in your clipboard.
 Do you want to fill the dialog with this data?
 Host: %1 Port: %2</source>
-        <translation>您的剪贴板中有一个 URL。
-您想要将它填写到此对话框吗？
-主机：%1 端口：%2</translation>
+      <translation type="unfinished">You have an URL in your clipboard.
+Do you want to fill the dialog with this data?
+Host: %1 Port: %2</translation>
     </message>
     <message>
-        <source>Password</source>
-        <translation>密码</translation>
+      <source>Password</source>
+      <translation type="unfinished">Password</translation>
     </message>
     <message>
-        <source>Password to send to the server</source>
-        <translation>发送到服务器的密码</translation>
+      <source>Password to send to the server</source>
+      <translation type="unfinished">Password to send to the server</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Password&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Password&lt;/b&gt;&lt;br/&gt;
 Password to be sent to the server on connect. This password is needed when connecting as &lt;i&gt;SuperUser&lt;/i&gt; or to a server using password authentication. If not entered here the password will be queried on connect.</source>
-        <translation>&lt;b&gt;密码&lt;/b&gt;&lt;br/&gt;
-连接服务器时发送到服务器的密码。如果您以 &lt;i&gt;SuperUser&lt;/i&gt;（超级用户）身份连接服务器或者连接一个通过密码认证的服务器，则需要填写密码。如果您没有在此处输入，则连接服务器时会被要求输入密码。</translation>
+      <translation type="unfinished">&lt;b&gt;Password&lt;/b&gt;&lt;br/&gt;
+Password to be sent to the server on connect. This password is needed when connecting as &lt;i&gt;SuperUser&lt;/i&gt; or to a server using password authentication. If not entered here the password will be queried on connect.</translation>
     </message>
     <message>
-        <source>Show password</source>
-        <translation>显示密码</translation>
+      <source>Show password</source>
+      <translation type="unfinished">Show password</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Label&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Label&lt;/b&gt;&lt;br/&gt;
 Label of the server. This is what the server will be named like in your server list and can be chosen freely.</source>
-        <translation>&lt;b&gt;别名&lt;/b&gt;&lt;br/&gt;
-服务器的别名。此名称会在服务器列表中显示，您可以随意选择此名称。</translation>
+      <translation type="unfinished">&lt;b&gt;Label&lt;/b&gt;&lt;br/&gt;
+Label of the server. This is what the server will be named like in your server list and can be chosen freely.</translation>
     </message>
     <message>
-        <source>Local server label</source>
-        <translation>本地服务器别名</translation>
+      <source>Local server label</source>
+      <translation type="unfinished">Local server label</translation>
     </message>
     <message>
-        <source>127.0.0.1</source>
-        <translation>127.0.0.1</translation>
+      <source>127.0.0.1</source>
+      <translation type="unfinished">127.0.0.1</translation>
     </message>
     <message>
-        <source>64738</source>
-        <translation>64738</translation>
+      <source>64738</source>
+      <translation type="unfinished">64738</translation>
     </message>
     <message>
-        <source>Your username</source>
-        <translation>用户名</translation>
+      <source>Your username</source>
+      <translation type="unfinished">Your username</translation>
     </message>
     <message>
-        <source>Your password</source>
-        <translation>密码</translation>
+      <source>Your password</source>
+      <translation type="unfinished">Your password</translation>
     </message>
     <message>
-        <source>&amp;Fill</source>
-        <translation>填写(&amp;F)</translation>
+      <source>&amp;Fill</source>
+      <translation type="unfinished">&amp;Fill</translation>
     </message>
     <message>
-        <source>&amp;Ignore</source>
-        <translation>忽略(&amp;I)</translation>
+      <source>&amp;Ignore</source>
+      <translation type="unfinished">&amp;Ignore</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>CoreAudioSystem</name>
     <message>
-        <source>Default Device</source>
-        <translation>默认设备</translation>
+      <source>Default Device</source>
+      <translation type="unfinished">Default Device</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>CrashReporter</name>
     <message>
-        <source>Mumble Crash Report</source>
-        <translation>Mumble 崩溃报告</translation>
+      <source>Mumble Crash Report</source>
+      <translation type="unfinished">Mumble Crash Report</translation>
     </message>
     <message>
-        <source>&lt;p&gt;&lt;b&gt;We&apos;re terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report to the Mumble developers?&lt;/b&gt;&lt;/p&gt;&lt;p&gt;The crash report contains a partial copy of Mumble&apos;s memory at the time it crashed, and will help the developers fix the problem.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;很抱歉，Mumble 发生了崩溃。您是否需要向 Mumble 开发者发送崩溃报告？&lt;/b&gt;&lt;/p&gt;&lt;p&gt;此报告包含部分 Mumble 崩溃时的内存快照，可以帮助开发者更好地解决问题。&lt;/p&gt;</translation>
+      <source>&lt;p&gt;&lt;b&gt;We&apos;re terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report to the Mumble developers?&lt;/b&gt;&lt;/p&gt;&lt;p&gt;The crash report contains a partial copy of Mumble&apos;s memory at the time it crashed, and will help the developers fix the problem.&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;&lt;b&gt;We&apos;re terribly sorry, but it seems Mumble has crashed. Do you want to send a crash report to the Mumble developers?&lt;/b&gt;&lt;/p&gt;&lt;p&gt;The crash report contains a partial copy of Mumble&apos;s memory at the time it crashed, and will help the developers fix the problem.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Email address (optional)</source>
-        <translation>电子邮件地址（选填）</translation>
+      <source>Email address (optional)</source>
+      <translation type="unfinished">Email address (optional)</translation>
     </message>
     <message>
-        <source>Please describe briefly, in English, what you were doing at the time of the crash</source>
-        <oldsource>Please briefly describe what you were doing at the time of the crash</oldsource>
-        <translation>请使用英语简单地描述您在崩溃之前的操作</translation>
+      <source>Please describe briefly, in English, what you were doing at the time of the crash</source>
+      <oldsource>Please briefly describe what you were doing at the time of the crash</oldsource>
+      <translation type="unfinished">Please describe briefly, in English, what you were doing at the time of the crash</translation>
     </message>
     <message>
-        <source>Send Report</source>
-        <translation>发送报告</translation>
+      <source>Send Report</source>
+      <translation type="unfinished">Send Report</translation>
     </message>
     <message>
-        <source>Don&apos;t send report</source>
-        <translation>不发送报告</translation>
+      <source>Don&apos;t send report</source>
+      <translation type="unfinished">Don&apos;t send report</translation>
     </message>
     <message>
-        <source>Crash upload successful</source>
-        <translation>崩溃报告上传成功</translation>
+      <source>Crash upload successful</source>
+      <translation type="unfinished">Crash upload successful</translation>
     </message>
     <message>
-        <source>Thank you for helping make Mumble better!</source>
-        <translation>感谢您帮助 Mumble 变得更好！</translation>
+      <source>Thank you for helping make Mumble better!</source>
+      <translation type="unfinished">Thank you for helping make Mumble better!</translation>
     </message>
     <message>
-        <source>Crash upload failed</source>
-        <translation>崩溃报告上传失败</translation>
+      <source>Crash upload failed</source>
+      <translation type="unfinished">Crash upload failed</translation>
     </message>
     <message>
-        <source>We&apos;re really sorry, but it appears the crash upload has failed with error %1 %2. Please inform a developer.</source>
-        <translation>非常抱歉，发送崩溃报告因错误 %1 %2 而失败。请通知开发者。</translation>
+      <source>We&apos;re really sorry, but it appears the crash upload has failed with error %1 %2. Please inform a developer.</source>
+      <translation type="unfinished">We&apos;re really sorry, but it appears the crash upload has failed with error %1 %2. Please inform a developer.</translation>
     </message>
     <message>
-        <source>This really isn&apos;t funny, but apparently there&apos;s a bug in the crash reporting code, and we&apos;ve failed to upload the report. You may inform a developer about error %1</source>
-        <translation>这并不有趣，显然崩溃报告代码中存在漏洞，所以无法成功发送报告。您可以将错误 %1 告知开发者</translation>
+      <source>This really isn&apos;t funny, but apparently there&apos;s a bug in the crash reporting code, and we&apos;ve failed to upload the report. You may inform a developer about error %1</source>
+      <translation type="unfinished">This really isn&apos;t funny, but apparently there&apos;s a bug in the crash reporting code, and we&apos;ve failed to upload the report. You may inform a developer about error %1</translation>
     </message>
     <message>
-        <source>Uploading crash report</source>
-        <translation>正在上传崩溃报告</translation>
+      <source>Uploading crash report</source>
+      <translation type="unfinished">Uploading crash report</translation>
     </message>
     <message>
-        <source>Abort upload</source>
-        <translation>取消上传</translation>
+      <source>Abort upload</source>
+      <translation type="unfinished">Abort upload</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>Database</name>
     <message>
-        <source>The database &apos;%1&apos; is read-only. Mumble cannot store server settings (i.e. SSL certificates) until you fix this problem.</source>
-        <oldsource>The database '%1' is read-only. Mumble can not store server settings (ie. SSL certificates) until you fix this problem.</oldsource>
-        <translation>数据库“%1”是只读的。在修复此错误前，Mumble 将无法保存服务器设置（即 SSL 证书）。</translation>
+      <source>The database &apos;%1&apos; is read-only. Mumble cannot store server settings (i.e. SSL certificates) until you fix this problem.</source>
+      <oldsource>The database &apos;%1&apos; is read-only. Mumble can not store server settings (ie. SSL certificates) until you fix this problem.</oldsource>
+      <translation type="unfinished">The database &apos;%1&apos; is read-only. Mumble cannot store server settings (i.e. SSL certificates) until you fix this problem.</translation>
     </message>
     <message>
-        <source>The database file &apos;%1&apos; set in the configuration file does not exist. Do you want to create a new database file at this location?</source>
-        <translation>配置文件中设置的数据库文件“%1”不存在。您希望在该位置新建数据库吗？</translation>
+      <source>The database file &apos;%1&apos; set in the configuration file does not exist. Do you want to create a new database file at this location?</source>
+      <translation type="unfinished">The database file &apos;%1&apos; set in the configuration file does not exist. Do you want to create a new database file at this location?</translation>
     </message>
     <message>
-        <source>Mumble failed to initialize a database in any of the possible locations.</source>
-        <translation>Mumble 无法从任何可能的位置初始化数据库。</translation>
+      <source>Mumble failed to initialize a database in any of the possible locations.</source>
+      <translation type="unfinished">Mumble failed to initialize a database in any of the possible locations.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>DeveloperConsole</name>
     <message>
-        <source>Developer Console</source>
-        <translation>开发者控制台</translation>
+      <source>Developer Console</source>
+      <translation type="unfinished">Developer Console</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>DockTitleBar</name>
     <message>
-        <source>Drag here</source>
-        <translation>拖放到此处</translation>
+      <source>Drag here</source>
+      <translation type="unfinished">Drag here</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>GlobalShortcut</name>
     <message>
-        <source>Shortcuts</source>
-        <translation>快捷键</translation>
+      <source>Shortcuts</source>
+      <translation type="unfinished">Shortcuts</translation>
     </message>
     <message>
-        <source>List of configured shortcuts</source>
-        <translation>已设置快捷键列表</translation>
+      <source>List of configured shortcuts</source>
+      <translation type="unfinished">List of configured shortcuts</translation>
     </message>
     <message>
-        <source>Function</source>
-        <translation>操作</translation>
+      <source>Function</source>
+      <translation type="unfinished">Function</translation>
     </message>
     <message>
-        <source>Data</source>
-        <translation>数据</translation>
+      <source>Data</source>
+      <translation type="unfinished">Data</translation>
     </message>
     <message>
-        <source>Shortcut</source>
-        <translation>快捷键</translation>
+      <source>Shortcut</source>
+      <translation type="unfinished">Shortcut</translation>
     </message>
     <message>
-        <source>Suppress</source>
-        <translation>屏蔽</translation>
+      <source>Suppress</source>
+      <translation type="unfinished">Suppress</translation>
     </message>
     <message>
-        <source>Add new shortcut</source>
-        <translation>添加新的快捷键</translation>
+      <source>Add new shortcut</source>
+      <translation type="unfinished">Add new shortcut</translation>
     </message>
     <message>
-        <source>This will add a new global shortcut</source>
-        <translation>添加一个新的全局快捷键</translation>
+      <source>This will add a new global shortcut</source>
+      <translation type="unfinished">This will add a new global shortcut</translation>
     </message>
     <message>
-        <source>&amp;Add</source>
-        <translation>添加(&amp;A)</translation>
+      <source>&amp;Add</source>
+      <translation type="unfinished">&amp;Add</translation>
     </message>
     <message>
-        <source>Remove selected shortcut</source>
-        <translation>删除所选快捷键</translation>
+      <source>Remove selected shortcut</source>
+      <translation type="unfinished">Remove selected shortcut</translation>
     </message>
     <message>
-        <source>This will permanently remove a selected shortcut.</source>
-        <translation>永久删除被选中的快捷键。</translation>
+      <source>This will permanently remove a selected shortcut.</source>
+      <translation type="unfinished">This will permanently remove a selected shortcut.</translation>
     </message>
     <message>
-        <source>&amp;Remove</source>
-        <translation>删除(&amp;R)</translation>
+      <source>&amp;Remove</source>
+      <translation type="unfinished">&amp;Remove</translation>
     </message>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system&apos;s Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble 目前仅支持鼠标按钮和键盘修饰键（Alt、Ctrl、Cmd 等）作为全局快捷键。&lt;/p&gt;&lt;p&gt;如果您希望更灵活，可以在系统辅助功能偏好设置中启用&lt;span style=&quot; font-style:italic;&quot;&gt;辅助设备访问&lt;/span&gt;。但请注意，此更改还可能允许恶意程序读取键盘上键入的内容。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+      <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system&apos;s Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+      <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can enable &lt;span style=&quot; font-style:italic;&quot;&gt;Access for assistive devices&lt;/span&gt; in the system&apos;s Accessibility preferences. However, please note that this change also potentially allows malicious programs to read what is typed on your keyboard.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <source>Open Accessibility Preferences</source>
-        <translation>打开辅助功能偏好设置</translation>
+      <source>Open Accessibility Preferences</source>
+      <translation type="unfinished">Open Accessibility Preferences</translation>
     </message>
     <message>
-        <source>Skip</source>
-        <translation>跳过</translation>
+      <source>Skip</source>
+      <translation type="unfinished">Skip</translation>
     </message>
     <message>
-        <source>Enable Global Shortcuts</source>
-        <translation>启用全局快捷键</translation>
+      <source>Enable Global Shortcuts</source>
+      <translation type="unfinished">Enable Global Shortcuts</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</source>
-        <translation>&lt;b&gt;其他快捷键引擎&lt;/b&gt;&lt;br /&gt;本部分允许您配置其他全局快捷键引擎的使用。</translation>
+      <source>&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</source>
+      <translation type="unfinished">&lt;b&gt;Additional Shortcut Engines&lt;/b&gt;&lt;br /&gt;This section allows you to configure the use of additional GlobalShortcut engines.</translation>
     </message>
     <message>
-        <source>Additional Shortcut Engines</source>
-        <translation>其他快捷键引擎</translation>
+      <source>Additional Shortcut Engines</source>
+      <translation type="unfinished">Additional Shortcut Engines</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</source>
-        <translation>&lt;b&gt;启用 Windows 钩子&lt;/b&gt;。&lt;br /&gt;这将启用 Windows 钩子快捷键引擎。 启用此引擎可使 Mumble 屏蔽按键和鼠标点击。</translation>
+      <source>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</source>
+      <translation type="unfinished">&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</translation>
     </message>
     <message>
-        <source>Enable Windows hooks</source>
-        <translation>启用 Windows 钩子</translation>
+      <source>Enable Windows hooks</source>
+      <translation type="unfinished">Enable Windows hooks</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</source>
-        <translation>&lt;b&gt;启用 GKey&lt;/b&gt;。&lt;br /&gt;此设置启用对 GKey 快捷键引擎的支持，用于 Logitech 键盘上的 G 键。</translation>
+      <source>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</source>
+      <translation type="unfinished">&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</translation>
     </message>
     <message>
-        <source>Enable GKey</source>
-        <translation>启用 GKey</translation>
+      <source>Enable GKey</source>
+      <translation type="unfinished">Enable GKey</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</source>
-        <translation>&lt;b&gt;启用 XInput&lt;/b&gt;&lt;br /&gt;此设置启用对 XInput 快捷键引擎的支持，用于兼容 Xbox 的游戏控制器。</translation>
+      <source>&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</source>
+      <translation type="unfinished">&lt;b&gt;Enable XInput&lt;/b&gt;&lt;br /&gt;This setting enables support for the XInput shortcut engine, for Xbox compatible controllers.</translation>
     </message>
     <message>
-        <source>Enable XInput</source>
-        <translation>启用 XInput</translation>
+      <source>Enable XInput</source>
+      <translation type="unfinished">Enable XInput</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
+      <source>&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
 &lt;br /&gt;&lt;br /&gt;
 Without this option enabled, using Mumble&apos;s global shortcuts in privileged applications will not work. This can seem inconsistent: for example, if the Push-to-Talk button is pressed in a non-privileged program, but released in a privileged application, Mumble will not observe that it has been released and you will continue to talk until you press the Push-to-Talk button again.</source>
-        <translation>&lt;b&gt;允许在特权应用中使用快捷键&lt;/b&gt;。&lt;br /&gt;这也被称为“UIAccess”，使 Mumble 可以从高权限应用程序接收全局快捷键事件，例如在管理员命令提示符或以管理员权限运行的旧游戏中。
+      <translation type="unfinished">&lt;b&gt;Enable shortcuts in privileged applications&lt;/b&gt;.&lt;br /&gt;Also known as &quot;UIAccess&quot;. This allows Mumble to receive global shortcut events from programs running at high privilege levels, such as an Admin Command Prompt or older games that run with admin privileges.
 &lt;br /&gt;&lt;br /&gt;
-如果未启用此选项，则在特权应用程序中，Mumble 全局快捷键将不起作用。这可能导致看起来不一致的行为：例如，如果在非特权程序中按住按键发言键，但在特权应用程序中松开，Mumble 将无法发现它已被释放，您将会继续保持说话状态，直到您再次按下按键发言键。</translation>
+Without this option enabled, using Mumble&apos;s global shortcuts in privileged applications will not work. This can seem inconsistent: for example, if the Push-to-Talk button is pressed in a non-privileged program, but released in a privileged application, Mumble will not observe that it has been released and you will continue to talk until you press the Push-to-Talk button again.</translation>
     </message>
     <message>
-        <source>Enable shortcuts in privileged applications</source>
-        <translation>在特权应用中启用快捷键</translation>
+      <source>Enable shortcuts in privileged applications</source>
+      <translation type="unfinished">Enable shortcuts in privileged applications</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>GlobalShortcutConfig</name>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can add Mumble as a trusted accessibility program in the Security &amp; Privacy section of your Mac&apos;s System Preferences.&lt;/p&gt;&lt;p&gt;In the Security &amp; Privacy preference pane, change to the Privacy tab. Then choose Accessibility (near the bottom) in the list to the left. Finally, add Mumble to the list of trusted accessibility programs.&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble 目前仅支持鼠标按钮和键盘修饰键（Alt、Ctrl、Cmd 等）作为全局快捷键。&lt;/p&gt;&lt;p&gt;如果您希望更灵活，可以在 Mac 系统偏好设置的“安全性与隐私”中将 Mumble 添加为信任的辅助功能程序。&lt;/p&gt;&lt;p&gt;在偏好设置的“安全性与隐私”面板，转到“隐私”标签。然后在左侧的列表内选择“辅助功能”（靠近底部）。最后，在右侧添加 Mumble 作为信任的辅助功能程序&lt;/body&gt;&lt;/html&gt;</translation>
+      <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can add Mumble as a trusted accessibility program in the Security &amp; Privacy section of your Mac&apos;s System Preferences.&lt;/p&gt;&lt;p&gt;In the Security &amp; Privacy preference pane, change to the Privacy tab. Then choose Accessibility (near the bottom) in the list to the left. Finally, add Mumble to the list of trusted accessibility programs.&lt;/body&gt;&lt;/html&gt;</source>
+      <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble can currently only use mouse buttons and keyboard modifier keys (Alt, Ctrl, Cmd, etc.) for global shortcuts.&lt;/p&gt;&lt;p&gt;If you want more flexibility, you can add Mumble as a trusted accessibility program in the Security &amp; Privacy section of your Mac&apos;s System Preferences.&lt;/p&gt;&lt;p&gt;In the Security &amp; Privacy preference pane, change to the Privacy tab. Then choose Accessibility (near the bottom) in the list to the left. Finally, add Mumble to the list of trusted accessibility programs.&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <source>Shortcuts</source>
-        <translation>快捷键</translation>
+      <source>Shortcuts</source>
+      <translation type="unfinished">Shortcuts</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the global shortcut key combination.&lt;/b&gt;&lt;br /&gt;Click this field and then press the desired key/button combo to rebind. Double-click to clear.</source>
-        <oldsource>&lt;b&gt;This is the global shortcut key combination.&lt;/b&gt;&lt;br /&gt;Double-click this field and then the desired key/button combo to rebind.</oldsource>
-        <translation>&lt;b&gt;全局快捷键组合。&lt;/b&gt;&lt;br /&gt;点击此框，然后按下相应的按键/按钮组合，以重新绑定快捷键，双击清除已绑定的快捷键。</translation>
+      <source>&lt;b&gt;This is the global shortcut key combination.&lt;/b&gt;&lt;br /&gt;Click this field and then press the desired key/button combo to rebind. Double-click to clear.</source>
+      <oldsource>&lt;b&gt;This is the global shortcut key combination.&lt;/b&gt;&lt;br /&gt;Double-click this field and then the desired key/button combo to rebind.</oldsource>
+      <translation type="unfinished">&lt;b&gt;This is the global shortcut key combination.&lt;/b&gt;&lt;br /&gt;Click this field and then press the desired key/button combo to rebind. Double-click to clear.</translation>
     </message>
     <message>
-        <source>Suppress keys from other applications</source>
-        <translation>屏蔽其他应用程序的按键</translation>
+      <source>Suppress keys from other applications</source>
+      <translation type="unfinished">Suppress keys from other applications</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This hides the button presses from other applications.&lt;/b&gt;&lt;br /&gt;Enabling this will hide the button (or the last button of a multi-button combo) from other applications. Note that not all buttons can be suppressed.</source>
-        <translation>&lt;b&gt;隐藏其他应用程序的按键。&lt;/b&gt;&lt;br /&gt;启用此功能将隐藏其他应用程序的按键（或组合键的最后一个键）。请注意，并非所有按键都可以被屏蔽。</translation>
+      <source>&lt;b&gt;This hides the button presses from other applications.&lt;/b&gt;&lt;br /&gt;Enabling this will hide the button (or the last button of a multi-button combo) from other applications. Note that not all buttons can be suppressed.</source>
+      <translation type="unfinished">&lt;b&gt;This hides the button presses from other applications.&lt;/b&gt;&lt;br /&gt;Enabling this will hide the button (or the last button of a multi-button combo) from other applications. Note that not all buttons can be suppressed.</translation>
     </message>
     <message>
-        <source>Configured shortcuts</source>
-        <translation>已配置快捷键</translation>
+      <source>Configured shortcuts</source>
+      <translation type="unfinished">Configured shortcuts</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>GlobalShortcutTarget</name>
     <message>
-        <source>Whisper Target</source>
-        <translation>密语目标</translation>
+      <source>Whisper Target</source>
+      <translation type="unfinished">Whisper Target</translation>
     </message>
     <message>
-        <source>Channel Target</source>
-        <translation>频道目标</translation>
+      <source>Channel Target</source>
+      <translation type="unfinished">Channel Target</translation>
     </message>
     <message>
-        <source>Restrict to Group</source>
-        <translation>限制分组</translation>
+      <source>Restrict to Group</source>
+      <translation type="unfinished">Restrict to Group</translation>
     </message>
     <message>
-        <source>If specified, only members of this group will receive the whisper.</source>
-        <translation>如果指定，只有分组中的用户才能接收到密语。</translation>
+      <source>If specified, only members of this group will receive the whisper.</source>
+      <translation type="unfinished">If specified, only members of this group will receive the whisper.</translation>
     </message>
     <message>
-        <source>List of users</source>
-        <translation>用户列表</translation>
+      <source>List of users</source>
+      <translation type="unfinished">List of users</translation>
     </message>
     <message>
-        <source>Add</source>
-        <translation>添加</translation>
+      <source>Add</source>
+      <translation type="unfinished">Add</translation>
     </message>
     <message>
-        <source>Remove</source>
-        <translation>删除</translation>
+      <source>Remove</source>
+      <translation type="unfinished">Remove</translation>
     </message>
     <message>
-        <source>Modifiers</source>
-        <translation>选项</translation>
+      <source>Modifiers</source>
+      <translation type="unfinished">Modifiers</translation>
     </message>
     <message>
-        <source>Do not send positional audio information when using this whisper shortcut.</source>
-        <translation>使用密语快捷键时不发送位置音频信息。</translation>
+      <source>Do not send positional audio information when using this whisper shortcut.</source>
+      <translation type="unfinished">Do not send positional audio information when using this whisper shortcut.</translation>
     </message>
     <message>
-        <source>Ignore positional audio</source>
-        <translation>忽略位置语音</translation>
+      <source>Ignore positional audio</source>
+      <translation type="unfinished">Ignore positional audio</translation>
     </message>
     <message>
-        <source>Shout to Linked channels</source>
-        <translation>对链接的频道呼喊</translation>
+      <source>Shout to Linked channels</source>
+      <translation type="unfinished">Shout to Linked channels</translation>
     </message>
     <message>
-        <source>Shout to subchannels</source>
-        <translation>对子频道呼喊</translation>
+      <source>Shout to subchannels</source>
+      <translation type="unfinished">Shout to subchannels</translation>
     </message>
     <message>
-        <source>The whisper will also be transmitted to linked channels.</source>
-        <translation>密语也会被传输到链接的频道。</translation>
+      <source>The whisper will also be transmitted to linked channels.</source>
+      <translation type="unfinished">The whisper will also be transmitted to linked channels.</translation>
     </message>
     <message>
-        <source>The whisper will also be sent to the subchannels of the channel target.</source>
-        <translation>密语也会被传输到目标频道的子频道。</translation>
+      <source>The whisper will also be sent to the subchannels of the channel target.</source>
+      <translation type="unfinished">The whisper will also be sent to the subchannels of the channel target.</translation>
     </message>
     <message>
-        <source>Shout/Whisper to:</source>
-        <translation>呼喊/密语至：</translation>
+      <source>Shout/Whisper to:</source>
+      <translation type="unfinished">Shout/Whisper to:</translation>
     </message>
     <message>
-        <source>Current selection</source>
-        <translation>当前选择</translation>
+      <source>Current selection</source>
+      <translation type="unfinished">Current selection</translation>
     </message>
     <message>
-        <source>When shouting to channel:</source>
-        <translation>向频道呼喊时：</translation>
+      <source>When shouting to channel:</source>
+      <translation type="unfinished">When shouting to channel:</translation>
     </message>
     <message>
-        <source>Shout to linked channels</source>
-        <translation>呼喊至链接的频道</translation>
+      <source>Shout to linked channels</source>
+      <translation type="unfinished">Shout to linked channels</translation>
     </message>
     <message>
-        <source>Channel</source>
-        <translation>频道</translation>
+      <source>Channel</source>
+      <translation type="unfinished">Channel</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>GlobalShortcutX</name>
     <message>
-        <source>Mouse %1</source>
-        <translation>鼠标 %1</translation>
+      <source>Mouse %1</source>
+      <translation type="unfinished">Mouse %1</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>JackAudioSystem</name>
     <message>
-        <source>Hardware Ports</source>
-        <translation>硬件端口</translation>
+      <source>Hardware Ports</source>
+      <translation type="unfinished">Hardware Ports</translation>
     </message>
     <message>
-        <source>Mono</source>
-        <translation>单声道</translation>
+      <source>Mono</source>
+      <translation type="unfinished">Mono</translation>
     </message>
     <message>
-        <source>Stereo</source>
-        <translation>立体声</translation>
+      <source>Stereo</source>
+      <translation type="unfinished">Stereo</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>LCD</name>
     <message>
-        <source>Not connected</source>
-        <translation>未连接</translation>
+      <source>Not connected</source>
+      <translation type="unfinished">Not connected</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>LCDConfig</name>
     <message>
-        <source>Enable this device</source>
-        <translation>启用此设备</translation>
+      <source>Enable this device</source>
+      <translation type="unfinished">Enable this device</translation>
     </message>
     <message>
-        <source>LCD</source>
-        <translation>LCD</translation>
+      <source>LCD</source>
+      <translation type="unfinished">LCD</translation>
     </message>
     <message>
-        <source>Devices</source>
-        <translation>设备</translation>
+      <source>Devices</source>
+      <translation type="unfinished">Devices</translation>
     </message>
     <message>
-        <source>Name</source>
-        <translation>名称</translation>
+      <source>Name</source>
+      <translation type="unfinished">Name</translation>
     </message>
     <message>
-        <source>&lt;p&gt;This is the list of available LCD devices on your system.  It lists devices by name, but also includes the size of the display. Mumble supports outputting to several LCD devices at a time.&lt;/p&gt;
+      <source>&lt;p&gt;This is the list of available LCD devices on your system.  It lists devices by name, but also includes the size of the display. Mumble supports outputting to several LCD devices at a time.&lt;/p&gt;
 &lt;h3&gt;Size:&lt;/h3&gt;
 &lt;p&gt;
 This field describes the size of an LCD device. The size is given either in pixels (for Graphic LCDs) or in characters (for Character LCDs).&lt;/p&gt;
 &lt;h3&gt;Enabled:&lt;/h3&gt;
 &lt;p&gt;This decides whether Mumble should draw to a particular LCD device.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;您系统中可用的 LCD 设备列表。此列表按设备名称排列，也包含屏幕的尺寸。Mumble 支持在同时输出到多个 LCD 设备。&lt;/p&gt;
-&lt;h3&gt;尺寸：&lt;/h3&gt;
+      <translation type="unfinished">&lt;p&gt;This is the list of available LCD devices on your system.  It lists devices by name, but also includes the size of the display. Mumble supports outputting to several LCD devices at a time.&lt;/p&gt;
+&lt;h3&gt;Size:&lt;/h3&gt;
 &lt;p&gt;
-此区域显示了 LCD 设备的尺寸。该尺寸以像素（图像 LCD）或者字符数（字符 LCD）表示。&lt;/p&gt;
-&lt;h3&gt;启用：&lt;/h3&gt;
-&lt;p&gt;表示 Mumble 是否应该向该 LCD 设备输出显示。&lt;/p&gt;</translation>
+This field describes the size of an LCD device. The size is given either in pixels (for Graphic LCDs) or in characters (for Character LCDs).&lt;/p&gt;
+&lt;h3&gt;Enabled:&lt;/h3&gt;
+&lt;p&gt;This decides whether Mumble should draw to a particular LCD device.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Size</source>
-        <translation>尺寸</translation>
+      <source>Size</source>
+      <translation type="unfinished">Size</translation>
     </message>
     <message>
-        <source>Enabled</source>
-        <translation>启用</translation>
+      <source>Enabled</source>
+      <translation type="unfinished">Enabled</translation>
     </message>
     <message>
-        <source>Views</source>
-        <translation>视图</translation>
+      <source>Views</source>
+      <translation type="unfinished">Views</translation>
     </message>
     <message>
-        <source>Minimum Column Width</source>
-        <translation>最小列宽</translation>
+      <source>Minimum Column Width</source>
+      <translation type="unfinished">Minimum Column Width</translation>
     </message>
     <message>
-        <source>&lt;p&gt;This option decides the minimum width a column in the User View.&lt;/p&gt;
+      <source>&lt;p&gt;This option decides the minimum width a column in the User View.&lt;/p&gt;
 &lt;p&gt;If too many people are speaking at once, the User View will split itself into columns. You can use this option to pick a compromise between number of users shown on the LCD, and width of user names.&lt;/p&gt;
 </source>
-        <translation>&lt;p&gt;此选项定义用户视图中一列的最小宽度。&lt;/p&gt;
-&lt;p&gt;如果太多用户在同一时间说话，用户视图会被分割成不同的列。您可以使用此选项，在 LCD 上显示的用户数量与用户名宽度之间找到一个平衡。&lt;/p&gt;
+      <translation type="unfinished">&lt;p&gt;This option decides the minimum width a column in the User View.&lt;/p&gt;
+&lt;p&gt;If too many people are speaking at once, the User View will split itself into columns. You can use this option to pick a compromise between number of users shown on the LCD, and width of user names.&lt;/p&gt;
 </translation>
     </message>
     <message>
-        <source>This setting decides the width of column splitter.</source>
-        <translation>设置列分割线的宽度。</translation>
+      <source>This setting decides the width of column splitter.</source>
+      <translation type="unfinished">This setting decides the width of column splitter.</translation>
     </message>
     <message>
-        <source>Splitter Width</source>
-        <translation>分割线宽度</translation>
+      <source>Splitter Width</source>
+      <translation type="unfinished">Splitter Width</translation>
     </message>
     <message>
-        <source>Minimum column width</source>
-        <translation>最小列宽</translation>
+      <source>Minimum column width</source>
+      <translation type="unfinished">Minimum column width</translation>
     </message>
     <message>
-        <source>Splitter width</source>
-        <translation>分割线宽度</translation>
+      <source>Splitter width</source>
+      <translation type="unfinished">Splitter width</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ListenerLocalVolumeDialog</name>
     <message>
-        <source>Adjusting local volume for listening to %1</source>
-        <translation>调整监听 %1 的本地音量</translation>
+      <source>Adjusting local volume for listening to %1</source>
+      <translation type="unfinished">Adjusting local volume for listening to %1</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>Log</name>
     <message>
-        <source>Debug</source>
-        <translation>日志（调试）</translation>
+      <source>Debug</source>
+      <translation type="unfinished">Debug</translation>
     </message>
     <message>
-        <source>Critical</source>
-        <translation>日志（严重）</translation>
+      <source>Critical</source>
+      <translation type="unfinished">Critical</translation>
     </message>
     <message>
-        <source>Warning</source>
-        <translation>日志（警告）</translation>
+      <source>Warning</source>
+      <translation type="unfinished">Warning</translation>
     </message>
     <message>
-        <source>Information</source>
-        <translation>日志（信息）</translation>
+      <source>Information</source>
+      <translation type="unfinished">Information</translation>
     </message>
     <message>
-        <source>Other self-muted/deafened</source>
-        <translation>其他人关闭自己的麦克风/扬声器</translation>
+      <source>Other self-muted/deafened</source>
+      <translation type="unfinished">Other self-muted/deafened</translation>
     </message>
     <message>
-        <source>User recording state changed</source>
-        <translation>用户录音状态改变</translation>
+      <source>User recording state changed</source>
+      <translation type="unfinished">User recording state changed</translation>
     </message>
     <message>
-        <source>User kicked (you or by you)</source>
-        <translation>用户踢出你或被你踢出</translation>
+      <source>User kicked (you or by you)</source>
+      <translation type="unfinished">User kicked (you or by you)</translation>
     </message>
     <message>
-        <source>User kicked</source>
-        <translation>用户踢出</translation>
+      <source>User kicked</source>
+      <translation type="unfinished">User kicked</translation>
     </message>
     <message>
-        <source>You self-muted</source>
-        <translation>您关闭自己的麦克风</translation>
+      <source>You self-muted</source>
+      <translation type="unfinished">You self-muted</translation>
     </message>
     <message>
-        <source>User muted (you)</source>
-        <translation>用户关闭您的麦克风</translation>
+      <source>User muted (you)</source>
+      <translation type="unfinished">User muted (you)</translation>
     </message>
     <message>
-        <source>User muted (by you)</source>
-        <translation>用户被您关闭麦克风</translation>
+      <source>User muted (by you)</source>
+      <translation type="unfinished">User muted (by you)</translation>
     </message>
     <message>
-        <source>User muted (other)</source>
-        <translation>用户关闭麦克风（其他）</translation>
+      <source>User muted (other)</source>
+      <translation type="unfinished">User muted (other)</translation>
     </message>
     <message>
-        <source>You self-unmuted</source>
-        <translation>您开启自己的麦克风</translation>
+      <source>You self-unmuted</source>
+      <translation type="unfinished">You self-unmuted</translation>
     </message>
     <message>
-        <source>You self-deafened</source>
-        <translation>您关闭自己的扬声器</translation>
+      <source>You self-deafened</source>
+      <translation type="unfinished">You self-deafened</translation>
     </message>
     <message>
-        <source>You self-undeafened</source>
-        <translation>您开启自己的扬声器</translation>
+      <source>You self-undeafened</source>
+      <translation type="unfinished">You self-undeafened</translation>
     </message>
     <message>
-        <source>User renamed</source>
-        <translation>用户重命名</translation>
+      <source>User renamed</source>
+      <translation type="unfinished">User renamed</translation>
     </message>
     <message>
-        <source>User connected and entered channel</source>
-        <translation>用户连接到服务器并进入频道</translation>
+      <source>User connected and entered channel</source>
+      <translation type="unfinished">User connected and entered channel</translation>
     </message>
     <message>
-        <source>User left channel and disconnected</source>
-        <translation>用户离开频道并断开连接</translation>
+      <source>User left channel and disconnected</source>
+      <translation type="unfinished">User left channel and disconnected</translation>
     </message>
     <message>
-        <source>Private text message</source>
-        <translation>私人文字消息</translation>
+      <source>Private text message</source>
+      <translation type="unfinished">Private text message</translation>
     </message>
     <message>
-        <source>the server</source>
-        <translation>服务器</translation>
+      <source>the server</source>
+      <translation type="unfinished">the server</translation>
     </message>
     <message>
-        <source>[[ Invalid size ]]</source>
-        <translation>[[ 无效尺寸 ]]</translation>
+      <source>[[ Invalid size ]]</source>
+      <translation type="unfinished">[[ Invalid size ]]</translation>
     </message>
     <message>
-        <source>[[ Text object too large to display ]]</source>
-        <translation>[[ 文字对象太大，无法显示 ]]</translation>
+      <source>[[ Text object too large to display ]]</source>
+      <translation type="unfinished">[[ Text object too large to display ]]</translation>
     </message>
     <message>
-        <source>[Date changed to %1]
+      <source>[Date changed to %1]
 </source>
-        <translation>[日期变更为 %1]
+      <translation type="unfinished">[Date changed to %1]
 </translation>
     </message>
     <message>
-        <source>link to %1</source>
-        <translation>链接到 %1</translation>
+      <source>link to %1</source>
+      <translation type="unfinished">link to %1</translation>
     </message>
     <message>
-        <source>FTP link to %1</source>
-        <translation>FTP 链接到 %1</translation>
+      <source>FTP link to %1</source>
+      <translation type="unfinished">FTP link to %1</translation>
     </message>
     <message>
-        <source>player link</source>
-        <translation>播放器链接</translation>
+      <source>player link</source>
+      <translation type="unfinished">player link</translation>
     </message>
     <message>
-        <source>channel link</source>
-        <translation>频道链接</translation>
+      <source>channel link</source>
+      <translation type="unfinished">channel link</translation>
     </message>
     <message>
-        <source>%1 link</source>
-        <translation>%1 链接</translation>
+      <source>%1 link</source>
+      <translation type="unfinished">%1 link</translation>
     </message>
     <message>
-        <source>Server connected</source>
-        <translation>加入服务器</translation>
+      <source>Server connected</source>
+      <translation type="unfinished">Server connected</translation>
     </message>
     <message>
-        <source>Server disconnected</source>
-        <translation>离开服务器</translation>
+      <source>Server disconnected</source>
+      <translation type="unfinished">Server disconnected</translation>
     </message>
     <message>
-        <source>User joined server</source>
-        <translation>用户加入服务器</translation>
+      <source>User joined server</source>
+      <translation type="unfinished">User joined server</translation>
     </message>
     <message>
-        <source>User left server</source>
-        <translation>用户离开服务器</translation>
+      <source>User left server</source>
+      <translation type="unfinished">User left server</translation>
     </message>
     <message>
-        <source>User joined channel</source>
-        <translation>用户加入频道</translation>
+      <source>User joined channel</source>
+      <translation type="unfinished">User joined channel</translation>
     </message>
     <message>
-        <source>User left channel</source>
-        <translation>用户离开频道</translation>
+      <source>User left channel</source>
+      <translation type="unfinished">User left channel</translation>
     </message>
     <message>
-        <source>Permission denied</source>
-        <translation>权限被拒绝</translation>
+      <source>Permission denied</source>
+      <translation type="unfinished">Permission denied</translation>
     </message>
     <message>
-        <source>Text message</source>
-        <translation>文字消息</translation>
+      <source>Text message</source>
+      <translation type="unfinished">Text message</translation>
     </message>
     <message>
-        <source>You joined channel</source>
-        <translation>您加入频道</translation>
+      <source>You joined channel</source>
+      <translation type="unfinished">You joined channel</translation>
     </message>
     <message>
-        <source>You joined channel (moved)</source>
-        <translation>您加入频道（被移动）</translation>
+      <source>You joined channel (moved)</source>
+      <translation type="unfinished">You joined channel (moved)</translation>
     </message>
     <message>
-        <source>User started listening to channel</source>
-        <translation>用户开始监听频道</translation>
+      <source>User started listening to channel</source>
+      <translation type="unfinished">User started listening to channel</translation>
     </message>
     <message>
-        <source>User stopped listening to channel</source>
-        <translation>用户停止监听频道</translation>
+      <source>User stopped listening to channel</source>
+      <translation type="unfinished">User stopped listening to channel</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>LogConfig</name>
     <message>
-        <source>Toggle console for %1 events</source>
-        <translation>开关“%1”事件的控制台输出</translation>
+      <source>Toggle console for %1 events</source>
+      <translation type="unfinished">Toggle console for %1 events</translation>
     </message>
     <message>
-        <source>Toggle pop-up notifications for %1 events</source>
-        <translation>开关“%1”事件的弹出通知</translation>
+      <source>Toggle pop-up notifications for %1 events</source>
+      <translation type="unfinished">Toggle pop-up notifications for %1 events</translation>
     </message>
     <message>
-        <source>Toggle Text-To-Speech for %1 events</source>
-        <translation>开关“%1”事件的语音播报</translation>
+      <source>Toggle Text-To-Speech for %1 events</source>
+      <translation type="unfinished">Toggle Text-To-Speech for %1 events</translation>
     </message>
     <message>
-        <source>Click here to toggle sound notification for %1 events</source>
-        <translation>开关“%1”事件的提示音</translation>
+      <source>Click here to toggle sound notification for %1 events</source>
+      <translation type="unfinished">Click here to toggle sound notification for %1 events</translation>
     </message>
     <message>
-        <source>Toggle window highlight (if not active) for %1 events</source>
-        <translation>开关“%1”事件的窗口高亮（如果未激活）</translation>
+      <source>Toggle window highlight (if not active) for %1 events</source>
+      <translation type="unfinished">Toggle window highlight (if not active) for %1 events</translation>
     </message>
     <message>
-        <source>Path to sound file used for sound notifications in the case of %1 events&lt;br /&gt;Single click to play&lt;br /&gt;Double-click to change</source>
-        <translation>为“%1”事件的提示音选择一个声音文件&lt;br /&gt;点击播放&lt;br /&gt;双击更改</translation>
+      <source>Path to sound file used for sound notifications in the case of %1 events&lt;br /&gt;Single click to play&lt;br /&gt;Double-click to change</source>
+      <translation type="unfinished">Path to sound file used for sound notifications in the case of %1 events&lt;br /&gt;Single click to play&lt;br /&gt;Double-click to change</translation>
     </message>
     <message>
-        <source>Click here to toggle console output for %1 events.&lt;br /&gt;If checked, this option makes Mumble output all %1 events in its message log.</source>
-        <translation>点击这里开关“%1”事件的控制台输出。&lt;br /&gt;如果选中此选项，Mumble 将会把所有“%1”事件输出到消息日志。</translation>
+      <source>Click here to toggle console output for %1 events.&lt;br /&gt;If checked, this option makes Mumble output all %1 events in its message log.</source>
+      <translation type="unfinished">Click here to toggle console output for %1 events.&lt;br /&gt;If checked, this option makes Mumble output all %1 events in its message log.</translation>
     </message>
     <message>
-        <source>Click here to toggle pop-up notifications for %1 events.&lt;br /&gt;If checked, a notification pop-up will be created by Mumble for every %1 event.</source>
-        <oldsource>Click here to toggle pop-up notifications for %1 events.&lt;br /&gt;If checked, a notification pop-up will be created by mumble for every %1 event.</oldsource>
-        <translation>点击这里开关“%1”事件的弹出通知。&lt;br /&gt;如果选中此选项，Mumble 将会为所有“%1”事件弹出一个通知。</translation>
+      <source>Click here to toggle pop-up notifications for %1 events.&lt;br /&gt;If checked, a notification pop-up will be created by Mumble for every %1 event.</source>
+      <oldsource>Click here to toggle pop-up notifications for %1 events.&lt;br /&gt;If checked, a notification pop-up will be created by mumble for every %1 event.</oldsource>
+      <translation type="unfinished">Click here to toggle pop-up notifications for %1 events.&lt;br /&gt;If checked, a notification pop-up will be created by Mumble for every %1 event.</translation>
     </message>
     <message>
-        <source>Click here to toggle window highlight for %1 events.&lt;br /&gt;If checked, Mumble&apos;s window will be highlighted for every %1 event, if not active.</source>
-        <translation>点击这里开关“%1”事件的窗口高亮。&lt;br /&gt;如果选中此选项，在 Mumble 窗口未激活的情况下，每次“%1”事件都会高亮窗口。</translation>
+      <source>Click here to toggle window highlight for %1 events.&lt;br /&gt;If checked, Mumble&apos;s window will be highlighted for every %1 event, if not active.</source>
+      <translation type="unfinished">Click here to toggle window highlight for %1 events.&lt;br /&gt;If checked, Mumble&apos;s window will be highlighted for every %1 event, if not active.</translation>
     </message>
     <message>
-        <source>Path to sound file used for sound notifications in the case of %1 events.&lt;br /&gt;Single click to play&lt;br /&gt;Double-click to change&lt;br /&gt;Ensure that sound notifications for these events are enabled or this field will not have any effect.</source>
-        <translation>为“%1”事件选择提示音文件路径。&lt;br /&gt;点击播放&lt;br /&gt;双击更改&lt;br /&gt;请确保这些事件已经开启提示音或者未设置其他提醒效果。</translation>
+      <source>Path to sound file used for sound notifications in the case of %1 events.&lt;br /&gt;Single click to play&lt;br /&gt;Double-click to change&lt;br /&gt;Ensure that sound notifications for these events are enabled or this field will not have any effect.</source>
+      <translation type="unfinished">Path to sound file used for sound notifications in the case of %1 events.&lt;br /&gt;Single click to play&lt;br /&gt;Double-click to change&lt;br /&gt;Ensure that sound notifications for these events are enabled or this field will not have any effect.</translation>
     </message>
     <message>
-        <source>Click here to toggle Text-To-Speech for %1 events.&lt;br /&gt;If checked, Mumble uses Text-To-Speech to read %1 events out loud to you. Text-To-Speech is also able to read the contents of the event which is not true for sound files. Text-To-Speech and sound files cannot be used at the same time.</source>
-        <oldsource>Click here to toggle sound notification for %1 events.&lt;br /&gt;If checked, Mumble uses a soundfile predefined by you to indicate %1 events. Soundfiles and Text-To-Speech cannot be used at the same time.</oldsource>
-        <translation>点击这里开关“%1”事件的语音播报。&lt;br /&gt;如果选中此选项，Mumble 将会使用文字转语音引擎为您播报“%1”事件。语音播报能够读出事件内容，这是提示音所不具备的功能。语音播报和提示音不能同时启用。</translation>
+      <source>Click here to toggle Text-To-Speech for %1 events.&lt;br /&gt;If checked, Mumble uses Text-To-Speech to read %1 events out loud to you. Text-To-Speech is also able to read the contents of the event which is not true for sound files. Text-To-Speech and sound files cannot be used at the same time.</source>
+      <oldsource>Click here to toggle sound notification for %1 events.&lt;br /&gt;If checked, Mumble uses a soundfile predefined by you to indicate %1 events. Soundfiles and Text-To-Speech cannot be used at the same time.</oldsource>
+      <translation type="unfinished">Click here to toggle Text-To-Speech for %1 events.&lt;br /&gt;If checked, Mumble uses Text-To-Speech to read %1 events out loud to you. Text-To-Speech is also able to read the contents of the event which is not true for sound files. Text-To-Speech and sound files cannot be used at the same time.</translation>
     </message>
     <message>
-        <source>Click here to toggle sound notification for %1 events.&lt;br /&gt;If checked, Mumble uses a sound file predefined by you to indicate %1 events. Sound files and Text-To-Speech cannot be used at the same time.</source>
-        <oldsource>Path to soundfile used for sound notifications in the case of %1 events.&lt;br /&gt;Single click to play&lt;br /&gt;Doubleclick to change&lt;br /&gt;Be sure that sound notifications for these events are enabled or this field will not have any effect.</oldsource>
-        <translation>点击这里开关“%1”事件的提示音。&lt;br /&gt;如果选中此选项，Mumble 会使用您设定好的声音文件提示“%1”事件。提示音和语音播报不能同时启用。</translation>
+      <source>Click here to toggle sound notification for %1 events.&lt;br /&gt;If checked, Mumble uses a sound file predefined by you to indicate %1 events. Sound files and Text-To-Speech cannot be used at the same time.</source>
+      <oldsource>Path to soundfile used for sound notifications in the case of %1 events.&lt;br /&gt;Single click to play&lt;br /&gt;Doubleclick to change&lt;br /&gt;Be sure that sound notifications for these events are enabled or this field will not have any effect.</oldsource>
+      <translation type="unfinished">Click here to toggle sound notification for %1 events.&lt;br /&gt;If checked, Mumble uses a sound file predefined by you to indicate %1 events. Sound files and Text-To-Speech cannot be used at the same time.</translation>
     </message>
     <message>
-        <source>Messages</source>
-        <translation>消息</translation>
+      <source>Messages</source>
+      <translation type="unfinished">Messages</translation>
     </message>
     <message>
-        <source>Message</source>
-        <translation>消息</translation>
+      <source>Message</source>
+      <translation type="unfinished">Message</translation>
     </message>
     <message>
-        <source>Console</source>
-        <translation>控制台</translation>
+      <source>Console</source>
+      <translation type="unfinished">Console</translation>
     </message>
     <message>
-        <source>Notification</source>
-        <translation>通知</translation>
+      <source>Notification</source>
+      <translation type="unfinished">Notification</translation>
     </message>
     <message>
-        <source>Text-To-Speech</source>
-        <translation>语音播报</translation>
+      <source>Text-To-Speech</source>
+      <translation type="unfinished">Text-To-Speech</translation>
     </message>
     <message>
-        <source>Soundfile</source>
-        <translation>提示音文件</translation>
+      <source>Soundfile</source>
+      <translation type="unfinished">Soundfile</translation>
     </message>
     <message>
-        <source>Path</source>
-        <translation>路径</translation>
+      <source>Path</source>
+      <translation type="unfinished">Path</translation>
     </message>
     <message>
-        <source>Text To Speech</source>
-        <translation>语音播报</translation>
+      <source>Text To Speech</source>
+      <translation type="unfinished">Text To Speech</translation>
     </message>
     <message>
-        <source>Volume</source>
-        <translation>音量</translation>
+      <source>Volume</source>
+      <translation type="unfinished">Volume</translation>
     </message>
     <message>
-        <source>Volume of Text-To-Speech Engine</source>
-        <translation>语音播报引擎的音量</translation>
+      <source>Volume of Text-To-Speech Engine</source>
+      <translation type="unfinished">Volume of Text-To-Speech Engine</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;设置语音合成的音量&lt;/b&gt;</translation>
+      <source>&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This is the volume used for the speech synthesis.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Length threshold</source>
-        <translation>长度限制</translation>
+      <source>Length threshold</source>
+      <translation type="unfinished">Length threshold</translation>
     </message>
     <message>
-        <source>Message length threshold for Text-To-Speech Engine</source>
-        <translation>语音播放引擎的消息长度限制</translation>
+      <source>Message length threshold for Text-To-Speech Engine</source>
+      <translation type="unfinished">Message length threshold for Text-To-Speech Engine</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</source>
-        <translation>&lt;b&gt;设置语音播报消息的长度&lt;/b&gt;&lt;br /&gt;超过这个长度限制的消息将不会被完整播报内容。</translation>
+      <source>&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</source>
+      <translation type="unfinished">&lt;b&gt;This is the length threshold used for the Text-To-Speech Engine.&lt;/b&gt;&lt;br /&gt;Messages longer than this limit will not be read aloud in their full length.</translation>
     </message>
     <message>
-        <source> Characters</source>
-        <translation> 字符</translation>
+      <source> Characters</source>
+      <translation type="unfinished"> Characters</translation>
     </message>
     <message>
-        <source>Whisper</source>
-        <translation>密语</translation>
+      <source>Whisper</source>
+      <translation type="unfinished">Whisper</translation>
     </message>
     <message>
-        <source>If checked you will only hear whispers from users you added to your friend list.</source>
-        <translation>如果选中此选项，您将只能听到好友列表内用户的密语。</translation>
+      <source>If checked you will only hear whispers from users you added to your friend list.</source>
+      <translation type="unfinished">If checked you will only hear whispers from users you added to your friend list.</translation>
     </message>
     <message>
-        <source>Only accept whispers from friends</source>
-        <translation>仅接受好友的密语</translation>
+      <source>Only accept whispers from friends</source>
+      <translation type="unfinished">Only accept whispers from friends</translation>
     </message>
     <message>
-        <source>If enabled text messages you send will be read back to you with TTS</source>
-        <translation>如果启用，您发送的文字消息也会被语音播报给您</translation>
+      <source>If enabled text messages you send will be read back to you with TTS</source>
+      <translation type="unfinished">If enabled text messages you send will be read back to you with TTS</translation>
     </message>
     <message>
-        <source>Read back own messages</source>
-        <translation>播报自己的消息</translation>
+      <source>Read back own messages</source>
+      <translation type="unfinished">Read back own messages</translation>
     </message>
     <message>
-        <source>Chat Log</source>
-        <translation>聊天记录</translation>
+      <source>Chat Log</source>
+      <translation type="unfinished">Chat Log</translation>
     </message>
     <message>
-        <source>Maximum chat length</source>
-        <translation>最大聊天长度</translation>
+      <source>Maximum chat length</source>
+      <translation type="unfinished">Maximum chat length</translation>
     </message>
     <message>
-        <source>Unlimited</source>
-        <translation>无限制</translation>
+      <source>Unlimited</source>
+      <translation type="unfinished">Unlimited</translation>
     </message>
     <message>
-        <source> Lines</source>
-        <translation> 行</translation>
+      <source> Lines</source>
+      <translation type="unfinished"> Lines</translation>
     </message>
     <message>
-        <source>Highlight</source>
-        <translation>窗口高亮</translation>
+      <source>Highlight</source>
+      <translation type="unfinished">Highlight</translation>
     </message>
     <message>
-        <source>If enabled, TTS will not dictate the message scope.</source>
-        <translation>启用时，不会语音播报消息发送范围。</translation>
+      <source>If enabled, TTS will not dictate the message scope.</source>
+      <translation type="unfinished">If enabled, TTS will not dictate the message scope.</translation>
     </message>
     <message>
-        <source>Omit Message Scope</source>
-        <translation>省略消息范围</translation>
+      <source>Omit Message Scope</source>
+      <translation type="unfinished">Omit Message Scope</translation>
     </message>
     <message>
-        <source>If enabled, TTS will not dictate the message author.</source>
-        <translation>启用时，不会语音播报消息发送者名称。</translation>
+      <source>If enabled, TTS will not dictate the message author.</source>
+      <translation type="unfinished">If enabled, TTS will not dictate the message author.</translation>
     </message>
     <message>
-        <source>Omit Message Author</source>
-        <translation>省略发言人名称</translation>
+      <source>Omit Message Author</source>
+      <translation type="unfinished">Omit Message Author</translation>
     </message>
     <message>
-        <source>If checked the time at the beginning of a message will be displayed in the 24-hour format.
+      <source>If checked the time at the beginning of a message will be displayed in the 24-hour format.
 
 The setting only applies for new messages, the already shown ones will retain the previous time format.</source>
-        <translation>选中时，消息前的时间会以 24 小时格式显示。
+      <translation type="unfinished">If checked the time at the beginning of a message will be displayed in the 24-hour format.
 
-此设置仅会对新消息生效，之前的消息会以原有时间格式显示。</translation>
+The setting only applies for new messages, the already shown ones will retain the previous time format.</translation>
     </message>
     <message>
-        <source>Use 24-hour clock</source>
-        <translation>使用 24 小时制</translation>
+      <source>Use 24-hour clock</source>
+      <translation type="unfinished">Use 24-hour clock</translation>
     </message>
     <message>
-        <source>How far individual messages are spaced out from one another.</source>
-        <translation>每条消息之间的行距。</translation>
+      <source>How far individual messages are spaced out from one another.</source>
+      <translation type="unfinished">How far individual messages are spaced out from one another.</translation>
     </message>
     <message>
-        <source>Message margins</source>
-        <translation>消息间隔</translation>
+      <source>Message margins</source>
+      <translation type="unfinished">Message margins</translation>
     </message>
     <message>
-        <source>Log messages</source>
-        <translation>日志消息</translation>
+      <source>Log messages</source>
+      <translation type="unfinished">Log messages</translation>
     </message>
     <message>
-        <source>TTS engine volume</source>
-        <translation>文字转语音引擎音量</translation>
+      <source>TTS engine volume</source>
+      <translation type="unfinished">TTS engine volume</translation>
     </message>
     <message>
-        <source>Chat message margins</source>
-        <translation>聊天消息间距</translation>
+      <source>Chat message margins</source>
+      <translation type="unfinished">Chat message margins</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>LookConfig</name>
     <message>
-        <source>System default</source>
-        <translation>系统默认</translation>
+      <source>System default</source>
+      <translation type="unfinished">System default</translation>
     </message>
     <message>
-        <source>None</source>
-        <translation>无</translation>
+      <source>None</source>
+      <translation type="unfinished">None</translation>
     </message>
     <message>
-        <source>Only with users</source>
-        <translation>仅有用户时</translation>
+      <source>Only with users</source>
+      <translation type="unfinished">Only with users</translation>
     </message>
     <message>
-        <source>All</source>
-        <translation>全部展开</translation>
+      <source>All</source>
+      <translation type="unfinished">All</translation>
     </message>
     <message>
-        <source>Ask</source>
-        <translation>询问</translation>
+      <source>Ask</source>
+      <translation type="unfinished">Ask</translation>
     </message>
     <message>
-        <source>Do Nothing</source>
-        <translation>无动作</translation>
+      <source>Do Nothing</source>
+      <translation type="unfinished">Do Nothing</translation>
     </message>
     <message>
-        <source>Move</source>
-        <translation>移动</translation>
+      <source>Move</source>
+      <translation type="unfinished">Move</translation>
     </message>
     <message>
-        <source>&lt;a href=&quot;%1&quot;&gt;Browse&lt;/a&gt;</source>
-        <extracomment>This link is located next to the theme heading in the ui config and opens the user theme directory</extracomment>
-        <translation>&lt;a href=&quot;%1&quot;&gt;浏览&lt;/a&gt;</translation>
+      <source>&lt;a href=&quot;%1&quot;&gt;Browse&lt;/a&gt;</source>
+      <extracomment>This link is located next to the theme heading in the ui config and opens the user theme directory</extracomment>
+      <translation type="unfinished">&lt;a href=&quot;%1&quot;&gt;Browse&lt;/a&gt;</translation>
     </message>
     <message>
-        <source>User Interface</source>
-        <translation>界面</translation>
+      <source>User Interface</source>
+      <translation type="unfinished">User Interface</translation>
     </message>
     <message>
-        <source>This sets which channels to automatically expand. &lt;i&gt;None&lt;/i&gt; and &lt;i&gt;All&lt;/i&gt; will expand no or all channels, while &lt;i&gt;Only with users&lt;/i&gt; will expand and collapse channels as users join and leave them.</source>
-        <translation>设置频道的自动展开。&lt;i&gt;不展开&lt;/i&gt;和&lt;i&gt;全部展开&lt;/i&gt;将会折叠所有频道或展开所有频道。&lt;i&gt;仅有用户时&lt;/i&gt;将会在用户加入或离开频道时自动展开或折叠。</translation>
+      <source>This sets which channels to automatically expand. &lt;i&gt;None&lt;/i&gt; and &lt;i&gt;All&lt;/i&gt; will expand no or all channels, while &lt;i&gt;Only with users&lt;/i&gt; will expand and collapse channels as users join and leave them.</source>
+      <translation type="unfinished">This sets which channels to automatically expand. &lt;i&gt;None&lt;/i&gt; and &lt;i&gt;All&lt;/i&gt; will expand no or all channels, while &lt;i&gt;Only with users&lt;/i&gt; will expand and collapse channels as users join and leave them.</translation>
     </message>
     <message>
-        <source>List users above subchannels (requires restart).</source>
-        <translation>将用户显示在子频道上方（需要重启）。</translation>
+      <source>List users above subchannels (requires restart).</source>
+      <translation type="unfinished">List users above subchannels (requires restart).</translation>
     </message>
     <message>
-        <source>&lt;b&gt;If set, users will be shown above subchannels in the channel view.&lt;/b&gt;&lt;br /&gt;A restart of Mumble is required to see the change.</source>
-        <translation>&lt;b&gt;如果选中，频道的用户将会显示在其子频道的上方。&lt;/b&gt;&lt;br /&gt;此更改需要重启 Mumble 才能生效。</translation>
+      <source>&lt;b&gt;If set, users will be shown above subchannels in the channel view.&lt;/b&gt;&lt;br /&gt;A restart of Mumble is required to see the change.</source>
+      <translation type="unfinished">&lt;b&gt;If set, users will be shown above subchannels in the channel view.&lt;/b&gt;&lt;br /&gt;A restart of Mumble is required to see the change.</translation>
     </message>
     <message>
-        <source>Users above Channels</source>
-        <translation>用户显示在频道上方</translation>
+      <source>Users above Channels</source>
+      <translation type="unfinished">Users above Channels</translation>
     </message>
     <message>
-        <source>&lt;b&gt;If set, will verify you want to quit if connected.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;如果选中，在您已连接服务器时退出需要确认。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;If set, will verify you want to quit if connected.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;If set, will verify you want to quit if connected.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Show number of users in each channel</source>
-        <translation>显示每个频道的用户数</translation>
+      <source>Show number of users in each channel</source>
+      <translation type="unfinished">Show number of users in each channel</translation>
     </message>
     <message>
-        <source>Show channel user count</source>
-        <translation>显示频道用户数</translation>
+      <source>Show channel user count</source>
+      <translation type="unfinished">Show channel user count</translation>
     </message>
     <message>
-        <source>Language</source>
-        <translation>语言</translation>
+      <source>Language</source>
+      <translation type="unfinished">Language</translation>
     </message>
     <message>
-        <source>Language to use (requires restart)</source>
-        <translation>将使用的语言（需要重启）</translation>
+      <source>Language to use (requires restart)</source>
+      <translation type="unfinished">Language to use (requires restart)</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This sets which language Mumble should use.&lt;/b&gt;&lt;br /&gt;You have to restart Mumble to use the new language.</source>
-        <translation>&lt;b&gt;设置 Mumble 应该使用的语言。&lt;/b&gt;&lt;br /&gt;您需要重启 Mumble 才能使用新的语言。</translation>
+      <source>&lt;b&gt;This sets which language Mumble should use.&lt;/b&gt;&lt;br /&gt;You have to restart Mumble to use the new language.</source>
+      <translation type="unfinished">&lt;b&gt;This sets which language Mumble should use.&lt;/b&gt;&lt;br /&gt;You have to restart Mumble to use the new language.</translation>
     </message>
     <message>
-        <source>Look and Feel</source>
-        <translation>外观和体验</translation>
+      <source>Look and Feel</source>
+      <translation type="unfinished">Look and Feel</translation>
     </message>
     <message>
-        <source>Layout</source>
-        <translation>布局</translation>
+      <source>Layout</source>
+      <translation type="unfinished">Layout</translation>
     </message>
     <message>
-        <source>Classic</source>
-        <translation>经典</translation>
+      <source>Classic</source>
+      <translation type="unfinished">Classic</translation>
     </message>
     <message>
-        <source>Stacked</source>
-        <translation>堆叠</translation>
+      <source>Stacked</source>
+      <translation type="unfinished">Stacked</translation>
     </message>
     <message>
-        <source>Hybrid</source>
-        <translation>混合</translation>
+      <source>Hybrid</source>
+      <translation type="unfinished">Hybrid</translation>
     </message>
     <message>
-        <source>Custom</source>
-        <translation>自定义</translation>
+      <source>Custom</source>
+      <translation type="unfinished">Custom</translation>
     </message>
     <message>
-        <source>This changes the behavior when moving channels.</source>
-        <translation>改变移动频道时的行为。</translation>
+      <source>This changes the behavior when moving channels.</source>
+      <translation type="unfinished">This changes the behavior when moving channels.</translation>
     </message>
     <message>
-        <source>This sets the behavior of channel drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the channel without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the channel.</source>
-        <oldsource>This sets the behavior of channel drags; it can be used to prevent accidental dragging. &lt;i&gt;Move Channel&lt;/i&gt; moves the channel without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the channel.</oldsource>
-        <translation>设置频道被拖动时的行为，用于防止意外的拖动。&lt;i&gt;移动&lt;/i&gt;表示立刻移动频道而不需要任何确认。&lt;i&gt;无动作&lt;/i&gt;表示不做任何改变并显示一条错误消息。&lt;i&gt;询问&lt;/i&gt;表示弹出一个消息框以确认您是否确实要移动频道。</translation>
+      <source>This sets the behavior of channel drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the channel without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the channel.</source>
+      <oldsource>This sets the behavior of channel drags; it can be used to prevent accidental dragging. &lt;i&gt;Move Channel&lt;/i&gt; moves the channel without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the channel.</oldsource>
+      <translation type="unfinished">This sets the behavior of channel drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the channel without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the channel.</translation>
     </message>
     <message>
-        <source>Expand</source>
-        <translation>频道展开</translation>
+      <source>Expand</source>
+      <translation type="unfinished">Expand</translation>
     </message>
     <message>
-        <source>When to automatically expand channels</source>
-        <translation>何时自动展开频道</translation>
+      <source>When to automatically expand channels</source>
+      <translation type="unfinished">When to automatically expand channels</translation>
     </message>
     <message>
-        <source>Channel Dragging</source>
-        <translation>频道拖动</translation>
+      <source>Channel Dragging</source>
+      <translation type="unfinished">Channel Dragging</translation>
     </message>
     <message>
-        <source>Ask whether to close or minimize when quitting Mumble.</source>
-        <translation>在退出 Mumble 时，询问您要关闭还是最小化。</translation>
+      <source>Ask whether to close or minimize when quitting Mumble.</source>
+      <translation type="unfinished">Ask whether to close or minimize when quitting Mumble.</translation>
     </message>
     <message>
-        <source>Ask on quit while connected</source>
-        <translation>在已连接服务器时确认退出</translation>
+      <source>Ask on quit while connected</source>
+      <translation type="unfinished">Ask on quit while connected</translation>
     </message>
     <message>
-        <source>Always On Top</source>
-        <translation>始终置顶</translation>
+      <source>Always On Top</source>
+      <translation type="unfinished">Always On Top</translation>
     </message>
     <message>
-        <source>&lt;b&gt;If set, minimizing the Mumble main window will cause it to be hidden and accessible only from the tray. Otherwise, it will be minimized as a window normally would.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;如果设置，最小化时 Mumble 主窗口将被最小化到系统托盘。否则将以普通窗口方式最小化。&lt;/b&gt;</translation>
+      <source>&lt;b&gt;If set, minimizing the Mumble main window will cause it to be hidden and accessible only from the tray. Otherwise, it will be minimized as a window normally would.&lt;/b&gt;</source>
+      <translation type="unfinished">&lt;b&gt;If set, minimizing the Mumble main window will cause it to be hidden and accessible only from the tray. Otherwise, it will be minimized as a window normally would.&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>Hide in tray when minimized</source>
-        <translation>最小化时隐藏到系统托盘</translation>
+      <source>Hide in tray when minimized</source>
+      <translation type="unfinished">Hide in tray when minimized</translation>
     </message>
     <message>
-        <source>Hide the main Mumble window in the tray when it is minimized.</source>
-        <translation>在最小化时隐藏 Mumble 主窗口到系统托盘。</translation>
+      <source>Hide the main Mumble window in the tray when it is minimized.</source>
+      <translation type="unfinished">Hide the main Mumble window in the tray when it is minimized.</translation>
     </message>
     <message>
-        <source>This setting controls when the application will be always on top.</source>
-        <translation>此选项控制应用程序何时需要置顶显示。</translation>
+      <source>This setting controls when the application will be always on top.</source>
+      <translation type="unfinished">This setting controls when the application will be always on top.</translation>
     </message>
     <message>
-        <source>Never</source>
-        <translation>从不</translation>
+      <source>Never</source>
+      <translation type="unfinished">Never</translation>
     </message>
     <message>
-        <source>Always</source>
-        <translation>总是</translation>
+      <source>Always</source>
+      <translation type="unfinished">Always</translation>
     </message>
     <message>
-        <source>In minimal view</source>
-        <translation>简洁视图时</translation>
+      <source>In minimal view</source>
+      <translation type="unfinished">In minimal view</translation>
     </message>
     <message>
-        <source>In normal view</source>
-        <translation>普通视图时</translation>
+      <source>In normal view</source>
+      <translation type="unfinished">In normal view</translation>
     </message>
     <message>
-        <source>Displays talking status in system tray</source>
-        <translation>在系统托盘显示说话状态</translation>
+      <source>Displays talking status in system tray</source>
+      <translation type="unfinished">Displays talking status in system tray</translation>
     </message>
     <message>
-        <source>Show talking status in tray icon</source>
-        <translation>使用系统托盘图标显示说话状态</translation>
+      <source>Show talking status in tray icon</source>
+      <translation type="unfinished">Show talking status in tray icon</translation>
     </message>
     <message>
-        <source>This setting controls in which situations the application will stay always on top. If you select &lt;i&gt;Never&lt;/i&gt; the application will not stay on top. &lt;i&gt;Always&lt;/i&gt; will always keep the application on top. &lt;i&gt;In minimal view&lt;/i&gt; / &lt;i&gt;In normal view&lt;/i&gt; will only keep the application always on top when minimal view is activated / deactivated.</source>
-        <translation>此选项控制何时将应用置于顶层。如果选择&lt;i&gt;从不&lt;/i&gt;，应用程序将永远不会至于顶层。&lt;i&gt;总是&lt;/i&gt;表示应用程序总是显示在顶层。&lt;i&gt;简洁视图时&lt;/i&gt;/&lt;i&gt;普通视图时&lt;/i&gt;表示将仅在激活/未激活简洁视图时将应用程序置于顶层。</translation>
+      <source>This setting controls in which situations the application will stay always on top. If you select &lt;i&gt;Never&lt;/i&gt; the application will not stay on top. &lt;i&gt;Always&lt;/i&gt; will always keep the application on top. &lt;i&gt;In minimal view&lt;/i&gt; / &lt;i&gt;In normal view&lt;/i&gt; will only keep the application always on top when minimal view is activated / deactivated.</source>
+      <translation type="unfinished">This setting controls in which situations the application will stay always on top. If you select &lt;i&gt;Never&lt;/i&gt; the application will not stay on top. &lt;i&gt;Always&lt;/i&gt; will always keep the application on top. &lt;i&gt;In minimal view&lt;/i&gt; / &lt;i&gt;In normal view&lt;/i&gt; will only keep the application always on top when minimal view is activated / deactivated.</translation>
     </message>
     <message>
-        <source>Show context menu in menu bar</source>
-        <translation>菜单栏显示右键菜单</translation>
+      <source>Show context menu in menu bar</source>
+      <translation type="unfinished">Show context menu in menu bar</translation>
     </message>
     <message>
-        <source>Apply some high contrast optimizations for visually impaired users</source>
-        <translation>为视障用户启用一些高对比度优化</translation>
+      <source>Apply some high contrast optimizations for visually impaired users</source>
+      <translation type="unfinished">Apply some high contrast optimizations for visually impaired users</translation>
     </message>
     <message>
-        <source>Optimize for high contrast</source>
-        <translation>高对比度优化</translation>
+      <source>Optimize for high contrast</source>
+      <translation type="unfinished">Optimize for high contrast</translation>
     </message>
     <message>
-        <source>Application</source>
-        <translation>应用程序</translation>
+      <source>Application</source>
+      <translation type="unfinished">Application</translation>
     </message>
     <message>
-        <source>Adds user and channel context menus into the menu bar</source>
-        <translation>在菜单栏添加“用户”和“频道”的右键菜单</translation>
+      <source>Adds user and channel context menus into the menu bar</source>
+      <translation type="unfinished">Adds user and channel context menus into the menu bar</translation>
     </message>
     <message>
-        <source>Tray Icon</source>
-        <translation>系统托盘图标</translation>
+      <source>Tray Icon</source>
+      <translation type="unfinished">Tray Icon</translation>
     </message>
     <message>
-        <source>Channel Tree</source>
-        <translation>频道树</translation>
+      <source>Channel Tree</source>
+      <translation type="unfinished">Channel Tree</translation>
     </message>
     <message>
-        <source>Use selected item as the chat bar target</source>
-        <translation>以所选对象作为聊天栏目标</translation>
+      <source>Use selected item as the chat bar target</source>
+      <translation type="unfinished">Use selected item as the chat bar target</translation>
     </message>
     <message>
-        <source>Filter automatically hides empty channels</source>
-        <translation>筛选频道时自动隐藏空频道</translation>
+      <source>Filter automatically hides empty channels</source>
+      <translation type="unfinished">Filter automatically hides empty channels</translation>
     </message>
     <message>
-        <source>Show transmit mode dropdown in toolbar</source>
-        <translation>在工具栏显示传输模式下拉列表</translation>
+      <source>Show transmit mode dropdown in toolbar</source>
+      <translation type="unfinished">Show transmit mode dropdown in toolbar</translation>
     </message>
     <message>
-        <source>Theme</source>
-        <translation>主题</translation>
+      <source>Theme</source>
+      <translation type="unfinished">Theme</translation>
     </message>
     <message>
-        <source>Theme to use to style the user interface</source>
-        <translation>用于设置界面样式的主题</translation>
+      <source>Theme to use to style the user interface</source>
+      <translation type="unfinished">Theme to use to style the user interface</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Configures which theme the Mumble user interface should be styled with&lt;/b&gt;&lt;br /&gt;Mumble will pick up themes from certain directories and display them in this list. The one you select will be used to customize the visual appearance of Mumble. This includes colors, icons and more.</source>
-        <translation>&lt;b&gt;配置 Mumble 界面应该使用哪种主题设置样式&lt;/b&gt;&lt;br /&gt;Mumble 将从特定目录中获取主题并将其显示在此列表中。您选择的主题将用于自定义 Mumble 的外观，包括颜色、图标等。</translation>
+      <source>&lt;b&gt;Configures which theme the Mumble user interface should be styled with&lt;/b&gt;&lt;br /&gt;Mumble will pick up themes from certain directories and display them in this list. The one you select will be used to customize the visual appearance of Mumble. This includes colors, icons and more.</source>
+      <translation type="unfinished">&lt;b&gt;Configures which theme the Mumble user interface should be styled with&lt;/b&gt;&lt;br /&gt;Mumble will pick up themes from certain directories and display them in this list. The one you select will be used to customize the visual appearance of Mumble. This includes colors, icons and more.</translation>
     </message>
     <message>
-        <source>User Dragging</source>
-        <translation>用户拖动</translation>
+      <source>User Dragging</source>
+      <translation type="unfinished">User Dragging</translation>
     </message>
     <message>
-        <source>This changes the behavior when moving users.</source>
-        <translation>改变移动用户时的行为。</translation>
+      <source>This changes the behavior when moving users.</source>
+      <translation type="unfinished">This changes the behavior when moving users.</translation>
     </message>
     <message>
-        <source>This sets the behavior of user drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the user without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the user.</source>
-        <translation>设置用户被拖动时的行为，用于防止意外的拖动。&lt;i&gt;移动&lt;/i&gt;表示立刻移动用户而不需要任何确认。&lt;i&gt;无动作&lt;/i&gt;表示不做任何改变并显示一条错误消息。&lt;i&gt;询问&lt;/i&gt;表示弹出一个消息框以确认您是否确实要移动用户。</translation>
+      <source>This sets the behavior of user drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the user without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the user.</source>
+      <translation type="unfinished">This sets the behavior of user drags; it can be used to prevent accidental dragging. &lt;i&gt;Move&lt;/i&gt; moves the user without prompting. &lt;i&gt;Do Nothing&lt;/i&gt; does nothing and prints an error message. &lt;i&gt;Ask&lt;/i&gt; uses a message box to confirm if you really wanted to move the user.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Enable Developer menu&lt;/b&gt;&lt;br /&gt;This enables the &quot;Developer&quot;-menu in Mumble. This menu is used for developer-specific features, such as the Developer Console.</source>
-        <translation>&lt;b&gt;启用开发者菜单&lt;/b&gt;&lt;br /&gt;Mumble 将启用“开发者”菜单。此菜单用于开发者使用的功能，例如开发者控制台。</translation>
+      <source>&lt;b&gt;Enable Developer menu&lt;/b&gt;&lt;br /&gt;This enables the &quot;Developer&quot;-menu in Mumble. This menu is used for developer-specific features, such as the Developer Console.</source>
+      <translation type="unfinished">&lt;b&gt;Enable Developer menu&lt;/b&gt;&lt;br /&gt;This enables the &quot;Developer&quot;-menu in Mumble. This menu is used for developer-specific features, such as the Developer Console.</translation>
     </message>
     <message>
-        <source>Enable Developer menu</source>
-        <translation>启用开发者菜单</translation>
+      <source>Enable Developer menu</source>
+      <translation type="unfinished">Enable Developer menu</translation>
     </message>
     <message>
-        <source>When in custom layout mode, checking this disables rearranging.</source>
-        <translation>在自定义布局模式下，选中此选项将禁止重新排列。</translation>
+      <source>When in custom layout mode, checking this disables rearranging.</source>
+      <translation type="unfinished">When in custom layout mode, checking this disables rearranging.</translation>
     </message>
     <message>
-        <source>Lock layout</source>
-        <translation>锁定布局</translation>
+      <source>Lock layout</source>
+      <translation type="unfinished">Lock layout</translation>
     </message>
     <message>
-        <source>Talking UI</source>
-        <translation>对话界面</translation>
+      <source>Talking UI</source>
+      <translation type="unfinished">Talking UI</translation>
     </message>
     <message>
-        <source>A user that is silent for the given amount of seconds will be removed from the Talkin UI.</source>
-        <translation>指定秒数之后没有发言的用户会被移出对话界面。</translation>
+      <source>A user that is silent for the given amount of seconds will be removed from the Talkin UI.</source>
+      <translation type="unfinished">A user that is silent for the given amount of seconds will be removed from the Talkin UI.</translation>
     </message>
     <message>
-        <source>Remove silent user after</source>
-        <translation>用户被移出前需未发言</translation>
+      <source>Remove silent user after</source>
+      <translation type="unfinished">Remove silent user after</translation>
     </message>
     <message>
-        <source>If this is checked, the local user (yourself) will always be visible in the TalkingUI (regardless of talking state).</source>
-        <translation>选中时，本地用户（您自己）将总在对话界面内可见（无论是否在发言）。</translation>
+      <source>If this is checked, the local user (yourself) will always be visible in the TalkingUI (regardless of talking state).</source>
+      <translation type="unfinished">If this is checked, the local user (yourself) will always be visible in the TalkingUI (regardless of talking state).</translation>
     </message>
     <message>
-        <source>Always keep local user visible</source>
-        <translation>自己总是可见</translation>
+      <source>Always keep local user visible</source>
+      <translation type="unfinished">Always keep local user visible</translation>
     </message>
     <message>
-        <source>How many characters from the original name to display at the beginning of an abbreviated name.</source>
-        <translation>缩短后的名称显示原名称中的前多少个字符。</translation>
+      <source>How many characters from the original name to display at the beginning of an abbreviated name.</source>
+      <translation type="unfinished">How many characters from the original name to display at the beginning of an abbreviated name.</translation>
     </message>
     <message>
-        <source>String to separate a channel name from its parent&apos;s.</source>
-        <translation>分隔当前频道与父频道名称的字符</translation>
+      <source>String to separate a channel name from its parent&apos;s.</source>
+      <translation type="unfinished">String to separate a channel name from its parent&apos;s.</translation>
     </message>
     <message>
-        <source>Channel separator</source>
-        <translation>频道分隔符</translation>
+      <source>Channel separator</source>
+      <translation type="unfinished">Channel separator</translation>
     </message>
     <message>
-        <source>Abbreviated prefix characters</source>
-        <translation>缩短前缀字符</translation>
+      <source>Abbreviated prefix characters</source>
+      <translation type="unfinished">Abbreviated prefix characters</translation>
     </message>
     <message>
-        <source>The names of how many parent channels should be included in the channel&apos;s name when displaying it in the TalkingUI?</source>
-        <translation>对话界面显示频道名时，应包括多少个父频道？</translation>
+      <source>The names of how many parent channels should be included in the channel&apos;s name when displaying it in the TalkingUI?</source>
+      <translation type="unfinished">The names of how many parent channels should be included in the channel&apos;s name when displaying it in the TalkingUI?</translation>
     </message>
     <message>
-        <source>How many characters from the original name to display at the end of an abbreviated name.</source>
-        <translation>缩短后的名称显示原名称中的后多少个字符。</translation>
+      <source>How many characters from the original name to display at the end of an abbreviated name.</source>
+      <translation type="unfinished">How many characters from the original name to display at the end of an abbreviated name.</translation>
     </message>
     <message>
-        <source>Abbreviated postfix characters</source>
-        <translation>缩短后缀字符</translation>
+      <source>Abbreviated postfix characters</source>
+      <translation type="unfinished">Abbreviated postfix characters</translation>
     </message>
     <message>
-        <source>Whether to also allow abbreviating the current channel of a user (instead of only its parent channels).</source>
-        <translation>是否允许缩短用户所在频道（而非仅缩短父频道）。</translation>
+      <source>Whether to also allow abbreviating the current channel of a user (instead of only its parent channels).</source>
+      <translation type="unfinished">Whether to also allow abbreviating the current channel of a user (instead of only its parent channels).</translation>
     </message>
     <message>
-        <source>Abbreviate current channel name</source>
-        <translation>缩短当前频道名</translation>
+      <source>Abbreviate current channel name</source>
+      <translation type="unfinished">Abbreviate current channel name</translation>
     </message>
     <message>
-        <source>Channel hierarchy depth</source>
-        <translation>频道嵌套层数</translation>
+      <source>Channel hierarchy depth</source>
+      <translation type="unfinished">Channel hierarchy depth</translation>
     </message>
     <message>
-        <source>Abbreviation replacement</source>
-        <translation>缩写替换</translation>
+      <source>Abbreviation replacement</source>
+      <translation type="unfinished">Abbreviation replacement</translation>
     </message>
     <message>
-        <source>Whether the channel (hierarchy) name should be abbreviated, if it exceeds the specified maximum length.</source>
-        <translation>如果达到最大长度，是否应该缩短频道名（包含嵌套）。</translation>
+      <source>Whether the channel (hierarchy) name should be abbreviated, if it exceeds the specified maximum length.</source>
+      <translation type="unfinished">Whether the channel (hierarchy) name should be abbreviated, if it exceeds the specified maximum length.</translation>
     </message>
     <message>
-        <source>Abbreviate channel names</source>
-        <translation>缩短频道名</translation>
+      <source>Abbreviate channel names</source>
+      <translation type="unfinished">Abbreviate channel names</translation>
     </message>
     <message>
-        <source>The preferred maximum length of a channel (hierarchy) name in the Talking UI. Note that this is not a hard limit though.</source>
-        <translation>对话界面中频道名（包含嵌套）的最大长度。注意这并非强制限制。</translation>
+      <source>The preferred maximum length of a channel (hierarchy) name in the Talking UI. Note that this is not a hard limit though.</source>
+      <translation type="unfinished">The preferred maximum length of a channel (hierarchy) name in the Talking UI. Note that this is not a hard limit though.</translation>
     </message>
     <message>
-        <source>Max. channel name length</source>
-        <translation>频道名最大长度</translation>
+      <source>Max. channel name length</source>
+      <translation type="unfinished">Max. channel name length</translation>
     </message>
     <message>
-        <source>Relative font size to use in the Talking UI in percent.</source>
-        <translation>对话界面使用的相对字号（按百分比）。</translation>
+      <source>Relative font size to use in the Talking UI in percent.</source>
+      <translation type="unfinished">Relative font size to use in the Talking UI in percent.</translation>
     </message>
     <message>
-        <source>Rel. font size (%)</source>
-        <translation>相对字号（%）</translation>
+      <source>Rel. font size (%)</source>
+      <translation type="unfinished">Rel. font size (%)</translation>
     </message>
     <message>
-        <source>String that gets used instead of the cut-out part of an abbreviated name.</source>
-        <translation>缩短名称时，用于替换被去掉的字符。</translation>
+      <source>String that gets used instead of the cut-out part of an abbreviated name.</source>
+      <translation type="unfinished">String that gets used instead of the cut-out part of an abbreviated name.</translation>
     </message>
     <message>
-        <source>Prefix character count</source>
-        <translation>前缀字符数</translation>
+      <source>Prefix character count</source>
+      <translation type="unfinished">Prefix character count</translation>
     </message>
     <message>
-        <source>Postfix character count</source>
-        <translation>后缀字符数</translation>
+      <source>Postfix character count</source>
+      <translation type="unfinished">Postfix character count</translation>
     </message>
     <message>
-        <source>Maximum name length</source>
-        <translation>最大名称长度</translation>
+      <source>Maximum name length</source>
+      <translation type="unfinished">Maximum name length</translation>
     </message>
     <message>
-        <source>Relative font size</source>
-        <translation>相对字号</translation>
+      <source>Relative font size</source>
+      <translation type="unfinished">Relative font size</translation>
     </message>
     <message>
-        <source>Always on top</source>
-        <translation>始终置顶</translation>
+      <source>Always on top</source>
+      <translation type="unfinished">Always on top</translation>
     </message>
     <message>
-        <source>Channel dragging</source>
-        <translation>频道拖动</translation>
+      <source>Channel dragging</source>
+      <translation type="unfinished">Channel dragging</translation>
     </message>
     <message>
-        <source>Automatically expand channels when</source>
-        <translation>何时自动展开频道</translation>
+      <source>Automatically expand channels when</source>
+      <translation type="unfinished">Automatically expand channels when</translation>
     </message>
     <message>
-        <source>User dragging behavior</source>
-        <translation>用户拖动行为</translation>
+      <source>User dragging behavior</source>
+      <translation type="unfinished">User dragging behavior</translation>
     </message>
     <message>
-        <source>Silent user lifetime</source>
-        <translation>未发言用户显示时间</translation>
+      <source>Silent user lifetime</source>
+      <translation type="unfinished">Silent user lifetime</translation>
     </message>
     <message>
-        <source>Show the local volume adjustment for each user (if any).</source>
-        <translation>显示每名用户的本地音量调整（如果有）。</translation>
+      <source>Show the local volume adjustment for each user (if any).</source>
+      <translation type="unfinished">Show the local volume adjustment for each user (if any).</translation>
     </message>
     <message>
-        <source>Show volume adjustments</source>
-        <translation>显示音量调整</translation>
+      <source>Show volume adjustments</source>
+      <translation type="unfinished">Show volume adjustments</translation>
     </message>
     <message>
-        <source>Whether to show all of the local user&apos;s listeners (ears) in the TalkingUI (and thereby also the channels they are in). </source>
-        <translation>是否在对话界面显示本地用户的所有监听者（以及他们所在频道）。</translation>
+      <source>Whether to show all of the local user&apos;s listeners (ears) in the TalkingUI (and thereby also the channels they are in). </source>
+      <translation type="unfinished">Whether to show all of the local user&apos;s listeners (ears) in the TalkingUI (and thereby also the channels they are in). </translation>
     </message>
     <message>
-        <source>Show local user&apos;s listeners (ears)</source>
-        <translation>显示本地用户的监听者</translation>
+      <source>Show local user&apos;s listeners (ears)</source>
+      <translation type="unfinished">Show local user&apos;s listeners (ears)</translation>
     </message>
-</context>
-<context>
+    <message>
+      <source>Hide the username for each user if they have a nickname.</source>
+      <translation type="unfinished">Hide the username for each user if they have a nickname.</translation>
+    </message>
+    <message>
+      <source>Show nicknames only</source>
+      <translation type="unfinished">Show nicknames only</translation>
+    </message>
+  </context>
+  <context>
     <name>MainWindow</name>
     <message>
-        <source>Root</source>
-        <translation>Root</translation>
+      <source>Root</source>
+      <translation type="unfinished">Root</translation>
     </message>
     <message>
-        <source>Push-to-Talk</source>
-        <comment>Global Shortcut</comment>
-        <translation>按键发言</translation>
+      <source>Push-to-Talk</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Push-to-Talk</translation>
     </message>
     <message>
-        <source>Push and hold this button to send voice.</source>
-        <comment>Global Shortcut</comment>
-        <translation>按住此按钮时发送语音。</translation>
+      <source>Push and hold this button to send voice.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Push and hold this button to send voice.</translation>
     </message>
     <message>
-        <source>This configures the push-to-talk button, and as long as you hold this button down, you will transmit voice.</source>
-        <comment>Global Shortcut</comment>
-        <translation>设置“按键发言”按钮，只要按住这个按钮，就会发送您的语音。</translation>
+      <source>This configures the push-to-talk button, and as long as you hold this button down, you will transmit voice.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">This configures the push-to-talk button, and as long as you hold this button down, you will transmit voice.</translation>
     </message>
     <message>
-        <source>Reset Audio Processor</source>
-        <comment>Global Shortcut</comment>
-        <translation>重置音频处理器</translation>
+      <source>Reset Audio Processor</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Reset Audio Processor</translation>
     </message>
     <message>
-        <source>Unlink Plugin</source>
-        <comment>Global Shortcut</comment>
-        <translation>取消链接插件</translation>
+      <source>Unlink Plugin</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Unlink Plugin</translation>
     </message>
     <message>
-        <source>Push-to-Mute</source>
-        <comment>Global Shortcut</comment>
-        <translation>按键静音</translation>
+      <source>Push-to-Mute</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Push-to-Mute</translation>
     </message>
     <message>
-        <source>Join Channel</source>
-        <comment>Global Shortcut</comment>
-        <translation>加入频道</translation>
+      <source>Join Channel</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Join Channel</translation>
     </message>
     <message>
-        <source>Toggle Overlay</source>
-        <comment>Global Shortcut</comment>
-        <translation>开关游戏内界面</translation>
+      <source>Toggle Overlay</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Toggle Overlay</translation>
     </message>
     <message>
-        <source>Toggle state of in-game overlay.</source>
-        <comment>Global Shortcut</comment>
-        <translation>开关游戏内界面显示状态。</translation>
+      <source>Toggle state of in-game overlay.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Toggle state of in-game overlay.</translation>
     </message>
     <message>
-        <source>Toggle Minimal</source>
-        <comment>Global Shortcut</comment>
-        <translation>开关简洁视图</translation>
+      <source>Toggle Minimal</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Toggle Minimal</translation>
     </message>
     <message>
-        <source>Volume Up (+10%)</source>
-        <comment>Global Shortcut</comment>
-        <translation>音量增大（10%）</translation>
+      <source>Volume Up (+10%)</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Volume Up (+10%)</translation>
     </message>
     <message>
-        <source>Volume Down (-10%)</source>
-        <comment>Global Shortcut</comment>
-        <translation>音量减小（10%）</translation>
+      <source>Volume Down (-10%)</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Volume Down (-10%)</translation>
     </message>
     <message>
-        <source>Mumble</source>
-        <translation>Mumble</translation>
+      <source>Mumble</source>
+      <translation type="unfinished">Mumble</translation>
     </message>
     <message>
-        <source>Mumble -- %1</source>
-        <translation>Mumble - %1</translation>
+      <source>Mumble -- %1</source>
+      <translation type="unfinished">Mumble -- %1</translation>
     </message>
     <message>
-        <source>&amp;Window</source>
-        <translation>窗口(&amp;W)</translation>
+      <source>&amp;Window</source>
+      <translation type="unfinished">&amp;Window</translation>
     </message>
     <message>
-        <source>Minimize</source>
-        <translation>最小化</translation>
+      <source>Minimize</source>
+      <translation type="unfinished">Minimize</translation>
     </message>
     <message>
-        <source>Ctrl+M</source>
-        <translation>Ctrl+M</translation>
+      <source>Ctrl+M</source>
+      <translation type="unfinished">Ctrl+M</translation>
     </message>
     <message>
-        <source>Close</source>
-        <translation>关闭</translation>
+      <source>Close</source>
+      <translation type="unfinished">Close</translation>
     </message>
     <message>
-        <source>Mumble is currently connected to a server. Do you want to Close or Minimize it?</source>
-        <translation>Mumble 已连接到服务器。您要关闭或者最小化吗？</translation>
+      <source>Mumble is currently connected to a server. Do you want to Close or Minimize it?</source>
+      <translation type="unfinished">Mumble is currently connected to a server. Do you want to Close or Minimize it?</translation>
     </message>
     <message>
-        <source>Mute Self</source>
-        <comment>Global Shortcut</comment>
-        <translation>开关自己的麦克风</translation>
+      <source>Mute Self</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Mute Self</translation>
     </message>
     <message>
-        <source>Set self-mute status.</source>
-        <comment>Global Shortcut</comment>
-        <translation>设置自己麦克风的开关状态。</translation>
+      <source>Set self-mute status.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Set self-mute status.</translation>
     </message>
     <message>
-        <source>This will set or toggle your muted status. If you turn this off, you will also disable self-deafen.</source>
-        <comment>Global Shortcut</comment>
-        <translation>开启或关闭自己的麦克风。如果您打开麦克风，同时也会打开扬声器。</translation>
+      <source>This will set or toggle your muted status. If you turn this off, you will also disable self-deafen.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">This will set or toggle your muted status. If you turn this off, you will also disable self-deafen.</translation>
     </message>
     <message>
-        <source>Deafen Self</source>
-        <comment>Global Shortcut</comment>
-        <translation>开关自己的扬声器</translation>
+      <source>Deafen Self</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Deafen Self</translation>
     </message>
     <message>
-        <source>Set self-deafen status.</source>
-        <comment>Global Shortcut</comment>
-        <translation>设置自己扬声器的开关状态。</translation>
+      <source>Set self-deafen status.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Set self-deafen status.</translation>
     </message>
     <message>
-        <source>This will set or toggle your deafened status. If you turn this on, you will also enable self-mute.</source>
-        <comment>Global Shortcut</comment>
-        <translation>开启或关闭自己的扬声器。如果您关闭扬声器，同时也会关闭麦克风。</translation>
+      <source>This will set or toggle your deafened status. If you turn this on, you will also enable self-mute.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">This will set or toggle your deafened status. If you turn this on, you will also enable self-mute.</translation>
     </message>
     <message>
-        <source>Whisper/Shout</source>
-        <oldsource>Whisper</oldsource>
-        <translation>密语/呼喊</translation>
+      <source>Whisper/Shout</source>
+      <oldsource>Whisper</oldsource>
+      <translation type="unfinished">Whisper/Shout</translation>
     </message>
     <message>
-        <source>&lt;center&gt;Not connected&lt;/center&gt;</source>
-        <oldsource>Not connected</oldsource>
-        <translation>&lt;center&gt;未连接&lt;/center&gt;</translation>
+      <source>&lt;center&gt;Not connected&lt;/center&gt;</source>
+      <oldsource>Not connected</oldsource>
+      <translation type="unfinished">&lt;center&gt;Not connected&lt;/center&gt;</translation>
     </message>
     <message>
-        <source>Clear</source>
-        <translation>清空</translation>
+      <source>Clear</source>
+      <translation type="unfinished">Clear</translation>
     </message>
     <message>
-        <source>Opening URL %1</source>
-        <translation>打开网址 %1</translation>
+      <source>Opening URL %1</source>
+      <translation type="unfinished">Opening URL %1</translation>
     </message>
     <message>
-        <source>File does not exist</source>
-        <translation>文件不存在</translation>
+      <source>File does not exist</source>
+      <translation type="unfinished">File does not exist</translation>
     </message>
     <message>
-        <source>File is not a configuration file.</source>
-        <translation>文件不是配置文件。</translation>
+      <source>File is not a configuration file.</source>
+      <translation type="unfinished">File is not a configuration file.</translation>
     </message>
     <message>
-        <source>Settings merged from file.</source>
-        <translation>从文件合并设置。</translation>
+      <source>Settings merged from file.</source>
+      <translation type="unfinished">Settings merged from file.</translation>
     </message>
     <message>
-        <source>URL scheme is not &apos;mumble&apos;</source>
-        <translation>URL 协议不是“mumble”</translation>
+      <source>URL scheme is not &apos;mumble&apos;</source>
+      <translation type="unfinished">URL scheme is not &apos;mumble&apos;</translation>
     </message>
     <message>
-        <source>This version of Mumble can&apos;t handle URLs for Mumble version %1.%2.%3</source>
-        <translation>当前版本的 Mumble 无法处理用于 Mumble %1.%2.%3 的 URL</translation>
+      <source>This version of Mumble can&apos;t handle URLs for Mumble version %1.%2.%3</source>
+      <translation type="unfinished">This version of Mumble can&apos;t handle URLs for Mumble version %1.%2.%3</translation>
     </message>
     <message>
-        <source>Connecting to %1</source>
-        <translation>正在连接 %1</translation>
+      <source>Connecting to %1</source>
+      <translation type="unfinished">Connecting to %1</translation>
     </message>
     <message>
-        <source>Enter username</source>
-        <translation>输入用户名</translation>
+      <source>Enter username</source>
+      <translation type="unfinished">Enter username</translation>
     </message>
     <message>
-        <source>Connecting to server %1.</source>
-        <translation>正在连接服务器 %1 。</translation>
+      <source>Connecting to server %1.</source>
+      <translation type="unfinished">Connecting to server %1.</translation>
     </message>
     <message>
-        <source>Reconnecting.</source>
-        <translation>正在重新连接。</translation>
+      <source>Reconnecting.</source>
+      <translation type="unfinished">Reconnecting.</translation>
     </message>
     <message>
-        <source>Transmit Mode set to Continuous</source>
-        <translation>传输模式设置为连续发言</translation>
+      <source>Transmit Mode set to Continuous</source>
+      <translation type="unfinished">Transmit Mode set to Continuous</translation>
     </message>
     <message>
-        <source>&lt;p&gt;%1 (%2)&lt;br /&gt;%3&lt;/p&gt;</source>
-        <translation>&lt;p&gt;%1（%2）&lt;br /&gt;%3&lt;/p&gt;</translation>
+      <source>&lt;p&gt;%1 (%2)&lt;br /&gt;%3&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;%1 (%2)&lt;br /&gt;%3&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;h2&gt;Voice channel&lt;/h2&gt;&lt;p&gt;Encrypted with 128 bit OCB-AES128&lt;br /&gt;%1 ms average latency (%4 deviation)&lt;/p&gt;</source>
-        <translation>&lt;h2&gt;语音信道&lt;/h2&gt;&lt;p&gt;使用 128 位 OCB-AES128 算法加密&lt;br /&gt;平均延迟 %1 毫秒（%4 误差）&lt;/p&gt;</translation>
+      <source>&lt;h2&gt;Voice channel&lt;/h2&gt;&lt;p&gt;Encrypted with 128 bit OCB-AES128&lt;br /&gt;%1 ms average latency (%4 deviation)&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;h2&gt;Voice channel&lt;/h2&gt;&lt;p&gt;Encrypted with 128 bit OCB-AES128&lt;br /&gt;%1 ms average latency (%4 deviation)&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Register yourself as %1</source>
-        <translation>以 %1 身份注册自己</translation>
+      <source>Register yourself as %1</source>
+      <translation type="unfinished">Register yourself as %1</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to register yourself on this server. This action cannot be undone, and your username cannot be changed once this is done. You will forever be known as &apos;%1&apos; on this server.&lt;/p&gt;&lt;p&gt;Are you sure you want to register yourself?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;您将要在服务器上注册自己，此操作无法撤销，用户名注册后无法修改，“%1”将一直作为您在此服务器的用户名。&lt;/p&gt;&lt;p&gt;确认注册自己？&lt;/p&gt;</translation>
+      <source>&lt;p&gt;You are about to register yourself on this server. This action cannot be undone, and your username cannot be changed once this is done. You will forever be known as &apos;%1&apos; on this server.&lt;/p&gt;&lt;p&gt;Are you sure you want to register yourself?&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;You are about to register yourself on this server. This action cannot be undone, and your username cannot be changed once this is done. You will forever be known as &apos;%1&apos; on this server.&lt;/p&gt;&lt;p&gt;Are you sure you want to register yourself?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;h2&gt;Version&lt;/h2&gt;&lt;p&gt;Protocol %1&lt;/p&gt;</source>
-        <translation>&lt;h2&gt;版本&lt;/h2&gt;&lt;p&gt;协议 %1&lt;/p&gt;</translation>
+      <source>&lt;h2&gt;Version&lt;/h2&gt;&lt;p&gt;Protocol %1&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;h2&gt;Version&lt;/h2&gt;&lt;p&gt;Protocol %1&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;No build information or OS version available&lt;/p&gt;</source>
-        <translation>&lt;p&gt;无可用的构建信息或操作系统版本&lt;/p&gt;</translation>
+      <source>&lt;p&gt;No build information or OS version available&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;No build information or OS version available&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>The connection is encrypted and authenticated using %1 and uses %2 as the key exchange mechanism (%3)</source>
-        <translation>该连接使用 %1 算法进行加密和身份认证，并使用 %2 作为密钥交换机制（%3）</translation>
+      <source>The connection is encrypted and authenticated using %1 and uses %2 as the key exchange mechanism (%3)</source>
+      <translation type="unfinished">The connection is encrypted and authenticated using %1 and uses %2 as the key exchange mechanism (%3)</translation>
     </message>
     <message>
-        <source>The connection is encrypted using %1, with %2 for message authentication and %3 as the key exchange mechanism (%4)</source>
-        <translation>该连接使用 %1 算法进行加密，使用 %2 进行消息认证，并使用 %3 作为密钥交换机制（%4）</translation>
+      <source>The connection is encrypted using %1, with %2 for message authentication and %3 as the key exchange mechanism (%4)</source>
+      <translation type="unfinished">The connection is encrypted using %1, with %2 for message authentication and %3 as the key exchange mechanism (%4)</translation>
     </message>
     <message>
-        <source>The connection is secured by the cipher suite that OpenSSL identifies as %1</source>
-        <translation>该连接由 OpenSSL 标识为 %1 的密码套件保护</translation>
+      <source>The connection is secured by the cipher suite that OpenSSL identifies as %1</source>
+      <translation type="unfinished">The connection is secured by the cipher suite that OpenSSL identifies as %1</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The connection provides perfect forward secrecy&lt;/p&gt;</source>
-        <translation>&lt;p&gt;该连接已提供完美的前向安全性&lt;/p&gt;</translation>
+      <source>&lt;p&gt;The connection provides perfect forward secrecy&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;The connection provides perfect forward secrecy&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The connection does not provide perfect forward secrecy&lt;/p&gt;</source>
-        <translation>&lt;p&gt;该连接未提供完美的前向安全性&lt;/p&gt;</translation>
+      <source>&lt;p&gt;The connection does not provide perfect forward secrecy&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;The connection does not provide perfect forward secrecy&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;h2&gt;Control channel&lt;/h2&gt;&lt;p&gt;The connection uses %1&lt;/p&gt;%2%3&lt;p&gt;%4 ms average latency (%5 deviation)&lt;/p&gt;&lt;p&gt;Remote host %6 (port %7)&lt;/p&gt;</source>
-        <translation>&lt;h2&gt;控制信道&lt;/h2&gt;&lt;p&gt;该连接使用 %1&lt;/p&gt;%2%3&lt;p&gt;平均延迟 %4 毫秒（%5 误差）&lt;/p&gt;&lt;p&gt;远程主机 %6（端口 %7）&lt;/p&gt;</translation>
+      <source>&lt;h2&gt;Control channel&lt;/h2&gt;&lt;p&gt;The connection uses %1&lt;/p&gt;%2%3&lt;p&gt;%4 ms average latency (%5 deviation)&lt;/p&gt;&lt;p&gt;Remote host %6 (port %7)&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;h2&gt;Control channel&lt;/h2&gt;&lt;p&gt;The connection uses %1&lt;/p&gt;%2%3&lt;p&gt;%4 ms average latency (%5 deviation)&lt;/p&gt;&lt;p&gt;Remote host %6 (port %7)&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Voice channel is sent over control channel</source>
-        <translation>语音信道通过控制信道发送</translation>
+      <source>Voice channel is sent over control channel</source>
+      <translation type="unfinished">Voice channel is sent over control channel</translation>
     </message>
     <message>
-        <source>Register user %1</source>
-        <translation>注册用户 %1</translation>
+      <source>Register user %1</source>
+      <translation type="unfinished">Register user %1</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to register %1 on the server. This action cannot be undone, the username cannot be changed, and as a registered user, %1 will have access to the server even if you change the server password.&lt;/p&gt;&lt;p&gt;From this point on, %1 will be authenticated with the certificate currently in use.&lt;/p&gt;&lt;p&gt;Are you sure you want to register %1?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;您将要在服务器上注册 %1。此操作无法撤销，用户名注册后无法修改，作为已注册用户，%1 将一直可以加入此服务器，即使您修改了服务器密码。&lt;/p&gt;&lt;p&gt;从此之后，%1 将通过当前使用的证书进行身份认证。&lt;/p&gt;&lt;p&gt;确认注册 %1 ？&lt;/p&gt;</translation>
+      <source>&lt;p&gt;You are about to register %1 on the server. This action cannot be undone, the username cannot be changed, and as a registered user, %1 will have access to the server even if you change the server password.&lt;/p&gt;&lt;p&gt;From this point on, %1 will be authenticated with the certificate currently in use.&lt;/p&gt;&lt;p&gt;Are you sure you want to register %1?&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;You are about to register %1 on the server. This action cannot be undone, the username cannot be changed, and as a registered user, %1 will have access to the server even if you change the server password.&lt;/p&gt;&lt;p&gt;From this point on, %1 will be authenticated with the certificate currently in use.&lt;/p&gt;&lt;p&gt;Are you sure you want to register %1?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Kicking user %1</source>
-        <translation>踢出用户 %1</translation>
+      <source>Kicking user %1</source>
+      <translation type="unfinished">Kicking user %1</translation>
     </message>
     <message>
-        <source>Banning user %1</source>
-        <translation>封禁用户 %1</translation>
+      <source>Banning user %1</source>
+      <translation type="unfinished">Banning user %1</translation>
     </message>
     <message>
-        <source>View comment on user %1</source>
-        <translation>浏览用户 %1 的简介</translation>
+      <source>View comment on user %1</source>
+      <translation type="unfinished">View comment on user %1</translation>
     </message>
     <message>
-        <source>Message to channel %1</source>
-        <translation>向频道 %1 发送消息</translation>
+      <source>Message to channel %1</source>
+      <translation type="unfinished">Message to channel %1</translation>
     </message>
     <message>
-        <source>Connected.</source>
-        <translation>已连接。</translation>
+      <source>Connected.</source>
+      <translation type="unfinished">Connected.</translation>
     </message>
     <message>
-        <source>&lt;li&gt;Expected certificate digest (SHA-1):	%1&lt;/li&gt;</source>
-        <translation>&lt;li&gt;预期证书摘要（SHA-1）：	%1&lt;/li&gt;</translation>
+      <source>&lt;li&gt;Expected certificate digest (SHA-1):	%1&lt;/li&gt;</source>
+      <translation type="unfinished">&lt;li&gt;Expected certificate digest (SHA-1):	%1&lt;/li&gt;</translation>
     </message>
     <message>
-        <source>Server presented a certificate which failed verification.</source>
-        <translation>服务器提供的证书验证失败。</translation>
+      <source>Server presented a certificate which failed verification.</source>
+      <translation type="unfinished">Server presented a certificate which failed verification.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;%1&lt;/p&gt;&lt;ul&gt;%2&lt;/ul&gt;&lt;p&gt;The specific errors with this certificate are:&lt;/p&gt;&lt;ol&gt;%3&lt;/ol&gt;&lt;p&gt;Do you wish to accept this certificate anyway?&lt;br /&gt;(It will also be stored so you won&apos;t be asked this again.)&lt;/p&gt;</source>
-        <translation>&lt;p&gt;%1&lt;/p&gt;&lt;ul&gt;%2&lt;/ul&gt;&lt;p&gt;此证书的具体错误为：&lt;/p&gt;&lt;ol&gt;%3&lt;/ol&gt;&lt;p&gt;您仍希望接受此证书吗？&lt;br /&gt;（此信任会被保存，您只会被询问这一次。）&lt;/p&gt;</translation>
+      <source>&lt;p&gt;%1&lt;/p&gt;&lt;ul&gt;%2&lt;/ul&gt;&lt;p&gt;The specific errors with this certificate are:&lt;/p&gt;&lt;ol&gt;%3&lt;/ol&gt;&lt;p&gt;Do you wish to accept this certificate anyway?&lt;br /&gt;(It will also be stored so you won&apos;t be asked this again.)&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;%1&lt;/p&gt;&lt;ul&gt;%2&lt;/ul&gt;&lt;p&gt;The specific errors with this certificate are:&lt;/p&gt;&lt;ol&gt;%3&lt;/ol&gt;&lt;p&gt;Do you wish to accept this certificate anyway?&lt;br /&gt;(It will also be stored so you won&apos;t be asked this again.)&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>SSL Version mismatch</source>
-        <translation>SSL 版本不匹配</translation>
+      <source>SSL Version mismatch</source>
+      <translation type="unfinished">SSL Version mismatch</translation>
     </message>
     <message>
-        <source>Server connection failed.</source>
-        <translation>连接服务器失败。</translation>
+      <source>Server connection failed.</source>
+      <translation type="unfinished">Server connection failed.</translation>
     </message>
     <message>
-        <source>&lt;center&gt;Type message to channel &apos;%1&apos; here&lt;/center&gt;</source>
-        <oldsource>Type message to channel '%1' here</oldsource>
-        <translation>&lt;center&gt;在此输入发送到频道“%1”的消息&lt;/center&gt;</translation>
+      <source>&lt;center&gt;Type message to channel &apos;%1&apos; here&lt;/center&gt;</source>
+      <oldsource>Type message to channel &apos;%1&apos; here</oldsource>
+      <translation type="unfinished">&lt;center&gt;Type message to channel &apos;%1&apos; here&lt;/center&gt;</translation>
     </message>
     <message>
-        <source>&lt;center&gt;Type message to user &apos;%1&apos; here&lt;/center&gt;</source>
-        <oldsource>Type message to user '%1' here</oldsource>
-        <translation>&lt;center&gt;在此输入发送给用户“%1”的消息&lt;/center&gt;</translation>
+      <source>&lt;center&gt;Type message to user &apos;%1&apos; here&lt;/center&gt;</source>
+      <oldsource>Type message to user &apos;%1&apos; here</oldsource>
+      <translation type="unfinished">&lt;center&gt;Type message to user &apos;%1&apos; here&lt;/center&gt;</translation>
     </message>
     <message>
-        <source>Choose image file</source>
-        <translation>选择图片文件</translation>
+      <source>Choose image file</source>
+      <translation type="unfinished">Choose image file</translation>
     </message>
     <message>
-        <source>Failed to load image</source>
-        <translation>读取图片失败</translation>
+      <source>Failed to load image</source>
+      <translation type="unfinished">Failed to load image</translation>
     </message>
     <message>
-        <source>Could not open file for reading.</source>
-        <translation>无法打开并读取文件。</translation>
+      <source>Could not open file for reading.</source>
+      <translation type="unfinished">Could not open file for reading.</translation>
     </message>
     <message>
-        <source>Image format not recognized.</source>
-        <translation>无法识别图片格式。</translation>
+      <source>Image format not recognized.</source>
+      <translation type="unfinished">Image format not recognized.</translation>
     </message>
     <message>
-        <source>&amp;User</source>
-        <translation>用户(&amp;U)</translation>
+      <source>&amp;User</source>
+      <translation type="unfinished">&amp;User</translation>
     </message>
     <message>
-        <source>&amp;Channel</source>
-        <translation>频道(&amp;C)</translation>
+      <source>&amp;Channel</source>
+      <translation type="unfinished">&amp;Channel</translation>
     </message>
     <message>
-        <source>Use in conjunction with Whisper to.</source>
-        <comment>Global Shortcut</comment>
-        <translation>与密语一同使用。</translation>
+      <source>Use in conjunction with Whisper to.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Use in conjunction with Whisper to.</translation>
     </message>
     <message>
-        <source>This will switch the states of the in-game overlay.</source>
-        <comment>Global Shortcut</comment>
-        <translation>切换游戏内界面的状态。</translation>
+      <source>This will switch the states of the in-game overlay.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">This will switch the states of the in-game overlay.</translation>
     </message>
     <message>
-        <source>Link Channel</source>
-        <comment>Global Shortcut</comment>
-        <translation>链接频道</translation>
+      <source>Link Channel</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Link Channel</translation>
     </message>
     <message>
-        <source>Cycle Transmit Mode</source>
-        <comment>Global Shortcut</comment>
-        <translation>循环切换传输模式</translation>
+      <source>Cycle Transmit Mode</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Cycle Transmit Mode</translation>
     </message>
     <message>
-        <source>Set Transmit Mode to Push-To-Talk</source>
-        <comment>Global Shortcut</comment>
-        <translation>设置传输模式为按键发言</translation>
+      <source>Set Transmit Mode to Push-To-Talk</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Set Transmit Mode to Push-To-Talk</translation>
     </message>
     <message>
-        <source>Set Transmit Mode to Continuous</source>
-        <comment>Global Shortcut</comment>
-        <translation>设置传输模式为连续发言</translation>
+      <source>Set Transmit Mode to Continuous</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Set Transmit Mode to Continuous</translation>
     </message>
     <message>
-        <source>Set Transmit Mode to VAD</source>
-        <comment>Global Shortcut</comment>
-        <translation>设置传输模式为语音激活</translation>
+      <source>Set Transmit Mode to VAD</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Set Transmit Mode to VAD</translation>
     </message>
     <message>
-        <source>Send Text Message</source>
-        <comment>Global Shortcut</comment>
-        <translation>发送文字消息</translation>
+      <source>Send Text Message</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Send Text Message</translation>
     </message>
     <message>
-        <source>Send Clipboard Text Message</source>
-        <comment>Global Shortcut</comment>
-        <translation>发送剪贴板上的文字消息</translation>
+      <source>Send Clipboard Text Message</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Send Clipboard Text Message</translation>
     </message>
     <message>
-        <source>This will send your Clipboard content to the channel you are currently in.</source>
-        <comment>Global Shortcut</comment>
-        <translation>将您的剪贴板内容发送到当前所在的频道。</translation>
+      <source>This will send your Clipboard content to the channel you are currently in.</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">This will send your Clipboard content to the channel you are currently in.</translation>
     </message>
     <message>
-        <source>Continuous</source>
-        <translation>连续发言</translation>
+      <source>Continuous</source>
+      <translation type="unfinished">Continuous</translation>
     </message>
     <message>
-        <source>Voice Activity</source>
-        <translation>语音激活</translation>
+      <source>Voice Activity</source>
+      <translation type="unfinished">Voice Activity</translation>
     </message>
     <message>
-        <source>Push-to-Talk</source>
-        <translation>按键发言</translation>
+      <source>Push-to-Talk</source>
+      <translation type="unfinished">Push-to-Talk</translation>
     </message>
     <message>
-        <source>Mumble - Minimal View -- %1</source>
-        <translation>Mumble - 简洁视图 -- %1</translation>
+      <source>Mumble - Minimal View -- %1</source>
+      <translation type="unfinished">Mumble - Minimal View -- %1</translation>
     </message>
     <message>
-        <source>Cancel</source>
-        <translation>取消</translation>
+      <source>Cancel</source>
+      <translation type="unfinished">Cancel</translation>
     </message>
     <message>
-        <source>Save Image As...</source>
-        <translation>保存图片为...</translation>
+      <source>Save Image As...</source>
+      <translation type="unfinished">Save Image As...</translation>
     </message>
     <message>
-        <source>Save Image File</source>
-        <translation>保存图片文件</translation>
+      <source>Save Image File</source>
+      <translation type="unfinished">Save Image File</translation>
     </message>
     <message>
-        <source>Could not save image: %1</source>
-        <translation>无法保存图片：%1</translation>
+      <source>Could not save image: %1</source>
+      <translation type="unfinished">Could not save image: %1</translation>
     </message>
     <message>
-        <source>Change your comment</source>
-        <translation>修改您的简介</translation>
+      <source>Change your comment</source>
+      <translation type="unfinished">Change your comment</translation>
     </message>
     <message>
-        <source>Transmit Mode set to Voice Activity</source>
-        <translation>传输模式设置为语音激活</translation>
+      <source>Transmit Mode set to Voice Activity</source>
+      <translation type="unfinished">Transmit Mode set to Voice Activity</translation>
     </message>
     <message>
-        <source>Transmit Mode set to Push-to-Talk</source>
-        <translation>传输模式设置为按键发言</translation>
+      <source>Transmit Mode set to Push-to-Talk</source>
+      <translation type="unfinished">Transmit Mode set to Push-to-Talk</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Connected users: %1/%2&lt;/p&gt;</source>
-        <translation>&lt;p&gt;已连接用户：%1/%2&lt;/p&gt;</translation>
+      <source>&lt;p&gt;Connected users: %1/%2&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;Connected users: %1/%2&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>UDP Statistics</source>
-        <translation>UDP 统计</translation>
+      <source>UDP Statistics</source>
+      <translation type="unfinished">UDP Statistics</translation>
     </message>
     <message>
-        <source>To Server</source>
-        <translation>发送到服务器</translation>
+      <source>To Server</source>
+      <translation type="unfinished">To Server</translation>
     </message>
     <message>
-        <source>From Server</source>
-        <translation>从服务器接收</translation>
+      <source>From Server</source>
+      <translation type="unfinished">From Server</translation>
     </message>
     <message>
-        <source>Good</source>
-        <translation>良好</translation>
+      <source>Good</source>
+      <translation type="unfinished">Good</translation>
     </message>
     <message>
-        <source>Late</source>
-        <translation>延迟</translation>
+      <source>Late</source>
+      <translation type="unfinished">Late</translation>
     </message>
     <message>
-        <source>Lost</source>
-        <translation>丢失</translation>
+      <source>Lost</source>
+      <translation type="unfinished">Lost</translation>
     </message>
     <message>
-        <source>Resync</source>
-        <translation>重新同步</translation>
+      <source>Resync</source>
+      <translation type="unfinished">Resync</translation>
     </message>
     <message>
-        <source>&lt;h2&gt;Audio bandwidth&lt;/h2&gt;&lt;p&gt;Maximum %1 kbit/s&lt;br /&gt;Current %2 kbit/s&lt;br /&gt;Codec: %3&lt;/p&gt;</source>
-        <translation>&lt;h2&gt;音频带宽&lt;/h2&gt;&lt;p&gt;最大 %1 千比特/秒&lt;br /&gt;当前 %2 千比特/秒&lt;br /&gt;编解码器：%3&lt;/p&gt;</translation>
+      <source>&lt;h2&gt;Audio bandwidth&lt;/h2&gt;&lt;p&gt;Maximum %1 kbit/s&lt;br /&gt;Current %2 kbit/s&lt;br /&gt;Codec: %3&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;h2&gt;Audio bandwidth&lt;/h2&gt;&lt;p&gt;Maximum %1 kbit/s&lt;br /&gt;Current %2 kbit/s&lt;br /&gt;Codec: %3&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Mumble Server Information</source>
-        <translation>Mumble 服务器信息</translation>
+      <source>Mumble Server Information</source>
+      <translation type="unfinished">Mumble Server Information</translation>
     </message>
     <message>
-        <source>&amp;View Certificate</source>
-        <translation>查看证书(&amp;V)</translation>
+      <source>&amp;View Certificate</source>
+      <translation type="unfinished">&amp;View Certificate</translation>
     </message>
     <message>
-        <source>Enter reason</source>
-        <translation>输入原因</translation>
+      <source>Enter reason</source>
+      <translation type="unfinished">Enter reason</translation>
     </message>
     <message>
-        <source>Sending message to %1</source>
-        <translation>正在向 %1 发送消息</translation>
+      <source>Sending message to %1</source>
+      <translation type="unfinished">Sending message to %1</translation>
     </message>
     <message>
-        <source>To %1: %2</source>
-        <translation>至 %1：%2</translation>
+      <source>To %1: %2</source>
+      <translation type="unfinished">To %1: %2</translation>
     </message>
     <message>
-        <source>Message to %1</source>
-        <translation>向 %1 发送消息</translation>
+      <source>Message to %1</source>
+      <translation type="unfinished">Message to %1</translation>
     </message>
     <message>
-        <source>Are you sure you want to reset the comment of user %1?</source>
-        <translation>确定要重置用户 %1 的简介？</translation>
+      <source>Are you sure you want to reset the comment of user %1?</source>
+      <translation type="unfinished">Are you sure you want to reset the comment of user %1?</translation>
     </message>
     <message>
-        <source>Are you sure you want to reset the avatar of user %1?</source>
-        <translation>确定要重置用户 %1 的头像？</translation>
+      <source>Are you sure you want to reset the avatar of user %1?</source>
+      <translation type="unfinished">Are you sure you want to reset the avatar of user %1?</translation>
     </message>
     <message>
-        <source>Are you sure you want to delete %1 and all its sub-channels?</source>
-        <translation>确定要删除 %1 及其所有子频道？</translation>
+      <source>Are you sure you want to delete %1 and all its sub-channels?</source>
+      <translation type="unfinished">Are you sure you want to delete %1 and all its sub-channels?</translation>
     </message>
     <message>
-        <source>Sending message to channel %1</source>
-        <translation>正在向频道 %1 发送消息</translation>
+      <source>Sending message to channel %1</source>
+      <translation type="unfinished">Sending message to channel %1</translation>
     </message>
     <message>
-        <source>Message to tree %1</source>
-        <translation>向频道树 %1 发送消息</translation>
+      <source>Message to tree %1</source>
+      <translation type="unfinished">Message to tree %1</translation>
     </message>
     <message>
-        <source>To %1 (Tree): %2</source>
-        <oldsource>(Tree) %1: %2</oldsource>
-        <translation>至 %1（频道树）：%2</translation>
+      <source>To %1 (Tree): %2</source>
+      <oldsource>(Tree) %1: %2</oldsource>
+      <translation type="unfinished">To %1 (Tree): %2</translation>
     </message>
     <message>
-        <source>Unmuted and undeafened.</source>
-        <translation>开启麦克风和扬声器。</translation>
+      <source>Unmuted and undeafened.</source>
+      <translation type="unfinished">Unmuted and undeafened.</translation>
     </message>
     <message>
-        <source>Unmuted.</source>
-        <translation>开启麦克风。</translation>
+      <source>Unmuted.</source>
+      <translation type="unfinished">Unmuted.</translation>
     </message>
     <message>
-        <source>Muted.</source>
-        <translation>关闭麦克风。</translation>
+      <source>Muted.</source>
+      <translation type="unfinished">Muted.</translation>
     </message>
     <message>
-        <source>Muted and deafened.</source>
-        <translation>关闭麦克风和扬声器。</translation>
+      <source>Muted and deafened.</source>
+      <translation type="unfinished">Muted and deafened.</translation>
     </message>
     <message>
-        <source>Deafened.</source>
-        <translation>关闭扬声器。</translation>
+      <source>Deafened.</source>
+      <translation type="unfinished">Deafened.</translation>
     </message>
     <message>
-        <source>Undeafened.</source>
-        <translation>开启扬声器。</translation>
+      <source>Undeafened.</source>
+      <translation type="unfinished">Undeafened.</translation>
     </message>
     <message>
-        <source>Restart Mumble?</source>
-        <translation>重新启动 Mumble？</translation>
+      <source>Restart Mumble?</source>
+      <translation type="unfinished">Restart Mumble?</translation>
     </message>
     <message>
-        <source>Some settings will only apply after a restart of Mumble. Restart Mumble now?</source>
-        <translation>某些设置仅在重启 Mumble 后才应用。现在重启 Mumble 吗？</translation>
+      <source>Some settings will only apply after a restart of Mumble. Restart Mumble now?</source>
+      <translation type="unfinished">Some settings will only apply after a restart of Mumble. Restart Mumble now?</translation>
     </message>
     <message>
-        <source>About Qt</source>
-        <translation>关于 Qt</translation>
+      <source>About Qt</source>
+      <translation type="unfinished">About Qt</translation>
     </message>
     <message>
-        <source>SSL Verification failed: %1</source>
-        <translation>SSL 验证失败：%1</translation>
+      <source>SSL Verification failed: %1</source>
+      <translation type="unfinished">SSL Verification failed: %1</translation>
     </message>
     <message>
-        <source>&lt;li&gt;Server certificate digest (SHA-1):	%1&lt;/li&gt;</source>
-        <translation>&lt;li&gt;服务器证书摘要（SHA-1）：	%1&lt;/li&gt;</translation>
+      <source>&lt;li&gt;Server certificate digest (SHA-1):	%1&lt;/li&gt;</source>
+      <translation type="unfinished">&lt;li&gt;Server certificate digest (SHA-1):	%1&lt;/li&gt;</translation>
     </message>
     <message>
-        <source>&lt;b&gt;WARNING:&lt;/b&gt; The server presented a certificate that was different from the stored one.</source>
-        <translation>&lt;b&gt;警告：&lt;/b&gt;服务器现有证书与已保存的证书不一致。</translation>
+      <source>&lt;b&gt;WARNING:&lt;/b&gt; The server presented a certificate that was different from the stored one.</source>
+      <translation type="unfinished">&lt;b&gt;WARNING:&lt;/b&gt; The server presented a certificate that was different from the stored one.</translation>
     </message>
     <message>
-        <source>This server is using an older encryption standard, and is no longer supported by modern versions of Mumble.</source>
-        <translation>此服务器使用了一个早期的加密标准，当前版本 Mumble 已不支持该标准。</translation>
+      <source>This server is using an older encryption standard, and is no longer supported by modern versions of Mumble.</source>
+      <translation type="unfinished">This server is using an older encryption standard, and is no longer supported by modern versions of Mumble.</translation>
     </message>
     <message>
-        <source>Server connection failed: %1.</source>
-        <translation>连接服务器失败：%1。</translation>
+      <source>Server connection failed: %1.</source>
+      <translation type="unfinished">Server connection failed: %1.</translation>
     </message>
     <message>
-        <source>Disconnected from server.</source>
-        <translation>从服务器断开连接。</translation>
+      <source>Disconnected from server.</source>
+      <translation type="unfinished">Disconnected from server.</translation>
     </message>
     <message>
-        <source>Invalid username</source>
-        <translation>用户名无效</translation>
+      <source>Invalid username</source>
+      <translation type="unfinished">Invalid username</translation>
     </message>
     <message>
-        <source>You connected with an invalid username, please try another one.</source>
-        <translation>您正以无效的用户名连接，请尝试其他用户名。</translation>
+      <source>You connected with an invalid username, please try another one.</source>
+      <translation type="unfinished">You connected with an invalid username, please try another one.</translation>
     </message>
     <message>
-        <source>Username in use</source>
-        <translation>用户名已被使用</translation>
+      <source>Username in use</source>
+      <translation type="unfinished">Username in use</translation>
     </message>
     <message>
-        <source>That username is already in use, please try another username.</source>
-        <translation>此用户名已经被使用，请尝试其他用户名。</translation>
+      <source>That username is already in use, please try another username.</source>
+      <translation type="unfinished">That username is already in use, please try another username.</translation>
     </message>
     <message>
-        <source>Wrong certificate or password</source>
-        <translation>证书或者密码错误</translation>
+      <source>Wrong certificate or password</source>
+      <translation type="unfinished">Wrong certificate or password</translation>
     </message>
     <message>
-        <source>Wrong certificate or password for registered user. If you are
+      <source>Wrong certificate or password for registered user. If you are
 certain this user is protected by a password please retry.
 Otherwise abort and check your certificate and username.</source>
-        <translation>已注册用户的证书或者密码错误。如果您的确是被密码保护的用户，请重试。否则请退出并检查您的证书与用户名。</translation>
+      <translation type="unfinished">Wrong certificate or password for registered user. If you are
+certain this user is protected by a password please retry.
+Otherwise abort and check your certificate and username.</translation>
     </message>
     <message>
-        <source>Wrong password</source>
-        <translation>密码错误</translation>
+      <source>Wrong password</source>
+      <translation type="unfinished">Wrong password</translation>
     </message>
     <message>
-        <source>Wrong server password for unregistered user account, please try again.</source>
-        <translation>未注册用户输入的密码错误，请重试。</translation>
+      <source>Wrong server password for unregistered user account, please try again.</source>
+      <translation type="unfinished">Wrong server password for unregistered user account, please try again.</translation>
     </message>
     <message>
-        <source>Images (*.png *.jpg *.jpeg)</source>
-        <translation>图片文件 (*.png *.jpg *.jpeg)</translation>
+      <source>Images (*.png *.jpg *.jpeg)</source>
+      <translation type="unfinished">Images (*.png *.jpg *.jpeg)</translation>
     </message>
     <message>
-        <source>C&amp;onfigure</source>
-        <translation>配置(&amp;O)</translation>
+      <source>C&amp;onfigure</source>
+      <translation type="unfinished">C&amp;onfigure</translation>
     </message>
     <message>
-        <source>&amp;Help</source>
-        <translation>帮助(&amp;H)</translation>
+      <source>&amp;Help</source>
+      <translation type="unfinished">&amp;Help</translation>
     </message>
     <message>
-        <source>Log</source>
-        <translation>日志</translation>
+      <source>Log</source>
+      <translation type="unfinished">Log</translation>
     </message>
     <message>
-        <source>This shows all recent activity. Connecting to servers, errors and information messages all show up here.&lt;br /&gt;To configure exactly which messages show up here, use the &lt;b&gt;Settings&lt;/b&gt; command from the menu.</source>
-        <translation>显示所有最近的动态。连接到服务器、错误和信息等消息都将显示在这里。&lt;br /&gt;如果要设置这里显示的信息，请在菜单里选择&lt;b&gt;设置&lt;/b&gt;命令。</translation>
+      <source>This shows all recent activity. Connecting to servers, errors and information messages all show up here.&lt;br /&gt;To configure exactly which messages show up here, use the &lt;b&gt;Settings&lt;/b&gt; command from the menu.</source>
+      <translation type="unfinished">This shows all recent activity. Connecting to servers, errors and information messages all show up here.&lt;br /&gt;To configure exactly which messages show up here, use the &lt;b&gt;Settings&lt;/b&gt; command from the menu.</translation>
     </message>
     <message>
-        <source>&amp;Quit Mumble</source>
-        <translation>退出 Mumble (&amp;Q)</translation>
+      <source>&amp;Quit Mumble</source>
+      <translation type="unfinished">&amp;Quit Mumble</translation>
     </message>
     <message>
-        <source>Closes the program</source>
-        <translation>关闭程序</translation>
+      <source>Closes the program</source>
+      <translation type="unfinished">Closes the program</translation>
     </message>
     <message>
-        <source>Exits the application.</source>
-        <translation>退出应用程序。</translation>
+      <source>Exits the application.</source>
+      <translation type="unfinished">Exits the application.</translation>
     </message>
     <message>
-        <source>Ctrl+Q</source>
-        <translation>Ctrl+Q</translation>
+      <source>Ctrl+Q</source>
+      <translation type="unfinished">Ctrl+Q</translation>
     </message>
     <message>
-        <source>Open the server connection dialog</source>
-        <translation>打开服务器连接对话框</translation>
+      <source>Open the server connection dialog</source>
+      <translation type="unfinished">Open the server connection dialog</translation>
     </message>
     <message>
-        <source>&amp;Disconnect</source>
-        <translation>断开连接(&amp;D)</translation>
+      <source>&amp;Disconnect</source>
+      <translation type="unfinished">&amp;Disconnect</translation>
     </message>
     <message>
-        <source>Disconnect from server</source>
-        <translation>从服务器断开连接</translation>
+      <source>Disconnect from server</source>
+      <translation type="unfinished">Disconnect from server</translation>
     </message>
     <message>
-        <source>Disconnects you from the server.</source>
-        <translation>从服务器断开您的连接。</translation>
+      <source>Disconnects you from the server.</source>
+      <translation type="unfinished">Disconnects you from the server.</translation>
     </message>
     <message>
-        <source>Show information about the server connection</source>
-        <translation>显示服务器连接的信息</translation>
+      <source>Show information about the server connection</source>
+      <translation type="unfinished">Show information about the server connection</translation>
     </message>
     <message>
-        <source>This will show extended information about the connection to the server.</source>
-        <translation>显示关于服务器连接的扩展信息。</translation>
+      <source>This will show extended information about the connection to the server.</source>
+      <translation type="unfinished">This will show extended information about the connection to the server.</translation>
     </message>
     <message>
-        <source>&amp;Mute</source>
-        <translation>禁言(&amp;M)</translation>
+      <source>&amp;Mute</source>
+      <translation type="unfinished">&amp;Mute</translation>
     </message>
     <message>
-        <source>&amp;Deafen</source>
-        <translation>禁听(&amp;D)</translation>
+      <source>&amp;Deafen</source>
+      <translation type="unfinished">&amp;Deafen</translation>
     </message>
     <message>
-        <source>&amp;Local Mute</source>
-        <translation>本地屏蔽(&amp;L)</translation>
+      <source>&amp;Local Mute</source>
+      <translation type="unfinished">&amp;Local Mute</translation>
     </message>
     <message>
-        <source>Send a Text Message</source>
-        <translation>发送一条文字消息</translation>
+      <source>Send a Text Message</source>
+      <translation type="unfinished">Send a Text Message</translation>
     </message>
     <message>
-        <source>Sends a text message to another user.</source>
-        <translation>向其他用户发送一条文字消息。</translation>
+      <source>Sends a text message to another user.</source>
+      <translation type="unfinished">Sends a text message to another user.</translation>
     </message>
     <message>
-        <source>Add new channel</source>
-        <translation>添加新频道</translation>
+      <source>Add new channel</source>
+      <translation type="unfinished">Add new channel</translation>
     </message>
     <message>
-        <source>This adds a new sub-channel to the currently selected channel.</source>
-        <translation>在当前所选频道下添加一个新的子频道。</translation>
+      <source>This adds a new sub-channel to the currently selected channel.</source>
+      <translation type="unfinished">This adds a new sub-channel to the currently selected channel.</translation>
     </message>
     <message>
-        <source>Remove channel</source>
-        <translation>删除频道</translation>
+      <source>Remove channel</source>
+      <translation type="unfinished">Remove channel</translation>
     </message>
     <message>
-        <source>This removes a channel and all sub-channels.</source>
-        <translation>删除一个频道及其所有子频道。</translation>
+      <source>This removes a channel and all sub-channels.</source>
+      <translation type="unfinished">This removes a channel and all sub-channels.</translation>
     </message>
     <message>
-        <source>Edit Groups and ACL for channel</source>
-        <translation>编辑频道的分组和 ACL</translation>
+      <source>Edit Groups and ACL for channel</source>
+      <translation type="unfinished">Edit Groups and ACL for channel</translation>
     </message>
     <message>
-        <source>This opens the Group and ACL dialog for the channel, to control permissions.</source>
-        <translation>打开频道的分组和 ACL 对话框，以控制权限。</translation>
+      <source>This opens the Group and ACL dialog for the channel, to control permissions.</source>
+      <translation type="unfinished">This opens the Group and ACL dialog for the channel, to control permissions.</translation>
     </message>
     <message>
-        <source>&amp;Link</source>
-        <translation>链接(&amp;L)</translation>
+      <source>&amp;Link</source>
+      <translation type="unfinished">&amp;Link</translation>
     </message>
     <message>
-        <source>Link your channel to another channel</source>
-        <translation>将您的频道链接到其他频道</translation>
+      <source>Link your channel to another channel</source>
+      <translation type="unfinished">Link your channel to another channel</translation>
     </message>
     <message>
-        <source>This is the chatbar&lt;br /&gt;If you enter text here and then press enter the text is sent to the user or channel that was selected. If nothing is selected the message is sent to your current channel.</source>
-        <translation>这里是聊天栏&lt;br /&gt;如果您在这里输入文字并且按下回车，文字将会被发送到您选中的用户或频道。如果未选择，则会发送到当前频道。</translation>
+      <source>This is the chatbar&lt;br /&gt;If you enter text here and then press enter the text is sent to the user or channel that was selected. If nothing is selected the message is sent to your current channel.</source>
+      <translation type="unfinished">This is the chatbar&lt;br /&gt;If you enter text here and then press enter the text is sent to the user or channel that was selected. If nothing is selected the message is sent to your current channel.</translation>
     </message>
     <message>
-        <source>Chatbar</source>
-        <translation>聊天栏</translation>
+      <source>Chatbar</source>
+      <translation type="unfinished">Chatbar</translation>
     </message>
     <message>
-        <source>Shows a dialog of registered servers, and also allows quick-connect.</source>
-        <translation>显示已注册服务器对话框，可以在此进行快速连接。</translation>
+      <source>Shows a dialog of registered servers, and also allows quick-connect.</source>
+      <translation type="unfinished">Shows a dialog of registered servers, and also allows quick-connect.</translation>
     </message>
     <message>
-        <source>Kick user (with reason)</source>
-        <translation>踢出用户（包含原因）</translation>
+      <source>Kick user (with reason)</source>
+      <translation type="unfinished">Kick user (with reason)</translation>
     </message>
     <message>
-        <source>Kick selected user off server. You&apos;ll be asked to specify a reason.</source>
-        <translation>将选中的用户踢出服务器。您必须输入一条原因。</translation>
+      <source>Kick selected user off server. You&apos;ll be asked to specify a reason.</source>
+      <translation type="unfinished">Kick selected user off server. You&apos;ll be asked to specify a reason.</translation>
     </message>
     <message>
-        <source>Mute user</source>
-        <translation>禁言用户</translation>
+      <source>Mute user</source>
+      <translation type="unfinished">Mute user</translation>
     </message>
     <message>
-        <source>Mute or unmute user on server. Unmuting a deafened user will also undeafen them.</source>
-        <translation>关闭或开启服务器上用户的麦克风。为一名已关闭扬声器的用户开启麦克风也会同时开启他的扬声器。</translation>
+      <source>Mute or unmute user on server. Unmuting a deafened user will also undeafen them.</source>
+      <translation type="unfinished">Mute or unmute user on server. Unmuting a deafened user will also undeafen them.</translation>
     </message>
     <message>
-        <source>Kick and ban user (with reason)</source>
-        <translation>踢出并且封禁用户（包含原因）</translation>
+      <source>Kick and ban user (with reason)</source>
+      <translation type="unfinished">Kick and ban user (with reason)</translation>
     </message>
     <message>
-        <source>Kick and ban selected user from server. You&apos;ll be asked to specify a reason.</source>
-        <translation>将所选的用户从服务器踢出并封禁。您必须输入一条原因。</translation>
+      <source>Kick and ban selected user from server. You&apos;ll be asked to specify a reason.</source>
+      <translation type="unfinished">Kick and ban selected user from server. You&apos;ll be asked to specify a reason.</translation>
     </message>
     <message>
-        <source>Deafen user</source>
-        <translation>禁听用户</translation>
+      <source>Deafen user</source>
+      <translation type="unfinished">Deafen user</translation>
     </message>
     <message>
-        <source>Deafen or undeafen user on server. Deafening a user will also mute them.</source>
-        <translation>关闭或开启服务器用户的扬声器。为一名用户关闭扬声器也会同时关闭他的麦克风。</translation>
+      <source>Deafen or undeafen user on server. Deafening a user will also mute them.</source>
+      <translation type="unfinished">Deafen or undeafen user on server. Deafening a user will also mute them.</translation>
     </message>
     <message>
-        <source>Mute user locally</source>
-        <translation>仅在本地屏蔽用户</translation>
+      <source>Mute user locally</source>
+      <translation type="unfinished">Mute user locally</translation>
     </message>
     <message>
-        <source>Mute or unmute user locally. Use this on other users in the same room.</source>
-        <translation>仅在本地屏蔽或解禁用户的麦克风。需要对同一频道的其他用户使用。</translation>
+      <source>Mute or unmute user locally. Use this on other users in the same room.</source>
+      <translation type="unfinished">Mute or unmute user locally. Use this on other users in the same room.</translation>
     </message>
     <message>
-        <source>This links your current channel to the selected channel. If users in a channel have permission to speak in the other channel, users can now hear each other. This is a permanent link, and will last until manually unlinked or the server is restarted. Please see the shortcuts for push-to-link.</source>
-        <oldsource>This links your current channel to the selected channel. If they have permission to speak in the other channel, users can now hear each other. This is a permanent link, and will last until manually unlinked or the server is restarted. Please see the shortcuts for push-to-link.</oldsource>
-        <translation>将您当前的频道链接到所选频道。如果频道中的用户有权在另一个频道中发言，则用户可以互相听到彼此的声音。这是一个永久链接，将持续到手动取消链接或服务器重新启动。请参阅按键链接的快捷键。</translation>
+      <source>This links your current channel to the selected channel. If users in a channel have permission to speak in the other channel, users can now hear each other. This is a permanent link, and will last until manually unlinked or the server is restarted. Please see the shortcuts for push-to-link.</source>
+      <oldsource>This links your current channel to the selected channel. If they have permission to speak in the other channel, users can now hear each other. This is a permanent link, and will last until manually unlinked or the server is restarted. Please see the shortcuts for push-to-link.</oldsource>
+      <translation type="unfinished">This links your current channel to the selected channel. If users in a channel have permission to speak in the other channel, users can now hear each other. This is a permanent link, and will last until manually unlinked or the server is restarted. Please see the shortcuts for push-to-link.</translation>
     </message>
     <message>
-        <source>&amp;Unlink</source>
-        <comment>Channel</comment>
-        <translation>取消链接(&amp;U)</translation>
+      <source>&amp;Unlink</source>
+      <comment>Channel</comment>
+      <translation type="unfinished">&amp;Unlink</translation>
     </message>
     <message>
-        <source>Unlink your channel from another channel</source>
-        <translation>取消您的频道与其他频道的链接</translation>
+      <source>Unlink your channel from another channel</source>
+      <translation type="unfinished">Unlink your channel from another channel</translation>
     </message>
     <message>
-        <source>This unlinks your current channel from the selected channel.</source>
-        <translation>取消您的当前频道与所选频道的链接。</translation>
+      <source>This unlinks your current channel from the selected channel.</source>
+      <translation type="unfinished">This unlinks your current channel from the selected channel.</translation>
     </message>
     <message>
-        <source>Unlinks your channel from all linked channels.</source>
-        <translation>取消您的频道与所有已链接频道的链接。</translation>
+      <source>Unlinks your channel from all linked channels.</source>
+      <translation type="unfinished">Unlinks your channel from all linked channels.</translation>
     </message>
     <message>
-        <source>This unlinks your current channel (not the selected one) from all linked channels.</source>
-        <translation>取消您的频道到所有已链接的频道（而非仅已选频道）的链接。</translation>
+      <source>This unlinks your current channel (not the selected one) from all linked channels.</source>
+      <translation type="unfinished">This unlinks your current channel (not the selected one) from all linked channels.</translation>
     </message>
     <message>
-        <source>&amp;Reset</source>
-        <translation>重置(&amp;R)</translation>
+      <source>&amp;Reset</source>
+      <translation type="unfinished">&amp;Reset</translation>
     </message>
     <message>
-        <source>Reset audio preprocessor</source>
-        <translation>重置音频预处理器</translation>
+      <source>Reset audio preprocessor</source>
+      <translation type="unfinished">Reset audio preprocessor</translation>
     </message>
     <message>
-        <source>This will reset the audio preprocessor, including noise cancellation, automatic gain and voice activity detection. If something suddenly worsens the audio environment (like dropping the microphone) and it was temporary, use this to avoid having to wait for the preprocessor to readjust.</source>
-        <translation>这将重置音频预处理器，包括噪声消除，自动增益和语音活动检测。如果某些因素突然暂时恶化了音频环境（例如麦克风摔落），可以使用此功能避免等待预处理器重新调整。</translation>
+      <source>This will reset the audio preprocessor, including noise cancellation, automatic gain and voice activity detection. If something suddenly worsens the audio environment (like dropping the microphone) and it was temporary, use this to avoid having to wait for the preprocessor to readjust.</source>
+      <translation type="unfinished">This will reset the audio preprocessor, including noise cancellation, automatic gain and voice activity detection. If something suddenly worsens the audio environment (like dropping the microphone) and it was temporary, use this to avoid having to wait for the preprocessor to readjust.</translation>
     </message>
     <message>
-        <source>&amp;Mute Self</source>
-        <translation>关闭自己的麦克风(&amp;M)</translation>
+      <source>&amp;Mute Self</source>
+      <translation type="unfinished">&amp;Mute Self</translation>
     </message>
     <message>
-        <source>Mute yourself</source>
-        <translation>关闭自己的麦克风</translation>
+      <source>Mute yourself</source>
+      <translation type="unfinished">Mute yourself</translation>
     </message>
     <message>
-        <source>Mute or unmute yourself. When muted, you will not send any data to the server. Unmuting while deafened will also undeafen.</source>
-        <translation>关闭或开启您自己的麦克风。当麦克风被关闭时，您将不会向服务器发送任何数据。开启麦克风也会同时开启扬声器。</translation>
+      <source>Mute or unmute yourself. When muted, you will not send any data to the server. Unmuting while deafened will also undeafen.</source>
+      <translation type="unfinished">Mute or unmute yourself. When muted, you will not send any data to the server. Unmuting while deafened will also undeafen.</translation>
     </message>
     <message>
-        <source>&amp;Deafen Self</source>
-        <translation>关闭自己的扬声器(&amp;D)</translation>
+      <source>&amp;Deafen Self</source>
+      <translation type="unfinished">&amp;Deafen Self</translation>
     </message>
     <message>
-        <source>Deafen yourself</source>
-        <translation>关闭自己的扬声器</translation>
+      <source>Deafen yourself</source>
+      <translation type="unfinished">Deafen yourself</translation>
     </message>
     <message>
-        <source>Deafen or undeafen yourself. When deafened, you will not hear anything. Deafening yourself will also mute.</source>
-        <translation>关闭或开启您自己的扬声器。当扬声器被关闭时，您无法听到任何谈话。关闭扬声器也会同时关闭麦克风。</translation>
+      <source>Deafen or undeafen yourself. When deafened, you will not hear anything. Deafening yourself will also mute.</source>
+      <translation type="unfinished">Deafen or undeafen yourself. When deafened, you will not hear anything. Deafening yourself will also mute.</translation>
     </message>
     <message>
-        <source>&amp;Text-To-Speech</source>
-        <translation>语音播报(&amp;T)</translation>
+      <source>&amp;Text-To-Speech</source>
+      <translation type="unfinished">&amp;Text-To-Speech</translation>
     </message>
     <message>
-        <source>Toggle Text-To-Speech</source>
-        <translation>开关语音播报</translation>
+      <source>Toggle Text-To-Speech</source>
+      <translation type="unfinished">Toggle Text-To-Speech</translation>
     </message>
     <message>
-        <source>Enable or disable the text-to-speech engine. Only messages enabled for TTS in the Configuration dialog will actually be spoken.</source>
-        <translation>启用或禁用文字转语音引擎。只有在“配置”对话框中启用语音播报的消息才会被实际朗读。</translation>
+      <source>Enable or disable the text-to-speech engine. Only messages enabled for TTS in the Configuration dialog will actually be spoken.</source>
+      <translation type="unfinished">Enable or disable the text-to-speech engine. Only messages enabled for TTS in the Configuration dialog will actually be spoken.</translation>
     </message>
     <message>
-        <source>Display audio statistics</source>
-        <translation>显示音频统计</translation>
+      <source>Display audio statistics</source>
+      <translation type="unfinished">Display audio statistics</translation>
     </message>
     <message>
-        <source>Pops up a small dialog with information about your current audio input.</source>
-        <translation>弹出关于您当前音频输入的对话框。</translation>
+      <source>Pops up a small dialog with information about your current audio input.</source>
+      <translation type="unfinished">Pops up a small dialog with information about your current audio input.</translation>
     </message>
     <message>
-        <source>Forcibly unlink plugin</source>
-        <translation>强制取消链接插件</translation>
+      <source>Forcibly unlink plugin</source>
+      <translation type="unfinished">Forcibly unlink plugin</translation>
     </message>
     <message>
-        <source>This forces the current plugin to unlink, which is handy if it is reading completely wrong data.</source>
-        <translation>强制当前插件取消链接。在插件数据读取错误时非常方便。</translation>
+      <source>This forces the current plugin to unlink, which is handy if it is reading completely wrong data.</source>
+      <translation type="unfinished">This forces the current plugin to unlink, which is handy if it is reading completely wrong data.</translation>
     </message>
     <message>
-        <source>Configure Mumble</source>
-        <translation>配置 Mumble</translation>
+      <source>Configure Mumble</source>
+      <translation type="unfinished">Configure Mumble</translation>
     </message>
     <message>
-        <source>Allows you to change most settings for Mumble.</source>
-        <translation>允许您更改 Mumble 的大多数设置。</translation>
+      <source>Allows you to change most settings for Mumble.</source>
+      <translation type="unfinished">Allows you to change most settings for Mumble.</translation>
     </message>
     <message>
-        <source>Start the audio configuration wizard</source>
-        <translation>开始音频配置向导</translation>
+      <source>Start the audio configuration wizard</source>
+      <translation type="unfinished">Start the audio configuration wizard</translation>
     </message>
     <message>
-        <source>This will guide you through the process of configuring your audio hardware.</source>
-        <translation>指导您配置您的音频硬件。</translation>
+      <source>This will guide you through the process of configuring your audio hardware.</source>
+      <translation type="unfinished">This will guide you through the process of configuring your audio hardware.</translation>
     </message>
     <message>
-        <source>&amp;What&apos;s This?</source>
-        <translation>这是什么(&amp;W)？</translation>
+      <source>&amp;What&apos;s This?</source>
+      <translation type="unfinished">&amp;What&apos;s This?</translation>
     </message>
     <message>
-        <source>Enter What&apos;s This? mode</source>
-        <translation>进入“这是什么?”模式</translation>
+      <source>Enter What&apos;s This? mode</source>
+      <translation type="unfinished">Enter What&apos;s This? mode</translation>
     </message>
     <message>
-        <source>Click this to enter &quot;What&apos;s This?&quot; mode. Your cursor will turn into a question mark. Click on any button, menu choice or area to show a description of what it is.</source>
-        <translation>点击进入“这是什么？”模式。您的鼠标会变成问号形状。点击其他的按钮、菜单选项或者其他区域以显示对应内容的帮助。</translation>
+      <source>Click this to enter &quot;What&apos;s This?&quot; mode. Your cursor will turn into a question mark. Click on any button, menu choice or area to show a description of what it is.</source>
+      <translation type="unfinished">Click this to enter &quot;What&apos;s This?&quot; mode. Your cursor will turn into a question mark. Click on any button, menu choice or area to show a description of what it is.</translation>
     </message>
     <message>
-        <source>Information about Mumble</source>
-        <translation>关于 Mumble 的信息</translation>
+      <source>Information about Mumble</source>
+      <translation type="unfinished">Information about Mumble</translation>
     </message>
     <message>
-        <source>Shows a small dialog with information and license for Mumble.</source>
-        <translation>显示包含 Mumble 信息和许可的对话框。</translation>
+      <source>Shows a small dialog with information and license for Mumble.</source>
+      <translation type="unfinished">Shows a small dialog with information and license for Mumble.</translation>
     </message>
     <message>
-        <source>Information about Speex</source>
-        <translation>关于 Speex 的信息</translation>
+      <source>Information about Speex</source>
+      <translation type="unfinished">Information about Speex</translation>
     </message>
     <message>
-        <source>Shows a small dialog with information about Speex.</source>
-        <translation>显示包含 Speex 信息的对话框。</translation>
+      <source>Shows a small dialog with information about Speex.</source>
+      <translation type="unfinished">Shows a small dialog with information about Speex.</translation>
     </message>
     <message>
-        <source>Information about Qt</source>
-        <translation>关于 QT 的信息</translation>
+      <source>Information about Qt</source>
+      <translation type="unfinished">Information about Qt</translation>
     </message>
     <message>
-        <source>Shows a small dialog with information about Qt.</source>
-        <translation>显示包含 QT 信息的对话框。</translation>
+      <source>Shows a small dialog with information about Qt.</source>
+      <translation type="unfinished">Shows a small dialog with information about Qt.</translation>
     </message>
     <message>
-        <source>Check for &amp;Updates</source>
-        <translation>检查更新(&amp;U)</translation>
+      <source>Check for &amp;Updates</source>
+      <translation type="unfinished">Check for &amp;Updates</translation>
     </message>
     <message>
-        <source>Check for new version of Mumble</source>
-        <translation>检查 Mumble 的新版本</translation>
+      <source>Check for new version of Mumble</source>
+      <translation type="unfinished">Check for new version of Mumble</translation>
     </message>
     <message>
-        <source>Connects to the Mumble webpage to check if a new version is available, and notifies you with an appropriate download URL if this is the case.</source>
-        <translation>连接到 Mumble 网站，查找是否有可用的新版本，并通知您一个可用的下载地址。</translation>
+      <source>Connects to the Mumble webpage to check if a new version is available, and notifies you with an appropriate download URL if this is the case.</source>
+      <translation type="unfinished">Connects to the Mumble webpage to check if a new version is available, and notifies you with an appropriate download URL if this is the case.</translation>
     </message>
     <message>
-        <source>Sends a text message to all users in a channel.</source>
-        <translation>向频道中的所有人发送文字消息。</translation>
+      <source>Sends a text message to all users in a channel.</source>
+      <translation type="unfinished">Sends a text message to all users in a channel.</translation>
     </message>
     <message>
-        <source>Configure certificates for strong authentication</source>
-        <translation>配置证书进行强认证</translation>
+      <source>Configure certificates for strong authentication</source>
+      <translation type="unfinished">Configure certificates for strong authentication</translation>
     </message>
     <message>
-        <source>This starts the wizard for creating, importing and exporting certificates for authentication against servers.</source>
-        <translation>开始证书向导，进行创建、导入或导出用于服务器认证的证书。</translation>
+      <source>This starts the wizard for creating, importing and exporting certificates for authentication against servers.</source>
+      <translation type="unfinished">This starts the wizard for creating, importing and exporting certificates for authentication against servers.</translation>
     </message>
     <message>
-        <source>Register user on server</source>
-        <translation>在服务器上注册用户</translation>
+      <source>Register user on server</source>
+      <translation type="unfinished">Register user on server</translation>
     </message>
     <message>
-        <source>This will permanently register the user on the server.</source>
-        <translation>在此服务器上永久注册用户。</translation>
+      <source>This will permanently register the user on the server.</source>
+      <translation type="unfinished">This will permanently register the user on the server.</translation>
     </message>
     <message>
-        <source>Add &amp;Friend</source>
-        <translation>添加好友(&amp;F)</translation>
+      <source>Add &amp;Friend</source>
+      <translation type="unfinished">Add &amp;Friend</translation>
     </message>
     <message>
-        <source>Adds a user as your friend.</source>
-        <translation>添加一名用户为您的好友。</translation>
+      <source>Adds a user as your friend.</source>
+      <translation type="unfinished">Adds a user as your friend.</translation>
     </message>
     <message>
-        <source>This will add the user as a friend, so you can recognize him on this and other servers.</source>
-        <translation>添加一名用户为您的好友，使您可以在此服务器和其他服务器认出他。</translation>
+      <source>This will add the user as a friend, so you can recognize him on this and other servers.</source>
+      <translation type="unfinished">This will add the user as a friend, so you can recognize him on this and other servers.</translation>
     </message>
     <message>
-        <source>&amp;Remove Friend</source>
-        <translation>删除好友(&amp;R)</translation>
+      <source>&amp;Remove Friend</source>
+      <translation type="unfinished">&amp;Remove Friend</translation>
     </message>
     <message>
-        <source>Removes a user from your friends.</source>
-        <translation>从您的好友中删除一名用户。</translation>
+      <source>Removes a user from your friends.</source>
+      <translation type="unfinished">Removes a user from your friends.</translation>
     </message>
     <message>
-        <source>This will remove a user from your friends list.</source>
-        <translation>从您的好友列表中删除一名用户。</translation>
+      <source>This will remove a user from your friends list.</source>
+      <translation type="unfinished">This will remove a user from your friends list.</translation>
     </message>
     <message>
-        <source>&amp;Update Friend</source>
-        <translation>更新好友(&amp;U)</translation>
+      <source>&amp;Update Friend</source>
+      <translation type="unfinished">&amp;Update Friend</translation>
     </message>
     <message>
-        <source>Update name of your friend.</source>
-        <translation>更新好友的名称。</translation>
+      <source>Update name of your friend.</source>
+      <translation type="unfinished">Update name of your friend.</translation>
     </message>
     <message>
-        <source>Your friend uses a different name than what is in your database. This will update the name.</source>
-        <translation>您的好友使用的名称与您的数据库存储不同。此功能将更新此名称。</translation>
+      <source>Your friend uses a different name than what is in your database. This will update the name.</source>
+      <translation type="unfinished">Your friend uses a different name than what is in your database. This will update the name.</translation>
     </message>
     <message>
-        <source>Edit registered users list</source>
-        <translation>编辑已注册用户列表</translation>
+      <source>Edit registered users list</source>
+      <translation type="unfinished">Edit registered users list</translation>
     </message>
     <message>
-        <source>This opens the editor for registered users, which allow you to change their name or unregister them.</source>
-        <translation>打开已注册用户编辑器，允许您修改已注册用户的名称或者取消他们的注册。</translation>
+      <source>This opens the editor for registered users, which allow you to change their name or unregister them.</source>
+      <translation type="unfinished">This opens the editor for registered users, which allow you to change their name or unregister them.</translation>
     </message>
     <message>
-        <source>Add or remove text-based access tokens</source>
-        <translation>添加或删除文本形式的访问令牌</translation>
+      <source>Add or remove text-based access tokens</source>
+      <translation type="unfinished">Add or remove text-based access tokens</translation>
     </message>
     <message>
-        <source>&amp;Minimal View</source>
-        <translation>简洁视图(&amp;M)</translation>
+      <source>&amp;Minimal View</source>
+      <translation type="unfinished">&amp;Minimal View</translation>
     </message>
     <message>
-        <source>Toggle minimal window modes</source>
-        <translation>开关简洁视图模式</translation>
+      <source>Toggle minimal window modes</source>
+      <translation type="unfinished">Toggle minimal window modes</translation>
     </message>
     <message>
-        <source>This will toggle minimal mode, where the log window and menu is hidden.</source>
-        <translation>开关简洁视图模式，日志窗口和菜单将被隐藏。</translation>
+      <source>This will toggle minimal mode, where the log window and menu is hidden.</source>
+      <translation type="unfinished">This will toggle minimal mode, where the log window and menu is hidden.</translation>
     </message>
     <message>
-        <source>You muted and deafened %1.</source>
-        <translation>您关闭了 %1 的麦克风和扬声器。</translation>
+      <source>You muted and deafened %1.</source>
+      <translation type="unfinished">You muted and deafened %1.</translation>
     </message>
     <message>
-        <source>You unmuted and undeafened %1.</source>
-        <translation>您开启了 %1 的麦克风和扬声器。</translation>
+      <source>You unmuted and undeafened %1.</source>
+      <translation type="unfinished">You unmuted and undeafened %1.</translation>
     </message>
     <message>
-        <source>You undeafened %1.</source>
-        <translation>您开启了 %1 的扬声器。</translation>
+      <source>You undeafened %1.</source>
+      <translation type="unfinished">You undeafened %1.</translation>
     </message>
     <message>
-        <source>You suppressed %1.</source>
-        <translation>您禁言了 %1。</translation>
+      <source>You suppressed %1.</source>
+      <translation type="unfinished">You suppressed %1.</translation>
     </message>
     <message>
-        <source>%1 muted and deafened by %2.</source>
-        <translation>%2 关闭了 %1 的麦克风和扬声器。</translation>
+      <source>%1 muted and deafened by %2.</source>
+      <translation type="unfinished">%1 muted and deafened by %2.</translation>
     </message>
     <message>
-        <source>%1 unmuted and undeafened by %2.</source>
-        <translation>%2 开启了 %1 的麦克风和扬声器。</translation>
+      <source>%1 unmuted and undeafened by %2.</source>
+      <translation type="unfinished">%1 unmuted and undeafened by %2.</translation>
     </message>
     <message>
-        <source>%1 undeafened by %2.</source>
-        <translation>%2 开启了 %1 的扬声器。</translation>
+      <source>%1 undeafened by %2.</source>
+      <translation type="unfinished">%1 undeafened by %2.</translation>
     </message>
     <message>
-        <source>%1 suppressed by %2.</source>
-        <translation>%1 被 %2 禁言。</translation>
+      <source>%1 suppressed by %2.</source>
+      <translation type="unfinished">%1 suppressed by %2.</translation>
     </message>
     <message>
-        <source>%1 moved to %2.</source>
-        <translation>%1 移动到 %2。</translation>
+      <source>%1 moved to %2.</source>
+      <translation type="unfinished">%1 moved to %2.</translation>
     </message>
     <message>
-        <source>%1 moved to %2 by %3.</source>
-        <translation>%1 被 %3 移动到 %2。</translation>
+      <source>%1 moved to %2 by %3.</source>
+      <translation type="unfinished">%1 moved to %2 by %3.</translation>
     </message>
     <message>
-        <source>%1 moved in from %2 by %3.</source>
-        <translation>%1 被 %3 从 %2 移动至此。</translation>
+      <source>%1 moved in from %2 by %3.</source>
+      <translation type="unfinished">%1 moved in from %2 by %3.</translation>
     </message>
     <message>
-        <source>%1 is now muted and deafened.</source>
-        <translation>%1 关闭了麦克风和扬声器。</translation>
+      <source>%1 is now muted and deafened.</source>
+      <translation type="unfinished">%1 is now muted and deafened.</translation>
     </message>
     <message>
-        <source>Your account information can not be verified currently. Please try again later</source>
-        <translation>当前无法验证您的帐户信息，请稍后重试</translation>
+      <source>Your account information can not be verified currently. Please try again later</source>
+      <translation type="unfinished">Your account information can not be verified currently. Please try again later</translation>
     </message>
     <message>
-        <source>Welcome message: %1</source>
-        <translation>欢迎消息：%1</translation>
+      <source>Welcome message: %1</source>
+      <translation type="unfinished">Welcome message: %1</translation>
     </message>
     <message>
-        <source>Mumble: %1</source>
-        <translation>Mumble：%1</translation>
+      <source>Mumble: %1</source>
+      <translation type="unfinished">Mumble: %1</translation>
     </message>
     <message>
-        <source>You were denied %1 privileges in %2.</source>
-        <translation>您在 %2 的“%1”权限被拒绝。</translation>
+      <source>You were denied %1 privileges in %2.</source>
+      <translation type="unfinished">You were denied %1 privileges in %2.</translation>
     </message>
     <message>
-        <source>%3 was denied %1 privileges in %2.</source>
-        <translation>%3 在 %2 的“%1”权限被拒绝。</translation>
+      <source>%3 was denied %1 privileges in %2.</source>
+      <translation type="unfinished">%3 was denied %1 privileges in %2.</translation>
     </message>
     <message>
-        <source>Denied: Cannot modify SuperUser.</source>
-        <translation>拒绝：无法修改 SuperUser（超级用户）。</translation>
+      <source>Denied: Cannot modify SuperUser.</source>
+      <translation type="unfinished">Denied: Cannot modify SuperUser.</translation>
     </message>
     <message>
-        <source>Denied: Invalid channel name.</source>
-        <translation>拒绝：频道名称无效。</translation>
+      <source>Denied: Invalid channel name.</source>
+      <translation type="unfinished">Denied: Invalid channel name.</translation>
     </message>
     <message>
-        <source>Denied: Text message too long.</source>
-        <translation>拒绝：文本消息过长。</translation>
+      <source>Denied: Text message too long.</source>
+      <translation type="unfinished">Denied: Text message too long.</translation>
     </message>
     <message>
-        <source>Denied: Operation not permitted in temporary channel.</source>
-        <translation>拒绝：临时频道不允许此操作。</translation>
+      <source>Denied: Operation not permitted in temporary channel.</source>
+      <translation type="unfinished">Denied: Operation not permitted in temporary channel.</translation>
     </message>
     <message>
-        <source>You need a certificate to perform this operation.</source>
-        <translation>您需要一个证书以执行该操作。</translation>
+      <source>You need a certificate to perform this operation.</source>
+      <translation type="unfinished">You need a certificate to perform this operation.</translation>
     </message>
     <message>
-        <source>%1 does not have a certificate.</source>
-        <translation>%1 没有证书。</translation>
+      <source>%1 does not have a certificate.</source>
+      <translation type="unfinished">%1 does not have a certificate.</translation>
     </message>
     <message>
-        <source>Invalid username: %1.</source>
-        <translation>用户名无效：%1。</translation>
+      <source>Invalid username: %1.</source>
+      <translation type="unfinished">Invalid username: %1.</translation>
     </message>
     <message>
-        <source>Invalid username.</source>
-        <translation>用户名无效。</translation>
+      <source>Invalid username.</source>
+      <translation type="unfinished">Invalid username.</translation>
     </message>
     <message>
-        <source>Channel is full.</source>
-        <translation>频道已满。</translation>
+      <source>Channel is full.</source>
+      <translation type="unfinished">Channel is full.</translation>
     </message>
     <message>
-        <source>Channel nesting limit reached.</source>
-        <translation>频道嵌套层次达到上限。</translation>
+      <source>Channel nesting limit reached.</source>
+      <translation type="unfinished">Channel nesting limit reached.</translation>
     </message>
     <message>
-        <source>Channel count limit reached. Need to delete channels before creating new ones.</source>
-        <translation>频道数量达到上限。需要在创建新频道之前删除一些频道。</translation>
+      <source>Channel count limit reached. Need to delete channels before creating new ones.</source>
+      <translation type="unfinished">Channel count limit reached. Need to delete channels before creating new ones.</translation>
     </message>
     <message>
-        <source>Permission denied.</source>
-        <translation>权限被拒绝。</translation>
+      <source>Permission denied.</source>
+      <translation type="unfinished">Permission denied.</translation>
     </message>
     <message>
-        <source>%1 connected and entered channel.</source>
-        <translation>%1 连接到服务器并加入频道。</translation>
+      <source>%1 connected and entered channel.</source>
+      <translation type="unfinished">%1 connected and entered channel.</translation>
     </message>
     <message>
-        <source>%1 connected.</source>
-        <translation>%1 已连接。</translation>
+      <source>%1 connected.</source>
+      <translation type="unfinished">%1 connected.</translation>
     </message>
     <message>
-        <source>%1 is now muted.</source>
-        <translation>%1 关闭了麦克风。</translation>
+      <source>%1 is now muted.</source>
+      <translation type="unfinished">%1 is now muted.</translation>
     </message>
     <message>
-        <source>%1 is now unmuted.</source>
-        <translation>%1 开启了麦克风。</translation>
+      <source>%1 is now unmuted.</source>
+      <translation type="unfinished">%1 is now unmuted.</translation>
     </message>
     <message>
-        <source>Recording started</source>
-        <translation>录音开始</translation>
+      <source>Recording started</source>
+      <translation type="unfinished">Recording started</translation>
     </message>
     <message>
-        <source>Recording stopped</source>
-        <translation>录音结束</translation>
+      <source>Recording stopped</source>
+      <translation type="unfinished">Recording stopped</translation>
     </message>
     <message>
-        <source>%1 started recording.</source>
-        <translation>%1 开始录音。</translation>
+      <source>%1 started recording.</source>
+      <translation type="unfinished">%1 started recording.</translation>
     </message>
     <message>
-        <source>%1 stopped recording.</source>
-        <translation>%1 结束录音。</translation>
+      <source>%1 stopped recording.</source>
+      <translation type="unfinished">%1 stopped recording.</translation>
     </message>
     <message>
-        <source>You revoked your priority speaker status.</source>
-        <translation>您撤销了自己的优先发言人状态。</translation>
+      <source>You revoked your priority speaker status.</source>
+      <translation type="unfinished">You revoked your priority speaker status.</translation>
     </message>
     <message>
-        <source>You assumed priority speaker status.</source>
-        <translation>您获得优先发言人状态。</translation>
+      <source>You assumed priority speaker status.</source>
+      <translation type="unfinished">You assumed priority speaker status.</translation>
     </message>
     <message>
-        <source>%1 revoked your priority speaker status.</source>
-        <translation>%1 撤销了您的优先发言人状态。</translation>
+      <source>%1 revoked your priority speaker status.</source>
+      <translation type="unfinished">%1 revoked your priority speaker status.</translation>
     </message>
     <message>
-        <source>%1 gave you priority speaker status.</source>
-        <translation>%1 授予您优先发言人状态。</translation>
+      <source>%1 gave you priority speaker status.</source>
+      <translation type="unfinished">%1 gave you priority speaker status.</translation>
     </message>
     <message>
-        <source>You revoked priority speaker status for %1.</source>
-        <translation>您撤销了 %1 的优先发言人状态。</translation>
+      <source>You revoked priority speaker status for %1.</source>
+      <translation type="unfinished">You revoked priority speaker status for %1.</translation>
     </message>
     <message>
-        <source>You gave priority speaker status to %1.</source>
-        <translation>您授予 %1 优先发言人状态。</translation>
+      <source>You gave priority speaker status to %1.</source>
+      <translation type="unfinished">You gave priority speaker status to %1.</translation>
     </message>
     <message>
-        <source>%1 revoked own priority speaker status.</source>
-        <translation>%1 撤销了自己的优先发言人状态。</translation>
+      <source>%1 revoked own priority speaker status.</source>
+      <translation type="unfinished">%1 revoked own priority speaker status.</translation>
     </message>
     <message>
-        <source>%1 assumed priority speaker status.</source>
-        <translation>%1 获得优先发言人状态。</translation>
+      <source>%1 assumed priority speaker status.</source>
+      <translation type="unfinished">%1 assumed priority speaker status.</translation>
     </message>
     <message>
-        <source>%1 revoked priority speaker status for %2.</source>
-        <translation>%1 撤销了 %2 的优先发言人状态。</translation>
+      <source>%1 revoked priority speaker status for %2.</source>
+      <translation type="unfinished">%1 revoked priority speaker status for %2.</translation>
     </message>
     <message>
-        <source>%1 gave priority speaker status to %2.</source>
-        <translation>%1 授予 %2 优先发言人状态。</translation>
+      <source>%1 gave priority speaker status to %2.</source>
+      <translation type="unfinished">%1 gave priority speaker status to %2.</translation>
     </message>
     <message>
-        <source>You were unmuted and undeafened by %1.</source>
-        <translation>%1 开启了您的的麦克风和扬声器。</translation>
+      <source>You were unmuted and undeafened by %1.</source>
+      <translation type="unfinished">You were unmuted and undeafened by %1.</translation>
     </message>
     <message>
-        <source>You were muted by %1.</source>
-        <translation>%1 关闭了您的麦克风。</translation>
+      <source>You were muted by %1.</source>
+      <translation type="unfinished">You were muted by %1.</translation>
     </message>
     <message>
-        <source>You were undeafened by %1.</source>
-        <translation>%1 开启了您的扬声器。</translation>
+      <source>You were undeafened by %1.</source>
+      <translation type="unfinished">You were undeafened by %1.</translation>
     </message>
     <message>
-        <source>You were suppressed.</source>
-        <oldsource>You were suppressed by %1.</oldsource>
-        <translation>您被禁言。</translation>
+      <source>You were suppressed.</source>
+      <oldsource>You were suppressed by %1.</oldsource>
+      <translation type="unfinished">You were suppressed.</translation>
     </message>
     <message>
-        <source>You were unsuppressed.</source>
-        <translation>您被解除禁言。</translation>
+      <source>You were unsuppressed.</source>
+      <translation type="unfinished">You were unsuppressed.</translation>
     </message>
     <message>
-        <source>You were unsuppressed by %1.</source>
-        <translation>%1 解除了您的禁言。</translation>
+      <source>You were unsuppressed by %1.</source>
+      <translation type="unfinished">You were unsuppressed by %1.</translation>
     </message>
     <message>
-        <source>You joined %1.</source>
-        <translation>您加入了 %1。</translation>
+      <source>You joined %1.</source>
+      <translation type="unfinished">You joined %1.</translation>
     </message>
     <message>
-        <source>You moved %1 to %2.</source>
-        <translation>您将 %1 移动到 %2。</translation>
+      <source>You moved %1 to %2.</source>
+      <translation type="unfinished">You moved %1 to %2.</translation>
     </message>
     <message>
-        <source>%1 is recording</source>
-        <translation>%1 正在录音</translation>
+      <source>%1 is recording</source>
+      <translation type="unfinished">%1 is recording</translation>
     </message>
     <message>
-        <source>%1 renamed to %2 by %3.</source>
-        <translation>%1 被 %3 重命名为 %2。</translation>
+      <source>%1 renamed to %2 by %3.</source>
+      <translation type="unfinished">%1 renamed to %2 by %3.</translation>
     </message>
     <message>
-        <source>%1 disconnected.</source>
-        <translation>%1 断开连接。</translation>
+      <source>%1 disconnected.</source>
+      <translation type="unfinished">%1 disconnected.</translation>
     </message>
     <message>
-        <source>Server</source>
-        <comment>message from</comment>
-        <translation>服务器</translation>
+      <source>Server</source>
+      <comment>message from</comment>
+      <translation type="unfinished">Server</translation>
     </message>
     <message>
-        <source>Failed to load Opus, it will not be available for audio encoding/decoding.</source>
-        <translation>加载 Opus 失败，无法进行音频编解码。</translation>
+      <source>Failed to load Opus, it will not be available for audio encoding/decoding.</source>
+      <translation type="unfinished">Failed to load Opus, it will not be available for audio encoding/decoding.</translation>
     </message>
     <message>
-        <source>The server requests minimum client version %1</source>
-        <translation>服务器要求客户端版本至少为 %1</translation>
+      <source>The server requests minimum client version %1</source>
+      <translation type="unfinished">The server requests minimum client version %1</translation>
     </message>
     <message>
-        <source>The server requests positional audio be enabled.</source>
-        <translation>服务器要求启用位置音频。</translation>
+      <source>The server requests positional audio be enabled.</source>
+      <translation type="unfinished">The server requests positional audio be enabled.</translation>
     </message>
     <message>
-        <source>The server requests positional audio be disabled.</source>
-        <translation>服务器要求禁用位置音频。</translation>
+      <source>The server requests positional audio be disabled.</source>
+      <translation type="unfinished">The server requests positional audio be disabled.</translation>
     </message>
     <message>
-        <source>The server requests Push-to-Talk be enabled.</source>
-        <translation>服务器要求启用按键发言。</translation>
+      <source>The server requests Push-to-Talk be enabled.</source>
+      <translation type="unfinished">The server requests Push-to-Talk be enabled.</translation>
     </message>
     <message>
-        <source>The server requests Push-to-Talk be disabled.</source>
-        <translation>服务器要求禁用按键发言。</translation>
+      <source>The server requests Push-to-Talk be disabled.</source>
+      <translation type="unfinished">The server requests Push-to-Talk be disabled.</translation>
     </message>
     <message>
-        <source>You were unmuted by %1.</source>
-        <translation>%1 开启了您的麦克风。</translation>
+      <source>You were unmuted by %1.</source>
+      <translation type="unfinished">You were unmuted by %1.</translation>
     </message>
     <message>
-        <source>You muted %1.</source>
-        <translation>您关闭了 %1 的麦克风。</translation>
+      <source>You muted %1.</source>
+      <translation type="unfinished">You muted %1.</translation>
     </message>
     <message>
-        <source>You unsuppressed %1.</source>
-        <translation>您解除了 %1 的禁言。</translation>
+      <source>You unsuppressed %1.</source>
+      <translation type="unfinished">You unsuppressed %1.</translation>
     </message>
     <message>
-        <source>You unmuted %1.</source>
-        <translation>您开启了 %1 的麦克风。</translation>
+      <source>You unmuted %1.</source>
+      <translation type="unfinished">You unmuted %1.</translation>
     </message>
     <message>
-        <source>%1 muted by %2.</source>
-        <translation>%2 关闭了 %1 的麦克风。</translation>
+      <source>%1 muted by %2.</source>
+      <translation type="unfinished">%1 muted by %2.</translation>
     </message>
     <message>
-        <source>%1 unsuppressed by %2.</source>
-        <translation>%2 解除了 %1 的禁言。</translation>
+      <source>%1 unsuppressed by %2.</source>
+      <translation type="unfinished">%1 unsuppressed by %2.</translation>
     </message>
     <message>
-        <source>%1 unmuted by %2.</source>
-        <translation>%2 开启了 %1 麦克风。</translation>
+      <source>%1 unmuted by %2.</source>
+      <translation type="unfinished">%1 unmuted by %2.</translation>
     </message>
     <message>
-        <source>Unable to find matching CELT codecs with other clients. You will not be able to talk to all users.</source>
-        <translation>无法找到与其他客户端匹配的 CELT 编解码器。您将无法与所有用户交谈。</translation>
+      <source>Unable to find matching CELT codecs with other clients. You will not be able to talk to all users.</source>
+      <translation type="unfinished">Unable to find matching CELT codecs with other clients. You will not be able to talk to all users.</translation>
     </message>
     <message>
-        <source>You were muted and deafened by %1.</source>
-        <oldsource>You were deafened by %1.</oldsource>
-        <translation>%1 关闭了您的麦克风和扬声器。</translation>
+      <source>You were muted and deafened by %1.</source>
+      <oldsource>You were deafened by %1.</oldsource>
+      <translation type="unfinished">You were muted and deafened by %1.</translation>
     </message>
     <message>
-        <source>You were kicked from the server by %1: %2.</source>
-        <translation>%1 将您踢出了服务器：%2。</translation>
+      <source>You were kicked from the server by %1: %2.</source>
+      <translation type="unfinished">You were kicked from the server by %1: %2.</translation>
     </message>
     <message>
-        <source>%3 was kicked from the server by %1: %2.</source>
-        <translation>%1 将 %3 踢出了服务器：%2。</translation>
+      <source>%3 was kicked from the server by %1: %2.</source>
+      <translation type="unfinished">%3 was kicked from the server by %1: %2.</translation>
     </message>
     <message>
-        <source>You were kicked and banned from the server by %1: %2.</source>
-        <translation>%1 将您踢出了服务器并封禁：%2。</translation>
+      <source>You were kicked and banned from the server by %1: %2.</source>
+      <translation type="unfinished">You were kicked and banned from the server by %1: %2.</translation>
     </message>
     <message>
-        <source>%3 was kicked and banned from the server by %1: %2.</source>
-        <translation>%1 将 %3 踢出了服务器并封禁：%2。</translation>
+      <source>%3 was kicked and banned from the server by %1: %2.</source>
+      <translation type="unfinished">%3 was kicked and banned from the server by %1: %2.</translation>
     </message>
     <message>
-        <source>You were moved to %1 by %2.</source>
-        <translation>您被 %2 移动到 %1。</translation>
+      <source>You were moved to %1 by %2.</source>
+      <translation type="unfinished">You were moved to %1 by %2.</translation>
     </message>
     <message>
-        <source>%1 entered channel.</source>
-        <translation>%1 进入频道。</translation>
+      <source>%1 entered channel.</source>
+      <translation type="unfinished">%1 entered channel.</translation>
     </message>
     <message>
-        <source>Server connection rejected: %1.</source>
-        <translation>服务器拒绝连接：%1。</translation>
+      <source>Server connection rejected: %1.</source>
+      <translation type="unfinished">Server connection rejected: %1.</translation>
     </message>
     <message>
-        <source>Denied: %1.</source>
-        <translation>拒绝：%1。</translation>
+      <source>Denied: %1.</source>
+      <translation type="unfinished">Denied: %1.</translation>
     </message>
     <message>
-        <source>%1 renamed to %2.</source>
-        <translation>%1 重命名为 %2。</translation>
+      <source>%1 renamed to %2.</source>
+      <translation type="unfinished">%1 renamed to %2.</translation>
     </message>
     <message>
-        <source>%1 left channel and disconnected.</source>
-        <translation>%1 离开频道并断开连接。</translation>
+      <source>%1 left channel and disconnected.</source>
+      <translation type="unfinished">%1 left channel and disconnected.</translation>
     </message>
     <message>
-        <source>Message from %1</source>
-        <translation>来自 %1 的消息</translation>
+      <source>Message from %1</source>
+      <translation type="unfinished">Message from %1</translation>
     </message>
     <message>
-        <source>You have User Dragging set to &quot;Do Nothing&quot; so the user wasn&apos;t moved.</source>
-        <translation>用户未被移动，因为您将用户拖动设置为“无动作”。</translation>
+      <source>You have User Dragging set to &quot;Do Nothing&quot; so the user wasn&apos;t moved.</source>
+      <translation type="unfinished">You have User Dragging set to &quot;Do Nothing&quot; so the user wasn&apos;t moved.</translation>
     </message>
     <message>
-        <source>You have Channel Dragging set to &quot;Do Nothing&quot; so the channel wasn&apos;t moved.</source>
-        <translation>频道未被移动，因为您将频道拖动设置为“无动作”。</translation>
+      <source>You have Channel Dragging set to &quot;Do Nothing&quot; so the channel wasn&apos;t moved.</source>
+      <translation type="unfinished">You have Channel Dragging set to &quot;Do Nothing&quot; so the channel wasn&apos;t moved.</translation>
     </message>
     <message>
-        <source>Unknown Channel Drag mode in UserModel::dropMimeData.</source>
-        <translation>UserModel::dropMimeData 中的频道拖动模式未知。</translation>
+      <source>Unknown Channel Drag mode in UserModel::dropMimeData.</source>
+      <translation type="unfinished">Unknown Channel Drag mode in UserModel::dropMimeData.</translation>
     </message>
     <message>
-        <source>Remote controlling Mumble:
+      <source>Remote controlling Mumble:
 
 </source>
-        <translation>远程控制 Mumble：
+      <translation type="unfinished">Remote controlling Mumble:
 
 </translation>
     </message>
     <message>
-        <source>Usage: mumble rpc &lt;action&gt; [options]
+      <source>Usage: mumble rpc &lt;action&gt; [options]
 
 It is possible to remote control a running instance of Mumble by using
-the 'mumble rpc' command.
+the &apos;mumble rpc&apos; command.
 
 Valid actions are:
   mute
@@ -5726,451 +5746,453 @@ Valid actions are:
                 Toggle self-deafen status
 
 </source>
-        <translation>用法：mumble rpc &lt;操作&gt; [选项]
+      <translation type="unfinished">Usage: mumble rpc &lt;action&gt; [options]
 
-可以通过“mumble rpc”命令远程控制一个正在运行的 Mumble 实例。
+It is possible to remote control a running instance of Mumble by using
+the &apos;mumble rpc&apos; command.
 
-可用的操作：
+Valid actions are:
   mute
-                关闭自己的麦克风
+                Mute self
   unmute
-                开启自己的麦克风
+                Unmute self
   togglemute
-                开关自己的麦克风
+                Toggle self-mute status
   deaf
-                关闭自己的扬声器
+                Deafen self
   undeaf
-                开启自己的扬声器
+                Undeafen self
   toggledeaf
-                开关自己的扬声器
+                Toggle self-deafen status
 
 </translation>
     </message>
     <message>
-        <source>Invocation</source>
-        <translation>调用</translation>
+      <source>Invocation</source>
+      <translation type="unfinished">Invocation</translation>
     </message>
     <message>
-        <source>Error: No RPC command specified</source>
-        <translation>错误：无指定的 RPC 命令</translation>
+      <source>Error: No RPC command specified</source>
+      <translation type="unfinished">Error: No RPC command specified</translation>
     </message>
     <message>
-        <source>RPC</source>
-        <translation>RPC</translation>
+      <source>RPC</source>
+      <translation type="unfinished">RPC</translation>
     </message>
     <message>
-        <source>Welcome to Mumble.</source>
-        <translation>欢迎使用 Mumble。</translation>
+      <source>Welcome to Mumble.</source>
+      <translation type="unfinished">Welcome to Mumble.</translation>
     </message>
     <message>
-        <source>Skipping version check in debug mode.</source>
-        <translation>在调试模式跳过版本检查。</translation>
+      <source>Skipping version check in debug mode.</source>
+      <translation type="unfinished">Skipping version check in debug mode.</translation>
     </message>
     <message>
-        <source>Hide Frame</source>
-        <translation>隐藏边框</translation>
+      <source>Hide Frame</source>
+      <translation type="unfinished">Hide Frame</translation>
     </message>
     <message>
-        <source>Toggle showing frame on minimal window</source>
-        <translation>切换简洁视图下的窗口边框显示</translation>
+      <source>Toggle showing frame on minimal window</source>
+      <translation type="unfinished">Toggle showing frame on minimal window</translation>
     </message>
     <message>
-        <source>This will toggle whether the minimal window should have a frame for moving and resizing.</source>
-        <translation>切换在简洁视图模式下是否显示用于移动或改变窗口大小的边框。</translation>
+      <source>This will toggle whether the minimal window should have a frame for moving and resizing.</source>
+      <translation type="unfinished">This will toggle whether the minimal window should have a frame for moving and resizing.</translation>
     </message>
     <message>
-        <source>&amp;Unlink All</source>
-        <translation>取消所有链接(&amp;U)</translation>
+      <source>&amp;Unlink All</source>
+      <translation type="unfinished">&amp;Unlink All</translation>
     </message>
     <message>
-        <source>Reset the comment of the selected user.</source>
-        <translation>重置所选用户的简介。</translation>
+      <source>Reset the comment of the selected user.</source>
+      <translation type="unfinished">Reset the comment of the selected user.</translation>
     </message>
     <message>
-        <source>&amp;Join Channel</source>
-        <translation>加入频道(&amp;J)</translation>
+      <source>&amp;Join Channel</source>
+      <translation type="unfinished">&amp;Join Channel</translation>
     </message>
     <message>
-        <source>View comment in editor</source>
-        <translation>在编辑器中查看简介</translation>
+      <source>View comment in editor</source>
+      <translation type="unfinished">View comment in editor</translation>
     </message>
     <message>
-        <source>Query server for connection information for user</source>
-        <translation>向服务器查询用户的连接信息</translation>
+      <source>Query server for connection information for user</source>
+      <translation type="unfinished">Query server for connection information for user</translation>
     </message>
     <message>
-        <source>S&amp;erver</source>
-        <translation>服务器(&amp;E)</translation>
+      <source>S&amp;erver</source>
+      <translation type="unfinished">S&amp;erver</translation>
     </message>
     <message>
-        <source>&amp;Self</source>
-        <translation>自己(&amp;S)</translation>
+      <source>&amp;Self</source>
+      <translation type="unfinished">&amp;Self</translation>
     </message>
     <message>
-        <source>&amp;Unlink Plugins</source>
-        <translation>取消链接插件(&amp;U)</translation>
+      <source>&amp;Unlink Plugins</source>
+      <translation type="unfinished">&amp;Unlink Plugins</translation>
     </message>
     <message>
-        <source>Register yourself on the server</source>
-        <translation>在服务器上注册自己</translation>
+      <source>Register yourself on the server</source>
+      <translation type="unfinished">Register yourself on the server</translation>
     </message>
     <message>
-        <source>Change your avatar image on this server</source>
-        <translation>修改您在此服务器上的头像</translation>
+      <source>Change your avatar image on this server</source>
+      <translation type="unfinished">Change your avatar image on this server</translation>
     </message>
     <message>
-        <source>&amp;Remove Avatar</source>
-        <translation>删除头像(&amp;R)</translation>
+      <source>&amp;Remove Avatar</source>
+      <translation type="unfinished">&amp;Remove Avatar</translation>
     </message>
     <message>
-        <source>Remove currently defined avatar image.</source>
-        <translation>删除当前头像图片。</translation>
+      <source>Remove currently defined avatar image.</source>
+      <translation type="unfinished">Remove currently defined avatar image.</translation>
     </message>
     <message>
-        <source>Icon Toolbar</source>
-        <translation>图标工具栏</translation>
+      <source>Icon Toolbar</source>
+      <translation type="unfinished">Icon Toolbar</translation>
     </message>
     <message>
-        <source>Change your own comment</source>
-        <translation>修改您自己的简介</translation>
+      <source>Change your own comment</source>
+      <translation type="unfinished">Change your own comment</translation>
     </message>
     <message>
-        <source>Recording</source>
-        <translation>录音</translation>
+      <source>Recording</source>
+      <translation type="unfinished">Recording</translation>
     </message>
     <message>
-        <source>Priority Speaker</source>
-        <translation>优先发言人</translation>
+      <source>Priority Speaker</source>
+      <translation type="unfinished">Priority Speaker</translation>
     </message>
     <message>
-        <source>&amp;Copy URL</source>
-        <translation>复制网址(&amp;C)</translation>
+      <source>&amp;Copy URL</source>
+      <translation type="unfinished">&amp;Copy URL</translation>
     </message>
     <message>
-        <source>Copies a link to this channel to the clipboard.</source>
-        <translation>将指向此频道的链接复制到剪贴板。</translation>
+      <source>Copies a link to this channel to the clipboard.</source>
+      <translation type="unfinished">Copies a link to this channel to the clipboard.</translation>
     </message>
     <message>
-        <source>Ignore Messages</source>
-        <translation>忽略消息</translation>
+      <source>Ignore Messages</source>
+      <translation type="unfinished">Ignore Messages</translation>
     </message>
     <message>
-        <source>Locally ignore user&apos;s text chat messages.</source>
-        <translation>本地忽略用户的文字聊天消息。</translation>
+      <source>Locally ignore user&apos;s text chat messages.</source>
+      <translation type="unfinished">Locally ignore user&apos;s text chat messages.</translation>
     </message>
     <message>
-        <source>Silently drops all text messages from the user.</source>
-        <translation>静默地删除此用户的所有文字消息。</translation>
+      <source>Silently drops all text messages from the user.</source>
+      <translation type="unfinished">Silently drops all text messages from the user.</translation>
     </message>
     <message>
-        <source>Edit ban list on server</source>
-        <translation>编辑服务器封禁列表</translation>
+      <source>Edit ban list on server</source>
+      <translation type="unfinished">Edit ban list on server</translation>
     </message>
     <message>
-        <source>This lets you edit the server-side IP ban list.</source>
-        <translation>使您可以编辑服务端的 IP 封禁列表。</translation>
+      <source>This lets you edit the server-side IP ban list.</source>
+      <translation type="unfinished">This lets you edit the server-side IP ban list.</translation>
     </message>
     <message>
-        <source>&amp;Filter on/off</source>
-        <translation>切换筛选(&amp;F)</translation>
+      <source>&amp;Filter on/off</source>
+      <translation type="unfinished">&amp;Filter on/off</translation>
     </message>
     <message>
-        <source>Toggle the channel filter (Ctrl+F)</source>
-        <translation>开关频道筛选器 (Ctrl+F)</translation>
+      <source>Toggle the channel filter (Ctrl+F)</source>
+      <translation type="unfinished">Toggle the channel filter (Ctrl+F)</translation>
     </message>
     <message>
-        <source>Enable or disable the filtering of select channels.
+      <source>Enable or disable the filtering of select channels.
 By default all empty channels will be filtered.
 You can mark additional channels for filtering from
 the channel&apos;s context menu.</source>
-        <translation>对所选频道启用或禁用筛选。
-默认情况下，所有空频道会被隐藏。
-您可以通过频道的右键菜单将频道标记为筛选时隐藏。</translation>
+      <translation type="unfinished">Enable or disable the filtering of select channels.
+By default all empty channels will be filtered.
+You can mark additional channels for filtering from
+the channel&apos;s context menu.</translation>
     </message>
     <message>
-        <source>Ctrl+F</source>
-        <translation>Ctrl+F</translation>
+      <source>Ctrl+F</source>
+      <translation type="unfinished">Ctrl+F</translation>
     </message>
     <message>
-        <source>&amp;Hide Channel when Filtering</source>
-        <translation>筛选时隐藏频道(&amp;H)</translation>
+      <source>&amp;Hide Channel when Filtering</source>
+      <translation type="unfinished">&amp;Hide Channel when Filtering</translation>
     </message>
     <message>
-        <source>Reset the avatar of the selected user.</source>
-        <translation>重置所选用户的头像。</translation>
+      <source>Reset the avatar of the selected user.</source>
+      <translation type="unfinished">Reset the avatar of the selected user.</translation>
     </message>
     <message>
-        <source>Locally adjust the user&apos;s speech volume.</source>
-        <translation>本地调整用户的语音音量。</translation>
+      <source>Locally adjust the user&apos;s speech volume.</source>
+      <translation type="unfinished">Locally adjust the user&apos;s speech volume.</translation>
     </message>
     <message>
-        <source>Opens a dialog with a volume slider. Use this on other users in the same room.</source>
-        <translation>打开一个带有音量滑块的对话框。需要对同一频道的其他用户使用。</translation>
+      <source>Opens a dialog with a volume slider. Use this on other users in the same room.</source>
+      <translation type="unfinished">Opens a dialog with a volume slider. Use this on other users in the same room.</translation>
     </message>
     <message>
-        <source>&amp;Developer</source>
-        <translation>开发者(&amp;D)</translation>
+      <source>&amp;Developer</source>
+      <translation type="unfinished">&amp;Developer</translation>
     </message>
     <message>
-        <source>&amp;Hide Mumble</source>
-        <translation>隐藏 Mumble (&amp;H)</translation>
+      <source>&amp;Hide Mumble</source>
+      <translation type="unfinished">&amp;Hide Mumble</translation>
     </message>
     <message>
-        <source>Hides the main Mumble window.</source>
-        <translation>隐藏 Mumble 主窗口。</translation>
+      <source>Hides the main Mumble window.</source>
+      <translation type="unfinished">Hides the main Mumble window.</translation>
     </message>
     <message>
-        <source>Hides the main Mumble window. Restore by clicking on the tray icon or starting Mumble again.</source>
-        <translation>隐藏 Mumble 主窗口。点击系统托盘图标或者再次启动 Mumble 以恢复。</translation>
+      <source>Hides the main Mumble window. Restore by clicking on the tray icon or starting Mumble again.</source>
+      <translation type="unfinished">Hides the main Mumble window. Restore by clicking on the tray icon or starting Mumble again.</translation>
     </message>
     <message>
-        <source>Show the Developer Console</source>
-        <translation>显示开发者控制台</translation>
+      <source>Show the Developer Console</source>
+      <translation type="unfinished">Show the Developer Console</translation>
     </message>
     <message>
-        <source>Shows the Mumble Developer Console, where Mumble&apos;s log output can be inspected.</source>
-        <translation>显示开发者控制台，用于检查 Mumble 的日志输出。</translation>
+      <source>Shows the Mumble Developer Console, where Mumble&apos;s log output can be inspected.</source>
+      <translation type="unfinished">Shows the Mumble Developer Console, where Mumble&apos;s log output can be inspected.</translation>
     </message>
     <message>
-        <source>&amp;Connect...</source>
-        <translation>连接(&amp;C)…</translation>
+      <source>&amp;Connect...</source>
+      <translation type="unfinished">&amp;Connect...</translation>
     </message>
     <message>
-        <source>&amp;Ban list...</source>
-        <translation>封禁列表(&amp;B)…</translation>
+      <source>&amp;Ban list...</source>
+      <translation type="unfinished">&amp;Ban list...</translation>
     </message>
     <message>
-        <source>&amp;Information...</source>
-        <translation>服务器信息(&amp;I)…</translation>
+      <source>&amp;Information...</source>
+      <translation type="unfinished">&amp;Information...</translation>
     </message>
     <message>
-        <source>&amp;Kick...</source>
-        <translation>踢出(&amp;K)...</translation>
+      <source>&amp;Kick...</source>
+      <translation type="unfinished">&amp;Kick...</translation>
     </message>
     <message>
-        <source>&amp;Ban...</source>
-        <translation>封禁(&amp;B)...</translation>
+      <source>&amp;Ban...</source>
+      <translation type="unfinished">&amp;Ban...</translation>
     </message>
     <message>
-        <source>Local Volume Adjustment...</source>
-        <translation>本地音量调整...</translation>
+      <source>Local Volume Adjustment...</source>
+      <translation type="unfinished">Local Volume Adjustment...</translation>
     </message>
     <message>
-        <source>Send &amp;Message...</source>
-        <translation>发送消息(&amp;M)...</translation>
+      <source>Send &amp;Message...</source>
+      <translation type="unfinished">Send &amp;Message...</translation>
     </message>
     <message>
-        <source>&amp;Add...</source>
-        <translation>添加(&amp;A)...</translation>
+      <source>&amp;Add...</source>
+      <translation type="unfinished">&amp;Add...</translation>
     </message>
     <message>
-        <source>&amp;Remove...</source>
-        <translation>删除(&amp;R)...</translation>
+      <source>&amp;Remove...</source>
+      <translation type="unfinished">&amp;Remove...</translation>
     </message>
     <message>
-        <source>&amp;Edit...</source>
-        <translation>编辑(&amp;E)...</translation>
+      <source>&amp;Edit...</source>
+      <translation type="unfinished">&amp;Edit...</translation>
     </message>
     <message>
-        <source>Audio S&amp;tatistics...</source>
-        <translation>音频统计(&amp;T)...</translation>
+      <source>Audio S&amp;tatistics...</source>
+      <translation type="unfinished">Audio S&amp;tatistics...</translation>
     </message>
     <message>
-        <source>&amp;Settings...</source>
-        <translation>设置(&amp;S)…</translation>
+      <source>&amp;Settings...</source>
+      <translation type="unfinished">&amp;Settings...</translation>
     </message>
     <message>
-        <source>&amp;Audio Wizard...</source>
-        <translation>音频向导(&amp;A)...</translation>
+      <source>&amp;Audio Wizard...</source>
+      <translation type="unfinished">&amp;Audio Wizard...</translation>
     </message>
     <message>
-        <source>Developer &amp;Console...</source>
-        <translation>开发者控制台(&amp;C)...</translation>
+      <source>Developer &amp;Console...</source>
+      <translation type="unfinished">Developer &amp;Console...</translation>
     </message>
     <message>
-        <source>&amp;About...</source>
-        <translation>关于(&amp;A)...</translation>
+      <source>&amp;About...</source>
+      <translation type="unfinished">&amp;About...</translation>
     </message>
     <message>
-        <source>About &amp;Speex...</source>
-        <translation>关于 &amp;Speex...</translation>
+      <source>About &amp;Speex...</source>
+      <translation type="unfinished">About &amp;Speex...</translation>
     </message>
     <message>
-        <source>About &amp;Qt...</source>
-        <translation>关于 &amp;Qt...</translation>
+      <source>About &amp;Qt...</source>
+      <translation type="unfinished">About &amp;Qt...</translation>
     </message>
     <message>
-        <source>&amp;Certificate Wizard...</source>
-        <translation>证书向导(&amp;C)...</translation>
+      <source>&amp;Certificate Wizard...</source>
+      <translation type="unfinished">&amp;Certificate Wizard...</translation>
     </message>
     <message>
-        <source>&amp;Register...</source>
-        <translation>注册(&amp;R)...</translation>
+      <source>&amp;Register...</source>
+      <translation type="unfinished">&amp;Register...</translation>
     </message>
     <message>
-        <source>Registered &amp;Users...</source>
-        <translation>已注册用户(&amp;U)...</translation>
+      <source>Registered &amp;Users...</source>
+      <translation type="unfinished">Registered &amp;Users...</translation>
     </message>
     <message>
-        <source>Change &amp;Avatar...</source>
-        <translation>修改头像(&amp;A)...</translation>
+      <source>Change &amp;Avatar...</source>
+      <translation type="unfinished">Change &amp;Avatar...</translation>
     </message>
     <message>
-        <source>&amp;Access Tokens...</source>
-        <translation>访问令牌(&amp;A)...</translation>
+      <source>&amp;Access Tokens...</source>
+      <translation type="unfinished">&amp;Access Tokens...</translation>
     </message>
     <message>
-        <source>Reset &amp;Comment...</source>
-        <translation>重置简介(&amp;C)...</translation>
+      <source>Reset &amp;Comment...</source>
+      <translation type="unfinished">Reset &amp;Comment...</translation>
     </message>
     <message>
-        <source>Reset &amp;Avatar...</source>
-        <translation>重置头像(&amp;A)...</translation>
+      <source>Reset &amp;Avatar...</source>
+      <translation type="unfinished">Reset &amp;Avatar...</translation>
     </message>
     <message>
-        <source>View Comment...</source>
-        <translation>查看简介...</translation>
+      <source>View Comment...</source>
+      <translation type="unfinished">View Comment...</translation>
     </message>
     <message>
-        <source>&amp;Change Comment...</source>
-        <translation>修改简介(&amp;C)...</translation>
+      <source>&amp;Change Comment...</source>
+      <translation type="unfinished">&amp;Change Comment...</translation>
     </message>
     <message>
-        <source>R&amp;egister...</source>
-        <translation>注册(&amp;E)...</translation>
+      <source>R&amp;egister...</source>
+      <translation type="unfinished">R&amp;egister...</translation>
     </message>
     <message>
-        <source>Show</source>
-        <translation>显示</translation>
+      <source>Show</source>
+      <translation type="unfinished">Show</translation>
     </message>
     <message>
-        <source>Shows the main Mumble window.</source>
-        <translation>显示 Mumble 主窗口。</translation>
+      <source>Shows the main Mumble window.</source>
+      <translation type="unfinished">Shows the main Mumble window.</translation>
     </message>
     <message>
-        <source>Server sync protocol violation. No user profile received.</source>
-        <translation>服务器同步协议冲突。未收到用户资料。</translation>
+      <source>Server sync protocol violation. No user profile received.</source>
+      <translation type="unfinished">Server sync protocol violation. No user profile received.</translation>
     </message>
     <message>
-        <source>Protocol violation. Server sent remove for occupied channel.</source>
-        <translation>协议冲突。服务器删除了此频道。</translation>
+      <source>Protocol violation. Server sent remove for occupied channel.</source>
+      <translation type="unfinished">Protocol violation. Server sent remove for occupied channel.</translation>
     </message>
     <message>
-        <source>Listen to channel</source>
-        <translation>监听频道</translation>
+      <source>Listen to channel</source>
+      <translation type="unfinished">Listen to channel</translation>
     </message>
     <message>
-        <source>Listen to this channel without joining it</source>
-        <translation>监听频道而无需加入</translation>
+      <source>Listen to this channel without joining it</source>
+      <translation type="unfinished">Listen to this channel without joining it</translation>
     </message>
     <message>
-        <source>Locally adjust the volume for this virtual ear.</source>
-        <translation>本地调整此监听的音量。</translation>
+      <source>Locally adjust the volume for this virtual ear.</source>
+      <translation type="unfinished">Locally adjust the volume for this virtual ear.</translation>
     </message>
     <message>
-        <source>&amp;Listener</source>
-        <translation>监听者(&amp;L)</translation>
+      <source>&amp;Listener</source>
+      <translation type="unfinished">&amp;Listener</translation>
     </message>
     <message>
-        <source>No action available...</source>
-        <translation>无可用操作...</translation>
+      <source>No action available...</source>
+      <translation type="unfinished">No action available...</translation>
     </message>
     <message>
-        <source>Unable to %1 into %2 - Adding the respective access (password) token might grant you access.</source>
-        <translation>缺少 %2 的 %1 权限 - 可能需要添加访问令牌或密码以获取权限。</translation>
+      <source>Unable to %1 into %2 - Adding the respective access (password) token might grant you access.</source>
+      <translation type="unfinished">Unable to %1 into %2 - Adding the respective access (password) token might grant you access.</translation>
     </message>
     <message>
-        <source>No more listeners allowed in this channel.</source>
-        <translation>此频道无法容纳更多监听者。</translation>
+      <source>No more listeners allowed in this channel.</source>
+      <translation type="unfinished">No more listeners allowed in this channel.</translation>
     </message>
     <message>
-        <source>You are not allowed to listen to more channels than you currently are.</source>
-        <translation>您无法再监听更多频道。</translation>
+      <source>You are not allowed to listen to more channels than you currently are.</source>
+      <translation type="unfinished">You are not allowed to listen to more channels than you currently are.</translation>
     </message>
     <message>
-        <source>You started listening to %1</source>
-        <translation>您开始监听 %1</translation>
+      <source>You started listening to %1</source>
+      <translation type="unfinished">You started listening to %1</translation>
     </message>
     <message>
-        <source>%1 started listening to your channel</source>
-        <translation>%1 开始监听您的频道</translation>
+      <source>%1 started listening to your channel</source>
+      <translation type="unfinished">%1 started listening to your channel</translation>
     </message>
     <message>
-        <source>You stopped listening to %1</source>
-        <translation>您停止监听 %1</translation>
+      <source>You stopped listening to %1</source>
+      <translation type="unfinished">You stopped listening to %1</translation>
     </message>
     <message>
-        <source>%1 stopped listening to your channel</source>
-        <translation>%1 停止监听您的频道</translation>
+      <source>%1 stopped listening to your channel</source>
+      <translation type="unfinished">%1 stopped listening to your channel</translation>
     </message>
     <message>
-        <source>Talking UI</source>
-        <translation>对话界面</translation>
+      <source>Talking UI</source>
+      <translation type="unfinished">Talking UI</translation>
     </message>
     <message>
-        <source>Toggles the visibility of the TalkingUI.</source>
-        <translation>切换对话界面的可见性。</translation>
+      <source>Toggles the visibility of the TalkingUI.</source>
+      <translation type="unfinished">Toggles the visibility of the TalkingUI.</translation>
     </message>
     <message>
-        <source>Join user&apos;s channel</source>
-        <translation>加入用户的频道</translation>
+      <source>Join user&apos;s channel</source>
+      <translation type="unfinished">Join user&apos;s channel</translation>
     </message>
     <message>
-        <source>Joins the channel of this user.</source>
-        <translation>加入此用户所在的频道</translation>
+      <source>Joins the channel of this user.</source>
+      <translation type="unfinished">Joins the channel of this user.</translation>
     </message>
     <message>
-        <source>Channels and users</source>
-        <translation>频道与用户</translation>
+      <source>Channels and users</source>
+      <translation type="unfinished">Channels and users</translation>
     </message>
     <message>
-        <source>Activity log</source>
-        <translation>活动日志</translation>
+      <source>Activity log</source>
+      <translation type="unfinished">Activity log</translation>
     </message>
     <message>
-        <source>Chat message</source>
-        <translation>聊天消息</translation>
+      <source>Chat message</source>
+      <translation type="unfinished">Chat message</translation>
     </message>
     <message>
-        <source>Disable Text-To-Speech</source>
-        <translation>禁用语音播报</translation>
+      <source>Disable Text-To-Speech</source>
+      <translation type="unfinished">Disable Text-To-Speech</translation>
     </message>
     <message>
-        <source>Locally disable Text-To-Speech for this user&apos;s text chat messages.</source>
-        <translation>本地禁用此用户聊天消息的语音播报。</translation>
+      <source>Locally disable Text-To-Speech for this user&apos;s text chat messages.</source>
+      <translation type="unfinished">Locally disable Text-To-Speech for this user&apos;s text chat messages.</translation>
     </message>
     <message>
-        <source>Silently disables Text-To-Speech for all text messages from the user.</source>
-        <translation>静默禁用此用户所有聊天消息的语音播报。</translation>
+      <source>Silently disables Text-To-Speech for all text messages from the user.</source>
+      <translation type="unfinished">Silently disables Text-To-Speech for all text messages from the user.</translation>
     </message>
     <message>
-        <source>Tree</source>
-        <translation>频道树</translation>
+      <source>Tree</source>
+      <translation type="unfinished">Tree</translation>
     </message>
     <message>
-        <source>Channel</source>
-        <translation>频道</translation>
+      <source>Channel</source>
+      <translation type="unfinished">Channel</translation>
     </message>
     <message>
-        <source>Private</source>
-        <translation>私人</translation>
+      <source>Private</source>
+      <translation type="unfinished">Private</translation>
     </message>
     <message>
-        <source>%1: %2</source>
-        <translation>%1：%2</translation>
+      <source>%1: %2</source>
+      <translation type="unfinished">%1: %2</translation>
     </message>
     <message>
-        <source>(%1) %2</source>
-        <translation>（%1）%2</translation>
+      <source>(%1) %2</source>
+      <translation type="unfinished">(%1) %2</translation>
     </message>
     <message>
-        <source>Configuration file %1 does not exist or is not writable.
+      <source>Configuration file %1 does not exist or is not writable.
 </source>
-        <translation>配置文件 %1 不存在或不可写。
+      <translation type="unfinished">Configuration file %1 does not exist or is not writable.
 </translation>
     </message>
     <message>
-        <source>Usage: mumble [options] [&lt;url&gt;]
+      <source>Usage: mumble [options] [&lt;url&gt;]
 
 &lt;url&gt; specifies a URL to connect to after startup instead of showing
 the connection window, and has the following form:
@@ -6186,7 +6208,7 @@ Valid options are:
   -c, --config
                 Specify an alternative configuration file.
                 If you use this to run multiple instances of Mumble at once,
-                make sure to set an alternative 'database' value in the config.
+                make sure to set an alternative &apos;database&apos; value in the config.
   -n, --noidentity
                 Suppress loading of identity files (i.e., certificates.)
   -jn, --jackname &lt;arg&gt;
@@ -6210,2018 +6232,2057 @@ Valid options are:
                 (useful for debugging purposes)
 
 </source>
-        <translation>用法：mumble [选项] [&lt;URL&gt;]
+      <translation type="unfinished">Usage: mumble [options] [&lt;url&gt;]
 
-&lt;URL&gt; 指定启动时连接的 URL，而不是显示连接窗口，URL 的格式为：
-mumble://[&lt;用户名&gt;[:&lt;密码&gt;]@]&lt;主机名&gt;[:&lt;端口&gt;][/&lt;频道名&gt;[/&lt;子频道名&gt;...]][?version=&lt;x.y.z&gt;]
+&lt;url&gt; specifies a URL to connect to after startup instead of showing
+the connection window, and has the following form:
+mumble://[&lt;username&gt;[:&lt;password&gt;]@]&lt;host&gt;[:&lt;port&gt;][/&lt;channel&gt;[/&lt;subchannel&gt;...]][?version=&lt;x.y.z&gt;]
 
-必须设置 version 请求参数以调用正确的客户端版本，当前的默认值为 1.2.0。
+The version query parameter has to be set in order to invoke the
+correct client version. It currently defaults to 1.2.0.
 
-可用的选项：
-  -h, --help    显示此帮助信息并退出。
+Valid options are:
+  -h, --help    Show this help text and exit.
   -m, --multiple
-                允许启动多个客户端实例。
+                Allow multiple instances of the client to be started.
   -c, --config
-                指定替代配置文件。
-                如果您使用此参数同时运行多个 Mumble 实例，
-                请确保在配置文件内设置替代 &apos;database&apos; 选项。
+                Specify an alternative configuration file.
+                If you use this to run multiple instances of Mumble at once,
+                make sure to set an alternative &apos;database&apos; value in the config.
   -n, --noidentity
-                禁止加载身份认证文件（即证书）。
-  -jn, --jackname &lt;参数&gt;
-                设置自定义 Jack 客户端名称。
+                Suppress loading of identity files (i.e., certificates.)
+  -jn, --jackname &lt;arg&gt;
+                Set custom Jack client name.
   --license
-                显示 Mumble 许可。
+                Show the Mumble license.
   --authors
-                显示 Mumble 作者。
+                Show the Mumble authors.
   --third-party-licenses
-                显示 Mumble 使用的第三方软件的许可。
-  --window-title-ext &lt;参数&gt;
-                设置自定义窗口标题后缀名。
+                Show licenses for third-party software used by Mumble.
+  --window-title-ext &lt;arg&gt;
+                Sets a custom window title extension.
   --dump-input-streams
-                转储输入链上各部分的 PCM 流。
-                （适用于调试目的）
-                - 原始麦克风输入
-                - 扬声器回声消除重读取
-                - 已处理麦克风输入
+                Dump PCM streams at various parts of the input chain
+                (useful for debugging purposes)
+                - raw microphone input
+                - speaker readback for echo cancelling
+                - processed microphone input
   --print-echocancel-queue
-                向标准输出打印回声消除队列状态。
-                （适用于调试目的）
+                Print on stdout the echo cancellation queue state
+                (useful for debugging purposes)
 
 </translation>
     </message>
     <message>
-        <source>Hide/show main window</source>
-        <comment>Global Shortcut</comment>
-        <translation>隐藏/显示主界面</translation>
+      <source>Hide/show main window</source>
+      <comment>Global Shortcut</comment>
+      <translation type="unfinished">Hide/show main window</translation>
     </message>
-</context>
-<context>
+    <message>
+      <source>&amp;Set Nickname...</source>
+      <translation type="unfinished">&amp;Set Nickname...</translation>
+    </message>
+    <message>
+      <source>Set a local nickname</source>
+      <translation type="unfinished">Set a local nickname</translation>
+    </message>
+    <message>
+      <source>Sets a local nickname for another user.</source>
+      <translation type="unfinished">Sets a local nickname for another user.</translation>
+    </message>
+  </context>
+  <context>
     <name>Manual</name>
     <message>
-        <source>Manual Mumble Positional Audio</source>
-        <translation>手动 Mumble 位置音频</translation>
+      <source>Manual Mumble Positional Audio</source>
+      <translation type="unfinished">Manual Mumble Positional Audio</translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation>位置</translation>
+      <source>Position</source>
+      <translation type="unfinished">Position</translation>
     </message>
     <message>
-        <source>X</source>
-        <translation>X</translation>
+      <source>X</source>
+      <translation type="unfinished">X</translation>
     </message>
     <message>
-        <source>Y</source>
-        <translation>Y</translation>
+      <source>Y</source>
+      <translation type="unfinished">Y</translation>
     </message>
     <message>
-        <source>Z</source>
-        <translation>Z</translation>
+      <source>Z</source>
+      <translation type="unfinished">Z</translation>
     </message>
     <message>
-        <source>m</source>
-        <translation> 米</translation>
+      <source>m</source>
+      <translation type="unfinished">m</translation>
     </message>
     <message>
-        <source>Heading</source>
-        <translation>朝向</translation>
+      <source>Heading</source>
+      <translation type="unfinished">Heading</translation>
     </message>
     <message>
-        <source>Azimuth</source>
-        <translation>方位</translation>
+      <source>Azimuth</source>
+      <translation type="unfinished">Azimuth</translation>
     </message>
     <message>
-        <source>Elevation</source>
-        <translation>俯仰</translation>
+      <source>Elevation</source>
+      <translation type="unfinished">Elevation</translation>
     </message>
     <message>
-        <source>°</source>
-        <translation>°</translation>
+      <source>°</source>
+      <translation type="unfinished">°</translation>
     </message>
     <message>
-        <source>Meta data</source>
-        <translation>元数据</translation>
+      <source>Meta data</source>
+      <translation type="unfinished">Meta data</translation>
     </message>
     <message>
-        <source>Context</source>
-        <translation>上下文</translation>
+      <source>Context</source>
+      <translation type="unfinished">Context</translation>
     </message>
     <message>
-        <source>Identity</source>
-        <translation>标识符</translation>
+      <source>Identity</source>
+      <translation type="unfinished">Identity</translation>
     </message>
     <message>
-        <source>Set</source>
-        <translation>设置</translation>
+      <source>Set</source>
+      <translation type="unfinished">Set</translation>
     </message>
     <message>
-        <source>State</source>
-        <translation>状态</translation>
+      <source>State</source>
+      <translation type="unfinished">State</translation>
     </message>
     <message>
-        <source>Unhinge</source>
-        <translation>分离窗口</translation>
+      <source>Unhinge</source>
+      <translation type="unfinished">Unhinge</translation>
     </message>
     <message>
-        <source>Link</source>
-        <translation>链接</translation>
+      <source>Link</source>
+      <translation type="unfinished">Link</translation>
     </message>
     <message>
-        <source>Activate</source>
-        <translation>激活</translation>
+      <source>Activate</source>
+      <translation type="unfinished">Activate</translation>
     </message>
     <message>
-        <source>Display</source>
-        <translation>显示</translation>
+      <source>Display</source>
+      <translation type="unfinished">Display</translation>
     </message>
     <message>
-        <source>How long silent user&apos;s positions should stay marked after they have stopped talking (in seconds).</source>
-        <translation>用户在不发言多久（单位为秒）之后，其位置仍被标记。</translation>
+      <source>How long silent user&apos;s positions should stay marked after they have stopped talking (in seconds).</source>
+      <translation type="unfinished">How long silent user&apos;s positions should stay marked after they have stopped talking (in seconds).</translation>
     </message>
     <message>
-        <source>Silent user displaytime:</source>
-        <translation>沉默用户显示时间：</translation>
+      <source>Silent user displaytime:</source>
+      <translation type="unfinished">Silent user displaytime:</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>NetworkConfig</name>
     <message>
-        <source>Network</source>
-        <translation>网络</translation>
+      <source>Network</source>
+      <translation type="unfinished">Network</translation>
     </message>
     <message>
-        <source>Connection</source>
-        <translation>连接</translation>
+      <source>Connection</source>
+      <translation type="unfinished">Connection</translation>
     </message>
     <message>
-        <source>Use TCP compatibility mode</source>
-        <oldsource>Use TCP compatability mode</oldsource>
-        <translation>使用 TCP 兼容模式</translation>
+      <source>Use TCP compatibility mode</source>
+      <oldsource>Use TCP compatability mode</oldsource>
+      <translation type="unfinished">Use TCP compatibility mode</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Enable TCP compatibility mode&lt;/b&gt;.&lt;br /&gt;This will make Mumble use only TCP when communicating with the server. This will increase overhead and cause lost packets to produce noticeable pauses in communication, so this should only be used if you are unable to use the default (which uses UDP for voice and TCP for control).</source>
-        <translation>&lt;b&gt;启用 TCP 兼容模式&lt;/b&gt;。&lt;br /&gt;设置 Mumble 仅使用 TCP 协议与服务器通信。这将会增加开销并且会导致丢包，使您在交谈中遇到中断，所以请仅在无法使用默认模式（UDP 语音，TCP 控制）的情况下使用。</translation>
+      <source>&lt;b&gt;Enable TCP compatibility mode&lt;/b&gt;.&lt;br /&gt;This will make Mumble use only TCP when communicating with the server. This will increase overhead and cause lost packets to produce noticeable pauses in communication, so this should only be used if you are unable to use the default (which uses UDP for voice and TCP for control).</source>
+      <translation type="unfinished">&lt;b&gt;Enable TCP compatibility mode&lt;/b&gt;.&lt;br /&gt;This will make Mumble use only TCP when communicating with the server. This will increase overhead and cause lost packets to produce noticeable pauses in communication, so this should only be used if you are unable to use the default (which uses UDP for voice and TCP for control).</translation>
     </message>
     <message>
-        <source>Reconnect when disconnected</source>
-        <translation>在连接断开时重新连接</translation>
+      <source>Reconnect when disconnected</source>
+      <translation type="unfinished">Reconnect when disconnected</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Reconnect when disconnected&lt;/b&gt;.&lt;br /&gt;This will make Mumble try to automatically reconnect after 10 seconds if your server connection fails.</source>
-        <translation>&lt;b&gt;在连接断开时重新连接&lt;/b&gt;。&lt;br /&gt;如果您连接服务器失败，Mumble 将在 10 秒后自动重新连接。</translation>
+      <source>&lt;b&gt;Reconnect when disconnected&lt;/b&gt;.&lt;br /&gt;This will make Mumble try to automatically reconnect after 10 seconds if your server connection fails.</source>
+      <translation type="unfinished">&lt;b&gt;Reconnect when disconnected&lt;/b&gt;.&lt;br /&gt;This will make Mumble try to automatically reconnect after 10 seconds if your server connection fails.</translation>
     </message>
     <message>
-        <source>Reconnect automatically</source>
-        <translation>自动重连</translation>
+      <source>Reconnect automatically</source>
+      <translation type="unfinished">Reconnect automatically</translation>
     </message>
     <message>
-        <source>Proxy</source>
-        <translation>代理</translation>
+      <source>Proxy</source>
+      <translation type="unfinished">Proxy</translation>
     </message>
     <message>
-        <source>Type</source>
-        <translation>类型</translation>
+      <source>Type</source>
+      <translation type="unfinished">Type</translation>
     </message>
     <message>
-        <source>Type of proxy to connect through</source>
-        <translation>连接的代理类型</translation>
+      <source>Type of proxy to connect through</source>
+      <translation type="unfinished">Type of proxy to connect through</translation>
     </message>
     <message>
-        <source>Direct connection</source>
-        <translation>直接连接</translation>
+      <source>Direct connection</source>
+      <translation type="unfinished">Direct connection</translation>
     </message>
     <message>
-        <source>HTTP(S) proxy</source>
-        <translation>HTTP(S) 代理</translation>
+      <source>HTTP(S) proxy</source>
+      <translation type="unfinished">HTTP(S) proxy</translation>
     </message>
     <message>
-        <source>SOCKS5 proxy</source>
-        <translation>SOCKS5 代理</translation>
+      <source>SOCKS5 proxy</source>
+      <translation type="unfinished">SOCKS5 proxy</translation>
     </message>
     <message>
-        <source>Hostname</source>
-        <translation>主机名</translation>
+      <source>Hostname</source>
+      <translation type="unfinished">Hostname</translation>
     </message>
     <message>
-        <source>Hostname of the proxy</source>
-        <translation>代理的主机名</translation>
+      <source>Hostname of the proxy</source>
+      <translation type="unfinished">Hostname of the proxy</translation>
     </message>
     <message>
-        <source>Force TCP mode</source>
-        <translation>强制 TCP 模式</translation>
+      <source>Force TCP mode</source>
+      <translation type="unfinished">Force TCP mode</translation>
     </message>
     <message>
-        <source>Enable QoS to prioritize packets</source>
-        <translation>启用 QoS 以调整数据包优先级</translation>
+      <source>Enable QoS to prioritize packets</source>
+      <translation type="unfinished">Enable QoS to prioritize packets</translation>
     </message>
     <message>
-        <source>This will enable QoS, which will attempt to prioritize voice packets over other traffic.</source>
-        <translation>启用 QoS，尝试优先于其他网络流量发送语音数据包。</translation>
+      <source>This will enable QoS, which will attempt to prioritize voice packets over other traffic.</source>
+      <translation type="unfinished">This will enable QoS, which will attempt to prioritize voice packets over other traffic.</translation>
     </message>
     <message>
-        <source>Use Quality of Service</source>
-        <translation>使用 QoS</translation>
+      <source>Use Quality of Service</source>
+      <translation type="unfinished">Use Quality of Service</translation>
     </message>
     <message>
-        <source>Don&apos;t send certificate to server and don&apos;t save passwords. (Not saved).</source>
-        <translation>不向服务器发送证书并且不保存密码。（此设置不会被保存）。</translation>
+      <source>Don&apos;t send certificate to server and don&apos;t save passwords. (Not saved).</source>
+      <translation type="unfinished">Don&apos;t send certificate to server and don&apos;t save passwords. (Not saved).</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This will suppress identity information from the client.&lt;/b&gt;&lt;p&gt;The client will not identify itself with a certificate, even if defined, and will not cache passwords for connections. This is primarily a test-option and is not saved.&lt;/p&gt;</source>
-        <translation>&lt;b&gt;禁用客户端身份验证。&lt;/b&gt;&lt;p&gt;禁用后，客户端将无法通过证书认证自己，也不会保存连接的密码。该选项主要用于测试目的，不会被保存。&lt;/p&gt;</translation>
+      <source>&lt;b&gt;This will suppress identity information from the client.&lt;/b&gt;&lt;p&gt;The client will not identify itself with a certificate, even if defined, and will not cache passwords for connections. This is primarily a test-option and is not saved.&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;b&gt;This will suppress identity information from the client.&lt;/b&gt;&lt;p&gt;The client will not identify itself with a certificate, even if defined, and will not cache passwords for connections. This is primarily a test-option and is not saved.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Suppress certificate and password storage</source>
-        <translation>禁用证书和密码存储</translation>
+      <source>Suppress certificate and password storage</source>
+      <translation type="unfinished">Suppress certificate and password storage</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Type of proxy to connect through.&lt;/b&gt;&lt;br /&gt;This makes Mumble connect through a proxy for all outgoing connections. Note: Proxy tunneling forces Mumble into TCP compatibility mode, causing all voice data to be sent via the control channel.</source>
-        <translation>&lt;b&gt;连接的代理的类型。&lt;/b&gt;&lt;br /&gt;Mumble 将为所有出站连接使用代理服务器。注意：代理隧道将强制 Mumble 使用 TCP 兼容模式，因此所有的语音数据将通过控制信道传输。</translation>
+      <source>&lt;b&gt;Type of proxy to connect through.&lt;/b&gt;&lt;br /&gt;This makes Mumble connect through a proxy for all outgoing connections. Note: Proxy tunneling forces Mumble into TCP compatibility mode, causing all voice data to be sent via the control channel.</source>
+      <translation type="unfinished">&lt;b&gt;Type of proxy to connect through.&lt;/b&gt;&lt;br /&gt;This makes Mumble connect through a proxy for all outgoing connections. Note: Proxy tunneling forces Mumble into TCP compatibility mode, causing all voice data to be sent via the control channel.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Hostname of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the hostname of the proxy you wish to tunnel network traffic through.</source>
-        <translation>&lt;b&gt;代理的主机名。&lt;/b&gt;&lt;br /&gt;指定您用于隧道传输网络流量的代理的主机名。</translation>
+      <source>&lt;b&gt;Hostname of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the hostname of the proxy you wish to tunnel network traffic through.</source>
+      <translation type="unfinished">&lt;b&gt;Hostname of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the hostname of the proxy you wish to tunnel network traffic through.</translation>
     </message>
     <message>
-        <source>Port</source>
-        <translation>端口</translation>
+      <source>Port</source>
+      <translation type="unfinished">Port</translation>
     </message>
     <message>
-        <source>Port number of the proxy</source>
-        <translation>代理的端口号</translation>
+      <source>Port number of the proxy</source>
+      <translation type="unfinished">Port number of the proxy</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Port number of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the port number that the proxy expects connections on.</source>
-        <translation>&lt;b&gt;代理的端口号。&lt;/b&gt;&lt;br /&gt;指定代理连接的端口号。</translation>
+      <source>&lt;b&gt;Port number of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the port number that the proxy expects connections on.</source>
+      <translation type="unfinished">&lt;b&gt;Port number of the proxy.&lt;/b&gt;&lt;br /&gt;This field specifies the port number that the proxy expects connections on.</translation>
     </message>
     <message>
-        <source>Username</source>
-        <translation>用户名</translation>
+      <source>Username</source>
+      <translation type="unfinished">Username</translation>
     </message>
     <message>
-        <source>Username for proxy authentication</source>
-        <translation>用于代理认证的用户名</translation>
+      <source>Username for proxy authentication</source>
+      <translation type="unfinished">Username for proxy authentication</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Username for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the username you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</source>
-        <translation>&lt;b&gt;用于代理认证的用户名。&lt;/b&gt;&lt;br /&gt;指定您向代理认证身份时使用的用户名。如果您使用的代理不认证身份，或者您希望匿名连接，请留空。</translation>
+      <source>&lt;b&gt;Username for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the username you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</source>
+      <translation type="unfinished">&lt;b&gt;Username for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the username you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</translation>
     </message>
     <message>
-        <source>Password</source>
-        <translation>密码</translation>
+      <source>Password</source>
+      <translation type="unfinished">Password</translation>
     </message>
     <message>
-        <source>Password for proxy authentication</source>
-        <translation>用于代理认证的密码</translation>
+      <source>Password for proxy authentication</source>
+      <translation type="unfinished">Password for proxy authentication</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Password for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the password you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</source>
-        <translation>&lt;b&gt;用于代理认证的密码。&lt;/b&gt;&lt;br /&gt;指定您向代理认证身份时使用的密码。如果您使用的代理不认证身份，或者您希望匿名连接，请留空。</translation>
+      <source>&lt;b&gt;Password for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the password you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</source>
+      <translation type="unfinished">&lt;b&gt;Password for proxy authentication.&lt;/b&gt;&lt;br /&gt;This specifies the password you use for authenticating yourself with the proxy. In case the proxy does not use authentication, or you want to connect anonymously, simply leave this field blank.</translation>
     </message>
     <message>
-        <source>Mumble services</source>
-        <translation>Mumble 服务</translation>
+      <source>Mumble services</source>
+      <translation type="unfinished">Mumble services</translation>
     </message>
     <message>
-        <source>Check for new releases of Mumble automatically.</source>
-        <translation>自动检查 Mumble 更新。</translation>
+      <source>Check for new releases of Mumble automatically.</source>
+      <translation type="unfinished">Check for new releases of Mumble automatically.</translation>
     </message>
     <message>
-        <source>This will check for new releases of Mumble every time you start the program, and notify you if one is available.</source>
-        <translation>在您每次启动程序时检查 Mumble 的新版本，并在有新版本时通知您。</translation>
+      <source>This will check for new releases of Mumble every time you start the program, and notify you if one is available.</source>
+      <translation type="unfinished">This will check for new releases of Mumble every time you start the program, and notify you if one is available.</translation>
     </message>
     <message>
-        <source>Check for application updates on startup</source>
-        <translation>在启动时检查应用程序更新</translation>
+      <source>Check for application updates on startup</source>
+      <translation type="unfinished">Check for application updates on startup</translation>
     </message>
     <message>
-        <source>Check for new releases of plugins automatically.</source>
-        <translation>自动检查插件更新。</translation>
+      <source>Check for new releases of plugins automatically.</source>
+      <translation type="unfinished">Check for new releases of plugins automatically.</translation>
     </message>
     <message>
-        <source>This will check for new releases of plugins every time you start the program, and download them automatically.</source>
-        <translation>每次启动程序时检查插件的更新并自动下载。</translation>
+      <source>This will check for new releases of plugins every time you start the program, and download them automatically.</source>
+      <translation type="unfinished">This will check for new releases of plugins every time you start the program, and download them automatically.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Submit anonymous statistics.&lt;/b&gt;&lt;br /&gt;Mumble has a small development team, and as such needs to focus its development where it is needed most. By submitting a bit of statistics you help the project determine where to focus development.</source>
-        <translation>&lt;b&gt;提交匿名统计数据。&lt;/b&gt;&lt;br /&gt;Mumble 开发团队的规模很小，因此需要将开发重点放在用户最需要的地方。通过提交一些统计数据，您可以帮助开发团队决定重点开发哪些功能。</translation>
+      <source>&lt;b&gt;Submit anonymous statistics.&lt;/b&gt;&lt;br /&gt;Mumble has a small development team, and as such needs to focus its development where it is needed most. By submitting a bit of statistics you help the project determine where to focus development.</source>
+      <translation type="unfinished">&lt;b&gt;Submit anonymous statistics.&lt;/b&gt;&lt;br /&gt;Mumble has a small development team, and as such needs to focus its development where it is needed most. By submitting a bit of statistics you help the project determine where to focus development.</translation>
     </message>
     <message>
-        <source>Submit anonymous statistics to the Mumble project</source>
-        <translation>提交匿名统计数据至 Mumble 项目</translation>
+      <source>Submit anonymous statistics to the Mumble project</source>
+      <translation type="unfinished">Submit anonymous statistics to the Mumble project</translation>
     </message>
     <message>
-        <source>Submit anonymous statistics</source>
-        <translation>提交匿名统计</translation>
+      <source>Submit anonymous statistics</source>
+      <translation type="unfinished">Submit anonymous statistics</translation>
     </message>
     <message>
-        <source>Reconnect to last used server when starting Mumble</source>
-        <translation>启动 Mumble 时自动连接到最后使用的服务器</translation>
+      <source>Reconnect to last used server when starting Mumble</source>
+      <translation type="unfinished">Reconnect to last used server when starting Mumble</translation>
     </message>
     <message>
-        <source>Reconnect to last server on startup</source>
-        <translation>启动时自动连接上次的服务器</translation>
+      <source>Reconnect to last server on startup</source>
+      <translation type="unfinished">Reconnect to last server on startup</translation>
     </message>
     <message>
-        <source>Download plugin and overlay updates on startup</source>
-        <translation>启动时下载插件和游戏内界面更新</translation>
+      <source>Download plugin and overlay updates on startup</source>
+      <translation type="unfinished">Download plugin and overlay updates on startup</translation>
     </message>
     <message>
-        <source>Privacy</source>
-        <translation>隐私</translation>
+      <source>Privacy</source>
+      <translation type="unfinished">Privacy</translation>
     </message>
     <message>
-        <source>Prevent OS information being sent to Mumble servers and web servers</source>
-        <translation>阻止向 Mumble 服务器和网页服务器发送操作系统信息</translation>
+      <source>Prevent OS information being sent to Mumble servers and web servers</source>
+      <translation type="unfinished">Prevent OS information being sent to Mumble servers and web servers</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Don't send OS information to servers&lt;/b&gt;&lt;br/&gt;
+      <source>&lt;b&gt;Don&apos;t send OS information to servers&lt;/b&gt;&lt;br/&gt;
 Prevents the client from sending potentially identifying information about the operating system to the Mumble server and web servers.</source>
-        <translation>&lt;b&gt;请勿向服务器发送操作系统信息&lt;/b&gt;&lt;br/&gt;
-阻止客户端向 Mumble 服务器和网页服务器发送潜在的操作系统识别信息。</translation>
+      <translation type="unfinished">&lt;b&gt;Don&apos;t send OS information to servers&lt;/b&gt;&lt;br/&gt;
+Prevents the client from sending potentially identifying information about the operating system to the Mumble server and web servers.</translation>
     </message>
     <message>
-        <source>Do not send OS information to Mumble servers and web servers</source>
-        <translation>请勿向 Mumble 服务器和网页服务器发送操作系统信息</translation>
+      <source>Do not send OS information to Mumble servers and web servers</source>
+      <translation type="unfinished">Do not send OS information to Mumble servers and web servers</translation>
     </message>
     <message>
-        <source>When toggled this hides the public server list from the connect dialog</source>
-        <translation>启用时，在连接对话框隐藏公共服务器列表</translation>
+      <source>When toggled this hides the public server list from the connect dialog</source>
+      <translation type="unfinished">When toggled this hides the public server list from the connect dialog</translation>
     </message>
     <message>
-        <source>Hide public server list</source>
-        <translation>隐藏公共服务器列表</translation>
+      <source>Hide public server list</source>
+      <translation type="unfinished">Hide public server list</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>Overlay</name>
     <message>
-        <source>Silent</source>
-        <translation>安静</translation>
+      <source>Silent</source>
+      <translation type="unfinished">Silent</translation>
     </message>
     <message>
-        <source>Talking</source>
-        <translation>说话</translation>
+      <source>Talking</source>
+      <translation type="unfinished">Talking</translation>
     </message>
     <message>
-        <source>Whisper</source>
-        <translation>密语</translation>
+      <source>Whisper</source>
+      <translation type="unfinished">Whisper</translation>
     </message>
     <message>
-        <source>Shout</source>
-        <translation>呼喊</translation>
+      <source>Shout</source>
+      <translation type="unfinished">Shout</translation>
     </message>
     <message>
-        <source>Channel</source>
-        <translation>频道</translation>
+      <source>Channel</source>
+      <translation type="unfinished">Channel</translation>
     </message>
     <message>
-        <source>Failed to create communication with overlay at %2: %1. No overlay will be available.</source>
-        <translation>在 %2：%1 与游戏内界面建立通信失败。游戏内界面将不可用。</translation>
+      <source>Failed to create communication with overlay at %2: %1. No overlay will be available.</source>
+      <translation type="unfinished">Failed to create communication with overlay at %2: %1. No overlay will be available.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>OverlayClient</name>
     <message>
-        <source>Filter</source>
-        <translation>筛选</translation>
+      <source>Filter</source>
+      <translation type="unfinished">Filter</translation>
     </message>
     <message>
-        <source>Only talking</source>
-        <translation>仅正在说话</translation>
+      <source>Only talking</source>
+      <translation type="unfinished">Only talking</translation>
     </message>
     <message>
-        <source>Talking and recently active</source>
-        <translation>正在说话与最近活跃</translation>
+      <source>Talking and recently active</source>
+      <translation type="unfinished">Talking and recently active</translation>
     </message>
     <message>
-        <source>All in current channel</source>
-        <translation>频道内所有人</translation>
+      <source>All in current channel</source>
+      <translation type="unfinished">All in current channel</translation>
     </message>
     <message>
-        <source>All in linked channels</source>
-        <translation>已链接频道内所有人</translation>
+      <source>All in linked channels</source>
+      <translation type="unfinished">All in linked channels</translation>
     </message>
     <message>
-        <source>Always show yourself</source>
-        <translation>总是显示自己</translation>
+      <source>Always show yourself</source>
+      <translation type="unfinished">Always show yourself</translation>
     </message>
     <message>
-        <source>Configure recently active time (%1 seconds)...</source>
-        <translation>配置最近活跃时间（%1 秒）...</translation>
+      <source>Configure recently active time (%1 seconds)...</source>
+      <translation type="unfinished">Configure recently active time (%1 seconds)...</translation>
     </message>
     <message>
-        <source>Columns</source>
-        <translation>列数</translation>
+      <source>Columns</source>
+      <translation type="unfinished">Columns</translation>
     </message>
     <message>
-        <source>Sort</source>
-        <translation>排序</translation>
+      <source>Sort</source>
+      <translation type="unfinished">Sort</translation>
     </message>
     <message>
-        <source>Alphabetically</source>
-        <translation>按字母顺序</translation>
+      <source>Alphabetically</source>
+      <translation type="unfinished">Alphabetically</translation>
     </message>
     <message>
-        <source>Last state change</source>
-        <translation>最后状态变化</translation>
+      <source>Last state change</source>
+      <translation type="unfinished">Last state change</translation>
     </message>
     <message>
-        <source>Edit...</source>
-        <translation>编辑...</translation>
+      <source>Edit...</source>
+      <translation type="unfinished">Edit...</translation>
     </message>
     <message>
-        <source>Reset Zoom</source>
-        <translation>重置缩放</translation>
+      <source>Reset Zoom</source>
+      <translation type="unfinished">Reset Zoom</translation>
     </message>
     <message>
-        <source>Configure recently active time</source>
-        <translation>配置最近活跃时间</translation>
+      <source>Configure recently active time</source>
+      <translation type="unfinished">Configure recently active time</translation>
     </message>
     <message>
-        <source>Amount of seconds users remain active after talking:</source>
-        <translation>用户停止说话后保持活跃状态的秒数：</translation>
+      <source>Amount of seconds users remain active after talking:</source>
+      <translation type="unfinished">Amount of seconds users remain active after talking:</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>OverlayConfig</name>
     <message>
-        <source>To move the users, drag the little red dot.</source>
-        <translation>要移动用户列表，请拖动小红点。</translation>
+      <source>To move the users, drag the little red dot.</source>
+      <translation type="unfinished">To move the users, drag the little red dot.</translation>
     </message>
     <message>
-        <source>To resize the users, mouse wheel over a user.</source>
-        <oldsource>To resize the users, mousewheel over a user.</oldsource>
-        <translation>要改变用户列表尺寸，请在列表上滚动鼠标滚轮。</translation>
+      <source>To resize the users, mouse wheel over a user.</source>
+      <oldsource>To resize the users, mousewheel over a user.</oldsource>
+      <translation type="unfinished">To resize the users, mouse wheel over a user.</translation>
     </message>
     <message>
-        <source>For more options, right click a user.</source>
-        <oldsource>For more options, rightclick a user.</oldsource>
-        <translation>查看更多选项，请在用户列表上点击鼠标右键。</translation>
+      <source>For more options, right click a user.</source>
+      <oldsource>For more options, rightclick a user.</oldsource>
+      <translation type="unfinished">For more options, right click a user.</translation>
     </message>
     <message>
-        <source>Launcher Filter</source>
-        <translation>启动器筛选</translation>
+      <source>Launcher Filter</source>
+      <translation type="unfinished">Launcher Filter</translation>
     </message>
     <message>
-        <source>Overlay</source>
-        <translation>游戏内界面</translation>
+      <source>Overlay</source>
+      <translation type="unfinished">Overlay</translation>
     </message>
     <message>
-        <source>Choose executable</source>
-        <translation>选择可执行文件</translation>
+      <source>Choose executable</source>
+      <translation type="unfinished">Choose executable</translation>
     </message>
     <message>
-        <source>Choose application</source>
-        <translation>选择应用程序</translation>
+      <source>Choose application</source>
+      <translation type="unfinished">Choose application</translation>
     </message>
     <message>
-        <source>Choose path</source>
-        <translation>选择路径</translation>
+      <source>Choose path</source>
+      <translation type="unfinished">Choose path</translation>
     </message>
     <message>
-        <source>Load Overlay Presets</source>
-        <translation>加载游戏内界面预设</translation>
+      <source>Load Overlay Presets</source>
+      <translation type="unfinished">Load Overlay Presets</translation>
     </message>
     <message>
-        <source>Mumble overlay presets (*.mumblelay)</source>
-        <translation>Mumble 游戏内界面预设 (*.mumblelay)</translation>
+      <source>Mumble overlay presets (*.mumblelay)</source>
+      <translation type="unfinished">Mumble overlay presets (*.mumblelay)</translation>
     </message>
     <message>
-        <source>Save Overlay Presets</source>
-        <translation>保存游戏内界面预设</translation>
+      <source>Save Overlay Presets</source>
+      <translation type="unfinished">Save Overlay Presets</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>选项</translation>
+      <source>Options</source>
+      <translation type="unfinished">Options</translation>
     </message>
     <message>
-        <source>Enable overlay.</source>
-        <translation>启用游戏内界面。</translation>
+      <source>Enable overlay.</source>
+      <translation type="unfinished">Enable overlay.</translation>
     </message>
     <message>
-        <source>Enable Overlay</source>
-        <translation>启用游戏内界面</translation>
+      <source>Enable Overlay</source>
+      <translation type="unfinished">Enable Overlay</translation>
     </message>
     <message>
-        <source>This sets whether the overlay is enabled or not. This setting is only checked when applications are started, so make sure Mumble is running and this option is on before you start the application.&lt;br /&gt;Please note that if you start Mumble after starting the application, or if you disable the overlay while the application is running, there is no safe way to restart the overlay without also restarting the application.</source>
-        <oldsource>This sets whether the overlay is enabled or not. This setting is only checked when applications are started, so make sure Mumble is running and this option is on before you start the application.&lt;br /&gt;Please note that if you start the application after starting Mumble, or if you disable the overlay while running, there is no safe way to restart the overlay without also restarting the application.</oldsource>
-        <translation>设置是否启用游戏内界面。此设置仅在应用程序启动时检查，因此请确保在启动应用程序前已经运行了 Mumble 并且已启用此选项。&lt;br /&gt;请注意，如果您在启动应用程序之后启动 Mumble，或者在应用程序运行期间禁用了游戏内界面，则除了重启应用程序之外，没有办法安全的重新启动游戏内界面。</translation>
+      <source>This sets whether the overlay is enabled or not. This setting is only checked when applications are started, so make sure Mumble is running and this option is on before you start the application.&lt;br /&gt;Please note that if you start Mumble after starting the application, or if you disable the overlay while the application is running, there is no safe way to restart the overlay without also restarting the application.</source>
+      <oldsource>This sets whether the overlay is enabled or not. This setting is only checked when applications are started, so make sure Mumble is running and this option is on before you start the application.&lt;br /&gt;Please note that if you start the application after starting Mumble, or if you disable the overlay while running, there is no safe way to restart the overlay without also restarting the application.</oldsource>
+      <translation type="unfinished">This sets whether the overlay is enabled or not. This setting is only checked when applications are started, so make sure Mumble is running and this option is on before you start the application.&lt;br /&gt;Please note that if you start Mumble after starting the application, or if you disable the overlay while the application is running, there is no safe way to restart the overlay without also restarting the application.</translation>
     </message>
     <message>
-        <source>Layout</source>
-        <translation>布局</translation>
+      <source>Layout</source>
+      <translation type="unfinished">Layout</translation>
     </message>
     <message>
-        <source>Blacklist</source>
-        <translation>黑名单</translation>
+      <source>Blacklist</source>
+      <translation type="unfinished">Blacklist</translation>
     </message>
     <message>
-        <source>Whitelist</source>
-        <translation>白名单</translation>
+      <source>Whitelist</source>
+      <translation type="unfinished">Whitelist</translation>
     </message>
     <message>
-        <source>Uninstall Overlay</source>
-        <translation>卸载游戏内界面</translation>
+      <source>Uninstall Overlay</source>
+      <translation type="unfinished">Uninstall Overlay</translation>
     </message>
     <message>
-        <source>Overlay Installation</source>
-        <translation>游戏内界面安装</translation>
+      <source>Overlay Installation</source>
+      <translation type="unfinished">Overlay Installation</translation>
     </message>
     <message>
-        <source>Mumble has detected that you do not have the Mumble Overlay installed.
+      <source>Mumble has detected that you do not have the Mumble Overlay installed.
 
 Click the button below to install the overlay.</source>
-        <translation>Mumble 检测到您尚未安装 Mumble 游戏内界面。
+      <translation type="unfinished">Mumble has detected that you do not have the Mumble Overlay installed.
 
-点击下面的按钮安装它。</translation>
+Click the button below to install the overlay.</translation>
     </message>
     <message>
-        <source>Install Mumble Overlay</source>
-        <translation>安装 Mumble 游戏内界面</translation>
+      <source>Install Mumble Overlay</source>
+      <translation type="unfinished">Install Mumble Overlay</translation>
     </message>
     <message>
-        <source>Overlay Upgrade</source>
-        <translation>游戏内界面升级</translation>
+      <source>Overlay Upgrade</source>
+      <translation type="unfinished">Overlay Upgrade</translation>
     </message>
     <message>
-        <source>Mumble has detected an old version of the overlay support files installed on your computer.
+      <source>Mumble has detected an old version of the overlay support files installed on your computer.
 
 To upgrade these files to their latest versions, click the button below.</source>
-        <translation>Mumble 检测到您的计算机上安装了低版本的游戏内界面支持文件。
+      <translation type="unfinished">Mumble has detected an old version of the overlay support files installed on your computer.
 
-点击下面的按钮将这些文件升级到新版本。</translation>
+To upgrade these files to their latest versions, click the button below.</translation>
     </message>
     <message>
-        <source>Upgrade Mumble Overlay</source>
-        <translation>升级 Mumble 游戏内界面</translation>
+      <source>Upgrade Mumble Overlay</source>
+      <translation type="unfinished">Upgrade Mumble Overlay</translation>
     </message>
     <message>
-        <source>Display a frame counter in the overlay</source>
-        <translation>在游戏内界面显示帧数</translation>
+      <source>Display a frame counter in the overlay</source>
+      <translation type="unfinished">Display a frame counter in the overlay</translation>
     </message>
     <message>
-        <source>Show FPS counter</source>
-        <translation>显示 FPS 计数</translation>
+      <source>Show FPS counter</source>
+      <translation type="unfinished">Show FPS counter</translation>
     </message>
     <message>
-        <source>Load an overlay preset from file</source>
-        <translation>从文件中加载游戏内界面预设</translation>
+      <source>Load an overlay preset from file</source>
+      <translation type="unfinished">Load an overlay preset from file</translation>
     </message>
     <message>
-        <source>Load…</source>
-        <translation>加载...</translation>
+      <source>Load…</source>
+      <translation type="unfinished">Load…</translation>
     </message>
     <message>
-        <source>Save your overlay settings to file</source>
-        <translation>将您的游戏内界面设置保存到文件</translation>
+      <source>Save your overlay settings to file</source>
+      <translation type="unfinished">Save your overlay settings to file</translation>
     </message>
     <message>
-        <source>Save…</source>
-        <translation>保存...</translation>
+      <source>Save…</source>
+      <translation type="unfinished">Save…</translation>
     </message>
     <message>
-        <source>Set the overlay font.</source>
-        <translation>设置游戏内界面字体。</translation>
+      <source>Set the overlay font.</source>
+      <translation type="unfinished">Set the overlay font.</translation>
     </message>
     <message>
-        <source>Set the overlay text color.</source>
-        <translation>设置游戏内界面文字颜色。</translation>
+      <source>Set the overlay text color.</source>
+      <translation type="unfinished">Set the overlay text color.</translation>
     </message>
     <message>
-        <source>Color</source>
-        <translation>颜色</translation>
+      <source>Color</source>
+      <translation type="unfinished">Color</translation>
     </message>
     <message>
-        <source>Remove</source>
-        <translation>删除</translation>
+      <source>Remove</source>
+      <translation type="unfinished">Remove</translation>
     </message>
     <message>
-        <source>Font</source>
-        <translation>字体</translation>
+      <source>Font</source>
+      <translation type="unfinished">Font</translation>
     </message>
     <message>
-        <source>FPS and Clock Display</source>
-        <translation>FPS 与时钟显示</translation>
+      <source>FPS and Clock Display</source>
+      <translation type="unfinished">FPS and Clock Display</translation>
     </message>
     <message>
-        <source>Display a clock in the overlay showing the current local time (system time).</source>
-        <translation>在游戏内界面上显示时钟（当前系统时间）。</translation>
+      <source>Display a clock in the overlay showing the current local time (system time).</source>
+      <translation type="unfinished">Display a clock in the overlay showing the current local time (system time).</translation>
     </message>
     <message>
-        <source>Show Clock</source>
-        <translation>显示时钟</translation>
+      <source>Show Clock</source>
+      <translation type="unfinished">Show Clock</translation>
     </message>
     <message>
-        <source>Overlay Exceptions</source>
-        <translation>游戏内界面例外</translation>
+      <source>Overlay Exceptions</source>
+      <translation type="unfinished">Overlay Exceptions</translation>
     </message>
     <message>
-        <source>Overlay Exception Mode</source>
-        <translation>例外模式</translation>
+      <source>Overlay Exception Mode</source>
+      <translation type="unfinished">Overlay Exception Mode</translation>
     </message>
     <message>
-        <source>Allowed launchers</source>
-        <translation>允许的启动器</translation>
+      <source>Allowed launchers</source>
+      <translation type="unfinished">Allowed launchers</translation>
     </message>
     <message>
-        <source>Add</source>
-        <translation>添加</translation>
+      <source>Add</source>
+      <translation type="unfinished">Add</translation>
     </message>
     <message>
-        <source>Allowed programs</source>
-        <translation>允许的程序</translation>
+      <source>Allowed programs</source>
+      <translation type="unfinished">Allowed programs</translation>
     </message>
     <message>
-        <source>Allowed paths</source>
-        <translation>允许的路径</translation>
+      <source>Allowed paths</source>
+      <translation type="unfinished">Allowed paths</translation>
     </message>
     <message>
-        <source>Blacklisted programs</source>
-        <translation>黑名单程序</translation>
+      <source>Blacklisted programs</source>
+      <translation type="unfinished">Blacklisted programs</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>OverlayEditor</name>
     <message>
-        <source>State</source>
-        <translation>状态</translation>
+      <source>State</source>
+      <translation type="unfinished">State</translation>
     </message>
     <message>
-        <source>User is not talking</source>
-        <translation>用户未在说话</translation>
+      <source>User is not talking</source>
+      <translation type="unfinished">User is not talking</translation>
     </message>
     <message>
-        <source>Passive</source>
-        <translation>安静</translation>
+      <source>Passive</source>
+      <translation type="unfinished">Passive</translation>
     </message>
     <message>
-        <source>User is talking in your channel or a linked channel</source>
-        <translation>用户正在当前频道或链接频道内说话</translation>
+      <source>User is talking in your channel or a linked channel</source>
+      <translation type="unfinished">User is talking in your channel or a linked channel</translation>
     </message>
     <message>
-        <source>Talking</source>
-        <translation>说话</translation>
+      <source>Talking</source>
+      <translation type="unfinished">Talking</translation>
     </message>
     <message>
-        <source>User is whispering to you privately</source>
-        <translation>用户正在私下与您密语</translation>
+      <source>User is whispering to you privately</source>
+      <translation type="unfinished">User is whispering to you privately</translation>
     </message>
     <message>
-        <source>Private Whisper</source>
-        <translation>私人密语</translation>
+      <source>Private Whisper</source>
+      <translation type="unfinished">Private Whisper</translation>
     </message>
     <message>
-        <source>User is shouting to your channel</source>
-        <translation>用户正在对当前频道呼喊</translation>
+      <source>User is shouting to your channel</source>
+      <translation type="unfinished">User is shouting to your channel</translation>
     </message>
     <message>
-        <source>Channel Whisper</source>
-        <translation>频道密语</translation>
+      <source>Channel Whisper</source>
+      <translation type="unfinished">Channel Whisper</translation>
     </message>
     <message>
-        <source>Zoom</source>
-        <translation>缩放</translation>
+      <source>Zoom</source>
+      <translation type="unfinished">Zoom</translation>
     </message>
     <message>
-        <source>Zoom Factor</source>
-        <translation>缩放参数</translation>
+      <source>Zoom Factor</source>
+      <translation type="unfinished">Zoom Factor</translation>
     </message>
     <message>
-        <source>Enabled Elements</source>
-        <translation>启用元素</translation>
+      <source>Enabled Elements</source>
+      <translation type="unfinished">Enabled Elements</translation>
     </message>
     <message>
-        <source>User avatar, chosen by each user</source>
-        <translation>每名用户自己选择的头像</translation>
+      <source>User avatar, chosen by each user</source>
+      <translation type="unfinished">User avatar, chosen by each user</translation>
     </message>
     <message>
-        <source>Avatar</source>
-        <translation>头像</translation>
+      <source>Avatar</source>
+      <translation type="unfinished">Avatar</translation>
     </message>
     <message>
-        <source>User&apos;s name</source>
-        <translation>用户的名称</translation>
+      <source>User&apos;s name</source>
+      <translation type="unfinished">User&apos;s name</translation>
     </message>
     <message>
-        <source>Username</source>
-        <translation>用户名</translation>
+      <source>Username</source>
+      <translation type="unfinished">Username</translation>
     </message>
     <message>
-        <source>Name of user&apos;s channel, if outside your current channel</source>
-        <translation>用户所在的频道名称，如果他不在您的当前频道</translation>
+      <source>Name of user&apos;s channel, if outside your current channel</source>
+      <translation type="unfinished">Name of user&apos;s channel, if outside your current channel</translation>
     </message>
     <message>
-        <source>Channel</source>
-        <translation>频道</translation>
+      <source>Channel</source>
+      <translation type="unfinished">Channel</translation>
     </message>
     <message>
-        <source>Muted or deafened</source>
-        <translation>关闭麦克风或关闭扬声器</translation>
+      <source>Muted or deafened</source>
+      <translation type="unfinished">Muted or deafened</translation>
     </message>
     <message>
-        <source>Mute state</source>
-        <translation>静音状态</translation>
+      <source>Mute state</source>
+      <translation type="unfinished">Mute state</translation>
     </message>
     <message>
-        <source>Bounding box, automatically shrunk to minimum size to contain all visible elements</source>
-        <translation>背景会自动收缩到最小尺寸以包含所有可见元素</translation>
+      <source>Bounding box, automatically shrunk to minimum size to contain all visible elements</source>
+      <translation type="unfinished">Bounding box, automatically shrunk to minimum size to contain all visible elements</translation>
     </message>
     <message>
-        <source>Bounding box</source>
-        <translation>背景</translation>
+      <source>Bounding box</source>
+      <translation type="unfinished">Bounding box</translation>
     </message>
     <message>
-        <source>Overlay Editor</source>
-        <translation>游戏内界面编辑器</translation>
+      <source>Overlay Editor</source>
+      <translation type="unfinished">Overlay Editor</translation>
     </message>
     <message>
-        <source>Zoom level</source>
-        <translation>放大级别</translation>
+      <source>Zoom level</source>
+      <translation type="unfinished">Zoom level</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>OverlayEditorScene</name>
     <message>
-        <source>Layout preset</source>
-        <translation>布局预设</translation>
+      <source>Layout preset</source>
+      <translation type="unfinished">Layout preset</translation>
     </message>
     <message>
-        <source>Large square avatar</source>
-        <translation>大尺寸方形头像</translation>
+      <source>Large square avatar</source>
+      <translation type="unfinished">Large square avatar</translation>
     </message>
     <message>
-        <source>Avatar and Name</source>
-        <translation>头像加用户名</translation>
+      <source>Avatar and Name</source>
+      <translation type="unfinished">Avatar and Name</translation>
     </message>
     <message>
-        <source>User Opacity</source>
-        <translation>用户不透明度</translation>
+      <source>User Opacity</source>
+      <translation type="unfinished">User Opacity</translation>
     </message>
     <message>
-        <source>%1%</source>
-        <translation>%1%</translation>
+      <source>%1%</source>
+      <translation type="unfinished">%1%</translation>
     </message>
     <message>
-        <source>Object Opacity</source>
-        <translation>组件不透明度</translation>
+      <source>Object Opacity</source>
+      <translation type="unfinished">Object Opacity</translation>
     </message>
     <message>
-        <source>Alignment</source>
-        <translation>对齐方式</translation>
+      <source>Alignment</source>
+      <translation type="unfinished">Alignment</translation>
     </message>
     <message>
-        <source>Left</source>
-        <translation>左对齐</translation>
+      <source>Left</source>
+      <translation type="unfinished">Left</translation>
     </message>
     <message>
-        <source>Center</source>
-        <translation>居中对齐</translation>
+      <source>Center</source>
+      <translation type="unfinished">Center</translation>
     </message>
     <message>
-        <source>Right</source>
-        <translation>右对齐</translation>
+      <source>Right</source>
+      <translation type="unfinished">Right</translation>
     </message>
     <message>
-        <source>Top</source>
-        <translation>顶端对齐</translation>
+      <source>Top</source>
+      <translation type="unfinished">Top</translation>
     </message>
     <message>
-        <source>Bottom</source>
-        <translation>底端对齐</translation>
+      <source>Bottom</source>
+      <translation type="unfinished">Bottom</translation>
     </message>
     <message>
-        <source>Color...</source>
-        <translation>颜色...</translation>
+      <source>Color...</source>
+      <translation type="unfinished">Color...</translation>
     </message>
     <message>
-        <source>Font...</source>
-        <translation>字体...</translation>
+      <source>Font...</source>
+      <translation type="unfinished">Font...</translation>
     </message>
     <message>
-        <source>Bounding box</source>
-        <translation>背景</translation>
+      <source>Bounding box</source>
+      <translation type="unfinished">Bounding box</translation>
     </message>
     <message>
-        <source>Pen width</source>
-        <translation>线条宽度</translation>
+      <source>Pen width</source>
+      <translation type="unfinished">Pen width</translation>
     </message>
     <message>
-        <source>Padding</source>
-        <translation>间距</translation>
+      <source>Padding</source>
+      <translation type="unfinished">Padding</translation>
     </message>
     <message>
-        <source>Pen color</source>
-        <translation>线条颜色</translation>
+      <source>Pen color</source>
+      <translation type="unfinished">Pen color</translation>
     </message>
     <message>
-        <source>Fill color</source>
-        <translation>填充颜色</translation>
+      <source>Fill color</source>
+      <translation type="unfinished">Fill color</translation>
     </message>
     <message>
-        <source>Pick pen color</source>
-        <translation>选择线条颜色</translation>
+      <source>Pick pen color</source>
+      <translation type="unfinished">Pick pen color</translation>
     </message>
     <message>
-        <source>Pick fill color</source>
-        <translation>选择填充颜色</translation>
+      <source>Pick fill color</source>
+      <translation type="unfinished">Pick fill color</translation>
     </message>
     <message>
-        <source>Pick color</source>
-        <translation>选择颜色</translation>
+      <source>Pick color</source>
+      <translation type="unfinished">Pick color</translation>
     </message>
     <message>
-        <source>Pick font</source>
-        <translation>选择字体</translation>
+      <source>Pick font</source>
+      <translation type="unfinished">Pick font</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>PluginConfig</name>
     <message>
-        <source>Plugins</source>
-        <translation>插件</translation>
+      <source>Plugins</source>
+      <translation type="unfinished">Plugins</translation>
     </message>
     <message>
-        <source>Plugin has no configure function.</source>
-        <translation>插件不支持配置。</translation>
+      <source>Plugin has no configure function.</source>
+      <translation type="unfinished">Plugin has no configure function.</translation>
     </message>
     <message>
-        <source>Plugin has no about function.</source>
-        <translation>插件不支持关于信息。</translation>
+      <source>Plugin has no about function.</source>
+      <translation type="unfinished">Plugin has no about function.</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>选项</translation>
+      <source>Options</source>
+      <translation type="unfinished">Options</translation>
     </message>
     <message>
-        <source>Enable plugins and transmit positional information</source>
-        <translation>启用插件并传输位置信息</translation>
+      <source>Enable plugins and transmit positional information</source>
+      <translation type="unfinished">Enable plugins and transmit positional information</translation>
     </message>
     <message>
-        <source>This allows plugins for supported games to fetch your in-game position and transmit it with each voice packet. This enables other users to hear your voice in-game from the direction your character is in relation to their own.</source>
-        <translation>允许支持的游戏的插件获取您在游戏中的位置并在每个语音数据包中传输。使其他用户能从您在游戏内的角色与他们的角色之间的相对方向听到您的语音。</translation>
+      <source>This allows plugins for supported games to fetch your in-game position and transmit it with each voice packet. This enables other users to hear your voice in-game from the direction your character is in relation to their own.</source>
+      <translation type="unfinished">This allows plugins for supported games to fetch your in-game position and transmit it with each voice packet. This enables other users to hear your voice in-game from the direction your character is in relation to their own.</translation>
     </message>
     <message>
-        <source>Link to Game and Transmit Position</source>
-        <translation>链接到游戏并传输位置信息</translation>
+      <source>Link to Game and Transmit Position</source>
+      <translation type="unfinished">Link to Game and Transmit Position</translation>
     </message>
     <message>
-        <source>Reloads all plugins</source>
-        <translation>重新加载所有插件</translation>
+      <source>Reloads all plugins</source>
+      <translation type="unfinished">Reloads all plugins</translation>
     </message>
     <message>
-        <source>This rescans and reloads plugins. Use this if you just added or changed a plugin to the plugins directory.</source>
-        <translation>重新扫描并重载插件。如果您添加或者修改了插件目录中的插件，请使用此功能。</translation>
+      <source>This rescans and reloads plugins. Use this if you just added or changed a plugin to the plugins directory.</source>
+      <translation type="unfinished">This rescans and reloads plugins. Use this if you just added or changed a plugin to the plugins directory.</translation>
     </message>
     <message>
-        <source>&amp;Reload plugins</source>
-        <translation>重新加载插件(&amp;R)</translation>
+      <source>&amp;Reload plugins</source>
+      <translation type="unfinished">&amp;Reload plugins</translation>
     </message>
     <message>
-        <source>Information about plugin</source>
-        <translation>插件信息</translation>
+      <source>Information about plugin</source>
+      <translation type="unfinished">Information about plugin</translation>
     </message>
     <message>
-        <source>This shows a small information message about the plugin.</source>
-        <translation>显示关于插件的简要信息。</translation>
+      <source>This shows a small information message about the plugin.</source>
+      <translation type="unfinished">This shows a small information message about the plugin.</translation>
     </message>
     <message>
-        <source>&amp;About</source>
-        <translation>关于(&amp;A)</translation>
+      <source>&amp;About</source>
+      <translation type="unfinished">&amp;About</translation>
     </message>
     <message>
-        <source>Show configuration page of plugin</source>
-        <translation>显示插件的配置页面</translation>
+      <source>Show configuration page of plugin</source>
+      <translation type="unfinished">Show configuration page of plugin</translation>
     </message>
     <message>
-        <source>This shows the configuration page of the plugin, if any.</source>
-        <translation>如果可用的话，显示此插件的配置页面。</translation>
+      <source>This shows the configuration page of the plugin, if any.</source>
+      <translation type="unfinished">This shows the configuration page of the plugin, if any.</translation>
     </message>
     <message>
-        <source>&amp;Configure</source>
-        <translation>设置(&amp;C)</translation>
+      <source>&amp;Configure</source>
+      <translation type="unfinished">&amp;Configure</translation>
     </message>
     <message>
-        <source>Name</source>
-        <translation>名称</translation>
+      <source>Name</source>
+      <translation type="unfinished">Name</translation>
     </message>
     <message>
-        <source>Enabled</source>
-        <translation>启用</translation>
+      <source>Enabled</source>
+      <translation type="unfinished">Enabled</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>Plugins</name>
     <message>
-        <source>Skipping plugin update in debug mode.</source>
-        <translation>在调试模式跳过插件更新。</translation>
+      <source>Skipping plugin update in debug mode.</source>
+      <translation type="unfinished">Skipping plugin update in debug mode.</translation>
     </message>
     <message>
-        <source>Downloaded new or updated plugin to %1.</source>
-        <translation>下载新版或升级插件到 %1。</translation>
+      <source>Downloaded new or updated plugin to %1.</source>
+      <translation type="unfinished">Downloaded new or updated plugin to %1.</translation>
     </message>
     <message>
-        <source>Failed to install new plugin to %1.</source>
-        <translation>安装新插件到 %1 失败。</translation>
+      <source>Failed to install new plugin to %1.</source>
+      <translation type="unfinished">Failed to install new plugin to %1.</translation>
     </message>
     <message>
-        <source>%1 lost link.</source>
-        <translation>%1 链接丢失。</translation>
+      <source>%1 lost link.</source>
+      <translation type="unfinished">%1 lost link.</translation>
     </message>
     <message>
-        <source>%1 linked.</source>
-        <translation>%1 已链接。</translation>
+      <source>%1 linked.</source>
+      <translation type="unfinished">%1 linked.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>PortAudioSystem</name>
     <message>
-        <source>Default device</source>
-        <translation>默认设备</translation>
+      <source>Default device</source>
+      <translation type="unfinished">Default device</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>PulseAudioSystem</name>
     <message>
-        <source>Default Input</source>
-        <translation>默认输入</translation>
+      <source>Default Input</source>
+      <translation type="unfinished">Default Input</translation>
     </message>
     <message>
-        <source>Default Output</source>
-        <translation>默认输出</translation>
+      <source>Default Output</source>
+      <translation type="unfinished">Default Output</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>QApplication</name>
     <message>
-        <source>Failed to restart mumble</source>
-        <translation>重新启动 Mumble 失败</translation>
+      <source>Failed to restart mumble</source>
+      <translation type="unfinished">Failed to restart mumble</translation>
     </message>
     <message>
-        <source>Mumble failed to restart itself. Please restart it manually.</source>
-        <translation>Mumble 重新启动自身失败。请手动重启。</translation>
+      <source>Mumble failed to restart itself. Please restart it manually.</source>
+      <translation type="unfinished">Mumble failed to restart itself. Please restart it manually.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>QObject</name>
     <message>
-        <source>CodecInit: Failed to load Opus, it will not be available for encoding/decoding audio.</source>
-        <translation>CodecInit: 加载 Opus 失败，无法进行音频编解码。</translation>
+      <source>CodecInit: Failed to load Opus, it will not be available for encoding/decoding audio.</source>
+      <translation type="unfinished">CodecInit: Failed to load Opus, it will not be available for encoding/decoding audio.</translation>
     </message>
     <message>
-        <source>Talking UI</source>
-        <translation>对话界面</translation>
+      <source>Talking UI</source>
+      <translation type="unfinished">Talking UI</translation>
     </message>
     <message>
-        <source>Echo cancellation is not supported for the interface combination &quot;%1&quot; (in) and &quot;%2&quot; (out).</source>
-        <translation>回声消除不支持“%1”输入与“%2”输出接口的组合。</translation>
+      <source>Echo cancellation is not supported for the interface combination &quot;%1&quot; (in) and &quot;%2&quot; (out).</source>
+      <translation type="unfinished">Echo cancellation is not supported for the interface combination &quot;%1&quot; (in) and &quot;%2&quot; (out).</translation>
     </message>
     <message>
-        <source>If enabled this tries to cancel out echo from the audio stream.
+      <source>If enabled this tries to cancel out echo from the audio stream.
 Mixed echo cancellation mixes all speaker outputs in one mono stream and passes that stream to the echo canceller, while multichannel echo cancellation passes all audio channels to the echo canceller directly.
 Multichannel echo cancellation requires more CPU, so you should try mixed first</source>
-        <translation>启用此选项时，对音频流进行回声消除。
-“混合回声消除”将所有扬声器输出混合为单个音频流，并将此流传输给回声消除器，而“多通道回声消除”则直接把所有音频通道传输到回声消除器。
-多通道回声消除需要更多 CPU 资源，所以您应该先尝试混合回声消除。</translation>
+      <translation type="unfinished">If enabled this tries to cancel out echo from the audio stream.
+Mixed echo cancellation mixes all speaker outputs in one mono stream and passes that stream to the echo canceller, while multichannel echo cancellation passes all audio channels to the echo canceller directly.
+Multichannel echo cancellation requires more CPU, so you should try mixed first</translation>
     </message>
     <message>
-        <source>&lt;p&gt;If you're using Linux this is most likely because you are using a version from your distribution's package repository that have their own update cycles.&lt;/p&gt;&lt;p&gt;If you want to always have the most recent Mumble version, you should consider using a different method of installation.
+      <source>&lt;p&gt;If you&apos;re using Linux this is most likely because you are using a version from your distribution&apos;s package repository that have their own update cycles.&lt;/p&gt;&lt;p&gt;If you want to always have the most recent Mumble version, you should consider using a different method of installation.
 See &lt;a href=&quot;https://wiki.mumble.info/wiki/Installing_Mumble&quot;&gt;the Mumble wiki&lt;/a&gt; for what alternatives there are.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;如果您正在使用 Linux，这很可能是因为您使用的版本来自发行版的软件包仓库，它们有自己的更新周期。&lt;/p&gt;&lt;p&gt;如果您希望始终使用最新版本的 Mumble，就应该考虑使用其他安装方式。
-阅读 &lt;a href=&quot;https://wiki.mumble.info/wiki/Installing_Mumble&quot;&gt;Mumble Wiki&lt;/a&gt; 了解具体方式。&lt;/p&gt;</translation>
+      <translation type="unfinished">&lt;p&gt;If you&apos;re using Linux this is most likely because you are using a version from your distribution&apos;s package repository that have their own update cycles.&lt;/p&gt;&lt;p&gt;If you want to always have the most recent Mumble version, you should consider using a different method of installation.
+See &lt;a href=&quot;https://wiki.mumble.info/wiki/Installing_Mumble&quot;&gt;the Mumble wiki&lt;/a&gt; for what alternatives there are.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Local Mute</source>
-        <translation>本地屏蔽</translation>
+      <source>Local Mute</source>
+      <translation type="unfinished">Local Mute</translation>
     </message>
     <message>
-        <source>Ignore Messages</source>
-        <translation>忽略消息</translation>
+      <source>Ignore Messages</source>
+      <translation type="unfinished">Ignore Messages</translation>
     </message>
     <message>
-        <source>Disable Text-To-Speech</source>
-        <translation>禁用语音播报</translation>
+      <source>Disable Text-To-Speech</source>
+      <translation type="unfinished">Disable Text-To-Speech</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; could not be saved permanently and is lost on restart because %2 does not have a certificate.</source>
-        <translation>“%1”无法永久保存，将会在重启后丢失，因为 %2 没有证书。</translation>
+      <source>&quot;%1&quot; could not be saved permanently and is lost on restart because %2 does not have a certificate.</source>
+      <translation type="unfinished">&quot;%1&quot; could not be saved permanently and is lost on restart because %2 does not have a certificate.</translation>
     </message>
     <message>
-        <source>Local Volume Adjustment...</source>
-        <translation>本地音量调整...</translation>
+      <source>Local Volume Adjustment...</source>
+      <translation type="unfinished">Local Volume Adjustment...</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You&apos;re using a Mumble version that &lt;b&gt;explicitly disabled&lt;/b&gt; update-checks.&lt;/p&gt;&lt;p&gt;This means that the update notification you might receive by using this option will &lt;b&gt;most likely be meaningless&lt;/b&gt; for you.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;您正在使用&lt;b&gt;显式禁用&lt;/b&gt;更新检查的 Mumble 版本。&lt;p&gt;这意味着您通过此选项收到的更新提醒对您来说&lt;b&gt;很可能是无意义的&lt;/b&gt;。&lt;/p&gt;</translation>
+      <source>&lt;p&gt;You&apos;re using a Mumble version that &lt;b&gt;explicitly disabled&lt;/b&gt; update-checks.&lt;/p&gt;&lt;p&gt;This means that the update notification you might receive by using this option will &lt;b&gt;most likely be meaningless&lt;/b&gt; for you.&lt;/p&gt;</source>
+      <translation type="unfinished">&lt;p&gt;You&apos;re using a Mumble version that &lt;b&gt;explicitly disabled&lt;/b&gt; update-checks.&lt;/p&gt;&lt;p&gt;This means that the update notification you might receive by using this option will &lt;b&gt;most likely be meaningless&lt;/b&gt; for you.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Talking (muted)</source>
-        <translation>正在发言（已屏蔽）</translation>
+      <source>Talking (muted)</source>
+      <translation type="unfinished">Talking (muted)</translation>
     </message>
     <message>
-        <source>All messages</source>
-        <translation>所有消息</translation>
+      <source>All messages</source>
+      <translation type="unfinished">All messages</translation>
     </message>
     <message>
-        <source>Toggle console for all events</source>
-        <translation>开关所有事件的控制台输出</translation>
+      <source>Toggle console for all events</source>
+      <translation type="unfinished">Toggle console for all events</translation>
     </message>
     <message>
-        <source>Toggle pop-up notifications for all events</source>
-        <translation>开关所有事件的弹出通知</translation>
+      <source>Toggle pop-up notifications for all events</source>
+      <translation type="unfinished">Toggle pop-up notifications for all events</translation>
     </message>
     <message>
-        <source>Toggle window highlight (if not active) for all events</source>
-        <translation>开关所有事件的窗口高亮（如果未激活）</translation>
+      <source>Toggle window highlight (if not active) for all events</source>
+      <translation type="unfinished">Toggle window highlight (if not active) for all events</translation>
     </message>
     <message>
-        <source>Click here to toggle sound notifications for all events</source>
-        <translation>开关所有事件的提示音</translation>
+      <source>Click here to toggle sound notifications for all events</source>
+      <translation type="unfinished">Click here to toggle sound notifications for all events</translation>
     </message>
     <message>
-        <source>Toggle Text-to-Speech for all events</source>
-        <translation>开关所有事件的语音播报</translation>
+      <source>Toggle Text-to-Speech for all events</source>
+      <translation type="unfinished">Toggle Text-to-Speech for all events</translation>
     </message>
     <message>
-        <source>RNNoise is not available due to a sample rate mismatch.</source>
-        <translation>由于采样率不匹配，RNNoise 不可用。</translation>
+      <source>RNNoise is not available due to a sample rate mismatch.</source>
+      <translation type="unfinished">RNNoise is not available due to a sample rate mismatch.</translation>
     </message>
     <message>
-        <source>Reset all settings?</source>
-        <translation>重置所有设置？</translation>
+      <source>Reset all settings?</source>
+      <translation type="unfinished">Reset all settings?</translation>
     </message>
     <message>
-        <source>Do you really want to reset all settings (not only the ones currently visible) to their default value?</source>
-        <translation>您确定要将所有设置（不仅包括当前可见部分）为默认值吗？</translation>
+      <source>Do you really want to reset all settings (not only the ones currently visible) to their default value?</source>
+      <translation type="unfinished">Do you really want to reset all settings (not only the ones currently visible) to their default value?</translation>
     </message>
-</context>
-<context>
+    <message>
+      <source>Local Nickname Adjustment...</source>
+      <translation type="unfinished">Local Nickname Adjustment...</translation>
+    </message>
+  </context>
+  <context>
     <name>RichTextEditor</name>
     <message>
-        <source>Failed to load image</source>
-        <translation>读取图片失败</translation>
+      <source>Failed to load image</source>
+      <translation type="unfinished">Failed to load image</translation>
     </message>
     <message>
-        <source>Image file too large to embed in document. Please use images smaller than %1 kB.</source>
-        <translation>图片文件太大，无法嵌入文档。请选择小于 %1 KB 的图片。</translation>
+      <source>Image file too large to embed in document. Please use images smaller than %1 kB.</source>
+      <translation type="unfinished">Image file too large to embed in document. Please use images smaller than %1 kB.</translation>
     </message>
     <message>
-        <source>Message is too long.</source>
-        <translation>消息过长。</translation>
+      <source>Message is too long.</source>
+      <translation type="unfinished">Message is too long.</translation>
     </message>
     <message>
-        <source>Display</source>
-        <translation>可视化</translation>
+      <source>Display</source>
+      <translation type="unfinished">Display</translation>
     </message>
     <message>
-        <source>Source Text</source>
-        <translation>源代码</translation>
+      <source>Source Text</source>
+      <translation type="unfinished">Source Text</translation>
     </message>
     <message>
-        <source>&amp;Bold</source>
-        <translation>粗体(&amp;B)</translation>
+      <source>&amp;Bold</source>
+      <translation type="unfinished">&amp;Bold</translation>
     </message>
     <message>
-        <source>Ctrl+B</source>
-        <translation>Ctrl+B</translation>
+      <source>Ctrl+B</source>
+      <translation type="unfinished">Ctrl+B</translation>
     </message>
     <message>
-        <source>&amp;Italic</source>
-        <translation>斜体(&amp;I)</translation>
+      <source>&amp;Italic</source>
+      <translation type="unfinished">&amp;Italic</translation>
     </message>
     <message>
-        <source>Italic</source>
-        <translation>斜体</translation>
+      <source>Italic</source>
+      <translation type="unfinished">Italic</translation>
     </message>
     <message>
-        <source>Ctrl+I</source>
-        <translation>Ctrl+I</translation>
+      <source>Ctrl+I</source>
+      <translation type="unfinished">Ctrl+I</translation>
     </message>
     <message>
-        <source>Underline</source>
-        <translation>下划线</translation>
+      <source>Underline</source>
+      <translation type="unfinished">Underline</translation>
     </message>
     <message>
-        <source>Ctrl+U</source>
-        <translation>Ctrl+U</translation>
+      <source>Ctrl+U</source>
+      <translation type="unfinished">Ctrl+U</translation>
     </message>
     <message>
-        <source>Color</source>
-        <translation>颜色</translation>
+      <source>Color</source>
+      <translation type="unfinished">Color</translation>
     </message>
     <message>
-        <source>Insert Link</source>
-        <translation>插入链接</translation>
+      <source>Insert Link</source>
+      <translation type="unfinished">Insert Link</translation>
     </message>
     <message>
-        <source>Ctrl+L</source>
-        <translation>Ctrl+L</translation>
+      <source>Ctrl+L</source>
+      <translation type="unfinished">Ctrl+L</translation>
     </message>
     <message>
-        <source>Insert Image</source>
-        <translation>插入图片</translation>
+      <source>Insert Image</source>
+      <translation type="unfinished">Insert Image</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>RichTextEditorLink</name>
     <message>
-        <source>Add Link</source>
-        <translation>添加链接</translation>
+      <source>Add Link</source>
+      <translation type="unfinished">Add Link</translation>
     </message>
     <message>
-        <source>URL</source>
-        <translation>URL</translation>
+      <source>URL</source>
+      <translation type="unfinished">URL</translation>
     </message>
     <message>
-        <source>Text</source>
-        <translation>文字</translation>
+      <source>Text</source>
+      <translation type="unfinished">Text</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ServerHandler</name>
     <message>
-        <source>Unable to resolve hostname</source>
-        <translation>无法解析主机名</translation>
+      <source>Unable to resolve hostname</source>
+      <translation type="unfinished">Unable to resolve hostname</translation>
     </message>
     <message>
-        <source>Server is not responding to TCP pings</source>
-        <translation>服务器未响应 TCP Ping</translation>
+      <source>Server is not responding to TCP pings</source>
+      <translation type="unfinished">Server is not responding to TCP pings</translation>
     </message>
     <message>
-        <source>UDP packets cannot be sent to or received from the server. Switching to TCP mode.</source>
-        <translation>UDP 数据包无法发送到服务器或从服务器接收。将切换为 TCP 模式。</translation>
+      <source>UDP packets cannot be sent to or received from the server. Switching to TCP mode.</source>
+      <translation type="unfinished">UDP packets cannot be sent to or received from the server. Switching to TCP mode.</translation>
     </message>
     <message>
-        <source>UDP packets cannot be sent to the server. Switching to TCP mode.</source>
-        <translation>UDP 数据包无法发送到服务器。将切换为 TCP 模式。</translation>
+      <source>UDP packets cannot be sent to the server. Switching to TCP mode.</source>
+      <translation type="unfinished">UDP packets cannot be sent to the server. Switching to TCP mode.</translation>
     </message>
     <message>
-        <source>UDP packets cannot be received from the server. Switching to TCP mode.</source>
-        <translation>无法从服务器接收 UDP 数据包。将切换为 TCP 模式。</translation>
+      <source>UDP packets cannot be received from the server. Switching to TCP mode.</source>
+      <translation type="unfinished">UDP packets cannot be received from the server. Switching to TCP mode.</translation>
     </message>
     <message>
-        <source>UDP packets can be sent to and received from the server. Switching back to UDP mode.</source>
-        <translation>UDP 数据包可以发送到服务器或从服务器接收。将切换回 UDP 模式。</translation>
+      <source>UDP packets can be sent to and received from the server. Switching back to UDP mode.</source>
+      <translation type="unfinished">UDP packets can be sent to and received from the server. Switching back to UDP mode.</translation>
     </message>
     <message>
-        <source>Connection timed out</source>
-        <translation>连接超时</translation>
+      <source>Connection timed out</source>
+      <translation type="unfinished">Connection timed out</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ServerView</name>
     <message>
-        <source>Favorite</source>
-        <translation>收藏夹</translation>
+      <source>Favorite</source>
+      <translation type="unfinished">Favorite</translation>
     </message>
     <message>
-        <source>LAN</source>
-        <translation>局域网</translation>
+      <source>LAN</source>
+      <translation type="unfinished">LAN</translation>
     </message>
     <message>
-        <source>Public Internet</source>
-        <translation>公共服务器</translation>
+      <source>Public Internet</source>
+      <translation type="unfinished">Public Internet</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ShortcutActionWidget</name>
     <message>
-        <source>Unassigned</source>
-        <translation>未绑定</translation>
+      <source>Unassigned</source>
+      <translation type="unfinished">Unassigned</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ShortcutDelegate</name>
     <message>
-        <source>On</source>
-        <translation>开启</translation>
+      <source>On</source>
+      <translation type="unfinished">On</translation>
     </message>
     <message>
-        <source>Off</source>
-        <translation>关闭</translation>
+      <source>Off</source>
+      <translation type="unfinished">Off</translation>
     </message>
     <message>
-        <source>Toggle</source>
-        <translation>切换</translation>
+      <source>Toggle</source>
+      <translation type="unfinished">Toggle</translation>
     </message>
     <message>
-        <source>Unassigned</source>
-        <translation>未绑定</translation>
+      <source>Unassigned</source>
+      <translation type="unfinished">Unassigned</translation>
     </message>
     <message>
-        <source>Shortcut button combination:</source>
-        <translation>快捷键组合：</translation>
+      <source>Shortcut button combination:</source>
+      <translation type="unfinished">Shortcut button combination:</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ShortcutKeyWidget</name>
     <message>
-        <source>Press Shortcut</source>
-        <translation>按下快捷键</translation>
+      <source>Press Shortcut</source>
+      <translation type="unfinished">Press Shortcut</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ShortcutTargetDialog</name>
     <message>
-        <source>Root</source>
-        <translation>Root</translation>
+      <source>Root</source>
+      <translation type="unfinished">Root</translation>
     </message>
     <message>
-        <source>Parent</source>
-        <translation>父级</translation>
+      <source>Parent</source>
+      <translation type="unfinished">Parent</translation>
     </message>
     <message>
-        <source>Current</source>
-        <translation>当前</translation>
+      <source>Current</source>
+      <translation type="unfinished">Current</translation>
     </message>
     <message>
-        <source>Subchannel #%1</source>
-        <translation>子频道 #%1</translation>
+      <source>Subchannel #%1</source>
+      <translation type="unfinished">Subchannel #%1</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ShortcutTargetWidget</name>
     <message>
-        <source>...</source>
-        <translation>...</translation>
+      <source>...</source>
+      <translation type="unfinished">...</translation>
     </message>
     <message>
-        <source>, </source>
-        <translation>，</translation>
+      <source>, </source>
+      <translation type="unfinished">, </translation>
     </message>
     <message>
-        <source>Root</source>
-        <translation>Root</translation>
+      <source>Root</source>
+      <translation type="unfinished">Root</translation>
     </message>
     <message>
-        <source>Parent</source>
-        <translation>父级</translation>
+      <source>Parent</source>
+      <translation type="unfinished">Parent</translation>
     </message>
     <message>
-        <source>Current</source>
-        <translation>当前</translation>
+      <source>Current</source>
+      <translation type="unfinished">Current</translation>
     </message>
     <message>
-        <source>Subchannel #%1</source>
-        <translation>子频道 #%1</translation>
+      <source>Subchannel #%1</source>
+      <translation type="unfinished">Subchannel #%1</translation>
     </message>
     <message>
-        <source>Invalid</source>
-        <translation>无效</translation>
+      <source>Invalid</source>
+      <translation type="unfinished">Invalid</translation>
     </message>
     <message>
-        <source>Empty</source>
-        <oldsource>&lt;Empty&gt;</oldsource>
-        <translation>空</translation>
+      <source>Empty</source>
+      <oldsource>&lt;Empty&gt;</oldsource>
+      <translation type="unfinished">Empty</translation>
     </message>
     <message>
-        <source>Current selection</source>
-        <translation>当前选择</translation>
+      <source>Current selection</source>
+      <translation type="unfinished">Current selection</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ShortcutToggleWidget</name>
     <message>
-        <source>Off</source>
-        <translation>关闭</translation>
+      <source>Off</source>
+      <translation type="unfinished">Off</translation>
     </message>
     <message>
-        <source>Toggle</source>
-        <translation>切换</translation>
+      <source>Toggle</source>
+      <translation type="unfinished">Toggle</translation>
     </message>
     <message>
-        <source>On</source>
-        <translation>开启</translation>
+      <source>On</source>
+      <translation type="unfinished">On</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>TextMessage</name>
     <message>
-        <source>Enter text</source>
-        <translation>输入文字</translation>
+      <source>Enter text</source>
+      <translation type="unfinished">Enter text</translation>
     </message>
     <message>
-        <source>If checked the message is recursively sent to all subchannels</source>
-        <translation>如果选中，则将消息递归发送到所有子频道</translation>
+      <source>If checked the message is recursively sent to all subchannels</source>
+      <translation type="unfinished">If checked the message is recursively sent to all subchannels</translation>
     </message>
     <message>
-        <source>Send recursively to subchannels</source>
-        <translation>发送至所有子频道</translation>
+      <source>Send recursively to subchannels</source>
+      <translation type="unfinished">Send recursively to subchannels</translation>
     </message>
     <message>
-        <source>Message</source>
-        <translation>消息</translation>
+      <source>Message</source>
+      <translation type="unfinished">Message</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>Tokens</name>
     <message>
-        <source>Empty Token</source>
-        <translation>空令牌</translation>
+      <source>Empty Token</source>
+      <translation type="unfinished">Empty Token</translation>
     </message>
     <message>
-        <source>Mumble - Access Tokens</source>
-        <translation>Mumble - 访问令牌</translation>
+      <source>Mumble - Access Tokens</source>
+      <translation type="unfinished">Mumble - Access Tokens</translation>
     </message>
     <message>
-        <source>List of access tokens on current server</source>
-        <translation>当前服务器的令牌列表</translation>
+      <source>List of access tokens on current server</source>
+      <translation type="unfinished">List of access tokens on current server</translation>
     </message>
     <message>
-        <source>&lt;b&gt;This is an editable list of access tokens on the connected server.&lt;/b&gt;
+      <source>&lt;b&gt;This is an editable list of access tokens on the connected server.&lt;/b&gt;
 &lt;br /&gt;
-An access token is a text string, which can be used as a password for very simple access management on channels. Mumble will remember the tokens you've used and resend them to the server next time you reconnect, so you don't have to enter these every time.
+An access token is a text string, which can be used as a password for very simple access management on channels. Mumble will remember the tokens you&apos;ve used and resend them to the server next time you reconnect, so you don&apos;t have to enter these every time.
 </source>
-        <translation>&lt;b&gt;这是包含已连接服务器上访问令牌的可编辑列表。&lt;/b&gt;
+      <translation type="unfinished">&lt;b&gt;This is an editable list of access tokens on the connected server.&lt;/b&gt;
 &lt;br /&gt;
-一个访问令牌就是一条文本字符串，像密码一样使用，用于简单地管理频道访问权限。Mumble 将会记住您使用过的令牌，并在您下次连接此服务器的时候发送，所以您不需要每次重新输入。
+An access token is a text string, which can be used as a password for very simple access management on channels. Mumble will remember the tokens you&apos;ve used and resend them to the server next time you reconnect, so you don&apos;t have to enter these every time.
 </translation>
     </message>
     <message>
-        <source>Add a token</source>
-        <translation>添加一个令牌</translation>
+      <source>Add a token</source>
+      <translation type="unfinished">Add a token</translation>
     </message>
     <message>
-        <source>&amp;Add</source>
-        <translation>添加(&amp;A)</translation>
+      <source>&amp;Add</source>
+      <translation type="unfinished">&amp;Add</translation>
     </message>
     <message>
-        <source>Remove a token</source>
-        <translation>删除一个令牌</translation>
+      <source>Remove a token</source>
+      <translation type="unfinished">Remove a token</translation>
     </message>
     <message>
-        <source>&amp;Remove</source>
-        <translation>删除(&amp;R)</translation>
+      <source>&amp;Remove</source>
+      <translation type="unfinished">&amp;Remove</translation>
     </message>
     <message>
-        <source>Tokens</source>
-        <translation>令牌</translation>
+      <source>Tokens</source>
+      <translation type="unfinished">Tokens</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>UserEdit</name>
     <message>
-        <source>Registered Users</source>
-        <translation>已注册用户</translation>
+      <source>Registered Users</source>
+      <translation type="unfinished">Registered Users</translation>
     </message>
     <message>
-        <source>Remove</source>
-        <translation>删除</translation>
+      <source>Remove</source>
+      <translation type="unfinished">Remove</translation>
     </message>
     <message>
-        <source>Rename</source>
-        <translation>重命名</translation>
+      <source>Rename</source>
+      <translation type="unfinished">Rename</translation>
     </message>
     <message>
-        <source>Who are you looking for?</source>
-        <translation>您在找谁？</translation>
+      <source>Who are you looking for?</source>
+      <translation type="unfinished">Who are you looking for?</translation>
     </message>
     <message>
-        <source>Days</source>
-        <translation>天</translation>
+      <source>Days</source>
+      <translation type="unfinished">Days</translation>
     </message>
     <message>
-        <source>Weeks</source>
-        <translation>周</translation>
+      <source>Weeks</source>
+      <translation type="unfinished">Weeks</translation>
     </message>
     <message>
-        <source>Months</source>
-        <translation>月</translation>
+      <source>Months</source>
+      <translation type="unfinished">Months</translation>
     </message>
     <message>
-        <source>Years</source>
-        <translation>年</translation>
+      <source>Years</source>
+      <translation type="unfinished">Years</translation>
     </message>
     <message>
-        <source>Inactive for</source>
-        <translation>已离开</translation>
+      <source>Inactive for</source>
+      <translation type="unfinished">Inactive for</translation>
     </message>
     <message numerus="yes">
-        <source>Registered users: %n account(s)</source>
-        <translation><numerusform>已注册用户：%n 个帐户</numerusform></translation>
+      <source>Registered users: %n account(s)</source>
+      <translation type="unfinished">
+        <numerusform>Registered users: %n account(s)</numerusform>
+      </translation>
     </message>
     <message>
-        <source>Search</source>
-        <translation>搜索</translation>
+      <source>Search</source>
+      <translation type="unfinished">Search</translation>
     </message>
     <message>
-        <source>User list</source>
-        <translation>用户列表</translation>
+      <source>User list</source>
+      <translation type="unfinished">User list</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>UserInformation</name>
     <message>
-        <source>User Information</source>
-        <translation>用户信息</translation>
+      <source>User Information</source>
+      <translation type="unfinished">User Information</translation>
     </message>
     <message>
-        <source>Connection Information</source>
-        <translation>连接信息</translation>
+      <source>Connection Information</source>
+      <translation type="unfinished">Connection Information</translation>
     </message>
     <message>
-        <source>Version</source>
-        <translation>版本</translation>
+      <source>Version</source>
+      <translation type="unfinished">Version</translation>
     </message>
     <message>
-        <source>OS</source>
-        <translation>操作系统</translation>
+      <source>OS</source>
+      <translation type="unfinished">OS</translation>
     </message>
     <message>
-        <source>Certificate</source>
-        <translation>证书</translation>
+      <source>Certificate</source>
+      <translation type="unfinished">Certificate</translation>
     </message>
     <message>
-        <source>IP Address</source>
-        <translation>IP 地址</translation>
+      <source>IP Address</source>
+      <translation type="unfinished">IP Address</translation>
     </message>
     <message>
-        <source>CELT Versions</source>
-        <translation>CELT 版本</translation>
+      <source>CELT Versions</source>
+      <translation type="unfinished">CELT Versions</translation>
     </message>
     <message>
-        <source>Details...</source>
-        <translation>详情...</translation>
+      <source>Details...</source>
+      <translation type="unfinished">Details...</translation>
     </message>
     <message>
-        <source>Ping Statistics</source>
-        <translation>Ping 统计</translation>
+      <source>Ping Statistics</source>
+      <translation type="unfinished">Ping Statistics</translation>
     </message>
     <message>
-        <source>Pings received</source>
-        <translation>接收</translation>
+      <source>Pings received</source>
+      <translation type="unfinished">Pings received</translation>
     </message>
     <message>
-        <source>Average ping</source>
-        <translation>平均</translation>
+      <source>Average ping</source>
+      <translation type="unfinished">Average ping</translation>
     </message>
     <message>
-        <source>TCP (Control)</source>
-        <translation>TCP（控制信道）</translation>
+      <source>TCP (Control)</source>
+      <translation type="unfinished">TCP (Control)</translation>
     </message>
     <message>
-        <source>UDP (Voice)</source>
-        <translation>UDP（语音信道）</translation>
+      <source>UDP (Voice)</source>
+      <translation type="unfinished">UDP (Voice)</translation>
     </message>
     <message>
-        <source>UDP Network statistics</source>
-        <translation>UDP 网络统计</translation>
+      <source>UDP Network statistics</source>
+      <translation type="unfinished">UDP Network statistics</translation>
     </message>
     <message>
-        <source>Good</source>
-        <translation>良好</translation>
+      <source>Good</source>
+      <translation type="unfinished">Good</translation>
     </message>
     <message>
-        <source>Late</source>
-        <translation>延迟</translation>
+      <source>Late</source>
+      <translation type="unfinished">Late</translation>
     </message>
     <message>
-        <source>Lost</source>
-        <translation>丢失</translation>
+      <source>Lost</source>
+      <translation type="unfinished">Lost</translation>
     </message>
     <message>
-        <source>Resync</source>
-        <translation>重新同步</translation>
+      <source>Resync</source>
+      <translation type="unfinished">Resync</translation>
     </message>
     <message>
-        <source>From Client</source>
-        <translation>客户端发送</translation>
+      <source>From Client</source>
+      <translation type="unfinished">From Client</translation>
     </message>
     <message>
-        <source>To Client</source>
-        <translation>客户端接收</translation>
+      <source>To Client</source>
+      <translation type="unfinished">To Client</translation>
     </message>
     <message>
-        <source>Connection time</source>
-        <translation>连接时间</translation>
+      <source>Connection time</source>
+      <translation type="unfinished">Connection time</translation>
     </message>
     <message>
-        <source>%1w</source>
-        <translation>%1 周</translation>
+      <source>%1w</source>
+      <translation type="unfinished">%1w</translation>
     </message>
     <message>
-        <source>%1d</source>
-        <translation>%1 天</translation>
+      <source>%1d</source>
+      <translation type="unfinished">%1d</translation>
     </message>
     <message>
-        <source>%1h</source>
-        <translation>%1 时</translation>
+      <source>%1h</source>
+      <translation type="unfinished">%1h</translation>
     </message>
     <message>
-        <source>%1m</source>
-        <translation>%1 分</translation>
+      <source>%1m</source>
+      <translation type="unfinished">%1m</translation>
     </message>
     <message>
-        <source>%1s</source>
-        <translation>%1 秒</translation>
+      <source>%1s</source>
+      <translation type="unfinished">%1s</translation>
     </message>
     <message>
-        <source>, </source>
-        <translation>，</translation>
+      <source>, </source>
+      <translation type="unfinished">, </translation>
     </message>
     <message>
-        <source>%1 (%2)</source>
-        <oldsource>%1.%2.%3 (%4)</oldsource>
-        <translation>%1（%2）</translation>
+      <source>%1 (%2)</source>
+      <oldsource>%1.%2.%3 (%4)</oldsource>
+      <translation type="unfinished">%1 (%2)</translation>
     </message>
     <message>
-        <source>Supported</source>
-        <translation>支持</translation>
+      <source>Supported</source>
+      <translation type="unfinished">Supported</translation>
     </message>
     <message>
-        <source>Not Supported</source>
-        <translation>不支持</translation>
+      <source>Not Supported</source>
+      <translation type="unfinished">Not Supported</translation>
     </message>
     <message>
-        <source>Not Reported</source>
-        <translation>未报告</translation>
+      <source>Not Reported</source>
+      <translation type="unfinished">Not Reported</translation>
     </message>
     <message>
-        <source>%1 online (%2 idle)</source>
-        <translation>%1 在线（%2 空闲）</translation>
+      <source>%1 online (%2 idle)</source>
+      <translation type="unfinished">%1 online (%2 idle)</translation>
     </message>
     <message>
-        <source>%1 online</source>
-        <translation>%1 在线</translation>
+      <source>%1 online</source>
+      <translation type="unfinished">%1 online</translation>
     </message>
     <message>
-        <source>%1 kbit/s</source>
-        <translation>%1 千比特/秒</translation>
+      <source>%1 kbit/s</source>
+      <translation type="unfinished">%1 kbit/s</translation>
     </message>
     <message>
-        <source>Bandwidth</source>
-        <comment>GroupBox</comment>
-        <translation>带宽</translation>
+      <source>Bandwidth</source>
+      <comment>GroupBox</comment>
+      <translation type="unfinished">Bandwidth</translation>
     </message>
     <message>
-        <source>Bandwidth</source>
-        <comment>Label</comment>
-        <translation>带宽</translation>
+      <source>Bandwidth</source>
+      <comment>Label</comment>
+      <translation type="unfinished">Bandwidth</translation>
     </message>
     <message>
-        <source>Ping deviation</source>
-        <translation>误差</translation>
+      <source>Ping deviation</source>
+      <translation type="unfinished">Ping deviation</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>UserListModel</name>
     <message>
-        <source>Nick</source>
-        <translation>昵称</translation>
+      <source>Nick</source>
+      <translation type="unfinished">Nick</translation>
     </message>
     <message>
-        <source>Inactive days</source>
-        <translation>离开天数</translation>
+      <source>Inactive days</source>
+      <translation type="unfinished">Inactive days</translation>
     </message>
     <message>
-        <source>Last channel</source>
-        <translation>最后所在频道</translation>
+      <source>Last channel</source>
+      <translation type="unfinished">Last channel</translation>
     </message>
     <message>
-        <source>Last seen: %1</source>
-        <translation>上次出现：%1</translation>
+      <source>Last seen: %1</source>
+      <translation type="unfinished">Last seen: %1</translation>
     </message>
     <message>
-        <source>Never</source>
-        <translation>从未</translation>
+      <source>Never</source>
+      <translation type="unfinished">Never</translation>
     </message>
     <message>
-        <source>Channel ID: %1</source>
-        <translation>频道 ID：%1</translation>
+      <source>Channel ID: %1</source>
+      <translation type="unfinished">Channel ID: %1</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
+    <name>UserLocalNicknameDialog</name>
+    <message>
+      <source>Local nickname for other users</source>
+      <translation type="unfinished">Local nickname for other users</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Adjust the nickname of other users locally&lt;/b&gt;&lt;br /&gt;</source>
+      <translation type="unfinished">&lt;b&gt;Adjust the nickname of other users locally&lt;/b&gt;&lt;br /&gt;</translation>
+    </message>
+    <message>
+      <source>User nickname</source>
+      <translation type="unfinished">User nickname</translation>
+    </message>
+    <message>
+      <source>Adjusting local nickname for %1</source>
+      <translation type="unfinished">Adjusting local nickname for %1</translation>
+    </message>
+  </context>
+  <context>
     <name>UserLocalVolumeDialog</name>
     <message>
-        <source>Local volume for other users</source>
-        <translation>其他用户本地音量</translation>
+      <source>Local volume for other users</source>
+      <translation type="unfinished">Local volume for other users</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</source>
-        <translation>&lt;b&gt;调整其他用户的本地音量&lt;/b&gt;&lt;br /&gt;Mumble 支持在本地调整其他用户的语音音量。</translation>
+      <source>&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</source>
+      <translation type="unfinished">&lt;b&gt;Adjust the volume of other users locally&lt;/b&gt;&lt;br /&gt;Mumble supports adjusting the volume of other users locally.</translation>
     </message>
     <message>
-        <source>Adjusting local volume for %1</source>
-        <translation>调整 %1 的本地音量</translation>
+      <source>Adjusting local volume for %1</source>
+      <translation type="unfinished">Adjusting local volume for %1</translation>
     </message>
     <message>
-        <source> dB</source>
-        <translation> 分贝</translation>
+      <source> dB</source>
+      <translation type="unfinished"> dB</translation>
     </message>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use the slider or the text box to change the volume of the user.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-weight:600;&quot;&gt;Attention!&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Increasing the volume of a user too much can permanently damage your hearing. It may also increase the background noise of the user.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;使用滑块或文本框改变此用户的音量。&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-weight:600;&quot;&gt;注意！&lt;/span&gt;&lt;/p&gt;&lt;p&gt;过度增大用户的音量可能会永久性地损害您的听力。同时也可能会增大此用户的背景噪声。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+      <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use the slider or the text box to change the volume of the user.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-weight:600;&quot;&gt;Attention!&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Increasing the volume of a user too much can permanently damage your hearing. It may also increase the background noise of the user.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+      <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use the slider or the text box to change the volume of the user.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-weight:600;&quot;&gt;Attention!&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Increasing the volume of a user too much can permanently damage your hearing. It may also increase the background noise of the user.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <source>User volume</source>
-        <translation>用户音量</translation>
+      <source>User volume</source>
+      <translation type="unfinished">User volume</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>UserModel</name>
     <message>
-        <source>This is a user connected to the server. The icon to the left of the user indicates whether or not they are talking:</source>
-        <translation>这是一名已连接到服务器的用户。用户左侧的图标表明他们是否正在说话：</translation>
+      <source>This is a user connected to the server. The icon to the left of the user indicates whether or not they are talking:</source>
+      <translation type="unfinished">This is a user connected to the server. The icon to the left of the user indicates whether or not they are talking:</translation>
     </message>
     <message>
-        <source>Talking to your channel.</source>
-        <translation>正在对您的频道说话。</translation>
+      <source>Talking to your channel.</source>
+      <translation type="unfinished">Talking to your channel.</translation>
     </message>
     <message>
-        <source>Shouting directly to your channel.</source>
-        <oldsource>Whispering directly to your channel.</oldsource>
-        <translation>正在直接对您的频道呼喊。</translation>
+      <source>Shouting directly to your channel.</source>
+      <oldsource>Whispering directly to your channel.</oldsource>
+      <translation type="unfinished">Shouting directly to your channel.</translation>
     </message>
     <message>
-        <source>Whispering directly to you.</source>
-        <translation>正在直接对您密语。</translation>
+      <source>Whispering directly to you.</source>
+      <translation type="unfinished">Whispering directly to you.</translation>
     </message>
     <message>
-        <source>Not talking.</source>
-        <translation>未在说话。</translation>
+      <source>Not talking.</source>
+      <translation type="unfinished">Not talking.</translation>
     </message>
     <message>
-        <source>This is a channel on the server. The icon indicates the state of the channel:</source>
-        <translation>这是服务器上的一个频道。图标显示了频道的状态：</translation>
+      <source>This is a channel on the server. The icon indicates the state of the channel:</source>
+      <translation type="unfinished">This is a channel on the server. The icon indicates the state of the channel:</translation>
     </message>
     <message>
-        <source>Your current channel.</source>
-        <translation>您当前所在的频道。</translation>
+      <source>Your current channel.</source>
+      <translation type="unfinished">Your current channel.</translation>
     </message>
     <message>
-        <source>A channel that is linked with your channel. Linked channels can talk to each other.</source>
-        <translation>一个链接到您的频道的频道。被链接的频道之间可以互相说话。</translation>
+      <source>A channel that is linked with your channel. Linked channels can talk to each other.</source>
+      <translation type="unfinished">A channel that is linked with your channel. Linked channels can talk to each other.</translation>
     </message>
     <message>
-        <source>A channel on the server that you are not linked to.</source>
-        <translation>一个在服务器上的您未链接的频道。</translation>
+      <source>A channel on the server that you are not linked to.</source>
+      <translation type="unfinished">A channel on the server that you are not linked to.</translation>
     </message>
     <message>
-        <source>This shows the flags the user has on the server, if any:</source>
-        <translation>如果有的话，显示此用户在此服务器上的标识：</translation>
+      <source>This shows the flags the user has on the server, if any:</source>
+      <translation type="unfinished">This shows the flags the user has on the server, if any:</translation>
     </message>
     <message>
-        <source>On your friend list</source>
-        <translation>您的好友</translation>
+      <source>On your friend list</source>
+      <translation type="unfinished">On your friend list</translation>
     </message>
     <message>
-        <source>Authenticated user</source>
-        <translation>已认证用户</translation>
+      <source>Authenticated user</source>
+      <translation type="unfinished">Authenticated user</translation>
     </message>
     <message>
-        <source>Muted (manually muted by self)</source>
-        <translation>麦克风关闭（自己设置）</translation>
+      <source>Muted (manually muted by self)</source>
+      <translation type="unfinished">Muted (manually muted by self)</translation>
     </message>
     <message>
-        <source>Muted (manually muted by admin)</source>
-        <translation>麦克风关闭（管理员设置）</translation>
+      <source>Muted (manually muted by admin)</source>
+      <translation type="unfinished">Muted (manually muted by admin)</translation>
     </message>
     <message>
-        <source>Muted (not allowed to speak in current channel)</source>
-        <translation>麦克风关闭（当前频道不允许说话）</translation>
+      <source>Muted (not allowed to speak in current channel)</source>
+      <translation type="unfinished">Muted (not allowed to speak in current channel)</translation>
     </message>
     <message>
-        <source>Muted (muted by you, only on your machine)</source>
-        <translation>麦克风关闭（被您屏蔽，仅在您的设备上生效）</translation>
+      <source>Muted (muted by you, only on your machine)</source>
+      <translation type="unfinished">Muted (muted by you, only on your machine)</translation>
     </message>
     <message>
-        <source>Muted (push-to-mute)</source>
-        <translation>麦克风关闭（按键静音）</translation>
+      <source>Muted (push-to-mute)</source>
+      <translation type="unfinished">Muted (push-to-mute)</translation>
     </message>
     <message>
-        <source>Deafened (by self)</source>
-        <translation>扬声器关闭（自己设置）</translation>
+      <source>Deafened (by self)</source>
+      <translation type="unfinished">Deafened (by self)</translation>
     </message>
     <message>
-        <source>Deafened (by admin)</source>
-        <translation>扬声器关闭（管理员设置）</translation>
+      <source>Deafened (by admin)</source>
+      <translation type="unfinished">Deafened (by admin)</translation>
     </message>
     <message>
-        <source>User has a new comment set (click to show)</source>
-        <translation>用户有新简介（点击显示）</translation>
+      <source>User has a new comment set (click to show)</source>
+      <translation type="unfinished">User has a new comment set (click to show)</translation>
     </message>
     <message>
-        <source>User has a comment set, which you&apos;ve already seen. (click to show)</source>
-        <translation>用户的简介已被您看过。（点击显示）</translation>
+      <source>User has a comment set, which you&apos;ve already seen. (click to show)</source>
+      <translation type="unfinished">User has a comment set, which you&apos;ve already seen. (click to show)</translation>
     </message>
     <message>
-        <source>Ignoring Text Messages</source>
-        <translation>忽略文字消息</translation>
+      <source>Ignoring Text Messages</source>
+      <translation type="unfinished">Ignoring Text Messages</translation>
     </message>
     <message>
-        <source>This shows the flags the channel has, if any:</source>
-        <translation>如果有的话，显示此频道的标记：</translation>
+      <source>This shows the flags the channel has, if any:</source>
+      <translation type="unfinished">This shows the flags the channel has, if any:</translation>
     </message>
     <message>
-        <source>Channel has a new comment set (click to show)</source>
-        <translation>频道有新简介（点击显示）</translation>
+      <source>Channel has a new comment set (click to show)</source>
+      <translation type="unfinished">Channel has a new comment set (click to show)</translation>
     </message>
     <message>
-        <source>Channel has a comment set, which you&apos;ve already seen. (click to show)</source>
-        <translation>频道的简介已被您看过。（点击显示）</translation>
+      <source>Channel has a comment set, which you&apos;ve already seen. (click to show)</source>
+      <translation type="unfinished">Channel has a comment set, which you&apos;ve already seen. (click to show)</translation>
     </message>
     <message>
-        <source>Channel will be hidden when filtering is enabled</source>
-        <translation>启用频道筛选时，此频道会被隐藏</translation>
+      <source>Channel will be hidden when filtering is enabled</source>
+      <translation type="unfinished">Channel will be hidden when filtering is enabled</translation>
     </message>
     <message>
-        <source>Name</source>
-        <translation>名称</translation>
+      <source>Name</source>
+      <translation type="unfinished">Name</translation>
     </message>
     <message>
-        <source>Flags</source>
-        <translation>标识</translation>
+      <source>Flags</source>
+      <translation type="unfinished">Flags</translation>
     </message>
     <message>
-        <source>Are you sure you want to drag this user?</source>
-        <translation>确定要移动此用户？</translation>
+      <source>Are you sure you want to drag this user?</source>
+      <translation type="unfinished">Are you sure you want to drag this user?</translation>
     </message>
     <message>
-        <source>Are you sure you want to drag this channel?</source>
-        <translation>确定要移动此频道？</translation>
+      <source>Are you sure you want to drag this channel?</source>
+      <translation type="unfinished">Are you sure you want to drag this channel?</translation>
     </message>
     <message>
-        <source>Cannot perform this movement automatically, please reset the numeric sorting indicators or adjust it manually.</source>
-        <translation>无法自动完成移动操作，请重设或手动调整位置序号。</translation>
+      <source>Cannot perform this movement automatically, please reset the numeric sorting indicators or adjust it manually.</source>
+      <translation type="unfinished">Cannot perform this movement automatically, please reset the numeric sorting indicators or adjust it manually.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>VersionCheck</name>
     <message>
-        <source>Upgrade Mumble</source>
-        <translation>升级 Mumble</translation>
+      <source>Upgrade Mumble</source>
+      <translation type="unfinished">Upgrade Mumble</translation>
     </message>
     <message>
-        <source>A new version of Mumble has been detected and automatically downloaded. It is recommended that you either upgrade to this version, or downgrade to the latest stable release. Do you want to launch the installer now?</source>
-        <translation>已检测到并自动下载新版本 Mumble。推荐您升级到此新版本，或者降级至最新的稳定版。是否立即运行安装程序？</translation>
+      <source>A new version of Mumble has been detected and automatically downloaded. It is recommended that you either upgrade to this version, or downgrade to the latest stable release. Do you want to launch the installer now?</source>
+      <translation type="unfinished">A new version of Mumble has been detected and automatically downloaded. It is recommended that you either upgrade to this version, or downgrade to the latest stable release. Do you want to launch the installer now?</translation>
     </message>
     <message>
-        <source>Failed to launch snapshot installer.</source>
-        <translation>运行快照版本安装程序失败。</translation>
+      <source>Failed to launch snapshot installer.</source>
+      <translation type="unfinished">Failed to launch snapshot installer.</translation>
     </message>
     <message>
-        <source>Corrupt download of new version detected. Automatically removed.</source>
-        <translation>检测到的新版本下载失败。已自动删除。</translation>
+      <source>Corrupt download of new version detected. Automatically removed.</source>
+      <translation type="unfinished">Corrupt download of new version detected. Automatically removed.</translation>
     </message>
     <message>
-        <source>Downloading new snapshot from %1 to %2</source>
-        <translation>从 %1 下载新的快照版本到 %2</translation>
+      <source>Downloading new snapshot from %1 to %2</source>
+      <translation type="unfinished">Downloading new snapshot from %1 to %2</translation>
     </message>
     <message>
-        <source>Failed to write new version to disk.</source>
-        <oldsource>Failed to write new version to disc.</oldsource>
-        <translation>将新版本写入到硬盘失败。</translation>
+      <source>Failed to write new version to disk.</source>
+      <oldsource>Failed to write new version to disc.</oldsource>
+      <translation type="unfinished">Failed to write new version to disk.</translation>
     </message>
     <message>
-        <source>Mumble failed to retrieve version information from the central server.</source>
-        <translation>从中心服务器获取 Mumble 版本信息失败。</translation>
+      <source>Mumble failed to retrieve version information from the central server.</source>
+      <translation type="unfinished">Mumble failed to retrieve version information from the central server.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>ViewCert</name>
     <message>
-        <source>Certificate Chain Details</source>
-        <translation>证书链详情</translation>
+      <source>Certificate Chain Details</source>
+      <translation type="unfinished">Certificate Chain Details</translation>
     </message>
     <message>
-        <source>Certificate chain</source>
-        <translation>证书链</translation>
+      <source>Certificate chain</source>
+      <translation type="unfinished">Certificate chain</translation>
     </message>
     <message>
-        <source>Certificate details</source>
-        <translation>证书详情</translation>
+      <source>Certificate details</source>
+      <translation type="unfinished">Certificate details</translation>
     </message>
     <message>
-        <source>Common Name</source>
-        <translation>通用名称</translation>
+      <source>Common Name</source>
+      <translation type="unfinished">Common Name</translation>
     </message>
     <message>
-        <source>Organization</source>
-        <translation>组织</translation>
+      <source>Organization</source>
+      <translation type="unfinished">Organization</translation>
     </message>
     <message>
-        <source>Subunit</source>
-        <translation>子部门</translation>
+      <source>Subunit</source>
+      <translation type="unfinished">Subunit</translation>
     </message>
     <message>
-        <source>Country</source>
-        <translation>国家</translation>
+      <source>Country</source>
+      <translation type="unfinished">Country</translation>
     </message>
     <message>
-        <source>Locality</source>
-        <translation>城市</translation>
+      <source>Locality</source>
+      <translation type="unfinished">Locality</translation>
     </message>
     <message>
-        <source>State</source>
-        <translation>省份</translation>
+      <source>State</source>
+      <translation type="unfinished">State</translation>
     </message>
     <message>
-        <source>Valid from: %1</source>
-        <translation>有效期始于：%1</translation>
+      <source>Valid from: %1</source>
+      <translation type="unfinished">Valid from: %1</translation>
     </message>
     <message>
-        <source>Valid to: %1</source>
-        <translation>有效期止于：%1</translation>
+      <source>Valid to: %1</source>
+      <translation type="unfinished">Valid to: %1</translation>
     </message>
     <message>
-        <source>Serial: %1</source>
-        <translation>序列号：%1</translation>
+      <source>Serial: %1</source>
+      <translation type="unfinished">Serial: %1</translation>
     </message>
     <message>
-        <source>Public Key: %1 bits %2</source>
-        <translation>公钥：%1 位 %2</translation>
+      <source>Public Key: %1 bits %2</source>
+      <translation type="unfinished">Public Key: %1 bits %2</translation>
     </message>
     <message>
-        <source>RSA</source>
-        <translation>RSA</translation>
+      <source>RSA</source>
+      <translation type="unfinished">RSA</translation>
     </message>
     <message>
-        <source>DSA</source>
-        <translation>DSA</translation>
+      <source>DSA</source>
+      <translation type="unfinished">DSA</translation>
     </message>
     <message>
-        <source>Digest (SHA-1): %1</source>
-        <translation>摘要（SHA-1）：%1</translation>
+      <source>Digest (SHA-1): %1</source>
+      <translation type="unfinished">Digest (SHA-1): %1</translation>
     </message>
     <message>
-        <source>Digest (SHA-256): %1</source>
-        <translation>摘要（SHA-256）：%1</translation>
+      <source>Digest (SHA-256): %1</source>
+      <translation type="unfinished">Digest (SHA-256): %1</translation>
     </message>
     <message>
-        <source>Email: %1</source>
-        <translation>电子邮件：%1</translation>
+      <source>Email: %1</source>
+      <translation type="unfinished">Email: %1</translation>
     </message>
     <message>
-        <source>DNS: %1</source>
-        <translation>DNS：%1</translation>
+      <source>DNS: %1</source>
+      <translation type="unfinished">DNS: %1</translation>
     </message>
     <message>
-        <source>Issued by:</source>
-        <translation>颁发者：</translation>
+      <source>Issued by:</source>
+      <translation type="unfinished">Issued by:</translation>
     </message>
     <message>
-        <source>Unit Name</source>
-        <translation>部门名称</translation>
+      <source>Unit Name</source>
+      <translation type="unfinished">Unit Name</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>VoiceRecorder</name>
     <message>
-        <source>Recorder failed to create directory &apos;%1&apos;</source>
-        <translation>录音机创建目录“%1”失败</translation>
+      <source>Recorder failed to create directory &apos;%1&apos;</source>
+      <translation type="unfinished">Recorder failed to create directory &apos;%1&apos;</translation>
     </message>
     <message>
-        <source>Recorder failed to open file &apos;%1&apos;</source>
-        <translation>录音机打开文件“%1”失败</translation>
+      <source>Recorder failed to open file &apos;%1&apos;</source>
+      <translation type="unfinished">Recorder failed to open file &apos;%1&apos;</translation>
     </message>
     <message>
-        <source>.wav - Uncompressed</source>
-        <translation>.wav - 不压缩</translation>
+      <source>.wav - Uncompressed</source>
+      <translation type="unfinished">.wav - Uncompressed</translation>
     </message>
     <message>
-        <source>.ogg (Vorbis) - Compressed</source>
-        <translation>.ogg (Vorbis) - 压缩</translation>
+      <source>.ogg (Vorbis) - Compressed</source>
+      <translation type="unfinished">.ogg (Vorbis) - Compressed</translation>
     </message>
     <message>
-        <source>.au - Uncompressed</source>
-        <translation>.au - 不压缩</translation>
+      <source>.au - Uncompressed</source>
+      <translation type="unfinished">.au - Uncompressed</translation>
     </message>
     <message>
-        <source>.flac - Lossless compressed</source>
-        <translation>.flac - 无损压缩</translation>
+      <source>.flac - Lossless compressed</source>
+      <translation type="unfinished">.flac - Lossless compressed</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>VoiceRecorderDialog</name>
     <message>
-        <source>Recorder</source>
-        <translation>录音机</translation>
+      <source>Recorder</source>
+      <translation type="unfinished">Recorder</translation>
     </message>
     <message>
-        <source>Control</source>
-        <translation>控制</translation>
+      <source>Control</source>
+      <translation type="unfinished">Control</translation>
     </message>
     <message>
-        <source>00:00:00</source>
-        <translation>00:00:00</translation>
+      <source>00:00:00</source>
+      <translation type="unfinished">00:00:00</translation>
     </message>
     <message>
-        <source>&amp;Start</source>
-        <translation>开始(&amp;S)</translation>
+      <source>&amp;Start</source>
+      <translation type="unfinished">&amp;Start</translation>
     </message>
     <message>
-        <source>S&amp;top</source>
-        <translation>停止(&amp;T)</translation>
+      <source>S&amp;top</source>
+      <translation type="unfinished">S&amp;top</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>模式</translation>
+      <source>Mode</source>
+      <translation type="unfinished">Mode</translation>
     </message>
     <message>
-        <source>Multichannel</source>
-        <translation>多轨</translation>
+      <source>Multichannel</source>
+      <translation type="unfinished">Multichannel</translation>
     </message>
     <message>
-        <source>Output</source>
-        <translation>输出</translation>
+      <source>Output</source>
+      <translation type="unfinished">Output</translation>
     </message>
     <message>
-        <source>Output format</source>
-        <translation>输出格式</translation>
+      <source>Output format</source>
+      <translation type="unfinished">Output format</translation>
     </message>
     <message>
-        <source>Target directory</source>
-        <translation>目标目录</translation>
+      <source>Target directory</source>
+      <translation type="unfinished">Target directory</translation>
     </message>
     <message>
-        <source>Filename</source>
-        <translation>文件名</translation>
+      <source>Filename</source>
+      <translation type="unfinished">Filename</translation>
     </message>
     <message>
-        <source>&amp;Browse...</source>
-        <translation>浏览(&amp;B)...</translation>
+      <source>&amp;Browse...</source>
+      <translation type="unfinished">&amp;Browse...</translation>
     </message>
     <message>
-        <source>Valid variables are:</source>
-        <translation>有效的变量：</translation>
+      <source>Valid variables are:</source>
+      <translation type="unfinished">Valid variables are:</translation>
     </message>
     <message>
-        <source>Inserts the user&apos;s name</source>
-        <translation>插入用户名称</translation>
+      <source>Inserts the user&apos;s name</source>
+      <translation type="unfinished">Inserts the user&apos;s name</translation>
     </message>
     <message>
-        <source>Inserts the current date</source>
-        <translation>插入当前日期</translation>
+      <source>Inserts the current date</source>
+      <translation type="unfinished">Inserts the current date</translation>
     </message>
     <message>
-        <source>Inserts the current time</source>
-        <translation>插入当前时间</translation>
+      <source>Inserts the current time</source>
+      <translation type="unfinished">Inserts the current time</translation>
     </message>
     <message>
-        <source>Inserts the hostname</source>
-        <translation>插入主机名</translation>
+      <source>Inserts the hostname</source>
+      <translation type="unfinished">Inserts the hostname</translation>
     </message>
     <message>
-        <source>Recorder still running</source>
-        <translation>录音机仍在运行</translation>
+      <source>Recorder still running</source>
+      <translation type="unfinished">Recorder still running</translation>
     </message>
     <message>
-        <source>Closing the recorder without stopping it will discard unwritten audio. Do you really want to close the recorder?</source>
-        <translation>不停止录音而直接关闭录音机会导致丢弃未保存的音频。确定要关闭录音机吗？</translation>
+      <source>Closing the recorder without stopping it will discard unwritten audio. Do you really want to close the recorder?</source>
+      <translation type="unfinished">Closing the recorder without stopping it will discard unwritten audio. Do you really want to close the recorder?</translation>
     </message>
     <message>
-        <source>Unable to start recording. Not connected to a server.</source>
-        <translation>无法开始录音。尚未连接到服务器。</translation>
+      <source>Unable to start recording. Not connected to a server.</source>
+      <translation type="unfinished">Unable to start recording. Not connected to a server.</translation>
     </message>
     <message>
-        <source>The server you are currently connected to is version 1.2.2 or older. For privacy reasons, recording on servers of versions older than 1.2.3 is not possible.
+      <source>The server you are currently connected to is version 1.2.2 or older. For privacy reasons, recording on servers of versions older than 1.2.3 is not possible.
 Please contact your server administrator for further information.</source>
-        <translation>当前连接的服务器为 1.2.2 或更早版本。由于隐私原因，不支持在低于版本 1.2.3 的服务器上录音。
-请联系此服务器的管理员获取更多信息。</translation>
+      <translation type="unfinished">The server you are currently connected to is version 1.2.2 or older. For privacy reasons, recording on servers of versions older than 1.2.3 is not possible.
+Please contact your server administrator for further information.</translation>
     </message>
     <message>
-        <source>There is already a recorder active for this server.</source>
-        <translation>此服务器上已经有一个录音机被激活。</translation>
+      <source>There is already a recorder active for this server.</source>
+      <translation type="unfinished">There is already a recorder active for this server.</translation>
     </message>
     <message>
-        <source>Please select a recording format.</source>
-        <translation>请选择录音格式。</translation>
+      <source>Please select a recording format.</source>
+      <translation type="unfinished">Please select a recording format.</translation>
     </message>
     <message>
-        <source>Stopping</source>
-        <translation>正在停止</translation>
+      <source>Stopping</source>
+      <translation type="unfinished">Stopping</translation>
     </message>
     <message>
-        <source>Select target directory</source>
-        <translation>选择目标文件夹</translation>
+      <source>Select target directory</source>
+      <translation type="unfinished">Select target directory</translation>
     </message>
     <message>
-        <source>Downmix</source>
-        <translation>缩混</translation>
+      <source>Downmix</source>
+      <translation type="unfinished">Downmix</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>WASAPIInput</name>
     <message>
-        <source>Access to the microphone was denied. Please check that your operating system&apos;s microphone settings allow Mumble to use the microphone.</source>
-        <translation>访问麦克风的权限被拒绝。请您检查操作系统的麦克风设置，允许 Mumble 使用麦克风。</translation>
+      <source>Access to the microphone was denied. Please check that your operating system&apos;s microphone settings allow Mumble to use the microphone.</source>
+      <translation type="unfinished">Access to the microphone was denied. Please check that your operating system&apos;s microphone settings allow Mumble to use the microphone.</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>WASAPISystem</name>
     <message>
-        <source>Default Device</source>
-        <translation>默认设备</translation>
+      <source>Default Device</source>
+      <translation type="unfinished">Default Device</translation>
     </message>
-</context>
-<context>
+  </context>
+  <context>
     <name>qwPTTButtonWidget</name>
     <message>
-        <source>Mumble PTT</source>
-        <translation>Mumble 按键发言</translation>
+      <source>Mumble PTT</source>
+      <translation type="unfinished">Mumble PTT</translation>
     </message>
     <message>
-        <source>Push to talk</source>
-        <translation>按键发言</translation>
+      <source>Push to talk</source>
+      <translation type="unfinished">Push to talk</translation>
     </message>
-</context>
+  </context>
 </TS>
