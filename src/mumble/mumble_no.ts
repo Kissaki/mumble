@@ -1136,6 +1136,14 @@ Denne verdien gjør at du setter maksimalt antall brukere tillatt i kanalen. Hvi
       <source>Idle action</source>
       <translation type="unfinished">Idle action</translation>
     </message>
+    <message>
+      <source>Access to the microphone was denied. Please allow Mumble to use the microphone by changing the settings in System Preferences -&gt; Security &amp; Privacy -&gt; Privacy -&gt; Microphone.</source>
+      <translation type="unfinished">Access to the microphone was denied. Please allow Mumble to use the microphone by changing the settings in System Preferences -&gt; Security &amp; Privacy -&gt; Privacy -&gt; Microphone.</translation>
+    </message>
+    <message>
+      <source>Access to the microphone was denied. Please check that your operating system&apos;s microphone settings allow Mumble to use the microphone.</source>
+      <translation type="unfinished">Access to the microphone was denied. Please check that your operating system&apos;s microphone settings allow Mumble to use the microphone.</translation>
+    </message>
   </context>
   <context>
     <name>AudioOutput</name>
@@ -3189,13 +3197,6 @@ Hva tjeneren er beskrevet som. Dette er hva tjeneren vil bli navngitt som i din 
     <message>
       <source>&amp;Ignore</source>
       <translation type="unfinished">&amp;Ignore</translation>
-    </message>
-  </context>
-  <context>
-    <name>CoreAudioSystem</name>
-    <message>
-      <source>Default Device</source>
-      <translation>Forvalgt enhet</translation>
     </message>
   </context>
   <context>
@@ -8023,6 +8024,22 @@ An access token is a text string, which can be used as a password for very simpl
     <message>
       <source>Cannot perform this movement automatically, please reset the numeric sorting indicators or adjust it manually.</source>
       <translation>Kan ikke utføre denne bevegelsen automatisk, tilbakestill de numeriske sorteringsindikatorene eller juster dem manuelt.</translation>
+    </message>
+    <message>
+      <source>Talking while being muted on your end</source>
+      <translation type="unfinished">Talking while being muted on your end</translation>
+    </message>
+    <message>
+      <source>This is a channel listener. The corresponding user hears everything you say in this channel.</source>
+      <translation type="unfinished">This is a channel listener. The corresponding user hears everything you say in this channel.</translation>
+    </message>
+    <message>
+      <source>Channel has access restrictions so that you can&apos;t enter it</source>
+      <translation type="unfinished">Channel has access restrictions so that you can&apos;t enter it</translation>
+    </message>
+    <message>
+      <source>Channel has access restrictions but you can enter nonetheless</source>
+      <translation type="unfinished">Channel has access restrictions but you can enter nonetheless</translation>
     </message>
   </context>
   <context>
