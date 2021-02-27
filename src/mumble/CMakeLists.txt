@@ -747,7 +747,7 @@ if(translations)
 		"mumble_zh_TW.ts"
 	)
 
-	create_translations_qrc(${CMAKE_CURRENT_SOURCE_DIR} "${ts_files}" "translations.qrc")
+	create_translations_qrc(${CMAKE_CURRENT_SOURCE_DIR} "${ts_files}" "translations.qrc" "-no-ui-lines -disable-heuristic similartext -locations none -no-obsolete -no-recursive -extensions \"ui,c,cpp,h,mm\"")
 	target_sources(mumble PRIVATE "translations.qrc")
 endif()
 

@@ -33,7 +33,7 @@ function(include_qt_plugin TARGET SCOPE PLUGIN)
 	endif()
 endfunction()
 
-function(create_translations_qrc TS_DIR TS_FILES QRC_FILENAME)
+function(create_translations_qrc TS_DIR TS_FILES QRC_FILENAME OPTIONS)
 	find_pkg(Qt5 COMPONENTS LinguistTools REQUIRED)
 
 	# Workaround for Qt bug: CMake deletes .ts files upon clean.
