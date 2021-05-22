@@ -89,8 +89,7 @@ public class ClientInstaller : MumbleInstall {
 				"mumble_ol.dll",
 				"mumble_ol_helper.exe",
 				"mumble_ol_helper_x64.exe",
-				"mumble_ol_x64.dll",
-				"mumble-g15-helper.exe"
+				"mumble_ol_x64.dll"
 			};
 		} else if (arch == "x86") {
 			// 32 bit
@@ -103,8 +102,7 @@ public class ClientInstaller : MumbleInstall {
 				"mumble.exe",
 				"mumble_app.dll",
 				"mumble_ol.dll",
-				"mumble_ol_helper.exe",
-				"mumble-g15-helper.exe"
+				"mumble_ol_helper.exe"
 			};
 		}
 
