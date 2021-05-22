@@ -33,3 +33,14 @@ IF ERRORLEVEL 1 (
 )
 
 popd
+EXIT /B 0
+
+What is UNITY build?
+       "-DCMAKE_UNITY_BUILD=ON" ^
+ 
+Kissaki:   The build docs say you can manually enable a unity build for compilation speedup.
+           It does not say why it's not a default or why one would not use that though?
+Krzmbrzl:  It's because it breaks the compilation database that is needed for clang-based tools
+           Also incremental builds don't play nice with unity builds as you are usually rebuilding more than would be necessary with a regular build
+Kissaki:   clang based tools would be stuff that operates on the sources, e.g. the source formatter?
+Krzmbrzl:  Yes. Or the clangd language server used in a few IDEs
