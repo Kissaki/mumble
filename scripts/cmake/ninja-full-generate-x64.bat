@@ -23,6 +23,8 @@ cmake -G "Ninja" ^
       "-DCMAKE_TOOLCHAIN_FILE=%VCPKGPATH%/scripts/buildsystems/vcpkg.cmake" ^
       "-DIce_HOME=%VCPKGPATH%/installed/x64-windows-static-md" ^
       "-DCMAKE_BUILD_TYPE=Release" ^
+      "-Dpackaging=ON" ^
+      "-DBUILD_NUMBER=1" ^
       ..\..
 IF ERRORLEVEL 1 (
    pause
