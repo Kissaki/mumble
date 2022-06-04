@@ -179,6 +179,8 @@ set(MUMBLE_SOURCES
 	"Messages.cpp"
 	"MumbleApplication.cpp"
 	"MumbleApplication.h"
+	"MumbleNativeEventFilter.cpp"
+	"MumbleNativeEventFilter.h"
 	"MumbleParameters.cpp"
 	"MumbleParameters.h"
 	"NetworkConfig.cpp"
