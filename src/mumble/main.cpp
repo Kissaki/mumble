@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
 
 	os_init();
 
-	auto params = new MumbleParameters();
+	auto params = new MumbleParameters(a.arguments());
 	if (params.printTranslationDirs) {
 		QString infoString = QObject::tr("The directories in which Mumble searches for extra translation files are:\n");
 

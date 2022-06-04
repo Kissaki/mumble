@@ -9,6 +9,44 @@ MumbleParameters::MumbleParameters() {
 	parse();
 }
 
+QMap< QString, QString > options;
+options["-h, --help"]     = tr("Show this help text and exit.");
+options["-V, --version"]  = tr("Print version information and exit");
+options["-m, --multiple"] = tr("Allow multiple instances of the client to be started.");
+options["-c, --config"]   = tr("Specify an alternative configuration file.\n"
+                                 "If you use this to run multiple instances of Mumble at once, make sure to set an "
+                                 "alternative 'database' value in the config.");
+options["--default-certificate-dir <dir>"] =
+	tr("Specify an alternative default certificate path.\n"
+	   "This path is only used if there is no certificate loaded from the settings.");
+options["-n, --noidentity"]           = tr("Suppress loading of identity files (i.e., certificates.)");
+options["-jn, --jackname <arg>"]      = tr("Set custom Jack client name.");
+options["--license"]                  = tr("Show the Mumble license.");
+options["--authors"]                  = tr("Show the Mumble authors.");
+options["--third-party-licenses"]     = tr("Show licenses for third-party software used by Mumble.");
+options["--window-title-ext <arg>"]   = tr("Sets a custom window title extension.");
+options["--dump-input-streams"]       = tr("Dump PCM streams at various parts of the input chain\n"
+                                                 "(useful for debugging purposes)\n"
+                                                 "- raw microphone input\n"
+                                                 "- speaker readback for echo cancelling\n"
+                                                 "- processed microphone input\n");
+options["--print-echocancel-queue\n"] = tr("Print on stdout the echo cancellation queue state\n"
+										   "(useful for debugging purposes)");
+options["--translation-dir <dir>\n"]  = tr("Specifies an additional translation fir <dir> in which\n"
+                                            "Mumble will search for translation files that overwrite\n"
+                                            "the bundled ones\n"
+                                            "Directories added this way have higher priority than\n"
+                                            "the default locations used otherwise");
+options["--print-translation-dirs\n"] = tr("                Print out the paths in which Mumble will search for\n"
+										   "                translation files that overwrite the bundled ones.\n"
+										   "                (Useful for translators testing their translations)");
+options["--locale <locale>\n"]        = tr("                Overwrite the locale in Mumble's settings with a\n"
+                                                  "                locale that corresponds to the given locale string.\n"
+                                                  "                If the format is invalid, Mumble will error.\n"
+                                                  "                Otherwise the locale will be permanently saved to\n"
+                                                  "                Mumble's settings.");
+
+
 void MumbleParameters::parse() {
 	if (a.arguments().count() > 1) {
 		for (int i = 1; i < args.count(); ++i) {
@@ -30,57 +68,10 @@ void MumbleParameters::parse() {
 								   "The version query parameter has to be set in order to invoke the\n"
 								   "correct client version. It currently defaults to 1.2.0.\n"
 								   "\n"
-								   "Valid options are:\n"
-								   "  -h, --help    Show this help text and exit.\n"
-								   "  -V, --version Print version information and exit\n"
-								   "  -m, --multiple\n"
-								   "                Allow multiple instances of the client to be started.\n"
-								   "  -c, --config\n"
-								   "                Specify an alternative configuration file.\n"
-								   "                If you use this to run multiple instances of Mumble at once,\n"
-								   "                make sure to set an alternative 'database' value in the config.\n"
-								   "  --default-certificate-dir <dir>\n"
-								   "                Specify an alternative default certificate path.\n"
-								   "                This path is only used if there is no certificate loaded\n"
-								   "                from the settings.\n"
-								   "  -n, --noidentity\n"
-								   "                Suppress loading of identity files (i.e., certificates.)\n"
-								   "  -jn, --jackname <arg>\n"
-								   "                Set custom Jack client name.\n"
-								   "  --license\n"
-								   "                Show the Mumble license.\n"
-								   "  --authors\n"
-								   "                Show the Mumble authors.\n"
-								   "  --third-party-licenses\n"
-								   "                Show licenses for third-party software used by Mumble.\n"
-								   "  --window-title-ext <arg>\n"
-								   "                Sets a custom window title extension.\n"
-								   "  --dump-input-streams\n"
-								   "                Dump PCM streams at various parts of the input chain\n"
-								   "                (useful for debugging purposes)\n"
-								   "                - raw microphone input\n"
-								   "                - speaker readback for echo cancelling\n"
-								   "                - processed microphone input\n"
-								   "  --print-echocancel-queue\n"
-								   "                Print on stdout the echo cancellation queue state\n"
-								   "                (useful for debugging purposes)\n"
-								   "  --translation-dir <dir>\n"
-								   "                Specifies an additional translation fir <dir> in which\n"
-								   "                Mumble will search for translation files that overwrite\n"
-								   "                the bundled ones\n"
-								   "                Directories added this way have higher priority than\n"
-								   "                the default locations used otherwise\n"
-								   "  --print-translation-dirs\n"
-								   "                Print out the paths in which Mumble will search for\n"
-								   "                translation files that overwrite the bundled ones.\n"
-								   "                (Useful for translators testing their translations)\n"
-								   "  --locale <locale>\n"
-								   "                Overwrite the locale in Mumble's settings with a\n"
-								   "                locale that corresponds to the given locale string.\n"
-								   "                If the format is invalid, Mumble will error.\n"
-								   "                Otherwise the locale will be permanently saved to\n"
-								   "                Mumble's settings."
-								   "\n");
+								   "Valid options are:\n");
+				QString opts          = for each (auto opt in options) {
+					
+				}
 				QString rpcHelpBanner = MainWindow::tr("Remote controlling Mumble:\n"
 													   "\n");
 				QString rpcHelpMessage =
