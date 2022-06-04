@@ -137,7 +137,6 @@ extern "C" __declspec(dllexport) int main(int argc, char **argv) {
 #else
 int main(int argc, char **argv) {
 #endif
-	int res = 0;
 
 #if defined(Q_OS_WIN)
 	int ret = os_early_init();
@@ -799,6 +798,7 @@ int main(int argc, char **argv) {
 		Global::get().mw->on_qaServerConnect_triggered(true);
 	}
 
+	int res = 0;
 	if (!Global::get().bQuit)
 		res = a.exec();
 
