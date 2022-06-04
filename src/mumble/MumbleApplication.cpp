@@ -23,6 +23,18 @@ MumbleApplication *MumbleApplication::instance() {
 MumbleApplication::MumbleApplication(int &pargc, char **pargv) : QApplication(pargc, pargv) {
 	connect(this, SIGNAL(commitDataRequest(QSessionManager &)), SLOT(onCommitDataRequest(QSessionManager &)),
 			Qt::DirectConnection);
+	setApplicationName(QLatin1String("Mumble"));
+	setOrganizationName(QLatin1String("Mumble"));
+	setOrganizationDomain(QLatin1String("mumble.sourceforge.net"));
+	setQuitOnLastWindowClosed(false);
+
+#if QT_VERSION >= 0x050700
+	a.setDesktopFileName("info.mumble.Mumble");
+#endif
+
+#if QT_VERSION >= 0x050100
+	a.setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
 }
 
 QString MumbleApplication::applicationVersionRootPath() {

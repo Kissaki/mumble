@@ -155,18 +155,6 @@ int main(int argc, char **argv) {
 
 	// Initialize application object.
 	MumbleApplication a(argc, argv);
-	a.setApplicationName(QLatin1String("Mumble"));
-	a.setOrganizationName(QLatin1String("Mumble"));
-	a.setOrganizationDomain(QLatin1String("mumble.sourceforge.net"));
-	a.setQuitOnLastWindowClosed(false);
-
-#if QT_VERSION >= 0x050700
-	a.setDesktopFileName("info.mumble.Mumble");
-#endif
-
-#if QT_VERSION >= 0x050100
-	a.setAttribute(Qt::AA_UseHighDpiPixmaps);
-#endif
 
 #ifdef Q_OS_WIN
 	a.installNativeEventFilter(&a);
