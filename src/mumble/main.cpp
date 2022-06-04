@@ -156,10 +156,6 @@ int main(int argc, char **argv) {
 	// Initialize application object.
 	MumbleApplication a(argc, argv);
 
-#ifdef Q_OS_WIN
-	a.installNativeEventFilter(&a);
-#endif
-
 	MumbleSSL::initialize();
 
 	// This argument has to be parsed first, since it's value is needed to create the global struct,

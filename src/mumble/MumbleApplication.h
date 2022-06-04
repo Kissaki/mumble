@@ -9,18 +9,10 @@
 #include <QApplication>
 #include <QUrl>
 
-#ifdef Q_OS_WIN
-#	include <QAbstractNativeEventFilter>
-#endif
-
 /**
  * @brief Implements custom system shutdown behavior as well as event filtering.
  */
-#ifdef Q_OS_WIN
-class MumbleApplication : public QApplication, public QAbstractNativeEventFilter {
-#else
 class MumbleApplication : public QApplication {
-#endif
 	Q_OBJECT
 public:
 	/// The instance function returns an instance
@@ -48,9 +40,6 @@ public:
 	QString applicationVersionRootPath();
 
 	bool event(QEvent *e) Q_DECL_OVERRIDE;
-#ifdef Q_OS_WIN
-	bool nativeEventFilter(const QByteArray &eventType, void *message, long *result) Q_DECL_OVERRIDE;
-#endif
 
 	QUrl quLaunchURL;
 
